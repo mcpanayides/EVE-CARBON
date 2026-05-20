@@ -6,6 +6,7 @@ let selectedTE       = 2;
 let currentResults   = null;
 let allLibBPs        = [];
 let searchTimer      = null;
+let currentSort = 'name'; // Default sort
 
 const ESI_IMAGE = 'https://images.evetech.net/types';
 
@@ -65,7 +66,6 @@ function openExternal(url) {
 
 // ─── Event Binding ────────────────────────────────────────────────────────────
 function bindEvents() {
-  // 1. Wire up the "Add Account" (+) button
   const addAccountBtn = document.querySelector('.accounts-header .btn, #add-account-btn, .add-btn');
   if (addAccountBtn) {
     addAccountBtn.addEventListener('click', async () => {
@@ -77,22 +77,31 @@ function bindEvents() {
       }
     });
   }
+  // Sort Filter Dropdown
+  const libSort = document.getElementById('bpLibSort');
+  if (libSort) {
+    libSort.addEventListener('change', () => handleLibraryFilter());
+  }
+  // Wire up Library Search & Advanced Filters
+  const libInputs = [
+    document.getElementById('bpLibSearch'),
+    document.getElementById('bpLibMinME'),
+    document.getElementById('bpLibMinTE'),
+    document.getElementById('bpLibMinRuns')
+  ];
 
-  // 2. Wire up Manual Blueprint Search
-  const libSearch = document.getElementById('bpLibSearch');
-  const libFilter = document.getElementById('bpLibFilter');
-
-  if (libSearch) {
-    libSearch.addEventListener('input', () => {
+  libInputs.forEach(input => {
+    if (input) input.addEventListener('input', () => {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => handleLibraryFilter(), 300);
     });
-  }
+  });
   
+  const libFilter = document.getElementById('bpLibFilter');
   if (libFilter) {
     libFilter.addEventListener('change', () => handleLibraryFilter());
   }
-} // <--- THIS BRACKET WAS MISSING, WHICH CRASHED THE APP!
+}
 
 // ─── Accounts Management ──────────────────────────────────────────────────────
 async function loadAccounts() {
@@ -180,28 +189,55 @@ async function loadBlueprintLibrary() {
   }
 }
 
+// ─── Filter Logic ─────────────────────────────────────────────────────────────
 function handleLibraryFilter() {
+  // 1. Get the UI values first
   const query = (document.getElementById('bpLibSearch')?.value || '').toLowerCase();
   const filterMode = document.getElementById('bpLibFilter')?.value || 'all';
+  const sortBy = document.getElementById('bpLibSort')?.value || 'name'; // Correctly fetch sort value
+  
+  // Grab the advanced filter values
+  const minME = parseInt(document.getElementById('bpLibMinME')?.value) || 0;
+  const minTE = parseInt(document.getElementById('bpLibMinTE')?.value) || 0;
+  const minRuns = parseInt(document.getElementById('bpLibMinRuns')?.value) || 0;
 
+  // 2. Perform the filtering
   const filtered = allLibBPs.filter(bp => {
     const matchesName = bp.name.toLowerCase().includes(query);
     const matchesType = filterMode === 'all' || 
                        (filterMode === 'bpo' && !bp.isBPC) || 
                        (filterMode === 'bpc' && bp.isBPC);
-    return matchesName && matchesType;
+    
+    const matchesME = bp.me >= minME;
+    const matchesTE = bp.te >= minTE;
+    const matchesRuns = (!bp.isBPC) || (bp.runs >= minRuns);
+
+    return matchesName && matchesType && matchesME && matchesTE && matchesRuns;
   });
 
-  renderBlueprintList(filtered);
+  // 3. Perform the sort
+  const sorted = sortBlueprints(filtered, sortBy);
+  
+  // 4. Update the UI
+  renderBlueprintList(sorted);
 }
 
+// ─── Sort Helper (Must be outside the filter function) ─────────────────────────
+function sortBlueprints(bps, criteria) {
+  // We use [...bps] to create a copy so we don't mutate the original array
+  return [...bps].sort((a, b) => {
+    if (criteria === 'me') return b.me - a.me;
+    if (criteria === 'te') return b.te - a.te;
+    if (criteria === 'runs') return (b.runs || 0) - (a.runs || 0);
+    return a.name.localeCompare(b.name); // Default: Name
+  });
+}
+// ─── Render Library ───────────────────────────────────────────────────────────
 function renderBlueprintList(bps) {
   const listDiv = document.getElementById('bpLibList');
   const countSpan = document.getElementById('bpLibCount');
   
   if (!listDiv) return;
-
-  // Update the counter
   if (countSpan) countSpan.textContent = bps.length;
 
   listDiv.innerHTML = '';
@@ -210,15 +246,13 @@ function renderBlueprintList(bps) {
     listDiv.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1; margin-top: 40px;">
       <div class="empty-icon">⬡</div>
       <div class="empty-title">NO BLUEPRINTS FOUND</div>
-      <div class="empty-sub">Sync a character or change your filter settings.</div>
+      <div class="empty-sub">Sync a character or adjust your advanced filter settings.</div>
     </div>`;
     return;
   }
 
-  // Draw each blueprint card
   bps.forEach(bp => {
     const item = document.createElement('div');
-    // Upgraded Grid Card Styling
     item.style.cssText = 'display:flex; gap:15px; padding:15px; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; cursor:pointer; align-items:center; transition:all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.3);';
     
     item.onmouseenter = () => {
@@ -232,18 +266,19 @@ function renderBlueprintList(bps) {
       item.style.transform = 'translateY(0)';
     };
 
-    // --- NEW PROGRESS BAR LOGIC ---
-    // Calculate percentages (Max ME is 10, Max TE is 20)
     const mePct = Math.min(100, Math.max(0, (bp.me / 10) * 100));
     const tePct = Math.min(100, Math.max(0, (bp.te / 20) * 100));
 
-    // Pop the colors to neon if they are fully researched, otherwise keep them muted
-    const meColor = bp.me === 10 ? 'var(--success)' : '#6888a8';
-    const teColor = bp.te === 20 ? 'var(--accent)' : '#6888a8';
+    // CONSTANT BLUE & GREEN COLORS (Added an extra neon glow if they hit max!)
+    const meColor = bp.me === 10 ? '#51e923' : '#77c99c'; // Green
+    const teColor = bp.te === 20 ? '#00e5ff' : '#46b8c5'; // Blue
 
+    // --- STANDARDIZED BADGE STYLE ---
+    const badgeStyle = "display:inline-block; min-width:65px; text-align:center; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:bold; flex-shrink:0;";
+    
     const typeBadge = bp.isBPC 
-      ? `<span style="background:#1b2a40; color:#4ada8a; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold;">${bp.runs} RUNS</span>`
-      : `<span style="background:#1b2a40; color:#ab7ab8; padding:2px 6px; border-radius:3px; font-size:10px; font-weight:bold;">BPO</span>`;
+      ? `<span style="${badgeStyle} background:#1b2a40; color:#4ada8a;">${bp.runs} RUNS</span>`
+      : `<span style="${badgeStyle} background:#1b2a40; color:#ab7ab8;">BPO</span>`;
 
     item.innerHTML = `
       <img src="https://images.evetech.net/types/${bp.type_id}/bp?size=64" 
@@ -273,17 +308,51 @@ function renderBlueprintList(bps) {
           ${typeBadge}
         </div>
       </div>
-      
       <img src="https://images.evetech.net/characters/${bp.characterId}/portrait?size=32" 
            loading="lazy"
            title="Owned by ${escHtml(bp.characterName)}" 
            style="width:24px; height:24px; border-radius:50%; border:1px solid var(--border); opacity: 0.6;">
     `;
     
-    item.onclick = () => console.log(`Selected ${bp.name}`); 
+    item.onclick = () => loadBpDetails(bp); 
     
     listDiv.appendChild(item);
   });
+}
+
+// ─── Blueprint Details Engine ────────────────────────────────────────────────
+async function loadBpDetails(bp) {
+  showToast(`Loading materials for ${bp.name}...`, 'info');
+  
+  // 1. Fetch from Fuzzwork (via your main.js IPC)
+  const data = await window.eveAPI.getBlueprintMaterials(bp.type_id);
+  
+  if (!data) {
+    showToast("Could not fetch materials.", "error");
+    return;
+  }
+
+  // 2. Clear library view and show the results area
+  document.getElementById('mainLibraryView').style.display = 'none';
+  const resArea = document.getElementById('results');
+  resArea.style.display = 'block';
+  
+  // 3. Render the Materials (using a simple template for now)
+  resArea.innerHTML = `
+    <div class="panel" style="padding:20px;">
+      <button onclick="backToLibrary()" style="margin-bottom:10px;">← Back to Library</button>
+      <h2>${bp.name}</h2>
+      <p>Materials for 1 run (ME ${bp.me}):</p>
+      <ul style="list-style:none;">
+        ${data.materials.map(m => `<li>${m.name} x ${m.quantity}</li>`).join('')}
+      </ul>
+    </div>
+  `;
+}
+
+function backToLibrary() {
+  document.getElementById('mainLibraryView').style.display = 'flex';
+  document.getElementById('results').style.display = 'none';
 }
 
 // ─── Placeholder Functions (To prevent crashes) ───────────────────────────────

@@ -118,12 +118,22 @@
       <div class="bp-filter-row" style="padding:15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
         <input type="text" id="bpLibSearch" class="field-input" style="flex:1; min-width:200px; font-size:14px; padding:10px;" placeholder="Search your blueprint library..."/>
         
+        <!-- Added this filter dropdown -->
+
         <select id="bpLibFilter" class="field-input" style="width:160px; padding:10px;">
           <option value="all">All Blueprints</option>
           <option value="bpo">BPO (Originals) Only</option>
           <option value="bpc">BPC (Copies) Only</option>
         </select>
 
+        <!-- Added this sorting dropdown -->
+
+        <select id="bpLibSort" class="field-input" style="width:160px; padding:10px;">
+          <option value="name">Name</option>
+          <option value="me">ME High-Low</option>
+          <option value="te">TE High-Low</option>
+          <option value="runs">Runs Remaining</option>
+        </select>
         <input type="number" id="bpLibMinME" class="field-input" style="width:90px; padding:10px;" placeholder="Min ME" min="0" max="10">
         <input type="number" id="bpLibMinTE" class="field-input" style="width:90px; padding:10px;" placeholder="Min TE" min="0" max="20">
         <input type="number" id="bpLibMinRuns" class="field-input" style="width:100px; padding:10px;" placeholder="Min Runs" min="1">

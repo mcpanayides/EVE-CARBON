@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>EVE BPC Calculator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+<div class="titlebar">
+  <div class="titlebar-left">
+    <span class="titlebar-icon">⬡</span>
+    <span class="titlebar-title">EVE Carbon</span>
+    <span class="titlebar-sep">·</span>
+    <span class="titlebar-subtitle">Brought to you by Ms Moirai - Aesir Cabal // Fenris Creations ESI</span>
+  </div>
+  <div class="titlebar-right">
+    <span class="esi-badge">⬡ ESI LIVE</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <div class="sidebar">
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">◈</span>
+        <span>ACCOUNTS</span>
+        <button class="add-btn" title="Add character">+</button>
+      </div>
+      <div id="accountsList" class="accounts-list">
+        <div class="accounts-empty">No characters added yet.<br/>Click + to log in with EVE SSO.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-icon">◑</span><span>MANUAL SEARCH</span></div>
+      <div class="field-group">
+        <label class="field-label">BLUEPRINT NAME</label>
+        <div class="search-wrap">
+          <input type="text" id="bpName" class="field-input" placeholder="Type to search..." autocomplete="off"/>
+          <div id="searchDropdown" class="dropdown" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="selectedBpCard" class="selected-bp-card" style="display:none;">
+      <img id="selectedBpIcon" src="" alt="" class="bp-card-icon"/>
+      <div class="bp-card-info">
+        <div id="selectedBpName" class="bp-card-name"></div>
+        <div id="selectedBpMeta" class="bp-card-id"></div>
+      </div>
+      <button class="bp-card-clear" onclick="clearSelection()">✕</button>
+    </div>
+
+    <div class="panel" id="researchPanel" style="display:none;">
+      <div class="panel-header"><span class="panel-icon">◆</span><span>RESEARCH & FACILITY</span></div>
+      <div class="field-group">
+        <label class="field-label">ME % <span id="meDisplay" class="val-display">3</span></label>
+        <input type="range" id="meSlider" min="0" max="10" value="3" step="1" class="slider" oninput="syncME(this.value)"/>
+      </div>
+      <div class="field-group">
+        <label class="field-label">TE % <span id="teDisplay" class="val-display">2</span></label>
+        <input type="range" id="teSlider" min="0" max="20" value="2" step="2" class="slider" oninput="syncTE(this.value)"/>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">RUNS</label>
+          <input type="number" id="runs" class="field-input" value="1" min="1" max="99999"/>
+        </div>
+        <div class="field-group">
+          <label class="field-label">COPIES</label>
+          <input type="number" id="copies" class="field-input" value="1" min="1" max="9999"/>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">STRUCTURE BONUS</label>
+        <select id="structME" class="field-input">
+          <option value="0">No bonus (NPC)</option>
+          <option value="1">1.0% (Raitaru/Azbel)</option>
+          <option value="1.9">1.9% (Sotiyo)</option>
+          <option value="2">2.0% (Max)</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">IMPLANT BONUS</label>
+        <select id="implantBonus" class="field-input">
+          <option value="0">None</option>
+          <option value="1">1% (BX-801)</option>
+          <option value="2">2% (BX-802)</option>
+          <option value="4">4% (BX-804)</option>
+        </select>
+      </div>
+      <div class="tier-toggles">
+        <label class="checkbox-label"><input type="checkbox" id="showT3" checked/> Components</label>
+        <label class="checkbox-label"><input type="checkbox" id="showT2" checked/> Reactions</label>
+        <label class="checkbox-label"><input type="checkbox" id="showT1" checked/> Processed</label>
+        <label class="checkbox-label"><input type="checkbox" id="showT0" checked/> Raw</label>
+      </div>
+      <button class="calc-btn" id="calcBtn" onclick="calculate()">⬡ CALCULATE</button>
+      <div id="statusMsg" class="status-msg"></div>
+    </div>
+
+  </div>
+
+  <div class="main-content" style="display:flex; flex-direction:column; padding:20px;">
+    
+    <div class="panel" id="mainLibraryView" style="display:flex; flex-direction:column; height:100%;">
+      <div class="panel-header">
+        <span class="panel-icon">◎</span>
+        <span>MY BLUEPRINT LIBRARY</span>
+        <span id="bpLibCount" class="panel-count" style="margin-left:auto; background:var(--accent); color:#000; padding:2px 8px; border-radius:10px; font-weight:bold;">0</span>
+      </div>
+      
+      <div class="bp-filter-row" style="padding:15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
+        <input type="text" id="bpLibSearch" class="field-input" style="flex:1; min-width:200px; font-size:14px; padding:10px;" placeholder="Search your blueprint library..."/>
+        
+        <select id="bpLibFilter" class="field-input" style="width:160px; padding:10px;">
+          <option value="all">All Blueprints</option>
+          <option value="bpo">BPO (Originals) Only</option>
+          <option value="bpc">BPC (Copies) Only</option>
+        </select>
+
+        <input type="number" id="bpLibMinME" class="field-input" style="width:90px; padding:10px;" placeholder="Min ME" min="0" max="10">
+        <input type="number" id="bpLibMinTE" class="field-input" style="width:90px; padding:10px;" placeholder="Min TE" min="0" max="20">
+        <input type="number" id="bpLibMinRuns" class="field-input" style="width:100px; padding:10px;" placeholder="Min Runs" min="1">
+      </div>
+      
+      <div id="bpLibList" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:15px; padding:15px; overflow-y:auto; flex:1;">
+        <div class="empty-state" style="grid-column: 1 / -1;">
+          <div class="empty-icon">⬡</div>
+          <div class="empty-title">LIBRARY EMPTY</div>
+          <div class="empty-sub">Sync a character from the sidebar to populate your blueprints.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="results" class="results-area" style="display:none;"></div>
+
+  </div>
+
+</div>
+
+<script src="categories.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

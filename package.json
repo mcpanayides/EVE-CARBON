@@ -1,0 +1,55 @@
+{
+  "name": "EVE-Carbon",
+  "productName": "EVE Carbon",
+  "version": "1.0.0",
+  "author": "Mia Christina Panayides",
+  "description": "This is a desktop application built with Electron that calculates the cost of manufacturing items in EVE Online based on their blueprints and market prices.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.eve.bpc-calculator",
+    "productName": "EVE BPC Calculator",
+    "icon": "assets/icon.ico",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/.cache",
+      "!**/*.map"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
+}

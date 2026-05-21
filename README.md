@@ -1,6 +1,6 @@
-# EVE BPC Material Calculator
-
-A desktop application for EVE Online players to calculate full multi-tier material requirements for any blueprint, with ME/TE research level support.
+# EVE Carbon
+A desktop application for EVE Online players to deal with anything that might arise on a day-to-day activity in EVE online.
+Its starting out as an industrial calculate full multi-tier material requirements for any blueprint, with ME/TE research level support.
 
 ## Features
 
@@ -32,7 +32,7 @@ A desktop application for EVE Online players to calculate full multi-tier materi
    ```
    npm run build-win
    ```
-   The installer will be in `dist/EVE BPC Calculator Setup x.x.x.exe`
+   The installer will be in `dist/EVE Carbon Setup x.x.x.exe`
 
 3. **Or just run it without building:**
    ```

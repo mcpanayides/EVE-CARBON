@@ -3,3 +3,6 @@ node_modules/
 blueprints.json
 config.json
 dist/
+data/
+data/sde.sql
+tmp_electron_extracted/

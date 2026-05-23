@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>EVE BPC Calculator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 </head>
 <body>
 <div class="titlebar">
@@ -24,15 +25,73 @@
 <div class="layout">
 
   <div class="sidebar">
-
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-icon">◈</span>
-        <span>ACCOUNTS</span>
-        <button class="add-btn" title="Add character">+</button>
+    <div class="panel nav-panel">
+      <div class="panel-header nav-header">
+        <span class="panel-icon">⬡</span>
+        <span class="nav-title">NAVIGATION</span>
+        <button id="navToggleBtn" class="nav-toggle-btn" title="Collapse/Expand navigation">▶</button>
       </div>
-      <div id="accountsList" class="accounts-list">
-        <div class="accounts-empty">No characters added yet.<br/>Click + to log in with EVE SSO.</div>
+      <nav id="sidebarNav" class="sidebar-nav expanded">
+        <button class="nav-btn nav-btn-characters" data-page="characters" title="Characters">
+          <span class="nav-icon">⚔</span>
+          <span class="nav-label">Characters</span>
+        </button>
+        <button class="nav-btn nav-btn-dashboard" data-page="dashboard" title="Dashboard">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Dashboard</span>
+        </button>
+        <!-- FIX: corrected mismatched tags on industry nav button -->
+        <div class="nav-item-with-menu">
+          <button class="nav-btn nav-btn-industry" data-page="industry" title="Industry">
+            <span class="nav-icon">⚙</span>
+            <span class="nav-label">Industry</span>
+          </button>
+        </div>
+        <button class="nav-btn nav-btn-assets" data-page="assets" title="Assets">
+          <span class="nav-icon">📦</span>
+          <span class="nav-label">Assets</span>
+        </button>
+        <button class="nav-btn nav-btn-wallets" data-page="wallets" title="Wallets">
+          <span class="nav-icon">💰</span>
+          <span class="nav-label">Wallets</span>
+        </button>
+        <button class="nav-btn nav-btn-fc" data-page="fc" title="Fleet Commander">
+          <span class="nav-icon">⚡</span>
+          <span class="nav-label">Fleet Commander</span>
+        </button>
+        <button class="nav-btn nav-btn-map" data-page="map" title="Map">
+          <span class="nav-icon">🗺</span>
+          <span class="nav-label">Map</span>
+        </button>
+        <button class="nav-btn nav-btn-pi" data-page="pi" title="Planetary Interaction">
+          <span class="nav-icon">🪐</span>
+          <span class="nav-label">Planetary Interaction</span>
+        </button>
+        <button class="nav-btn nav-btn-forums" data-page="forums" title="Forums">
+          <span class="nav-icon">💬</span>
+          <span class="nav-label">Forums</span><span class="status-light status-offline" title="Disconnected"></span>
+        </button>
+        <button class="nav-btn nav-btn-jabber" data-page="jabber" title="Jabber">
+          <span class="nav-icon">📢</span>
+          <span class="nav-label">Jabber</span>
+          <span class="nav-status" id="jabberNavStatus"><span class="status-light status-offline" title="Disconnected"></span></span>
+        </button>
+        <button class="nav-btn nav-btn-market" data-page="market" title="Market">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">Market</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Active Character Display Panel -->
+    <div id="activeCharPanel" class="panel active-char-panel" style="display:none;">
+      <div class="active-char-header">ACTIVE CHARACTER</div>
+      <div class="active-char-card">
+        <img id="activeCharPortrait" src="" alt="active" class="active-char-portrait" />
+        <div class="active-char-info">
+          <div id="activeCharName" class="active-char-name">None</div>
+          <div id="activeCharID" class="active-char-id">—</div>
+        </div>
       </div>
     </div>
 
@@ -103,31 +162,273 @@
       <button class="calc-btn" id="calcBtn" onclick="calculate()">⬡ CALCULATE</button>
       <div id="statusMsg" class="status-msg"></div>
     </div>
+    <button id="openSettingsBtn" class="settings-fab" title="Open UI Settings">⚙</button>
 
   </div>
 
-  <div class="main-content" style="display:flex; flex-direction:column; padding:20px;">
-    
-    <div class="panel" id="mainLibraryView" style="display:flex; flex-direction:column; height:100%;">
+  <div class="main-content">
+
+    <div id="navPagesContainer" class="panel pages-panel" style="display:none; height:100%; min-width:0; overflow:hidden; flex:1;">
+
+      <!-- Characters Page -->
+      <div id="page-characters" class="nav-page active" style="flex-direction:column; height:100%; min-width:0; overflow:hidden;">
+        <div class="page-header">
+          <div>
+            <h2>Characters</h2>
+            <div class="page-description">The first character is selected by default on startup. Drag cards to reorder your character list.</div>
+          </div>
+          <button class="close-page-btn" onclick="closePage('characters')">✕</button>
+        </div>
+        <div id="selectedCharacterSection" style="display:none; padding:20px; border-bottom:1px solid var(--border); background:var(--bg-card);">
+          <div class="selected-character-card">
+            <div style="display:flex; gap:16px; align-items:center;">
+              <img id="selectedCharPortrait" src="" alt="" style="width:64px; height:64px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;" />
+              <div style="flex:1;">
+                <div style="font-size:11px; color:var(--text-2); letter-spacing:0.1em; margin-bottom:4px; font-weight:600;">SELECTED CHARACTER</div>
+                <div id="selectedCharName" style="font-size:18px; font-weight:600; color:var(--text-1); margin-bottom:4px;">No Character Selected</div>
+                <div id="selectedCharMeta" style="font-size:10px; color:var(--text-3); font-family:var(--mono);"></div>
+              </div>
+              <button class="char-action-btn" onclick="clearSelectedCharacter()" title="Clear selection">✕</button>
+            </div>
+          </div>
+        </div>
+        <div class="char-filter-row" style="padding:15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
+          <input type="text" id="charSearch" class="field-input" style="flex:1; min-width:200px; font-size:14px; padding:10px;" placeholder="Search characters..." />
+          <button class="add-character-btn" id="addCharacterNavBtn" title="Add character">+ ADD CHARACTER</button>
+        </div>
+        <div id="accountsListNav" class="accounts-grid">
+          <div class="empty-state" style="width:100%;">
+            <div class="empty-icon">⬡</div>
+            <div class="empty-title">NO CHARACTERS</div>
+            <div class="empty-sub">Click + ADD CHARACTER to login with EVE SSO.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Page -->
+      <div id="page-dashboard" class="nav-page" style="flex-direction:column; height:100%; min-width:0; overflow:hidden;">
+        <div class="page-header">
+          <div>
+            <h2>Dashboard</h2>
+            <div class="page-description">Command center — net worth, industry jobs, and character status.</div>
+          </div>
+          <button class="close-page-btn" onclick="closePage('dashboard')">&#x2715;</button>
+        </div>
+        <div class="page-content" style="display:flex; flex-direction:column; gap:16px; padding:16px; overflow-y:auto;">
+          <div id="dashboardWelcomeBanner" class="dashboard-welcome-banner">
+            <div class="dashboard-welcome-inner">
+              <div class="dashboard-welcome-placeholder">
+                <span style="font-size:32px;color:var(--border-b);">&#x2B21;</span>
+              </div>
+              <div class="dashboard-welcome-text">
+                <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+                <div id="dashboardMainCharName" class="dashboard-welcome-name">Loading...</div>
+              </div>
+            </div>
+          </div>
+          <div id="dashboardContent" class="dashboard-grid" style="position:relative;">
+            <div class="dashboard-panel" id="dashboardSummaryPanel">
+              <div class="dashboard-panel-title">&#x2B21; NET WORTH &amp; WEALTH GROWTH</div>
+              <div id="dashboardNetworthSummary">
+                <div class="loading-row">Loading...</div>
+              </div>
+            </div>
+            <div class="dashboard-panel" id="dashboardJobsPanel">
+              <div class="dashboard-panel-title">&#x25C8; FINISHED INDUSTRY JOBS</div>
+              <div id="dashboardJobsTable">
+                <div class="loading-row">Loading jobs...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Industry Page -->
+      <!-- FIX: closed industry page div properly; asset/wallet pages are now siblings not children -->
+      <div id="page-industry" class="nav-page" style="flex-direction:column; height:100%; overflow:hidden;">
+        <div class="page-header">
+          <div>
+            <h2>Industry</h2>
+            <div class="page-description">Manufacturing, blueprints, reactions and more.</div>
+          </div>
+          <button class="close-page-btn" onclick="closePage('industry')">✕</button>
+        </div>
+        <div class="industry-layout">
+          <div class="industry-subnav">
+            <div class="industry-subnav-label">TOOLS</div>
+            <button class="industry-sub-btn" data-industry-tab="blueprints"><span class="industry-sub-icon">⬡</span>My Blueprints</button>
+            <button class="industry-sub-btn" data-industry-tab="search"><span class="industry-sub-icon">◑</span>BP Search</button>
+            <button class="industry-sub-btn" data-industry-tab="active-jobs"><span class="industry-sub-icon">◈</span>Active Jobs</button>
+            <button class="industry-sub-btn" data-industry-tab="calculator"><span class="industry-sub-icon">⚙</span>Calculator</button>
+            <button class="industry-sub-btn" data-industry-tab="cost-index"><span class="industry-sub-icon">◎</span>Cost Index</button>
+            <button class="industry-sub-btn" data-industry-tab="shopping-lists"><span class="industry-sub-icon">⬡</span>Shopping Lists</button>
+            <button class="industry-sub-btn" data-industry-tab="invention"><span class="industry-sub-icon">◆</span>Invention Buddy</button>
+            <button class="industry-sub-btn" data-industry-tab="reactions"><span class="industry-sub-icon">◈</span>Reactions Profit</button>
+            <button class="industry-sub-btn" data-industry-tab="ore"><span class="industry-sub-icon">⬡</span>Ore Calculator</button>
+            <button class="industry-sub-btn" data-industry-tab="ice"><span class="industry-sub-icon">⬡</span>Ice Calculator</button>
+            <button class="industry-sub-btn" data-industry-tab="gas"><span class="industry-sub-icon">⬡</span>Gas Calculator</button>
+            <button class="industry-sub-btn" data-industry-tab="moon"><span class="industry-sub-icon">◎</span>Moon Scanning</button>
+          </div>
+          <div id="industryTabContent" class="industry-content">
+            <div class="empty-state" style="margin-top:80px;">
+              <div class="empty-icon">⬡</div>
+              <div class="empty-title">SELECT A TOOL</div>
+              <div class="empty-sub">Choose an option from the panel on the left.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assets Page -->
+      <div id="page-assets" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <div>
+            <h2>Assets</h2>
+            <div class="page-description">Sync assets for all characters into the local database, then view them in a clean Jita 4-4 value table.</div>
+          </div>
+          <button class="close-page-btn" onclick="closePage('assets')">✕</button>
+        </div>
+        <div class="page-content" style="display:flex; flex-direction:column; gap:16px;">
+          <div class="asset-toolbar">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button id="syncAssetsBtn" class="add-character-btn">⟳ Sync Assets</button>
+              <span id="syncSpinner" class="sync-spinner" style="display:none;" aria-hidden="true"></span>
+            </div>
+            <span id="assetSummary" class="asset-summary">No assets imported yet.</span>
+          </div>
+          <div id="assetTableWrapper" class="asset-table-wrapper">
+            <table id="assetTable" class="asset-table">
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th>Item</th>
+                  <th>Location</th>
+                  <th>Constellation</th>
+                  <th>Region</th>
+                  <th>Sec</th>
+                  <th>Corporation</th>
+                  <th>Jita 4-4 Value</th>
+                  <th>Volume (m³)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="5" class="loading-row">No assets loaded yet. Click Sync Assets to import.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wallets Page -->
+      <div id="page-wallets" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Wallets</h2>
+          <button class="close-page-btn" onclick="closePage('wallets')">✕</button>
+        </div>
+        <div class="page-content">
+          <p>Just a quick overview of your wallets</p>
+          <div id="walletsPage" class="page-content">
+            <div class="wallets-grid" id="walletsGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FC Page -->
+      <div id="page-fc" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Fleet Commander</h2>
+          <button class="close-page-btn" onclick="closePage('fc')">✕</button>
+        </div>
+        <div class="page-content"><p>Fleet command tools and information - coming soon</p></div>
+      </div>
+
+      <!-- Map Page -->
+      <div id="page-map" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Map</h2>
+          <button class="close-page-btn" onclick="closePage('map')">✕</button>
+        </div>
+        <div class="page-content"><p>Map and navigation page - coming soon</p></div>
+      </div>
+
+      <!-- PI Page -->
+      <div id="page-pi" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Planetary Interaction</h2>
+          <button class="close-page-btn" onclick="closePage('pi')">✕</button>
+        </div>
+        <div class="page-content"><p>Planetary Interaction management - coming soon</p></div>
+      </div>
+
+      <!-- Forums Page -->
+      <div id="page-forums" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Forums</h2>
+          <button class="close-page-btn" onclick="closePage('forums')">✕</button>
+        </div>
+        <div class="page-content"><p>Forums and community links - coming soon</p></div>
+      </div>
+
+      <!-- Jabber Page -->
+      <div id="page-jabber" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Jabber</h2>
+          <button class="close-page-btn" onclick="closePage('jabber')">✕</button>
+        </div>
+        <div class="page-content" style="display:flex; flex-direction:column; gap:18px;">
+          <div class="panel" style="padding:16px; background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;">
+            <div style="font-size:13px; color:var(--text-2); line-height:1.5;">
+              Jabber login settings are now managed in the settings menu. Open the ⚙ button and save your Jabber service, JID and password there, then return here to connect.
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
+          </div>
+          <div class="ping-filter-row">
+            <span style="font-size:13px; color:var(--text-2);">Director bot filter is managed in the settings menu.</span>
+            <span id="jabberSummary" class="asset-summary">No messages received yet.</span>
+          </div>
+          <div class="asset-table-wrapper" style="padding:0;">
+            <table id="jabberTable" class="asset-table ping-table">
+              <thead>
+                <tr><th>From</th><th>Message</th><th>Type</th><th>Director</th></tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" class="loading-row">Auto-connecting to Jabber; saved settings are used from the settings menu.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Market Page -->
+      <div id="page-market" class="nav-page" style="flex-direction:column; height:100%;">
+        <div class="page-header">
+          <h2>Market</h2>
+          <button class="close-page-btn" onclick="closePage('market')">✕</button>
+        </div>
+        <div class="page-content"><p>Market data and trading tools - coming soon</p></div>
+      </div>
+
+    </div><!-- end navPagesContainer -->
+
+    <!-- FIX: mainLibraryView is now a sibling of navPagesContainer, not nested inside it -->
+    <div class="panel" id="mainLibraryView" style="display:none; flex-direction:column; height:100%;">
       <div class="panel-header">
         <span class="panel-icon">◎</span>
         <span>MY BLUEPRINT LIBRARY</span>
+        <button id="toggleLibraryBtn" class="icon-btn" title="Hide blueprint library"></button>
         <span id="bpLibCount" class="panel-count" style="margin-left:auto; background:var(--accent); color:#000; padding:2px 8px; border-radius:10px; font-weight:bold;">0</span>
       </div>
-      
+      <div id="bpTabs" style="display:flex; gap:8px; padding:8px 12px; flex-wrap:wrap;"></div>
+      <div id="bpTabContents" style="padding:12px;"></div>
       <div class="bp-filter-row" style="padding:15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
         <input type="text" id="bpLibSearch" class="field-input" style="flex:1; min-width:200px; font-size:14px; padding:10px;" placeholder="Search your blueprint library..."/>
-        
-        <!-- Added this filter dropdown -->
-
         <select id="bpLibFilter" class="field-input" style="width:160px; padding:10px;">
           <option value="all">All Blueprints</option>
           <option value="bpo">BPO (Originals) Only</option>
           <option value="bpc">BPC (Copies) Only</option>
         </select>
-
-        <!-- Added this sorting dropdown -->
-
         <select id="bpLibSort" class="field-input" style="width:160px; padding:10px;">
           <option value="name">Name</option>
           <option value="me">ME High-Low</option>
@@ -138,7 +439,6 @@
         <input type="number" id="bpLibMinTE" class="field-input" style="width:90px; padding:10px;" placeholder="Min TE" min="0" max="20">
         <input type="number" id="bpLibMinRuns" class="field-input" style="width:100px; padding:10px;" placeholder="Min Runs" min="1">
       </div>
-      
       <div id="bpLibList" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:15px; padding:15px; overflow-y:auto; flex:1;">
         <div class="empty-state" style="grid-column: 1 / -1;">
           <div class="empty-icon">⬡</div>
@@ -154,7 +454,118 @@
 
 </div>
 
-<script src="categories.js"></script>
-<script src="app.js"></script>
+<!-- Materials Modal Popup -->
+<div id="materialsModalBackdrop" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:620px; width:95%; max-height:85vh; overflow-y:auto;">
+    <div class="modal-header" style="justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <img id="materialsModalIcon" src="" alt="" style="width:28px; height:28px; border-radius:4px; border:1px solid var(--border); flex-shrink:0;" />
+        <span id="materialsModalTitle">Materials</span>
+      </div>
+      <button onclick="closeMaterialsModal()" class="icon-btn" style="font-size:16px; padding:0; background:none; border:none; color:var(--text-2); cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="materialsModalBody" style="max-height:calc(85vh - 80px); overflow-y:auto;">
+      <div style="text-align:center; padding:20px; color:var(--text-2);">Loading materials...</div>
+    </div>
+  </div>
+</div>
+
+<div id="uiSettingsDrawer" class="modal-backdrop" style="display:none;">
+  <div class="modal" style="max-width:720px; width:100%; max-height:90vh;">
+    <div class="panel-header" style="justify-content:space-between; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px;"><span class="panel-icon">⚙</span><span>UI Settings</span></div>
+      <button id="closeSettingsBtn" class="icon-btn" style="font-size:16px;">✕</button>
+    </div>
+    <div class="settings-drawer-inner">
+      <div class="settings-menu">
+        <div class="settings-menu-title">Settings menu</div>
+        <button class="settings-menu-btn active" data-settings-tab="jabber">Jabber</button>
+        <button class="settings-menu-btn" data-settings-tab="forums">Forums</button>
+        <button class="settings-menu-btn" data-settings-tab="fleetCommander">Fleet Commander</button>
+        <button class="settings-menu-btn" data-settings-tab="colour">Colour</button>
+      </div>
+      <div id="settingsTabJabber" class="settings-tab">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">Jabber Settings</div>
+            <div class="ui-settings-grid">
+              <div class="ui-settings-row">
+                <label>Jabber Service URL</label>
+                <input id="jabberService" class="field-input" type="text" placeholder="xmpp://jabber.example.com:5222" />
+              </div>
+              <div class="ui-settings-row">
+                <label>Jabber JID</label>
+                <input id="jabberJid" class="field-input" type="text" placeholder="user@domain" />
+              </div>
+              <div class="ui-settings-row">
+                <label>Password</label>
+                <input id="jabberPassword" class="field-input" type="password" placeholder="Password" />
+              </div>
+              <div class="ui-settings-row">
+                <label><input id="jabberDirectorOnly" type="checkbox" style="margin-right:8px;" />Show Director bot messages only</label>
+              </div>
+            </div>
+            <div style="font-size:12px; color:var(--text-3); margin-top:10px;">These values are stored locally and will be preserved until you change them.</div>
+          </div>
+        </div>
+      </div>
+      <div id="settingsTabForums" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">Forums Settings</div>
+            <div style="font-size:13px; color:var(--text-2);">Forum settings are coming soon.</div>
+          </div>
+        </div>
+      </div>
+      <div id="settingsTabFleetCommander" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">Fleet Commander Settings</div>
+            <div style="font-size:13px; color:var(--text-2);">Fleet Commander settings are coming soon.</div>
+          </div>
+        </div>
+      </div>
+      <div id="settingsTabColour" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="ui-settings-grid">
+            <div class="ui-settings-row"><label>Background</label><input type="color" data-theme-key="bg-deep" value="#1e1e1e" /></div>
+            <div class="ui-settings-row"><label>Panel</label><input type="color" data-theme-key="bg-panel" value="#252526" /></div>
+            <div class="ui-settings-row"><label>Card</label><input type="color" data-theme-key="bg-card" value="#1f1f1f" /></div>
+            <div class="ui-settings-row"><label>Accent</label><input type="color" data-theme-key="accent" value="#007acc" /></div>
+            <div class="ui-settings-row"><label>Border</label><input type="color" data-theme-key="border" value="#3c3c3c" /></div>
+            <div class="ui-settings-row"><label>Text Primary</label><input type="color" data-theme-key="text-1" value="#d4d4d4" /></div>
+            <div class="ui-settings-row"><label>Text Secondary</label><input type="color" data-theme-key="text-2" value="#808080" /></div>
+            <div class="ui-settings-row"><label>Text Tertiary</label><input type="color" data-theme-key="text-3" value="#6a6a6a" /></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px;">
+      <button id="resetThemeBtn" class="icon-btn">RESET</button>
+      <button id="saveSettingsBtn" class="calc-btn">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-console">
+  <span class="console-time" id="console-time"></span>
+  <span class="console-msg" id="console-msg">[System] ESI connection ready...</span>
+</div>
+
 </body>
+
+<!-- FIX: Load all split JS files in correct dependency order -->
+<script src="categories.js"></script>
+<script src="state.js"></script>
+<script src="utils.js"></script>
+<script src="ui.js"></script>
+<script src="characters.js"></script>
+<script src="assets.js"></script>
+<script src="blueprints.js"></script>
+<script src="materials.js"></script>
+<script src="jabber.js"></script>
+<script src="dashboard.js"></script>
+<!-- app.js must be last — it calls bindEvents() and DOMContentLoaded init -->
+<script src="app.js"></script>
+
 </html>

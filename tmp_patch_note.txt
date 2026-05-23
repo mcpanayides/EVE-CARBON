@@ -1,0 +1,1 @@
+patching main.js, src/index.html, src/app.js to add SDE support, caching, and tabbed blueprint details.

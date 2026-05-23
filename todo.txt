@@ -1,0 +1,23 @@
+Fix main / app 
+
+Break all code into smaller chunks like 300lns max
+
+
+
+Add in Fleet commander Stack
+   Request ping 
+   Targets
+   Routing
+   Wormhole Connections
+   Fleet home command 
+
+Recons / SCouts
+    Help to dscan / announce hostile fleets
+
+Assets 
+   What can we do with them?
+
+
+Pings/jabber 
+   Styling so we can see where when how
+   Connect to mumble 

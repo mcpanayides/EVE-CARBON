@@ -1,5 +1,5 @@
 {
-  "name": "EVE-Carbon",
+  "name": "eve-carbon",
   "productName": "EVE Carbon",
   "version": "1.0.0",
   "author": "Mia Christina Panayides",
@@ -9,12 +9,14 @@
     "start": "electron .",
     "build-win": "electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
-    "build-linux": "electron-builder --linux"
+    "build-linux": "electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
-    "appId": "com.eve.bpc-calculator",
-    "productName": "EVE BPC Calculator",
+    "appId": "com.eve.carbon",
+    "productName": "EVE-Carbon",
     "icon": "assets/icon.ico",
+    "extraResources": "data/sde.sqlite",
     "win": {
       "target": [
         {
@@ -46,10 +48,15 @@
     ]
   },
   "devDependencies": {
-    "electron": "^42.2.0",
-    "electron-builder": "^24.0.0"
+    "@electron/rebuild": "^4.0.4",
+    "electron": "^28.0.0",
+    "electron-builder": "^26.8.1",
+    "electron-rebuild": "^2.0.3"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "@xmpp/client": "^0.14.0",
+    "dotenv": "^17.4.2",
+    "sqlite": "^4.0.25",
+    "sqlite3": "^5.1.6"
   }
 }

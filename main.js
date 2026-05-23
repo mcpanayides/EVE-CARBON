@@ -5,6 +5,7 @@ const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
+const createLocator = require('./src/locator');
 
 if (typeof globalThis.crypto !== 'object' || typeof globalThis.crypto.randomUUID !== 'function') {
   globalThis.crypto = globalThis.crypto || {};
@@ -50,6 +51,8 @@ const SCOPES         = [
   'esi-wallet.read_character_wallet.v1',
   'esi-clones.read_clones.v1',           // ← home location (medical clone location)
   'esi-skills.read_skills.v1',            // ← total skill points
+  'esi-markets.read_character_orders.v1', // ← active market orders (escrow)
+  'esi-contracts.read_character_contracts.v1', // ← contracts (escrow)
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
 
@@ -129,6 +132,13 @@ function writeCache(key, value, days = 7) {
     const payload = { ts: Date.now(), ttl: days * 24 * 60 * 60 * 1000, v: value };
     fs.writeFileSync(fullPath, JSON.stringify(payload), 'utf8');
   } catch (e) { /* ignore */ }
+}
+
+// Locator: shared location resolver (player structures + NPC stations)
+let locator = null;
+function getLocator() {
+  if (!locator) locator = createLocator({ httpGet, readCache, writeCache, getValidToken });
+  return locator;
 }
 
 app.whenReady().then(async () => {
@@ -497,108 +507,39 @@ async function syncAssetsInternal(characterId) {
     page++;
   }
 
-  const typeIds = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
+  const typeIds     = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
   const locationIds = [...new Set(allAssets.map(a => a.location_id).filter(Boolean))];
-  const nameMap = await resolveNames([...new Set([...typeIds, ...locationIds])]);
+  const nameMap     = await resolveNames(typeIds);  // type names only
 
-  // Resolve additional metadata for locations: system, constellation, region, sec status, owner
-  const locationMeta = {};
-  for (const locId of locationIds) {
-    const cacheKey = `loc_meta_${locId}`;
-    let meta = readCache(cacheKey);
-    if (!meta) {
-      meta = { system_id: null, constellation_id: null, region_id: null, security_status: null, owner_id: null };
-      try {
-        // Try station endpoint
-        try {
-          const st = await httpGet(`${ESI_BASE}/v1/universe/stations/${locId}/?datasource=tranquility`);
-          if (st && (st.system_id || st.solar_system_id)) {
-            meta.system_id = st.system_id || st.solar_system_id || null;
-          }
-        } catch (e) { /* ignore */ }
+  // Resolve all location metadata via the shared locator module.
+  // Handles NPC stations, player structures (ESI auth -> public -> adam4eve), and system IDs.
+  const locationMeta = await getLocator().resolveLocations(locationIds, characterId);
 
-        // If no system yet, try structure endpoint
-        if (!meta.system_id) {
-          try {
-            const struct = await httpGet(`${ESI_BASE}/v1/universe/structures/${locId}/?datasource=tranquility`);
-            if (struct && struct.solar_system_id) {
-              meta.system_id = struct.solar_system_id;
-              if (struct.owner_id) meta.owner_id = struct.owner_id;
-            }
-          } catch (e) { /* ignore */ }
-        }
 
-        // If still no system, maybe the location is a system id itself
-        if (!meta.system_id) {
-          try {
-            const sysTest = await httpGet(`${ESI_BASE}/v4/universe/systems/${locId}/?datasource=tranquility`);
-            if (sysTest) {
-              meta.system_id = locId;
-            }
-          } catch (e) { /* ignore */ }
-        }
-
-        // If we have a system_id, fetch system details
-        if (meta.system_id) {
-          try {
-            const sys = await httpGet(`${ESI_BASE}/v4/universe/systems/${meta.system_id}/?datasource=tranquility`);
-            if (sys) {
-              meta.constellation_id = sys.constellation_id || null;
-              meta.security_status = sys.security_status || null;
-            }
-          } catch (e) { /* ignore */ }
-        }
-
-        // If we have a constellation, fetch region
-        if (meta.constellation_id) {
-          try {
-            const con = await httpGet(`${ESI_BASE}/v1/universe/constellations/${meta.constellation_id}/?datasource=tranquility`);
-            if (con) meta.region_id = con.region_id || null;
-          } catch (e) { /* ignore */ }
-        }
-
-        // Cache meta for a day
-        try { writeCache(cacheKey, meta, 1); } catch (e) { /* ignore */ }
-      } catch (e) {
-        meta = meta || { system_id: null, constellation_id: null, region_id: null, security_status: null, owner_id: null };
-      }
-    }
-    locationMeta[locId] = meta;
-  }
-
-  // Pre-resolve names for constellation, region, owners
-  const extraIds = [];
-  Object.values(locationMeta).forEach(m => {
-    if (m.constellation_id) extraIds.push(m.constellation_id);
-    if (m.region_id) extraIds.push(m.region_id);
-    if (m.owner_id) extraIds.push(m.owner_id);
-  });
-  const extraNameMap = extraIds.length ? await resolveNames([...new Set(extraIds)]) : {};
-
+  // locationMeta[id] now has the full locator shape:
+  //   { name, solar_system_id, solar_system_name, constellation_id, constellation_name,
+  //     region_id, region_name, security_status, owner_id, owner_name }
   const assets = allAssets.map(asset => {
-    const locMeta = locationMeta[asset.location_id] || {};
-    const ownerName = locMeta.owner_id ? (extraNameMap[locMeta.owner_id] || null) : null;
-    const constellationName = locMeta.constellation_id ? (extraNameMap[locMeta.constellation_id] || null) : null;
-    const regionName = locMeta.region_id ? (extraNameMap[locMeta.region_id] || null) : null;
-
+    const loc = locationMeta[asset.location_id] || {};
     return {
-      item_id: asset.item_id,
-      type_id: asset.type_id,
-      name: nameMap[asset.type_id] || `Type ${asset.type_id}`,
-      location_id: asset.location_id,
-      location_name: nameMap[asset.location_id] || `Location ${asset.location_id}`,
-      quantity: asset.quantity,
-      volume: asset.volume || 0,
-      is_singleton: asset.is_singleton,
-      location_flag: asset.location_flag || asset.flag || '',
-      system_id: locMeta.system_id || null,
-      constellation_id: locMeta.constellation_id || null,
-      constellation_name: constellationName,
-      region_id: locMeta.region_id || null,
-      region_name: regionName,
-      security_status: typeof locMeta.security_status === 'number' ? locMeta.security_status : null,
-      owner_id: locMeta.owner_id || null,
-      owner_name: ownerName || null,
+      item_id:            asset.item_id,
+      type_id:            asset.type_id,
+      name:               nameMap[asset.type_id] || `Type ${asset.type_id}`,
+      location_id:        asset.location_id,
+      location_name:      loc.name || `Location ${asset.location_id}`,
+      quantity:           asset.is_singleton ? 1 : (asset.quantity || 1),
+      volume:             asset.volume || 0,
+      is_singleton:       asset.is_singleton,
+      location_flag:      asset.location_flag || asset.flag || '',
+      solar_system_id:    loc.solar_system_id    || null,
+      solar_system_name:  loc.solar_system_name  || null,
+      constellation_id:   loc.constellation_id   || null,
+      constellation_name: loc.constellation_name || null,
+      region_id:          loc.region_id          || null,
+      region_name:        loc.region_name        || null,
+      security_status:    typeof loc.security_status === 'number' ? loc.security_status : null,
+      owner_id:           loc.owner_id           || null,
+      owner_name:         loc.owner_name         || null,
     };
   });
 
@@ -816,6 +757,12 @@ ipcMain.handle('get-wallet', async (_, characterId) => {
 });
 
 // ─── IPC: Public ESI (no auth) ────────────────────────────────────────────────
+// IPC: resolve a single location (structure or station) -> full metadata
+// Used by dashboard for home station and blueprints for location names.
+ipcMain.handle('get-structure-info', async (_, locationId, characterId) => {
+  return getLocator().resolveLocation(locationId, characterId);
+});
+
 ipcMain.handle('esi-search', async (_, query) => {
   return httpGet(`${ESI_BASE}/v2/search/?categories=inventory_type&search=${encodeURIComponent(query)}&strict=false&datasource=tranquility`);
 });
@@ -824,6 +771,99 @@ ipcMain.handle('esi-names', async (_, ids) => {
   if (!ids || !ids.length) return [];
   const map = await resolveNames(ids);
   return ids.map(id => ({ id, name: map[id] || `Type ${id}` }));
+});
+
+// ─── IPC: Public ESI proxy ────────────────────────────────────────────────────
+ipcMain.handle('esi-fetch', async (_, url) => {
+  return httpGet(url);
+});
+
+// ─── IPC: Global market prices (adjusted_price / average_price) ──────────────
+// Single public endpoint — no auth. Returns all tradeable items at once.
+// This is the same price source EVE uses for net worth calculations.
+// Cache aggressively: prices update ~daily.
+ipcMain.handle('get-market-prices', async () => {
+  const cacheKey = 'market_prices_global';
+  const cached = readCache(cacheKey);
+  if (cached) return cached;
+  try {
+    const data = await httpGet(`${ESI_BASE}/v1/markets/prices/?datasource=tranquility`);
+    // Convert array to map keyed by type_id for O(1) lookup
+    const map = {};
+    if (Array.isArray(data)) {
+      data.forEach(item => {
+        map[item.type_id] = {
+          adjusted: item.adjusted_price || 0,
+          average:  item.average_price  || 0,
+        };
+      });
+    }
+    writeCache(cacheKey, map, 0.5); // cache 12 hours
+    return map;
+  } catch (e) {
+    console.warn('get-market-prices failed:', e.message);
+    return {};
+  }
+});
+
+// ─── IPC: Authenticated character sheet ──────────────────────────────────────
+ipcMain.handle('get-character-info', async (_, characterId) => {
+  try {
+    const token = await getValidToken(characterId);
+    return await httpGet(
+      `${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+  } catch (e) {
+    console.warn(`get-character-info failed for ${characterId}:`, e.message);
+    return null;
+  }
+});
+
+// ─── IPC: Clones / home location ─────────────────────────────────────────────
+ipcMain.handle('get-clones', async (_, characterId) => {
+  try {
+    const token = await getValidToken(characterId);
+    return await httpGet(
+      `${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+  } catch (e) {
+    console.warn(`get-clones failed for ${characterId}:`, e.message);
+    return null;
+  }
+});
+
+// ─── IPC: Character market orders (for escrow) ───────────────────────────────
+// Returns active buy orders — their 'escrow' field is ISK locked up.
+ipcMain.handle('get-character-orders', async (_, characterId) => {
+  try {
+    const token = await getValidToken(characterId);
+    const orders = await httpGet(
+      `${ESI_BASE}/v2/characters/${characterId}/orders/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+    return Array.isArray(orders) ? orders : [];
+  } catch (e) {
+    console.warn(`get-character-orders failed for ${characterId}:`, e.message);
+    return [];
+  }
+});
+
+// ─── IPC: Character contracts (for escrow) ───────────────────────────────────
+// Returns all contracts; we sum 'price' on outstanding buyer contracts.
+ipcMain.handle('get-character-contracts', async (_, characterId) => {
+  try {
+    const token = await getValidToken(characterId);
+    const contracts = await httpGet(
+      `${ESI_BASE}/v1/characters/${characterId}/contracts/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+    return Array.isArray(contracts) ? contracts : [];
+  } catch (e) {
+    console.warn(`get-character-contracts failed for ${characterId}:`, e.message);
+    return [];
+  }
 });
 
 ipcMain.handle('cache-get', (_, key) => {

@@ -27,9 +27,7 @@ async function loadDashboard() {
 
   // ── Section 1: Welcome banner (async, non-blocking) ──────────────────────
   (async () => {
-    // Route public ESI calls through ipcMain so they share the same User-Agent,
-    // timeout, and error-handling as the rest of the app.
-    // Falls back to renderer fetch() if the IPC channel isn't wired yet.
+    // Public ESI proxy — routes through ipcMain for consistent UA/timeout.
     async function esiGet(url) {
       try {
         return await window.eveAPI.esiFetch(url);
@@ -42,9 +40,19 @@ async function loadDashboard() {
 
     try {
       if (!mainAccount) return;
-      const charInfo = await esiGet(
-        `https://esi.evetech.net/v5/characters/${mainAccount.characterId}/?datasource=tranquility`
-      );
+
+      // ── Use authenticated character endpoint so we get home_location_id ──
+      // The public /v5/characters/{id}/ endpoint omits home_location_id and
+      // home_location_type. getCharacterInfo() calls the same URL with a token.
+      let charInfo = null;
+      try {
+        charInfo = await window.eveAPI.getCharacterInfo(mainAccount.characterId);
+      } catch (_) {}
+      if (!charInfo) {
+        charInfo = await esiGet(
+          `https://esi.evetech.net/v5/characters/${mainAccount.characterId}/?datasource=tranquility`
+        );
+      }
 
       const corpId     = charInfo.corporation_id || null;
       const allianceId = charInfo.alliance_id    || null;
@@ -61,10 +69,24 @@ async function loadDashboard() {
       const corpName     = corpInfo.name || '';
       const allianceName = alliInfo.name || '';
 
+      // ── Home location ──────────────────────────────────────────────────────
+      // Authenticated character sheet gives home_location_id directly.
+      // Fall back to the clones endpoint (medical clone = home station).
+      let homeId   = charInfo.home_location_id   || null;
+      let homeType = charInfo.home_location_type || null;
+
+      if (!homeId) {
+        try {
+          const clones = await window.eveAPI.getClones(mainAccount.characterId);
+          if (clones && clones.home_location) {
+            homeId   = clones.home_location.location_id   || null;
+            homeType = clones.home_location.location_type || null;
+          }
+        } catch (_) {}
+      }
+
       let homeStationName = '—', homeSystemSec = null;
       try {
-        const homeId   = charInfo.home_location_id;
-        const homeType = charInfo.home_location_type;
         if (homeId && homeType === 'station') {
           const stationInfo = await esiGet(`https://esi.evetech.net/v2/universe/stations/${homeId}/?datasource=tranquility`);
           if (stationInfo.system_id) {
@@ -74,15 +96,46 @@ async function loadDashboard() {
           } else {
             homeStationName = stationInfo.name || `ID ${homeId}`;
           }
+        } else if (homeId && (homeType === 'structure' || Number(homeId) >= 1_000_000_000_000)) {
+          // Route through locator: ESI auth -> ESI public -> adam4eve fallback
+          try {
+            const loc = await window.eveAPI.getStructureInfo(homeId, mainAccount.characterId);
+            homeStationName = (loc && loc.name) ? loc.name : `Structure ${homeId}`;
+            if (loc && loc.solar_system_id) {
+              const sysInfo = await esiGet(`https://esi.evetech.net/v4/universe/systems/${loc.solar_system_id}/?datasource=tranquility`);
+              homeSystemSec = typeof sysInfo.security_status === 'number' ? sysInfo.security_status : null;
+            } else if (loc && loc.security_status != null) {
+              homeSystemSec = loc.security_status;
+            }
+          } catch (_) { homeStationName = `Structure ${homeId}`; }
         } else if (homeId) {
-          homeStationName = `Structure ${homeId}`;
+          homeStationName = `Location ${homeId}`;
         }
       } catch (e) { console.warn('Home station fetch failed:', e.message); }
 
-      const systemSecColor = (sec) => sec === null ? 'var(--text-2)' : sec >= 0.5 ? '#4ada8a' : sec >= 0.1 ? '#f0a800' : '#e45c5c';
-      const charSecColor   = (s)   => { const n = parseFloat(s); return isNaN(n) ? 'var(--text-2)' : n >= 5.0 ? '#4ada8a' : n >= 0.1 ? '#f0a800' : '#e45c5c'; };
-      const homeSecDisplay = homeSystemSec !== null
-        ? ` <span style="color:${systemSecColor(homeSystemSec)};">${homeSystemSec.toFixed(1)}</span>` : '';
+      // ── Security colour helpers ────────────────────────────────────────────
+      const charSecColor = (s) => {
+        const n = parseFloat(s);
+        if (isNaN(n)) return 'var(--text-2)';
+        if (n >= 5.0) return '#4ada8a';
+        if (n >= 0.1) return '#f0a800';
+        return '#e45c5c';
+      };
+
+      const systemSecMeta = (sec) => {
+        if (sec === null) return { color: 'var(--text-2)', label: null, cls: '' };
+        if (sec < 0.0)    return { color: 'var(--lawless)',  label: 'Lawless',  cls: 'sec-lawless'  };
+        if (sec < 0.1)    return { color: 'var(--nullsec)',  label: 'Null Sec', cls: 'sec-nullsec'  };
+        if (sec < 0.45)   return { color: 'var(--lowsec)',   label: 'Low Sec',  cls: 'sec-lowsec'   };
+        if (sec >= 0.999) return { color: 'var(--newbie)',   label: 'Newbie',   cls: 'sec-newbie'   };
+        return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
+      };
+
+      const sysMeta = systemSecMeta(homeSystemSec);
+      const homeSecValueDisplay = homeSystemSec !== null
+        ? `<span style="color:${sysMeta.color};">${homeSystemSec.toFixed(1)}</span>` : '';
+      const homeSecBreadcrumb = sysMeta.label
+        ? `<span class="sec-breadcrumb ${sysMeta.cls}">${sysMeta.label}</span>` : '';
 
       if (!welcomeBanner) return;
       welcomeBanner.innerHTML = `
@@ -103,7 +156,20 @@ async function loadDashboard() {
             <div class="dashboard-welcome-stats">
               <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Born</span><span class="dashboard-stat-value">${escHtml(birthday)}</span></div>
               <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Security Status</span><span class="dashboard-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus))}</span></div>
-              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Home Station</span><span class="dashboard-stat-value">${escHtml(homeStationName)}${homeSecDisplay}</span></div>
+              <div class="dashboard-welcome-stat dashboard-welcome-stat--home">
+                <span class="dashboard-stat-label">Home Station</span>
+                <span class="dashboard-stat-value dashboard-home-station-value">
+                  <span class="dashboard-home-name">${escHtml(homeStationName)}</span>
+                  ${homeSecValueDisplay}
+                  ${homeSecBreadcrumb}
+                </span>
+              </div>
+              <div class="dashboard-welcome-stat">
+                <span class="dashboard-stat-label">Total Net Worth</span>
+                <span class="dashboard-stat-value" id="welcomeNetWorthValue">
+                  <span style="color:var(--text-3);font-size:11px;">Calculating…</span>
+                </span>
+              </div>
             </div>
           </div>
         </div>`;
@@ -117,44 +183,113 @@ async function loadDashboard() {
     }
   })();
 
-  // ── Section 2: KPI cards (wallets first, then asset prices) ──────────────
+  // ── Section 2: Net worth calculation ────────────────────────────────────
+  // Sources:
+  //   • Liquid ISK     → /characters/{id}/wallet/
+  //   • Asset value    → /characters/{id}/assets/ × /markets/prices/ (adjusted_price)
+  //   • Market escrow  → /characters/{id}/orders/  (sum of buy-order escrow fields)
+  //   • Contract escrow→ /characters/{id}/contracts/ (sum of price on outstanding buys)
   (async () => {
+    // ── Step 1: Liquid ISK (fast) ────────────────────────────────────────────
     const walletByChar = {};
     await Promise.all(accounts.map(async acc => {
       try { walletByChar[String(acc.characterId)] = await window.eveAPI.getWalletBalance(acc.characterId) || 0; }
       catch (e) { walletByChar[String(acc.characterId)] = 0; }
     }));
-
     let totalWallet = 0;
     accounts.forEach(acc => { totalWallet += walletByChar[String(acc.characterId)] || 0; });
 
+    // Show liquid ISK immediately while assets/escrow are still loading
     renderKPIPanel(summaryPanel, accounts, totalWallet, 0, totalWallet, {}, walletByChar, true);
 
     try {
-      const assets  = await window.eveAPI.getAllAssets().catch(() => []);
-      const typeIds = [...new Set(assets.map(a => a.type_id).filter(Boolean))];
-      let prices = {};
-      if (typeIds.length) prices = await window.eveAPI.getJitaPrices(typeIds).catch(() => ({}));
+      // ── Step 2: Asset value using /markets/prices/ (adjusted_price) ────────
+      // This is the same price source EVE uses for net worth on the char sheet.
+      // One call returns all items — no per-item Jita scraping needed.
+      const [assets, marketPrices] = await Promise.all([
+        window.eveAPI.getAllAssets().catch(() => []),
+        window.eveAPI.getMarketPrices().catch(() => ({})),
+      ]);
 
       const totalByChar = {};
       let overallValue  = 0;
       assets.forEach(asset => {
-        const pe        = prices[asset.type_id] || {};
-        const unitPrice = pe.sell > 0 ? pe.sell : (pe.buy > 0 ? pe.buy : 0);
-        const value     = unitPrice * (asset.quantity || 0);
-        overallValue   += value;
+        const priceEntry = marketPrices[asset.type_id] || {};
+        // Use adjusted_price first (EVE's internal valuation), fall back to average
+        const unitPrice  = priceEntry.adjusted || priceEntry.average || 0;
+        const value      = unitPrice * (asset.quantity || 0);
+        overallValue    += value;
         const cid = String(asset.characterId || 'unknown');
         totalByChar[cid] = (totalByChar[cid] || 0) + value;
       });
 
-      const grandTotal = overallValue + totalWallet;
-      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, false);
+      // ── Step 3: Market order escrow ─────────────────────────────────────────
+      // Active buy orders lock ISK in escrow — it's part of net worth.
+      const escrowByChar = {};
+      let totalEscrow = 0;
+      await Promise.all(accounts.map(async acc => {
+        try {
+          const orders = await window.eveAPI.getCharacterOrders(acc.characterId);
+          let escrow = 0;
+          if (Array.isArray(orders)) {
+            orders.forEach(o => {
+              // is_buy_order + escrow field = ISK held by market system
+              if (o.is_buy_order && typeof o.escrow === 'number') escrow += o.escrow;
+            });
+          }
+          escrowByChar[String(acc.characterId)] = escrow;
+          totalEscrow += escrow;
+        } catch (e) {
+          escrowByChar[String(acc.characterId)] = 0;
+        }
+      }));
 
-      const existing = await window.eveAPI.cacheGet('dashboard_cache').catch(() => null) || {};
+      // Add escrow into per-character totals (it's part of their net worth)
+      accounts.forEach(acc => {
+        const cid = String(acc.characterId);
+        const e   = escrowByChar[cid] || 0;
+        totalByChar[cid] = (totalByChar[cid] || 0) + e;
+        overallValue     += e;
+      });
+
+      // ── Step 4: Contract escrow ──────────────────────────────────────────────
+      // Outstanding buy contracts (wants_to_buy) also tie up ISK.
+      let contractEscrow = 0;
+      await Promise.all(accounts.map(async acc => {
+        try {
+          const contracts = await window.eveAPI.getCharacterContracts(acc.characterId);
+          if (Array.isArray(contracts)) {
+            contracts.forEach(c => {
+              // 'outstanding' + 'item_exchange' or 'auction' where we are the issuer buying
+              if (c.status === 'outstanding' && c.for_corporation === false) {
+                // Buyer contracts: price is what we're offering to pay
+                if ((c.type === 'item_exchange' || c.type === 'auction') && typeof c.price === 'number') {
+                  contractEscrow += c.price;
+                }
+              }
+            });
+          }
+        } catch (e) { /* contract endpoint may not be scoped yet */ }
+      }));
+
+      // ── Grand total ──────────────────────────────────────────────────────────
+      const grandTotal = totalWallet + overallValue + contractEscrow;
+
+      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue + contractEscrow, grandTotal, totalByChar, walletByChar, false);
+
+      // Update welcome banner
+      const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
+      if (welcomeNWEl) {
+        welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
+      }
+
       await window.eveAPI.cacheSet('dashboard_cache', {
-        ...existing, accounts, mainAccount, walletByChar, totalByChar, overallValue, totalWallet, grandTotal
-      }, 7);
-    } catch (e) { console.warn('Asset value fetch failed:', e.message); }
+        accounts, mainAccount, walletByChar, totalByChar,
+        overallValue: overallValue + contractEscrow,
+        totalWallet, grandTotal
+      }, 1).catch(() => {});
+
+    } catch (e) { console.warn('Net worth calculation failed:', e.message); }
   })();
 
   // ── Section 3: Jobs table (independent) ──────────────────────────────────

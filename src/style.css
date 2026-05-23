@@ -19,6 +19,11 @@
   --warning:    #ffcc00;
   --assets:     #ab7ab8;
   --liquidisk:    #4ec9b0;
+  --newbie:     #4ec9b0;
+  --hisec:      #4f97d8;
+  --lowsec:     #ffcc00;
+  --nullsec:    #f44747;
+  --lawless:    #470b0b;
   --font:       'Fira Sans', sans-serif;
   --mono:       'Fira Code', monospace;
   --radius:     4px;
@@ -290,6 +295,37 @@ body { background:var(--bg-deep); color:var(--text-1); font-family:var(--font); 
   color: var(--text-1);
   font-weight: 500;
 }
+
+/* Home station row — allow value to wrap and show breadcrumb inline */
+.dashboard-welcome-stat--home .dashboard-home-station-value {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dashboard-home-name {
+  color: var(--text-1);
+}
+
+/* Security-space breadcrumb pill */
+.sec-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+  border: 1px solid currentColor;
+  opacity: 0.92;
+}
+.sec-newbie  { color: var(--newbie);  background: rgba(78,201,176,0.10); }
+.sec-hisec   { color: var(--hisec);   background: rgba(79,151,216,0.10); }
+.sec-lowsec  { color: var(--lowsec);  background: rgba(255,204,0,0.10);  }
+.sec-nullsec { color: var(--nullsec); background: rgba(244,71,71,0.10);  }
+.sec-lawless { color: #c94040;        background: rgba(71,11,11,0.55); border-color: #7a1a1a; }
 
 /* ── KPI cards ──────────────────────────────────────────────────────────── */
 .dash-wealth-header {

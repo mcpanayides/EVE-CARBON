@@ -6,6 +6,15 @@ contextBridge.exposeInMainWorld('eveAPI', {
   removeAccount: (id)   => ipcRenderer.invoke('remove-account', id),
   startSSOLogin: ()     => ipcRenderer.invoke('start-sso-login'),
 
+  // Dashboard data
+  esiFetch:              (url)                        => ipcRenderer.invoke('esi-fetch', url),
+  getCharacterInfo:      (characterId)                => ipcRenderer.invoke('get-character-info', characterId),
+  getClones:             (characterId)                => ipcRenderer.invoke('get-clones', characterId),
+  getMarketPrices:       ()                           => ipcRenderer.invoke('get-market-prices'),
+  getStructureInfo:      (structureId, characterId)   => ipcRenderer.invoke('get-structure-info', structureId, characterId),
+  getCharacterOrders:    (characterId)                => ipcRenderer.invoke('get-character-orders', characterId),
+  getCharacterContracts: (characterId)                => ipcRenderer.invoke('get-character-contracts', characterId),
+    
   // Blueprints
   syncBlueprints:    (charId) => ipcRenderer.invoke('sync-blueprints', charId),
   getBlueprints:     (charId) => ipcRenderer.invoke('get-blueprints', charId),

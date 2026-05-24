@@ -759,8 +759,17 @@ ipcMain.handle('get-wallet', async (_, characterId) => {
 // ─── IPC: Public ESI (no auth) ────────────────────────────────────────────────
 // IPC: resolve a single location (structure or station) -> full metadata
 // Used by dashboard for home station and blueprints for location names.
-ipcMain.handle('get-structure-info', async (_, locationId, characterId) => {
+// All three should use getLocator(), not bare locator
+ipcMain.handle('get-structure-info', async (_, structureId, characterId) => {
+  return getLocator().resolveLocation(structureId, characterId);
+});
+
+ipcMain.handle('resolve-location', async (_, locationId, characterId) => {
   return getLocator().resolveLocation(locationId, characterId);
+});
+
+ipcMain.handle('resolve-system-names', async (_, systemIds) => {
+  return getLocator().resolveSystemNames(systemIds);
 });
 
 ipcMain.handle('esi-search', async (_, query) => {
@@ -772,6 +781,7 @@ ipcMain.handle('esi-names', async (_, ids) => {
   const map = await resolveNames(ids);
   return ids.map(id => ({ id, name: map[id] || `Type ${id}` }));
 });
+
 
 // ─── IPC: Public ESI proxy ────────────────────────────────────────────────────
 ipcMain.handle('esi-fetch', async (_, url) => {

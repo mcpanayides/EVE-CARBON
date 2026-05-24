@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getClones:             (characterId)                => ipcRenderer.invoke('get-clones', characterId),
   getMarketPrices:       ()                           => ipcRenderer.invoke('get-market-prices'),
   getStructureInfo:      (structureId, characterId)   => ipcRenderer.invoke('get-structure-info', structureId, characterId),
+  // Full location resolution (structure + system + region + sec status).
+  // Use this anywhere you need the complete location hierarchy for a structure or station ID.
+  resolveLocation:       (locationId, characterId)    => ipcRenderer.invoke('resolve-location', locationId, characterId),
+  // Batch-resolve an array of solar_system_ids → { id: name } map.
+  resolveSystemNames:    (systemIds)                  => ipcRenderer.invoke('resolve-system-names', systemIds),
   getCharacterOrders:    (characterId)                => ipcRenderer.invoke('get-character-orders', characterId),
   getCharacterContracts: (characterId)                => ipcRenderer.invoke('get-character-contracts', characterId),
     

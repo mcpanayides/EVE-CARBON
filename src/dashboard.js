@@ -302,24 +302,92 @@ async function loadDashboard() {
       if (!jobsTable) return;
       if (!jobs.length) { jobsTable.innerHTML = '<div class="dashboard-empty">No industry jobs found.</div>'; return; }
 
+      // ── Resolve item names via SDE / ESI names ──────────────────────────
+      // Collect all product type IDs and blueprint type IDs that need names
+      const typeIdsNeeded = [...new Set(
+        jobs.flatMap(j => [j.product_type_id, j.blueprint_type_id].filter(Boolean))
+      )];
+      let typeNameMap = {};
+      if (typeIdsNeeded.length) {
+        try {
+          typeNameMap = await window.eveAPI.getNames(typeIdsNeeded);
+        } catch { /* leave empty, we'll fall back per-item */ }
+      }
+
+      // ── Resolve solar system names in bulk ───────────────────────────────
+      // ESI job objects carry solar_system_id as an integer but never include
+      // solar_system_name. We bulk-resolve all unique IDs in one POST call.
+      const systemIdsNeeded = [...new Set(jobs.map(j => j.solar_system_id).filter(Boolean))];
+      let systemNameMap = {};
+      if (systemIdsNeeded.length) {
+        try {
+          // getNames routes through main.js → esiNamesPost which covers system IDs
+          systemNameMap = await window.eveAPI.getNames(systemIdsNeeded);
+        } catch { /* fall back to per-job structure lookup below */ }
+      }
+
+      // ── Resolve facility names for structures not already covered ────────
+      // Only fetch facility names for jobs where the system name is still missing
+      // (e.g. the facility is a player structure whose system we don't know yet).
+      const structureIdsNeeded = [...new Set(
+        jobs
+          .filter(j => !systemNameMap[j.solar_system_id] && j.facility_id >= 1_000_000_000_000)
+          .map(j => j.facility_id)
+      )];
+      const facilityInfoMap = {};
+      await Promise.all(
+        structureIdsNeeded.map(async sid => {
+          // Find a character that ran a job in this facility — use their token
+          const job   = jobs.find(j => j.facility_id === sid);
+          const charId = job?.character_id || mainAccount?.characterId;
+          try {
+            facilityInfoMap[sid] = await window.eveAPI.getStructureInfo(sid, charId);
+          } catch { facilityInfoMap[sid] = null; }
+        })
+      );
+
+      // ── Render table ─────────────────────────────────────────────────────
+      const sorted = jobs.sort((a, b) =>
+        new Date(b.end_date || b.completed_date || 0) - new Date(a.end_date || a.completed_date || 0)
+      );
+
+      const rows = sorted.map(job => {
+        const charName = accountMap[String(job.character_id)]?.characterName || `Char ${job.character_id}`;
+
+        // Item name: prefer product_type_id name, fall back to blueprint name, then type ID
+        const itemName = (job.product_type_id && typeNameMap[job.product_type_id])
+          || (job.blueprint_type_id && typeNameMap[job.blueprint_type_id])
+          || (job.product_type_id ? `Type ${job.product_type_id}` : 'Unknown');
+
+        // System name: bulk-resolved, or fall back via facility info, or raw ID
+        let systemName = (job.solar_system_id && systemNameMap[job.solar_system_id]) || null;
+        if (!systemName && job.facility_id && facilityInfoMap[job.facility_id]) {
+          const fi = facilityInfoMap[job.facility_id];
+          systemName = fi.solar_system_name || fi.name || null;
+        }
+        if (!systemName) systemName = job.solar_system_id ? `System ${job.solar_system_id}` : 'Unknown';
+
+        const finished = job.end_date || job.completed_date || null;
+        const finishedStr = finished ? new Date(finished).toLocaleString() : '—';
+
+        return `<tr>
+          <td>${escHtml(charName)}</td>
+          <td>${escHtml(itemName)}</td>
+          <td>${escHtml(systemName)}</td>
+          <td>${escHtml(finishedStr)}</td>
+        </tr>`;
+      }).join('');
+
       jobsTable.innerHTML = `
         <div class="dashboard-jobs-summary">${jobs.length} job${jobs.length === 1 ? '' : 's'} · ${new Set(jobs.map(j => String(j.character_id))).size} character(s)</div>
         <div class="dashboard-jobs-scroll">
           <table class="dashboard-jobs-list">
             <thead><tr><th>Character</th><th>Item</th><th>System</th><th>Completed</th></tr></thead>
-            <tbody>
-              ${jobs.sort((a, b) => new Date(b.end_date || b.completed_date || 0) - new Date(a.end_date || a.completed_date || 0))
-                .map(job => {
-                  const charName   = accountMap[String(job.character_id)]?.characterName || `Char ${job.character_id}`;
-                  const itemName   = job.product_type_id ? `Type ${job.product_type_id}` : 'Unknown';
-                  const systemName = job.solar_system_name || 'Unknown';
-                  const finished   = job.end_date || job.completed_date || 'Unknown';
-                  return `<tr><td>${escHtml(charName)}</td><td>${escHtml(itemName)}</td><td>${escHtml(systemName)}</td><td>${escHtml(new Date(finished).toLocaleString())}</td></tr>`;
-                }).join('')}
-            </tbody>
+            <tbody>${rows}</tbody>
           </table>
         </div>`;
     } catch (e) {
+      console.error('[dashboard] Jobs table failed:', e);
       if (jobsTable) jobsTable.innerHTML = '<div class="dashboard-empty">Failed to load jobs.</div>';
     }
   })();

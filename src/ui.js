@@ -1,45 +1,3 @@
-// ─── UI Theme ─────────────────────────────────────────────────────────────────
-
-async function loadUITheme() {
-  const theme = await window.eveAPI.getUIConfig();
-  if (theme) applyUITheme(theme);
-}
-
-function applyUITheme(theme) {
-  Object.entries(theme).forEach(([key, value]) => {
-    document.documentElement.style.setProperty(`--${key}`, value);
-  });
-}
-
-async function saveUITheme(theme) {
-  await window.eveAPI.saveUIConfig(theme);
-  applyUITheme(theme);
-}
-
-async function populateThemeInputs() {
-  const theme = await window.eveAPI.getUIConfig() || {};
-  document.querySelectorAll('[data-theme-key]').forEach(input => {
-    const key    = input.getAttribute('data-theme-key');
-    const stored = theme[key];
-    if (input.type === 'color') {
-      input.value = stored || input.value || '#000000';
-    } else {
-      const fallback = getComputedStyle(document.documentElement)
-        .getPropertyValue(`--${key}`).trim();
-      input.value = stored || fallback || '';
-    }
-  });
-}
-
-function gatherThemeInputs() {
-  const theme = {};
-  document.querySelectorAll('[data-theme-key]').forEach(input => {
-    const key = input.getAttribute('data-theme-key');
-    if (key) theme[key] = input.value;
-  });
-  return theme;
-}
-
 // ─── Settings Drawer ──────────────────────────────────────────────────────────
 
 function setSettingsTab(tab) {
@@ -54,12 +12,10 @@ function setSettingsTab(tab) {
 }
 
 function bindUISettings() {
-  const openBtn          = document.getElementById('openSettingsBtn');
-  const drawer           = document.getElementById('uiSettingsDrawer');
-  const saveBtn          = document.getElementById('saveSettingsBtn');
-  const resetBtn         = document.getElementById('resetThemeBtn');
-  const closeBtn         = document.getElementById('closeSettingsBtn');
-  const openColourPanelBtn = document.getElementById('openColourPanelBtn');
+  const openBtn  = document.getElementById('openSettingsBtn');
+  const drawer   = document.getElementById('uiSettingsDrawer');
+  const saveBtn  = document.getElementById('saveSettingsBtn');
+  const closeBtn = document.getElementById('closeSettingsBtn');
 
   if (openBtn) {
     openBtn.addEventListener('click', async () => {
@@ -73,12 +29,10 @@ function bindUISettings() {
   if (closeBtn) {
     closeBtn.addEventListener('click', () => { if (drawer) drawer.style.display = 'none'; });
   }
+  drawer?.addEventListener('click', e => { if (e.target === drawer) drawer.style.display = 'none'; });
   document.querySelectorAll('.settings-menu-btn').forEach(btn => {
     btn.addEventListener('click', () => { if (btn.dataset.settingsTab) setSettingsTab(btn.dataset.settingsTab); });
   });
-  if (openColourPanelBtn) {
-    openColourPanelBtn.addEventListener('click', () => setSettingsTab('colour'));
-  }
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       await saveAllSettings();
@@ -86,32 +40,14 @@ function bindUISettings() {
       showToast('Settings saved.', 'success');
     });
   }
-  if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
-      const defaults = {
-        'bg-deep': '#1e1e1e', 'bg-panel': '#252526', 'bg-card': '#1f1f1f',
-        'bg-hover': '#2d2d2d', 'border': '#3c3c3c', 'accent': '#007acc',
-        'text-1': '#d4d4d4', 'text-2': '#808080', 'text-3': '#6a6a6a'
-      };
-      Object.entries(defaults).forEach(([key, value]) => {
-        const input = document.querySelector(`[data-theme-key="${key}"]`);
-        if (input) input.value = value;
-      });
-      await saveUITheme(defaults);
-      showToast('Theme reset to defaults.', 'success');
-    });
-  }
 }
 
 async function populateSettingsInputs() {
-  await populateThemeInputs();
   await populateJabberSettings();
 }
 
 async function saveAllSettings() {
-  const theme  = gatherThemeInputs();
   const jabber = gatherJabberSettings();
-  await saveUITheme(theme);
   await window.eveAPI.saveAppConfig({ jabber });
 }
 
@@ -181,6 +117,7 @@ function navigateToPage(page) {
   if (page === 'assets')     loadAssets();
   if (page === 'wallets')    renderWallets();
   if (page === 'industry')   initIndustryPage();
+  if (page === 'pi')         loadPlanetaryInteraction();
 }
 
 // ─── Nav Status Lights ────────────────────────────────────────────────────────

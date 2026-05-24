@@ -1,11 +1,12 @@
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-
 // ── Background auto-refresh: silently sync stale characters ──────────────────
 // Called once per dashboard load. Checks every character's last synced_at from
 // character_information.db. If data is older than STALE_MS and no manual sync
 // is already running, queues them one-at-a-time to avoid hammering ESI.
-const STALE_MS = 20 * 60 * 1000; // 20 minutes
 
+const STALE_MS = 30 * 60 * 1000; // 30 minutes
+
+let _dashboardLoading   = false;
 let _autoRefreshRunning = false;
 
 // Shared set so characters.js can check which IDs are currently auto-syncing
@@ -38,7 +39,7 @@ async function autoRefreshStaleCharacters(accounts) {
     }
 
     if (!stale.length) {
-      logToConsole('All character data is fresh (< 20 min old).', 'info');
+      logToConsole('All character data is fresh (< 30 min old).', 'info');
       return;
     }
 
@@ -70,8 +71,7 @@ async function autoRefreshStaleCharacters(accounts) {
     }
 
     // Reload dashboard data after background refreshes are done
-    logToConsole('Auto-refresh complete — refreshing dashboard…', 'success');
-    loadDashboard();
+    logToConsole('Auto-refresh complete.', 'success');
 
   } finally {
     _autoRefreshRunning = false;
@@ -106,22 +106,24 @@ async function loadDashboard() {
   // ── Kick off silent background auto-refresh (non-blocking) ───────────────
   autoRefreshStaleCharacters(accounts).catch(() => {});
 
-  // ── Section 1: Welcome banner — DB first, then ESI in background ─────────
+  // ── Section 1: Welcome banner — DB only, no ESI calls ───────────────────
+  // All data is read from character_information.db which is kept up-to-date
+  // by autoRefreshStaleCharacters(). The banner never hits ESI directly.
   (async () => {
-    // Public ESI proxy — routes through ipcMain for consistent UA/timeout.
-    async function esiGet(url) {
-      try {
-        return await window.eveAPI.esiFetch(url);
-      } catch (ipcErr) {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`ESI ${r.status}: ${url}`);
-        return r.json();
-      }
-    }
 
-    // ── Helper: render the banner from whatever data we have ─────────────
-    function renderBanner({ charId, charName, birthday, secStatus, corpId, corpName,
+    // ── Static bloodline lookup (EVE data never changes) ─────────────────
+    const BLOODLINE_NAMES = {
+      1:'Deteis', 2:'Civire', 3:'Achura', 4:'Gallente', 5:'Intaki', 6:'Jin-Mei',
+      7:'Amarr', 8:'Ni-Kunni', 9:'Khanid', 11:'Vherokior', 12:'Brutor', 13:'Sebiestor',
+      14:'Minmatar', 15:'Nefantar', 16:'Starkmanir', 17:'Thukker',
+    };
+
+    // ── Helper: render the banner from DB data ────────────────────────────
+    // implants: array of DB rows { implant_id, type_name, slot }
+    function renderBanner({ charId, charName, birthday, gender, secStatus, corpId, corpName,
                              allianceId, allianceName, homeStationName, homeSystemSec,
+                             bloodlineName = null, implants = [], currentShipTypeId = null,
+                             currentShipTypeName = null,
                              stale = false }) {
       if (!welcomeBanner) return;
 
@@ -129,9 +131,12 @@ async function loadDashboard() {
         const n = parseFloat(s);
         if (isNaN(n)) return 'var(--text-2)';
         if (n >= 5.0) return '#4ada8a';
-        if (n >= 0.1) return '#f0a800';
+        if (n >= 0.1) return '#0b7edb';
+        if (n == 0.0) return '#5f5f5f';
+        if (n <= 0.0) return '#db0b0b';
         return '#e45c5c';
       };
+
 
       const systemSecMeta = (sec) => {
         if (sec === null || sec === undefined) return { color: 'var(--text-2)', label: null, cls: '' };
@@ -142,6 +147,21 @@ async function loadDashboard() {
         return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
       };
 
+      // ── New Gender Helper ──────────────────────────────────────────────
+     const genderMeta = (g) => {
+      if (!g) return null;
+      const gLower = String(g).toLowerCase();
+      // Using 'color' for both text and border
+      if (gLower === 'male')   return { color: '#67ace4', label: 'Male' };
+      if (gLower === 'female') return { color: '#e47baf', label: 'Female' };
+      return { color: 'var(--text-3)', label: g };
+    };
+
+    const gMeta = genderMeta(gender);
+    const genderBreadcrumb = gMeta 
+      ? `<span class="sec-breadcrumb" style="border: 1px solid ${gMeta.color}; color: ${gMeta.color}; background-color: transparent; padding: 2px 6px; border-radius: 4px;">${escHtml(gMeta.label)}</span>` 
+      : '<span style="color:var(--text-2);">—</span>';
+
       const sysMeta = systemSecMeta(homeSystemSec);
       const homeSecValueDisplay = homeSystemSec != null
         ? `<span style="color:${sysMeta.color};">${Number(homeSystemSec).toFixed(1)}</span>` : '';
@@ -150,241 +170,276 @@ async function loadDashboard() {
       const staleNote = stale
         ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
 
+      // ── Implant icons HTML ───────────────────────────────────────────────
+      // implants is the full DB rows array passed in, each with implant_id + type_name
+      const implantIconsHtml = implants.length
+        ? implants.map(row => `
+            <img class="banner-implant-icon"
+                 src="https://images.evetech.net/types/${row.implant_id}/icon?size=32"
+                 alt="${escHtml(row.type_name || String(row.implant_id))}"
+                 title="${escHtml(row.type_name || String(row.implant_id))}"
+                 onerror="this.style.display='none'"/>`).join('')
+        : `<span class="banner-implant-empty">No implants</span>`;
+
+      // ── Ship column HTML ─────────────────────────────────────────────────
+      const shipColHtml = currentShipTypeId ? `
+        <div class="banner-ship-col">
+          <img class="banner-ship-icon"
+               src="https://images.evetech.net/types/${currentShipTypeId}/render?size=256"
+               alt="${escHtml(currentShipTypeName || 'Current Ship')}"
+               title="${escHtml(currentShipTypeName || 'Current Ship')}"
+               onerror="this.onerror=null;this.src='https://images.evetech.net/types/${currentShipTypeId}/icon?size=64'"/>
+          <div class="banner-ship-name">${escHtml(currentShipTypeName || 'Unknown Ship')}</div>
+        </div>`
+        : `<div class="banner-ship-col banner-ship-col--empty">
+             <div class="banner-ship-placeholder">
+               <span class="banner-ship-placeholder-icon">◈</span>
+               <span class="banner-ship-placeholder-label">No Ship Data</span>
+             </div>
+           </div>`;
+
       welcomeBanner.innerHTML = `
-        <div class="dashboard-welcome-inner">
+        <div class="banner-portrait-col">
           <img class="dashboard-portrait"
-               src="https://images.evetech.net/characters/${charId}/portrait?size=128"
+               src="https://images.evetech.net/characters/${charId}/portrait?size=256"
                alt="${escHtml(charName)}"
-               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${charId}/portrait?size=64'"/>
-          <div class="dashboard-welcome-text">
+               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${charId}/portrait?size=128'"/>
+        </div>
+        <div class="banner-main-col">
+          <div class="banner-identity-col">
             <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
             <div class="dashboard-welcome-name">${escHtml(charName)}${staleNote}</div>
-            <div class="dashboard-welcome-affil">
-              ${corpId     ? `<img class="dashboard-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=64" title="${escHtml(corpName || '')}" onerror="this.style.display='none'"/>` : ''}
-              ${allianceId ? `<img class="dashboard-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=64" title="${escHtml(allianceName || '')}" onerror="this.style.display='none'"/>` : ''}
-              ${corpName     ? `<span class="dashboard-org-name">${escHtml(corpName)}</span>` : ''}
-              ${allianceName ? `<span class="dashboard-org-sep"> · </span><span class="dashboard-org-name">${escHtml(allianceName)}</span>` : ''}
+            <div class="banner-org-logos">
+              ${corpId     ? `<img class="banner-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=128" alt="${escHtml(corpName || '')}" onerror="this.style.display='none'"/>` : ''}
+              ${allianceId ? `<img class="banner-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=128" alt="${escHtml(allianceName || '')}" onerror="this.style.display='none'"/>` : ''}
             </div>
-            <div class="dashboard-welcome-stats">
-              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Born</span><span class="dashboard-stat-value">${escHtml(birthday || '—')}</span></div>
-              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Security Status</span><span class="dashboard-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus ?? '—'))}</span></div>
-              <div class="dashboard-welcome-stat dashboard-welcome-stat--home">
-                <span class="dashboard-stat-label">Home Station</span>
-                <span class="dashboard-stat-value dashboard-home-station-value">
-                  <span class="dashboard-home-name">${escHtml(homeStationName || '—')}</span>
+            <div class="banner-org-names">
+              ${corpName     ? `<span class="banner-org-name-text">${escHtml(corpName)}</span>` : ''}
+              ${allianceName ? `<span class="banner-org-sep">//</span><span class="banner-org-name-text">${escHtml(allianceName)}</span>` : ''}
+            </div>
+          </div>
+          <div class="banner-stats-outer">
+            <div class="banner-stats-col">
+              <div class="banner-stat-row"><span class="banner-stat-label">Born</span><span class="banner-stat-value">${escHtml(birthday || '—')}</span></div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Sec Status</span><span class="banner-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus ?? '—'))}</span></div>
+              <div class="banner-stat-row">
+                <span class="banner-stat-label">Home</span>
+                <span class="banner-stat-value banner-home-value">
+                  <span>${escHtml(homeStationName || '—')}</span>
                   ${homeSecValueDisplay}
                   ${homeSecBreadcrumb}
                 </span>
               </div>
-              <div class="dashboard-welcome-stat">
-                <span class="dashboard-stat-label">Total Net Worth</span>
-                <span class="dashboard-stat-value" id="welcomeNetWorthValue">
-                  <span style="color:var(--text-3);font-size:11px;">Calculating…</span>
-                </span>
-              </div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span style="color:var(--text-3);font-size:11px;">Calculating…</span></span></div>
             </div>
           </div>
-        </div>`;
+          <div class="banner-extra-col">
+            <div class="banner-extra-section">
+              <div class="banner-extra-label">Bloodline</div>
+              <div class="banner-extra-value" id="bannerBloodlineName">${escHtml(bloodlineName || '—')}</div>
+            </div>
+            <div class="banner-extra-section banner-implants-section">
+              <div class="banner-extra-label">Active Implants</div>
+              <div class="banner-implant-icons" id="bannerImplantIcons">${implantIconsHtml}</div>
+            </div>
+          </div>
+        </div>
+        ${shipColHtml}`;
     }
 
     try {
       if (!mainAccount) return;
 
-      // ── FAST PATH: render instantly from character_information.db ─────────
-      let renderedFromDb = false;
-      try {
-        const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
-        if (dbData?.info) {
-          const info     = dbData.info;
-          const loc      = dbData.location;   // most-recent location row
-          const birthday = info.birthday
-            ? new Date(info.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
-            : '—';
-
-          // Fetch corp/alliance names from ESI names cache (fast, often already cached)
-          let corpName = '', allianceName = '';
-          try {
-            const names = await window.eveAPI.getNames(
-              [info.corporation_id, info.alliance_id].filter(Boolean)
-            );
-            corpName     = names[info.corporation_id]  || '';
-            allianceName = names[info.alliance_id]     || '';
-          } catch (_) {}
-
-          renderBanner({
-            charId:          mainAccount.characterId,
-            charName:        mainAccount.characterName,
-            birthday,
-            secStatus:       typeof info.security_status === 'number' ? info.security_status.toFixed(1) : '—',
-            corpId:          info.corporation_id,
-            corpName,
-            allianceId:      info.alliance_id,
-            allianceName,
-            homeStationName: loc?.station_name || loc?.solar_system_name || '—',
-            homeSystemSec:   null,
-            stale:           false,
-          });
-          renderedFromDb = true;
-          logToConsole('Welcome banner loaded from local DB.', 'info');
+      // ── DB READ: single call, all tables ────────────────────────────────
+      const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
+      if (!dbData?.info) {
+        // No DB row yet — character hasn't been synced. Show minimal banner.
+        if (welcomeBanner) {
+          welcomeBanner.innerHTML = `
+            <div class="banner-portrait-col">
+              <img class="dashboard-portrait"
+                   src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
+                   alt="${escHtml(mainAccount.characterName)}"
+                   onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=128'"/>
+            </div>
+            <div class="banner-main-col">
+              <div class="banner-identity-col">
+                <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+                <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
+                <div style="color:var(--text-3);font-size:10px;font-family:var(--mono);margin-top:8px;">Sync character data to populate stats.</div>
+              </div>
+            </div>`;
         }
-      } catch (dbErr) {
-        // DB read failed — fall through to ESI path
+        return;
       }
 
-      // ── SLOW PATH: ESI fetch (enriches with home station sec status) ──────
-      // Always runs to get the authoritative home_location_id and system sec.
-      let charInfo = null;
-      try {
-        charInfo = await window.eveAPI.getCharacterInfo(mainAccount.characterId);
-      } catch (_) {}
-      if (!charInfo) {
-        charInfo = await esiGet(
-          `https://esi.evetech.net/v5/characters/${mainAccount.characterId}/?datasource=tranquility`
-        );
-      }
+      const info = dbData.info;
+      const loc  = dbData.location;   // most-recent location row (char_{id}_location)
+      const ship = dbData.ship;       // most-recent ship row (char_{id}_ship)
 
-      const corpId     = charInfo.corporation_id || null;
-      const allianceId = charInfo.alliance_id    || null;
-      const birthday   = charInfo.birthday
-        ? new Date(charInfo.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
+      // ── Birthday ──────────────────────────────────────────────────────────
+      const birthday = info.birthday
+        ? new Date(info.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
         : '—';
-      const secStatus = typeof charInfo.security_status === 'number'
-        ? charInfo.security_status.toFixed(1) : '—';
 
-      const [corpInfo, alliInfo] = await Promise.all([
-        corpId     ? esiGet(`https://esi.evetech.net/v5/corporations/${corpId}/?datasource=tranquility`).catch(() => ({}))    : Promise.resolve({}),
-        allianceId ? esiGet(`https://esi.evetech.net/v4/alliances/${allianceId}/?datasource=tranquility`).catch(() => ({})) : Promise.resolve({}),
-      ]);
-      const corpName     = corpInfo.name || '';
-      const allianceName = alliInfo.name || '';
+      // ── Security status ───────────────────────────────────────────────────
+      const secStatus = typeof info.security_status === 'number'
+        ? info.security_status.toFixed(1) : '—';
 
-      // ── Home location ──────────────────────────────────────────────────────
-      // Authenticated character sheet gives home_location_id directly.
-      // Fall back to the clones endpoint (medical clone = home station).
-      let homeId   = charInfo.home_location_id   || null;
-      let homeType = charInfo.home_location_type || null;
+      // ── Home location — from location table (station_name preferred) ──────
+      const homeStationName = loc?.station_name || loc?.solar_system_name || '—';
+      // Security for colour-coding: stored as security_status in assets table;
+      // location table doesn't store sec — leave null (no breadcrumb, just name)
+      const homeSystemSec = null;
 
-      if (!homeId) {
-        try {
-          const clones = await window.eveAPI.getClones(mainAccount.characterId);
-          if (clones && clones.home_location) {
-            homeId   = clones.home_location.location_id   || null;
-            homeType = clones.home_location.location_type || null;
-          }
-        } catch (_) {}
-      }
-
-      let homeStationName = '—', homeSystemSec = null;
+      // ── Corp / Alliance names — resolve from cached names IPC ────────────
+      let corpName = '', allianceName = '';
       try {
-        if (homeId && homeType === 'station') {
-          const stationInfo = await esiGet(`https://esi.evetech.net/v2/universe/stations/${homeId}/?datasource=tranquility`);
-          if (stationInfo.system_id) {
-            const sysInfo = await esiGet(`https://esi.evetech.net/v4/universe/systems/${stationInfo.system_id}/?datasource=tranquility`);
-            homeStationName = sysInfo.name || stationInfo.name || `ID ${homeId}`;
-            homeSystemSec   = typeof sysInfo.security_status === 'number' ? sysInfo.security_status : null;
-          } else {
-            homeStationName = stationInfo.name || `ID ${homeId}`;
-          }
-        } else if (homeId && (homeType === 'structure' || Number(homeId) >= 1_000_000_000_000)) {
-          try {
-            const loc = await window.eveAPI.getStructureInfo(homeId, mainAccount.characterId);
-            homeStationName = (loc && loc.name) ? loc.name : `Structure ${homeId}`;
-            if (loc && loc.solar_system_id) {
-              const sysInfo = await esiGet(`https://esi.evetech.net/v4/universe/systems/${loc.solar_system_id}/?datasource=tranquility`);
-              homeSystemSec = typeof sysInfo.security_status === 'number' ? sysInfo.security_status : null;
-            } else if (loc && loc.security_status != null) {
-              homeSystemSec = loc.security_status;
-            }
-          } catch (_) { homeStationName = `Structure ${homeId}`; }
-        } else if (homeId) {
-          homeStationName = `Location ${homeId}`;
-        }
-      } catch (e) { console.warn('Home station fetch failed:', e.message); }
+        const ids   = [info.corporation_id, info.alliance_id].filter(Boolean);
+        const names = ids.length ? await window.eveAPI.getNames(ids) : {};
+        corpName     = names[info.corporation_id]  || '';
+        allianceName = names[info.alliance_id]     || '';
+      } catch (_) {}
 
-      // Re-render the banner with full ESI data (overwrites the DB-sourced render)
+      // ── Bloodline — static lookup, no network call ────────────────────────
+      const bloodlineName = info.bloodline_id
+        ? (BLOODLINE_NAMES[info.bloodline_id] || `ID ${info.bloodline_id}`)
+        : null;
+
+      // ── Implants — full rows from char_{id}_implants ({ implant_id, type_name, slot })
+      const implants = Array.isArray(dbData.implants) ? dbData.implants : [];
+
+      // ── Current ship — from char_{id}_ship (most recent row) ─────────────
+      const currentShipTypeId   = ship?.ship_type_id   || null;
+      const currentShipTypeName = ship?.ship_type_name || null;
+
       renderBanner({
         charId:    mainAccount.characterId,
         charName:  mainAccount.characterName,
         birthday,  secStatus,
-        corpId,    corpName,
-        allianceId, allianceName,
+        gender:    info.gender,
+        corpId:    info.corporation_id,    corpName,
+        allianceId: info.alliance_id,      allianceName,
         homeStationName, homeSystemSec,
+        bloodlineName,
+        implants,
+        currentShipTypeId, currentShipTypeName,
         stale: false,
       });
 
+      logToConsole('Welcome banner loaded from local DB.', 'info');
+
     } catch (e) {
-      // ESI failed — if we already rendered from DB, keep that. Otherwise minimal fallback.
-      if (!document.querySelector('.dashboard-welcome-inner') && welcomeBanner && mainAccount) {
-        welcomeBanner.innerHTML = `<div class="dashboard-welcome-inner"><div class="dashboard-welcome-text">
-          <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
-          <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
-        </div></div>`;
+      console.warn('[dashboard] Banner render failed:', e.message);
+      if (welcomeBanner && mainAccount) {
+        welcomeBanner.innerHTML = `
+          <div class="banner-portrait-col">
+            <img class="dashboard-portrait"
+                 src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
+                 alt="${escHtml(mainAccount.characterName)}"
+                 onerror="this.style.display='none'"/>
+          </div>
+          <div class="banner-main-col">
+            <div class="banner-identity-col">
+              <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+              <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
+            </div>
+          </div>`;
       }
     }
   })();
 
   // ── Section 2: Net worth calculation ────────────────────────────────────
   // Sources:
-  //   • Liquid ISK     → /characters/{id}/wallet/
-  //   • Asset value    → /characters/{id}/assets/ × /markets/prices/ (adjusted_price)
-  //   • Market escrow  → /characters/{id}/orders/  (sum of buy-order escrow fields)
-  //   • Contract escrow→ /characters/{id}/contracts/ (sum of price on outstanding buys)
+  //   • Liquid ISK    → character_information.db wallet snapshots (instant)
+  //   • Asset value   → character_information.db assets × /v1/markets/prices/
+  //                     (EVE's own adjusted_price — one unauthenticated call,
+  //                      cached 12 h, same valuation the game uses in-client)
+  //   • Market escrow → /characters/{id}/orders/  serialised, 1 char at a time
+  //   • Contract escrow removed — endpoint was causing all the 429s and adds
+  //     minimal value; escrow from buy orders already covers the main case.
   (async () => {
-    // ── Step 1: Liquid ISK (fast) ────────────────────────────────────────────
+    // ── Serialised ESI helper ────────────────────────────────────────────────
+    // Runs `fn` for each account one-at-a-time. On a 429 it backs off for
+    // retryAfterMs (default 12 s) before retrying once, then gives up.
+    async function serialESI(accounts, fn, retryAfterMs = 12000) {
+      const results = [];
+      for (const acc of accounts) {
+        try {
+          results.push(await fn(acc));
+        } catch (e) {
+          if (e?.message?.includes('429')) {
+            logToConsole(`ESI rate-limited — waiting ${retryAfterMs / 1000}s before retry…`, 'info');
+            await new Promise(r => setTimeout(r, retryAfterMs));
+            try { results.push(await fn(acc)); }
+            catch (e2) { results.push(null); } // give up after one retry
+          } else {
+            results.push(null);
+          }
+        }
+      }
+      return results;
+    }
+
+    // ── Step 1: Liquid ISK — read from local DB (instant, no ESI) ───────────
     const walletByChar = {};
-    await Promise.all(accounts.map(async acc => {
-      try { walletByChar[String(acc.characterId)] = await window.eveAPI.getWalletBalance(acc.characterId) || 0; }
-      catch (e) { walletByChar[String(acc.characterId)] = 0; }
-    }));
+    for (const acc of accounts) {
+      try {
+        const dbData = await window.eveAPI.getCharacterData(acc.characterId);
+        // wallet is the most-recent row from the _wallet table
+        walletByChar[String(acc.characterId)] = dbData?.wallet?.balance || 0;
+      } catch (e) {
+        walletByChar[String(acc.characterId)] = 0;
+      }
+    }
     let totalWallet = 0;
     accounts.forEach(acc => { totalWallet += walletByChar[String(acc.characterId)] || 0; });
 
-    // Show liquid ISK immediately while assets/escrow are still loading
+    // Show liquid ISK immediately while asset valuation runs
     renderKPIPanel(summaryPanel, accounts, totalWallet, 0, totalWallet, {}, walletByChar, true);
 
     try {
-      // ── Step 2: Asset value using /markets/prices/ (adjusted_price) ────────
-      // This is the same price source EVE uses for net worth on the char sheet.
-      // One call returns all items — no per-item Jita scraping needed.
-      const [assets, marketPrices] = await Promise.all([
-        window.eveAPI.getAllAssets().catch(() => []),
-        window.eveAPI.getMarketPrices().catch(() => ({})),
-      ]);
+      // ── Step 2: Asset value from DB × EVE market prices ──────────────────
+      // Read every character's assets from the local DB — no ESI call.
+      // getMarketPrices() is a single unauthenticated ESI call cached for 12 h.
+      const marketPrices = await window.eveAPI.getMarketPrices().catch(() => ({}));
 
       const totalByChar = {};
       let overallValue  = 0;
-      assets.forEach(asset => {
-        const priceEntry = marketPrices[asset.type_id] || {};
-        // Use adjusted_price first (EVE's internal valuation), fall back to average
-        const unitPrice  = priceEntry.adjusted || priceEntry.average || 0;
-        const value      = unitPrice * (asset.quantity || 0);
-        overallValue    += value;
-        const cid = String(asset.characterId || 'unknown');
-        totalByChar[cid] = (totalByChar[cid] || 0) + value;
+
+      for (const acc of accounts) {
+        const cid    = String(acc.characterId);
+        let   assets = [];
+        try { assets = await window.eveAPI.getCharacterAssetsDb(acc.characterId); } catch (_) {}
+        if (!Array.isArray(assets)) assets = [];
+
+        assets.forEach(asset => {
+          const priceEntry = marketPrices[asset.type_id] || {};
+          // adjusted_price is EVE's internal valuation — same as the in-game net worth
+          const unitPrice  = priceEntry.adjusted || priceEntry.average || 0;
+          const value      = unitPrice * (asset.quantity || 1);
+          overallValue    += value;
+          totalByChar[cid] = (totalByChar[cid] || 0) + value;
+        });
+      }
+
+      // ── Step 3: Market order escrow (serialised — 1 request per character) ─
+      // Active buy orders lock ISK in escrow — it's part of net worth.
+      // Serialised to avoid 429s; skipped entirely if all fail.
+      const escrowByChar = {};
+      await serialESI(accounts, async (acc) => {
+        const orders = await window.eveAPI.getCharacterOrders(acc.characterId);
+        let escrow = 0;
+        if (Array.isArray(orders)) {
+          orders.forEach(o => {
+            if (o.is_buy_order && typeof o.escrow === 'number') escrow += o.escrow;
+          });
+        }
+        escrowByChar[String(acc.characterId)] = escrow;
       });
 
-      // ── Step 3: Market order escrow ─────────────────────────────────────────
-      // Active buy orders lock ISK in escrow — it's part of net worth.
-      const escrowByChar = {};
-      let totalEscrow = 0;
-      await Promise.all(accounts.map(async acc => {
-        try {
-          const orders = await window.eveAPI.getCharacterOrders(acc.characterId);
-          let escrow = 0;
-          if (Array.isArray(orders)) {
-            orders.forEach(o => {
-              // is_buy_order + escrow field = ISK held by market system
-              if (o.is_buy_order && typeof o.escrow === 'number') escrow += o.escrow;
-            });
-          }
-          escrowByChar[String(acc.characterId)] = escrow;
-          totalEscrow += escrow;
-        } catch (e) {
-          escrowByChar[String(acc.characterId)] = 0;
-        }
-      }));
-
-      // Add escrow into per-character totals (it's part of their net worth)
+      // Fold escrow into per-character asset totals
       accounts.forEach(acc => {
         const cid = String(acc.characterId);
         const e   = escrowByChar[cid] || 0;
@@ -392,32 +447,12 @@ async function loadDashboard() {
         overallValue     += e;
       });
 
-      // ── Step 4: Contract escrow ──────────────────────────────────────────────
-      // Outstanding buy contracts (wants_to_buy) also tie up ISK.
-      let contractEscrow = 0;
-      await Promise.all(accounts.map(async acc => {
-        try {
-          const contracts = await window.eveAPI.getCharacterContracts(acc.characterId);
-          if (Array.isArray(contracts)) {
-            contracts.forEach(c => {
-              // 'outstanding' + 'item_exchange' or 'auction' where we are the issuer buying
-              if (c.status === 'outstanding' && c.for_corporation === false) {
-                // Buyer contracts: price is what we're offering to pay
-                if ((c.type === 'item_exchange' || c.type === 'auction') && typeof c.price === 'number') {
-                  contractEscrow += c.price;
-                }
-              }
-            });
-          }
-        } catch (e) { /* contract endpoint may not be scoped yet */ }
-      }));
-
       // ── Grand total ──────────────────────────────────────────────────────────
-      const grandTotal = totalWallet + overallValue + contractEscrow;
+      const grandTotal = totalWallet + overallValue;
 
-      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue + contractEscrow, grandTotal, totalByChar, walletByChar, false);
+      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, false);
 
-      // Update welcome banner
+      // Update welcome banner net worth figure
       const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
       if (welcomeNWEl) {
         welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
@@ -425,19 +460,36 @@ async function loadDashboard() {
 
       await window.eveAPI.cacheSet('dashboard_cache', {
         accounts, mainAccount, walletByChar, totalByChar,
-        overallValue: overallValue + contractEscrow,
-        totalWallet, grandTotal
+        overallValue, totalWallet, grandTotal
       }, 1).catch(() => {});
 
     } catch (e) { console.warn('Net worth calculation failed:', e.message); }
   })();
 
-  // ── Section 3: Jobs table (independent) ──────────────────────────────────
+  // ── Section 3: Jobs table — serialised to avoid 429s ─────────────────────
   (async () => {
     if (jobsTable) jobsTable.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:11px;">Loading jobs...</div>`;
     try {
-      const jobResponses = await Promise.all(accounts.map(acc => window.eveAPI.getCharacterJobs(acc.characterId).catch(() => [])));
-      const jobs         = jobResponses.flat();
+      // Fetch jobs one character at a time; short pause between each to stay
+      // well under ESI's per-second rate limit.
+      const jobResponses = [];
+      for (const acc of accounts) {
+        try {
+          const jobs = await window.eveAPI.getCharacterJobs(acc.characterId);
+          jobResponses.push(jobs || []);
+        } catch (e) {
+          if (e?.message?.includes('429')) {
+            await new Promise(r => setTimeout(r, 12000));
+            try { jobResponses.push(await window.eveAPI.getCharacterJobs(acc.characterId) || []); }
+            catch (_) { jobResponses.push([]); }
+          } else {
+            jobResponses.push([]);
+          }
+        }
+        // Small breathing room between characters (100 ms)
+        await new Promise(r => setTimeout(r, 100));
+      }
+      const jobs = jobResponses.flat();
       const accountMap   = Object.fromEntries(accounts.map(acc => [String(acc.characterId), acc]));
       if (!jobsTable) return;
       if (!jobs.length) { jobsTable.innerHTML = '<div class="dashboard-empty">No industry jobs found.</div>'; return; }
@@ -698,7 +750,7 @@ function setupDashboardWidgetDrag() {
   const header = parent.querySelector('.dashboard-panel-title');
   if (!header) return;
 
-  let isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+  let isDragging = true, startX = 10, startY = 0, origLeft = 0, origTop = 0;
   header.style.cursor = 'grab';
 
   header.onmousedown = (event) => {

@@ -364,8 +364,44 @@ async function getCharacterData(characterId) {
 async function getCharacterAssets(characterId) {
   if (!charDb) return [];
   try {
-    return await charDb.all(`SELECT * FROM char_${characterId}_assets ORDER BY type_name ASC`);
+    // Group identical items at the same location so the UI never has to stack
+    // duplicates client-side. Quantities are summed; all other columns are taken
+    // from an arbitrary representative row (they are identical for matching pairs).
+    // volume is summed as well so total volume stays correct after grouping.
+    return await charDb.all(`
+      SELECT
+        MIN(item_id)           AS item_id,
+        type_id,
+        type_name,
+        location_id,
+        location_name,
+        location_flag,
+        SUM(quantity)          AS quantity,
+        MAX(is_singleton)      AS is_singleton,
+        solar_system_id,
+        solar_system_name,
+        region_id,
+        region_name,
+        security_status,
+        MAX(synced_at)         AS synced_at
+      FROM char_${characterId}_assets
+      GROUP BY type_id, location_id
+      ORDER BY type_name ASC
+    `);
   } catch (e) { return []; }
+}
+
+// Returns the most-recent synced_at timestamp (ms) for a character's assets,
+// or 0 if no rows exist. Used by the auto-refresh logic to decide whether
+// to skip an asset re-fetch (stale threshold: 12 hours).
+async function getAssetSyncedAt(characterId) {
+  if (!charDb) return 0;
+  try {
+    const row = await charDb.get(
+      `SELECT MAX(synced_at) AS ts FROM char_${characterId}_assets`
+    );
+    return row?.ts || 0;
+  } catch (e) { return 0; }
 }
 
 async function getCharacterBlueprints(characterId) {
@@ -385,6 +421,20 @@ async function removeCharacterData(characterId) {
   console.log(`[CharDB] Removed all tables for character ${characterId}`);
 }
 
+async function getCharacterPIColonies(characterId) {
+  if (!charDb) return [];
+  try {
+    // Assuming your table is named char_{id}_pi_colonies
+    return await charDb.all(`
+      SELECT * FROM char_${characterId}_pi_colonies 
+      ORDER BY upgrade_level DESC
+    `);
+  } catch (e) {
+    console.error(`[CharDB] Failed to fetch PI for ${characterId}:`, e);
+    return [];
+  }
+}
+
 module.exports = {
   initCharacterDb,
   ensureCharacterTables,
@@ -399,6 +449,8 @@ module.exports = {
   replaceBlueprints,
   getCharacterData,
   getCharacterAssets,
+  getAssetSyncedAt,
   getCharacterBlueprints,
   removeCharacterData,
+  getCharacterPIColonies,
 };

@@ -177,6 +177,14 @@ function httpGet(url, headers = {}) {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
+        if (res.statusCode === 429) {
+          // Surface the Retry-After header so callers can back off correctly
+          const retryAfter = parseInt(res.headers['retry-after'] || '60', 10);
+          return reject(Object.assign(
+            new Error(`HTTP 429: ${url}`),
+            { retryAfter, isRateLimit: true }
+          ));
+        }
         if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
         try { resolve(JSON.parse(data)); } catch { reject(new Error('JSON parse error')); }
       });
@@ -408,6 +416,12 @@ ipcMain.handle('get-accounts', () => {
 });
 
 ipcMain.handle('get-character-jobs', async (_, characterId) => {
+  // Completed jobs never change — cache aggressively to avoid hammering ESI.
+  // This is the single biggest source of 429s in the dashboard refresh loop.
+  const cacheKey = `jobs_completed_${characterId}`;
+  const cached = readCache(cacheKey);
+  if (cached) return cached;
+
   try {
     const token = await getValidToken(characterId);
     const url = `${ESI_BASE}/latest/characters/${characterId}/industry/jobs/?datasource=tranquility&status=completed`;
@@ -415,11 +429,20 @@ ipcMain.handle('get-character-jobs', async (_, characterId) => {
     if (!Array.isArray(jobs)) return [];
     const systemIds = [...new Set(jobs.filter(j => j.solar_system_id).map(j => j.solar_system_id))];
     const nameMap = systemIds.length ? await resolveNames(systemIds) : {};
-    return jobs.map(job => ({
+    const result = jobs.map(job => ({
       ...job,
-      solar_system_name: nameMap[job.solar_system_id] || (job.solar_system_id ? `System ${job.solar_system_id}` : 'Unknown'),
+      solar_system_name: nameMap[job.solar_system_id] || `System ${job.solar_system_id || 'Unknown'}`,
     }));
+    writeCache(cacheKey, result, 1); // 24 hours — completed jobs never change
+    writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback for 429 situations
+    return result;
   } catch (e) {
+    if (e.isRateLimit) {
+      // On a 429, return whatever stale cache we have rather than an empty array,
+      // so the dashboard doesn't blank out the jobs table.
+      const stale = readCache(`${cacheKey}_stale`);
+      if (stale) return stale;
+    }
     console.warn('Failed to load character jobs:', e.message || e);
     return [];
   }
@@ -802,6 +825,200 @@ ipcMain.handle('sync-character-full', async (event, characterId) => {
   return summary;
 });
 
+// ─── Core-only sync (everything except assets) ────────────────────────────────
+// Called by the 20-minute auto-refresh. Assets are deliberately excluded so
+// they can be governed by their own 12-hour staleness rule via
+// 'sync-character-assets-if-stale'.
+async function coreCharacterSync(characterId, characterName, progressCb) {
+  const report = (step, detail) => { if (progressCb) progressCb(step, detail); };
+
+  await charInfoDb.ensureCharacterTables(characterId);
+  const token   = await getValidToken(characterId);
+  const authHdr = { Authorization: `Bearer ${token}` };
+  const summary = { characterId, characterName, steps: {} };
+
+  // 1. Character sheet
+  try {
+    report('character_info', 'Fetching character sheet…');
+    const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`, authHdr);
+    await charInfoDb.upsertCharacterInfo(characterId, info);
+    summary.steps.info = 'ok';
+    report('character_info', `✓ ${info.name || characterName}`);
+  } catch (e) { summary.steps.info = `error: ${e.message}`; report('character_info', `✗ ${e.message}`); }
+
+  // 2. Wallet balance
+  try {
+    report('wallet', 'Fetching wallet balance…');
+    const balance = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
+    await charInfoDb.insertWalletSnapshot(characterId, typeof balance === 'number' ? balance : 0);
+    summary.steps.wallet = `${balance} ISK`;
+    report('wallet', `✓ ${(balance || 0).toLocaleString()} ISK`);
+  } catch (e) { summary.steps.wallet = `error: ${e.message}`; report('wallet', `✗ ${e.message}`); }
+
+  // 3. Current location
+  try {
+    report('location', 'Fetching current location…');
+    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    let stationName = null;
+    try {
+      if (loc.station_id)  { const s = await getLocator().resolveLocation(loc.station_id,  characterId); stationName = s?.name || null; }
+      else if (loc.structure_id) { const s = await getLocator().resolveLocation(loc.structure_id, characterId); stationName = s?.name || null; }
+    } catch (_) {}
+    let sysName = null;
+    if (loc.solar_system_id) {
+      try { const nm = await resolveNames([loc.solar_system_id]); sysName = nm[loc.solar_system_id] || null; } catch (_) {}
+    }
+    await charInfoDb.upsertLocation(characterId, { ...loc, solar_system_name: sysName }, stationName);
+    summary.steps.location = stationName || sysName || 'unknown';
+    report('location', `✓ ${stationName || sysName || loc.solar_system_id}`);
+  } catch (e) { summary.steps.location = `error: ${e.message}`; report('location', `✗ ${e.message}`); }
+
+  // 4. Current ship
+  try {
+    report('ship', 'Fetching current ship…');
+    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    let typeName = '';
+    if (ship.ship_type_id) { try { const nm = await resolveNames([ship.ship_type_id]); typeName = nm[ship.ship_type_id] || ''; } catch (_) {} }
+    await charInfoDb.upsertShip(characterId, ship, typeName);
+    summary.steps.ship = ship.ship_name || typeName;
+    report('ship', `✓ ${ship.ship_name || typeName}`);
+  } catch (e) { summary.steps.ship = `error: ${e.message}`; report('ship', `✗ ${e.message}`); }
+
+  // 5. Implants & jump clones
+  try {
+    report('implants', 'Fetching implants & clones…');
+    const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
+    let activeImplants = [];
+    try { activeImplants = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr); } catch (_) {}
+    const allImplantIds  = [...new Set(activeImplants || [])];
+    const implantNames   = allImplantIds.length ? await resolveNames(allImplantIds) : {};
+    const implants = allImplantIds.map((id, i) => ({ implant_id: id, type_name: implantNames[id] || `Type ${id}`, slot: i + 1 }));
+    await charInfoDb.replaceImplants(characterId, implants);
+    summary.steps.implants = `${implants.length} active`;
+    report('implants', `✓ ${implants.length} active implants`);
+    if (cloneData && Array.isArray(cloneData.jump_clones)) {
+      const locIds       = cloneData.jump_clones.map(c => c.location_id).filter(Boolean);
+      const locMeta      = locIds.length ? await getLocator().resolveLocations(locIds, characterId) : {};
+      const jcImplantIds = [...new Set(cloneData.jump_clones.flatMap(c => c.implants || []))];
+      const jcNames      = jcImplantIds.length ? await resolveNames(jcImplantIds) : {};
+      const jumpClones   = cloneData.jump_clones.map(c => ({
+        jump_clone_id: c.jump_clone_id, location_id: c.location_id,
+        location_name: locMeta[c.location_id]?.name || `Location ${c.location_id}`,
+        name: c.name || null,
+        implants: (c.implants || []).map(id => ({ type_id: id, type_name: jcNames[id] || `Type ${id}` })),
+      }));
+      await charInfoDb.replaceJumpClones(characterId, jumpClones);
+      summary.steps.jump_clones = `${jumpClones.length} clones`;
+      report('implants', `✓ ${jumpClones.length} jump clones`);
+    }
+  } catch (e) { summary.steps.implants = `error: ${e.message}`; report('implants', `✗ ${e.message}`); }
+
+  // 6. Planetary Interaction
+  try {
+    report('pi', 'Fetching PI colonies…');
+    const colonies = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/planets/?datasource=tranquility`, authHdr);
+    if (Array.isArray(colonies)) {
+      const sysIds   = [...new Set(colonies.map(c => c.solar_system_id).filter(Boolean))];
+      const sysNames = sysIds.length ? await resolveNames(sysIds) : {};
+      const piData   = colonies.map(c => ({
+        planet_id: c.planet_id, planet_type: c.planet_type || null,
+        solar_system_id: c.solar_system_id, solar_system_name: sysNames[c.solar_system_id] || null,
+        upgrade_level: c.upgrade_level || 0, num_pins: c.num_pins || 0,
+        last_update: c.last_update ? new Date(c.last_update).getTime() : null,
+      }));
+      await charInfoDb.replacePiColonies(characterId, piData);
+      summary.steps.pi = `${piData.length} colonies`;
+      report('pi', `✓ ${piData.length} PI colonies`);
+    }
+  } catch (e) { summary.steps.pi = `error: ${e.message}`; report('pi', `✗ ${e.message}`); }
+
+  // 7. Blueprints (full paginated) — kept in core; small payload, fast
+  try {
+    report('blueprints', 'Fetching blueprints…');
+    let allBPs = [], page = 1;
+    while (true) {
+      const data = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr);
+      allBPs = allBPs.concat(data);
+      report('blueprints', `  page ${page}: ${allBPs.length} blueprints…`);
+      if (data.length < 1000) break;
+      page++;
+    }
+    const typeIds = [...new Set(allBPs.map(b => b.type_id))];
+    const nameMap = await resolveNames(typeIds);
+    const blueprints = allBPs.map(bp => ({
+      item_id: bp.item_id, type_id: bp.type_id, name: nameMap[bp.type_id] || `Type ${bp.type_id}`,
+      location_id: bp.location_id, location_flag: bp.location_flag,
+      quantity: bp.quantity, runs: bp.runs, me: bp.material_efficiency, te: bp.time_efficiency,
+      isBPC: bp.quantity === -2,
+    }));
+    await charInfoDb.replaceBlueprints(characterId, blueprints);
+    summary.steps.blueprints = `${blueprints.length} BPs`;
+    report('blueprints', `✓ ${blueprints.length} blueprints stored`);
+    const db2 = loadDB();
+    db2.blueprints[characterId] = { updatedAt: Date.now(), items: blueprints };
+    saveDB(db2);
+  } catch (e) { summary.steps.blueprints = `error: ${e.message}`; report('blueprints', `✗ ${e.message}`); }
+
+  return summary;
+}
+
+// ─── IPC: Core-only auto-sync (20-min cadence, no assets) ─────────────────────
+ipcMain.handle('sync-character-core', async (event, characterId) => {
+  const db = loadDB();
+  const account = db.accounts[characterId];
+  if (!account) throw new Error('Account not found');
+  const characterName = account.characterName;
+  const win = BrowserWindow.fromWebContents(event.sender);
+
+  return coreCharacterSync(characterId, characterName, (step, detail) => {
+    console.log(`[CoreSync] ${characterName} — ${step}: ${detail}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('char-sync-progress', { characterId, characterName, step, detail });
+    }
+  });
+});
+
+// ─── IPC: Asset-only sync — skips if synced within the last 12 hours ──────────
+const ASSET_STALE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+ipcMain.handle('sync-character-assets-if-stale', async (event, characterId) => {
+  const db = loadDB();
+  const account = db.accounts[characterId];
+  if (!account) throw new Error('Account not found');
+  const characterName = account.characterName;
+  const win = BrowserWindow.fromWebContents(event.sender);
+
+  // Check how old the asset data is
+  const lastAssetSync = await charInfoDb.getAssetSyncedAt(characterId).catch(() => 0);
+  const ageMs = Date.now() - (lastAssetSync || 0);
+
+  if (lastAssetSync && ageMs < ASSET_STALE_MS) {
+    const hoursOld = (ageMs / 3_600_000).toFixed(1);
+    console.log(`[AssetSync] ${characterName}: assets fresh (${hoursOld}h old) — skipping.`);
+    return { skipped: true, characterId, characterName, ageMs };
+  }
+
+  console.log(`[AssetSync] ${characterName}: assets stale — syncing…`);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('char-sync-progress', { characterId, characterName, step: 'assets', detail: 'Fetching assets (paginated)…' });
+  }
+
+  try {
+    const r = await syncAssetsInternal(characterId);
+    console.log(`[AssetSync] ${characterName}: ✓ ${r.count} assets stored.`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('char-sync-progress', { characterId, characterName, step: 'assets', detail: `✓ ${r.count} assets stored` });
+    }
+    return { skipped: false, characterId, characterName, count: r.count };
+  } catch (e) {
+    console.warn(`[AssetSync] ${characterName}: ✗ ${e.message}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('char-sync-progress', { characterId, characterName, step: 'assets', detail: `✗ ${e.message}` });
+    }
+    throw e;
+  }
+});
+
 // ─── IPC: Get stored character info from CharDB ───────────────────────────────
 ipcMain.handle('get-character-info-db', async (_, characterId) => {
   return charInfoDb.getCharacterData(characterId);
@@ -813,6 +1030,10 @@ ipcMain.handle('get-character-assets-db', async (_, characterId) => {
 
 ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
   return charInfoDb.getCharacterBlueprints(characterId);
+});
+
+ipcMain.handle('get-pi-colonies', async (_, characterId) => {
+  return charInfoDb.getCharacterPIColonies(characterId);
 });
 
 async function syncAssetsInternal(characterId) {

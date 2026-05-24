@@ -1,0 +1,117 @@
+/* ══════════════════════════════════════════════════════════════════
+   planetary-interaction.css — PI Dashboard styling
+   ══════════════════════════════════════════════════════════════════ */
+
+.pi-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.pi-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.pi-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: 0.05em;
+}
+
+.pi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+/* Planet Card */
+.pi-card {
+  background: #0c0c0c;
+  border: 1px solid #1a1a1a;
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.pi-card:hover {
+  border-color: rgba(192, 57, 43, 0.35);
+  transform: translateY(-2px);
+}
+
+.pi-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pi-planet-render {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-b);
+  object-fit: cover;
+}
+
+.pi-info { flex: 1; }
+
+.pi-planet-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 2px;
+}
+
+.pi-planet-type {
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pi-cc-badge {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+/* Stats Section */
+.pi-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: var(--bg-deep);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-b);
+}
+
+.pi-stat-box { display: flex; flex-direction: column; gap: 4px; }
+.pi-stat-label { font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+.pi-stat-value { font-size: 13px; color: var(--text-1); font-family: var(--mono); }
+
+/* Status Indicator */
+.pi-status { font-size: 11px; font-weight: 500; display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.pi-status::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+.pi-status.active  { color: var(--success); }
+.pi-status.active::before  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.pi-status.warning { color: var(--warning); }
+.pi-status.warning::before { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+.pi-status.idle    { color: var(--text-3); }
+.pi-status.idle::before    { background: var(--text-3); }

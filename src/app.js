@@ -9,7 +9,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   const setupScreen = document.querySelector('.setup-container, #setup-screen, .client-id-gate');
   if (setupScreen) setupScreen.style.display = 'none';
 
-  await loadUITheme();
   await loadAccounts();
   await loadBlueprintLibrary();
   buildCategoryBrowse();
@@ -35,11 +34,45 @@ window.addEventListener('DOMContentLoaded', async () => {
 // Must run after DOMContentLoaded. Re-called by navigateToPage('industry').
 function bindIndustrySubNav() {
   document.querySelectorAll('.industry-sub-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tab = btn.dataset.industryTab;
+    // Clone node to clear out any old event listeners and prevent duplicates
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+
+    newBtn.addEventListener('click', () => {
+      const tab = newBtn.dataset.industryTab;
       if (tab) navigateIndustryTab(tab);
     });
   });
+}
+
+// ─── navigateIndustryTab ──────────────────────────────────────────────────────
+// Handles switching the visible pane and firing the appropriate data fetch
+function navigateIndustryTab(tab) {
+  // 1. Visually update the active button state
+  document.querySelectorAll('.industry-sub-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = document.querySelector(`.industry-sub-btn[data-industry-tab="${tab}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  // 2. Hide all industry tab content areas
+  document.querySelectorAll('.industry-tab-content').forEach(content => {
+    content.style.display = 'none';
+  });
+
+  // 3. Show the newly selected tab content
+  const targetContent = document.getElementById(`industryTab-${tab}`);
+  if (targetContent) {
+    targetContent.style.display = 'block'; 
+  }
+
+  // 4. Trigger specific data load logic based on the selected tab
+  if (tab === 'blueprints') {
+    if (typeof loadBlueprintLibrary === 'function') loadBlueprintLibrary();
+  } else if (tab === 'pi') {
+    // Execute the new Planetary Interaction module!
+    if (typeof loadPlanetaryInteraction === 'function') loadPlanetaryInteraction();
+  } else if (tab === 'jobs') {
+    // Placeholder for jobs
+  }
 }
 
 // ─── closePage ────────────────────────────────────────────────────────────────
@@ -101,10 +134,6 @@ function bindEvents() {
   // Add character button
   const addBtn = document.getElementById('addCharacterNavBtn');
   if (addBtn) addBtn.addEventListener('click', () => window.eveAPI.startSSOLogin());
-
-  // Sync assets button
-  const syncBtn = document.getElementById('syncAssetsBtn');
-  if (syncBtn) syncBtn.addEventListener('click', syncAllAssets);
 
   // Close dropdown on outside click
   document.addEventListener('click', (e) => {

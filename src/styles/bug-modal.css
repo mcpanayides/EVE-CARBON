@@ -3,8 +3,8 @@
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── BUG FAB ── */
-.bug-fab       { position: absolute; bottom: 24px; left: 74px; width: 54px; height: 54px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-1); cursor: pointer; font-size: 21px; transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; z-index: 10005; }
-.bug-fab:hover { background: var(--bg-hover); border-color: var(--danger); color: var(--danger); }
+.bug-fab       { position: absolute; bottom: 24px; left: 74px; width: 54px; height: 54px; background: #0c0c0c; border: 1px solid #1e1e1e; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-1); cursor: pointer; font-size: 21px; transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; z-index: 10005; }
+.bug-fab:hover { background: rgba(192, 57, 43, 0.08); border-color: var(--danger); color: var(--danger); }
 
 /* ── BACKDROP ── */
 .bug-backdrop { align-items: center; justify-content: center; background: rgba(0,0,0,0.72); backdrop-filter: blur(3px); z-index: 10010; }
@@ -26,15 +26,7 @@
 .bug-modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ── HEADER ── */
-.bug-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
+.bug-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: var(--bg-card); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .bug-modal-header-left { display: flex; align-items: center; gap: 12px; }
 .bug-modal-icon        { font-size: 20px; color: var(--danger); line-height: 1; }
 .bug-modal-title       { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; color: var(--text-1); font-family: var(--mono); }
@@ -47,7 +39,7 @@
 
 /* ── FORM ROWS ── */
 .bug-top-row { display: grid; grid-template-columns: 1fr 180px 200px; gap: 12px; padding: 16px 20px 0; }
-.bug-mid-row { display: grid; grid-template-columns: 1fr 1fr;       gap: 12px; padding: 12px 20px 0; }
+.bug-mid-row { display: grid; grid-template-columns: 1fr 1fr;         gap: 12px; padding: 12px 20px 0; }
 
 /* ── FIELD ── */
 .bug-field    { display: flex; flex-direction: column; gap: 6px; }
@@ -77,30 +69,20 @@
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 .bug-sev-btn:hover          { background: var(--bg-hover); border-color: var(--text-3); }
-.bug-sev-btn.bug-sev-active { border-color: var(--accent); background: rgba(0,122,204,0.1); }
+.bug-sev-btn.bug-sev-active { border-color: var(--accent); background: rgba(192, 57, 43, 0.1); }
 .bug-sev-icon  { font-size: 13px; line-height: 1; }
 .bug-sev-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--text-1); font-family: var(--mono); }
 .bug-sev-desc  { font-size: 10px; color: var(--text-3); line-height: 1.3; }
 
 /* ── FOOTER ── */
-.bug-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-card);
-  margin-top: 16px;
-  flex-shrink: 0;
-  border-radius: 0 0 10px 10px;
-}
+.bug-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--bg-card); margin-top: 16px; flex-shrink: 0; border-radius: 0 0 10px 10px; }
 .bug-footer-right { display: flex; align-items: center; gap: 10px; }
 .bug-submit-btn   { display: flex; align-items: center; gap: 6px; }
 .bug-submit-icon  { font-size: 13px; }
 
 /* ── RESPONSIVE ── */
 @media (max-width: 680px) {
-  .bug-top-row      { grid-template-columns: 1fr; }
-  .bug-mid-row      { grid-template-columns: 1fr; }
+  .bug-top-row       { grid-template-columns: 1fr; }
+  .bug-mid-row       { grid-template-columns: 1fr; }
   .bug-severity-grid { grid-template-columns: 1fr 1fr; }
 }

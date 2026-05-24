@@ -17,6 +17,10 @@ Recons / SCouts
 Assets 
    What can we do with them?
 
+PI
+ -->
+ Planets and sizes 
+
 
 Pings/jabber 
    Styling so we can see where when how

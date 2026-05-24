@@ -29,8 +29,9 @@ let jabberMessages            = [];
 let jabberFilterDirectorOnly  = true;
 let jabberConnected           = false;
 
-let allAssetsCache  = null;
-let assetsRenderPos = 0;
+let allAssetsCache     = null;
+let filteredAssetsCache = null;   // subset shown after search/filter
+let assetsRenderPos    = 0;
 
 const ASSET_CHUNK = 200;
 const priceCache  = {};  // typeId => { buy, sell }

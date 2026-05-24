@@ -108,11 +108,23 @@ function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
         fetchJson(next, timeoutMs, _redirects + 1).then(resolve).catch(reject);
         return;
       }
+
+      // ─── ESI Error Limit Handling (HTTP 420) ───
+      if (res.statusCode === 420) {
+        const resetTime = res.headers['x-esi-error-limit-reset'] || 60;
+        console.error(`[ESI 420] Error limit reached on ${url}. Cooldown: ${resetTime}s`);
+        reject(new Error(`HTTP 420 Error Limited. Wait ${resetTime}s.`));
+        res.resume();
+        return;
+      }
+
+      // ─── Missing Access Handling (HTTP 401/403) ───
       if (res.statusCode === 403 || res.statusCode === 401) {
         reject(new Error(`HTTP ${res.statusCode}`));
         res.resume();
         return;
       }
+
       let d = '';
       res.on('data', c => (d += c));
       res.on('end',  () => {
@@ -120,6 +132,7 @@ function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
         catch { reject(new Error('JSON parse error')); }
       });
     });
+    
     req.on('error', reject);
     req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
     req.end();
@@ -232,15 +245,20 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
 
     // ── Step 3: Zkillboard structure page ────────────────────────────────────
     // Zkillboard indexes most structures that have ever appeared in killmails.
-    // URL: https://zkillboard.com/location/id/{id}/
-    // Title format: "zKillboard - {Structure Name}" or "{Name} | zKillboard"
     try {
       const html = await fetchHtml(`${ZKILLBOARD_BASE}/location/id/${id}/`);
 
+      // ─── Suppress Cloudflare/Not Found Console Spam ───
+      const rawTitleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (rawTitleMatch) {
+        const rawTitle = rawTitleMatch[1].trim();
+        if (rawTitle.includes('Home | zKillboard') || rawTitle.includes('Just a moment...')) {
+          // Structure not found or Cloudflare blocked. Silently skip.
+          throw new Error('SILENT_SKIP');
+        }
+      }
+
       // Try <title> first — most stable across zkillboard redesigns
-      // Common formats:
-      //   "zKillboard - C-J6MT - 1stTaj MahGoon"
-      //   "Structure | C-J6MT - 1stTaj MahGoon | zKillboard"
       let match = html.match(/<title[^>]*>(?:zKillboard\s*[-–]\s*)([^<|]{5,120})(?:\s*\|\s*zKillboard)?<\/title>/i);
       if (!match) {
         // "Something | NAME | zKillboard" format
@@ -271,12 +289,14 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       // Log a snippet so we can tune the regex if zkillboard changes their layout
       console.log(`[locator] Zkillboard parse miss for ${id}, title snippet: ${html.slice(html.indexOf('<title'), html.indexOf('<title') + 200)}`);
     } catch (e) {
-      console.log(`[locator] Zkillboard fallback failed for ${id}: ${e.message}`);
+      // Ignore our manual silent skip error, otherwise log it
+      if (e.message !== 'SILENT_SKIP') {
+        console.log(`[locator] Zkillboard fallback failed for ${id}: ${e.message}`);
+      }
     }
 
     // ── Step 4: adam4eve structure_history page ───────────────────────────────
     // Title format: "A4E - Structure history 'NAME'" or "A4E - Structure history for 'NAME'"
-    // Quotes in the real HTML are plain ASCII ' or " — not Unicode curly quotes.
     try {
       const html  = await fetchHtml(`${ADAM4EVE_BASE}/structure_history.php?id=${id}`);
       // Match: history 'NAME'  or  history "NAME"  or  history for 'NAME'
@@ -343,9 +363,9 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
           const st = await httpGet(
             `${ESI_BASE}/v2/universe/stations/${id}/?datasource=tranquility`
           );
-          result.name            = st.name                           || null;
+          result.name            = st.name                                 || null;
           result.solar_system_id = st.system_id || st.solar_system_id || null;
-          result.owner_id        = st.owner                          || null;
+          result.owner_id        = st.owner                                || null;
         } catch (e) {
           console.log(`[locator] Station lookup failed for ${id}: ${e.message}`);
         }

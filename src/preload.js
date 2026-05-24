@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterAssetsDb:     (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
   getCharacterBlueprintsDb: (characterId) => ipcRenderer.invoke('get-character-blueprints-db', characterId),
 
+  // Aliases used by dashboard.js, characters.js, wallets, and PI
+  getCharacterData:    (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
+  getCharacterAssets:  (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
+  getPIColonies:       (characterId) => ipcRenderer.invoke('get-pi-colonies', characterId),
+
   // Accounts
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
   removeAccount: (id)  => ipcRenderer.invoke('remove-account', id),

@@ -117,6 +117,13 @@ async function loadAccounts() {
       item.addEventListener('drop', (e) => { e.preventDefault(); item.classList.remove('drag-over'); });
 
       listDiv.appendChild(item);
+
+      // If this character is currently being auto-synced (e.g. the user
+      // navigated to the Characters page mid-refresh), apply the syncing
+      // state immediately so the card doesn't falsely show SYNC.
+      if (typeof window._applyAutoSyncStateIfActive === 'function') {
+        window._applyAutoSyncStateIfActive(acc.characterId, item);
+      }
     });
 
     if (!selectedCharacterId && orderedAccounts.length > 0) selectCharacter(orderedAccounts[0]);
@@ -133,33 +140,99 @@ async function loadAccounts() {
       });
     });
 
-    // Wire sync buttons
+    // Wire sync buttons — full character sync into character_information.db
     listDiv.querySelectorAll('.sync-btn').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const target       = e.currentTarget;
         const id           = target.getAttribute('data-id');
+        const card         = target.closest('.character-card');
+
+        // Prevent double-click
+        if (target.disabled) return;
+
+        // ── Show spinner next to button ──────────────────────────────────
+        let spinner = card.querySelector('.char-sync-spinner');
+        if (!spinner) {
+          spinner = document.createElement('span');
+          spinner.className = 'char-sync-spinner sync-spinner spin';
+          spinner.style.cssText = 'width:14px;height:14px;margin-left:6px;display:inline-block;flex-shrink:0;';
+          target.insertAdjacentElement('afterend', spinner);
+        } else {
+          spinner.style.display = 'inline-block';
+        }
+
         const originalText = target.textContent;
-        target.textContent = 'SYNCING...';
+        target.textContent = 'SYNCING';
         target.disabled    = true;
         target.classList.remove('success', 'failure');
+
+        // Set up progress listener for this character
+        const progressHandler = (data) => {
+          if (String(data.characterId) !== String(id)) return;
+          const { step, detail } = data;
+
+          // Map sync steps to human labels for the console bar
+          const stepLabels = {
+            start:          'Starting full sync…',
+            character_info: 'Character sheet',
+            wallet:         'Wallet',
+            location:       'Location',
+            ship:           'Ship',
+            implants:       'Implants & Clones',
+            pi:             'Planetary Interaction',
+            assets:         'Assets',
+            blueprints:     'Blueprints',
+            done:           'Sync complete',
+            error:          'Sync error',
+          };
+          const label = stepLabels[step] || step;
+          const msg   = detail ? `${label}: ${detail}` : label;
+
+          // Output to app console bar
+          if (typeof logToConsole === 'function') {
+            const level = step === 'error' ? 'error' : step === 'done' ? 'success' : 'info';
+            logToConsole(msg, level);
+          }
+        };
+
+        if (window.eveAPI && window.eveAPI.on) {
+          window.eveAPI.on('char-sync-progress', progressHandler);
+        }
+
+        showToast(`Syncing all data for character ${id}…`, 'info');
+
         try {
-          showToast('Downloading blueprints from ESI...', 'info');
-          const result = await window.eveAPI.syncBlueprints(id);
-          showToast(`✓ Synced ${result.count} blueprints!`, 'success');
+          const result = await window.eveAPI.syncCharacterFull(id);
+
+          // Success
           target.textContent = 'SYNCED';
           target.classList.add('success');
-          await loadBlueprintLibrary();
+          if (typeof logToConsole === 'function') logToConsole(`✓ Full sync complete for ${result.characterName}`, 'success');
+          showToast(`✓ Full sync complete!`, 'success');
+
+          // Refresh blueprint library so other pages stay current
+          if (typeof loadBlueprintLibrary === 'function') await loadBlueprintLibrary();
+
         } catch (err) {
-          showToast(`Sync failed: ${err.message}`, 'error');
           target.textContent = 'FAILED';
           target.classList.add('failure');
+          if (typeof logToConsole === 'function') logToConsole(`✗ Sync failed: ${err.message}`, 'error');
+          showToast(`Sync failed: ${err.message}`, 'error');
+
         } finally {
+          // Remove progress listener
+          if (window.eveAPI && window.eveAPI.off) {
+            window.eveAPI.off('char-sync-progress', progressHandler);
+          }
+
+          // Hide spinner after a short delay
           setTimeout(() => {
+            if (spinner) spinner.style.display = 'none';
             target.textContent = originalText;
             target.disabled    = false;
             target.classList.remove('success', 'failure');
-          }, 5000);
+          }, 4000);
         }
       });
     });
@@ -226,3 +299,129 @@ function saveCharacterOrder() {
     .map(c => c.dataset.characterId);
   try { localStorage.setItem('char_card_order', JSON.stringify(order)); } catch (e) { /* ignore */ }
 }
+// ─── Auto-sync progress listener ─────────────────────────────────────────────
+// Picks up char-sync-progress events from main process (fired after SSO login
+// and during manual re-syncs) and routes them to the app console bar.
+(function initCharSyncProgressListener() {
+  if (!window.eveAPI || !window.eveAPI.on) return;
+
+  window.eveAPI.on('char-sync-progress', (data) => {
+    if (!data) return;
+    const { characterName, step, detail, summary } = data;
+    const name = characterName || `Character ${data.characterId}`;
+
+    const stepLabels = {
+      start:          `Starting full sync for ${name}…`,
+      character_info: `[${name}] Character sheet`,
+      wallet:         `[${name}] Wallet balance`,
+      location:       `[${name}] Current location`,
+      ship:           `[${name}] Current ship`,
+      implants:       `[${name}] Implants & jump clones`,
+      pi:             `[${name}] Planetary Interaction`,
+      assets:         `[${name}] Assets`,
+      blueprints:     `[${name}] Blueprints`,
+      done:           `✓ Full sync complete for ${name}`,
+      error:          `✗ Sync error for ${name}`,
+    };
+
+    const label = stepLabels[step] || `[${name}] ${step}`;
+    const msg   = detail ? `${label}: ${detail}` : label;
+    const level = step === 'error' ? 'error' : step === 'done' ? 'success' : 'info';
+
+    if (typeof logToConsole === 'function') logToConsole(msg, level);
+    if (step === 'done' && typeof loadAccounts === 'function') {
+      // Refresh the card list so ACTIVE badge / portrait updates
+      loadAccounts();
+    }
+  });
+})();
+
+// ─── Auto-sync card state ─────────────────────────────────────────────────────
+// Listens for 'auto-sync' CustomEvents fired by autoRefreshStaleCharacters()
+// in dashboard.js and mirrors the exact spinner + button state that manual
+// sync uses, so the character card looks the same regardless of what triggered
+// the sync. Also handles cards that are rendered AFTER the event fires by
+// checking _autoSyncingIds on card creation (inside loadAccounts).
+(function initAutoSyncCardListener() {
+  // _syncCardTimers: characterId -> setTimeout handle for the post-sync reset
+  const _syncCardTimers = {};
+
+  function getCardElements(characterId) {
+    const id   = String(characterId);
+    const card = document.querySelector(`.character-card[data-character-id="${id}"]`);
+    if (!card) return null;
+    const btn     = card.querySelector('.character-sync-btn');
+    const spinner = card.querySelector('.char-sync-spinner');
+    return { card, btn, spinner };
+  }
+
+  function ensureSpinner(card, btn) {
+    let spinner = card.querySelector('.char-sync-spinner');
+    if (!spinner) {
+      spinner = document.createElement('span');
+      spinner.className = 'char-sync-spinner sync-spinner spin';
+      spinner.style.cssText = 'width:14px;height:14px;margin-left:6px;display:inline-block;flex-shrink:0;';
+      btn.insertAdjacentElement('afterend', spinner);
+    }
+    spinner.style.display = 'inline-block';
+    return spinner;
+  }
+
+  // Called when a card is first built — if the character is already mid-sync
+  // (auto-refresh started before the characters page was open) apply the
+  // syncing state immediately so it doesn't show a stale SYNC button.
+  window._applyAutoSyncStateIfActive = function(characterId, card) {
+    // _autoSyncingIds is defined in dashboard.js (same page scope)
+    if (typeof _autoSyncingIds === 'undefined') return;
+    const id = String(characterId);
+    if (!_autoSyncingIds.has(id)) return;
+    const btn = card.querySelector('.character-sync-btn');
+    if (!btn) return;
+    btn.dataset.autoOriginalText = btn.dataset.autoOriginalText || btn.textContent;
+    btn.textContent = 'SYNCING';
+    btn.disabled    = true;
+    btn.classList.remove('success', 'failure');
+    ensureSpinner(card, btn);
+  };
+
+  document.addEventListener('auto-sync', (e) => {
+    const { characterId, phase, success } = e.detail;
+    const els = getCardElements(characterId);
+
+    if (phase === 'start') {
+      if (!els) return; // card not rendered yet; _applyAutoSyncStateIfActive handles that
+      const { card, btn } = els;
+      if (!btn) return;
+
+      // Don't stomp a manual sync already in progress on this card
+      if (btn.disabled && !btn.dataset.autoSync) return;
+
+      btn.dataset.autoSync         = '1';
+      btn.dataset.autoOriginalText = btn.textContent;
+      btn.textContent = 'SYNCING';
+      btn.disabled    = true;
+      btn.classList.remove('success', 'failure');
+      ensureSpinner(card, btn);
+
+    } else if (phase === 'done' || phase === 'error') {
+      if (!els) return;
+      const { card, btn, spinner } = els;
+      if (!btn || !btn.dataset.autoSync) return;
+
+      btn.textContent = success ? 'SYNCED' : 'FAILED';
+      btn.classList.add(success ? 'success' : 'failure');
+
+      // Clear any previous reset timer for this card
+      if (_syncCardTimers[characterId]) clearTimeout(_syncCardTimers[characterId]);
+      _syncCardTimers[characterId] = setTimeout(() => {
+        if (spinner) spinner.style.display = 'none';
+        btn.textContent = btn.dataset.autoOriginalText || 'SYNC';
+        btn.disabled    = false;
+        btn.classList.remove('success', 'failure');
+        delete btn.dataset.autoSync;
+        delete btn.dataset.autoOriginalText;
+        delete _syncCardTimers[characterId];
+      }, 3000);
+    }
+  });
+})();

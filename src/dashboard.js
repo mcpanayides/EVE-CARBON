@@ -1,5 +1,83 @@
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
+// ── Background auto-refresh: silently sync stale characters ──────────────────
+// Called once per dashboard load. Checks every character's last synced_at from
+// character_information.db. If data is older than STALE_MS and no manual sync
+// is already running, queues them one-at-a-time to avoid hammering ESI.
+const STALE_MS = 20 * 60 * 1000; // 20 minutes
+
+let _autoRefreshRunning = false;
+
+// Shared set so characters.js can check which IDs are currently auto-syncing
+// and immediately reflect state on cards that are already rendered.
+const _autoSyncingIds = new Set();
+
+function _fireAutoSync(characterId, phase, success) {
+  // phase: 'start' | 'done' | 'error'
+  document.dispatchEvent(new CustomEvent('auto-sync', {
+    detail: { characterId: String(characterId), phase, success }
+  }));
+}
+
+async function autoRefreshStaleCharacters(accounts) {
+  if (_autoRefreshRunning) return;   // only one pass at a time
+  _autoRefreshRunning = true;
+
+  try {
+    const now = Date.now();
+    const stale = [];
+
+    for (const acc of accounts) {
+      try {
+        const dbData = await window.eveAPI.getCharacterData(acc.characterId);
+        const syncedAt = dbData?.info?.synced_at || 0;
+        if ((now - syncedAt) > STALE_MS) stale.push(acc);
+      } catch (e) {
+        stale.push(acc); // no DB row = definitely stale
+      }
+    }
+
+    if (!stale.length) {
+      logToConsole('All character data is fresh (< 20 min old).', 'info');
+      return;
+    }
+
+    logToConsole(`Auto-refresh: ${stale.length} character(s) have stale data — queuing background sync…`, 'info');
+
+    for (const acc of stale) {
+      // Abort if a manual sync was kicked off while we were running
+      const manualRunning = document.querySelector('.character-sync-btn[disabled]');
+      if (manualRunning) {
+        logToConsole('Auto-refresh paused — manual sync in progress.', 'info');
+        break;
+      }
+
+      const id = String(acc.characterId);
+      _autoSyncingIds.add(id);
+      _fireAutoSync(id, 'start');
+
+      try {
+        logToConsole(`Auto-refresh: syncing ${acc.characterName}…`, 'info');
+        await window.eveAPI.syncCharacterFull(acc.characterId);
+        logToConsole(`Auto-refresh: ✓ ${acc.characterName} complete.`, 'success');
+        _fireAutoSync(id, 'done', true);
+      } catch (e) {
+        logToConsole(`Auto-refresh: ✗ ${acc.characterName} failed — ${e.message}`, 'error');
+        _fireAutoSync(id, 'error', false);
+      } finally {
+        _autoSyncingIds.delete(id);
+      }
+    }
+
+    // Reload dashboard data after background refreshes are done
+    logToConsole('Auto-refresh complete — refreshing dashboard…', 'success');
+    loadDashboard();
+
+  } finally {
+    _autoRefreshRunning = false;
+  }
+}
+
 async function loadDashboard() {
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const jobsTable      = document.getElementById('dashboardJobsTable');
@@ -25,7 +103,10 @@ async function loadDashboard() {
   const mainAccount = accounts.find(a => String(a.characterId) === String(selectedCharacterId)) || accounts[0];
   if (mainCharLabel) mainCharLabel.textContent = mainAccount?.characterName || '';
 
-  // ── Section 1: Welcome banner (async, non-blocking) ──────────────────────
+  // ── Kick off silent background auto-refresh (non-blocking) ───────────────
+  autoRefreshStaleCharacters(accounts).catch(() => {});
+
+  // ── Section 1: Welcome banner — DB first, then ESI in background ─────────
   (async () => {
     // Public ESI proxy — routes through ipcMain for consistent UA/timeout.
     async function esiGet(url) {
@@ -38,12 +119,120 @@ async function loadDashboard() {
       }
     }
 
+    // ── Helper: render the banner from whatever data we have ─────────────
+    function renderBanner({ charId, charName, birthday, secStatus, corpId, corpName,
+                             allianceId, allianceName, homeStationName, homeSystemSec,
+                             stale = false }) {
+      if (!welcomeBanner) return;
+
+      const charSecColor = (s) => {
+        const n = parseFloat(s);
+        if (isNaN(n)) return 'var(--text-2)';
+        if (n >= 5.0) return '#4ada8a';
+        if (n >= 0.1) return '#f0a800';
+        return '#e45c5c';
+      };
+
+      const systemSecMeta = (sec) => {
+        if (sec === null || sec === undefined) return { color: 'var(--text-2)', label: null, cls: '' };
+        if (sec < 0.0)    return { color: 'var(--lawless)',  label: 'Lawless',  cls: 'sec-lawless'  };
+        if (sec < 0.1)    return { color: 'var(--nullsec)',  label: 'Null Sec', cls: 'sec-nullsec'  };
+        if (sec < 0.45)   return { color: 'var(--lowsec)',   label: 'Low Sec',  cls: 'sec-lowsec'   };
+        if (sec >= 0.999) return { color: 'var(--newbie)',   label: 'Newbie',   cls: 'sec-newbie'   };
+        return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
+      };
+
+      const sysMeta = systemSecMeta(homeSystemSec);
+      const homeSecValueDisplay = homeSystemSec != null
+        ? `<span style="color:${sysMeta.color};">${Number(homeSystemSec).toFixed(1)}</span>` : '';
+      const homeSecBreadcrumb = sysMeta.label
+        ? `<span class="sec-breadcrumb ${sysMeta.cls}">${sysMeta.label}</span>` : '';
+      const staleNote = stale
+        ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
+
+      welcomeBanner.innerHTML = `
+        <div class="dashboard-welcome-inner">
+          <img class="dashboard-portrait"
+               src="https://images.evetech.net/characters/${charId}/portrait?size=128"
+               alt="${escHtml(charName)}"
+               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${charId}/portrait?size=64'"/>
+          <div class="dashboard-welcome-text">
+            <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+            <div class="dashboard-welcome-name">${escHtml(charName)}${staleNote}</div>
+            <div class="dashboard-welcome-affil">
+              ${corpId     ? `<img class="dashboard-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=64" title="${escHtml(corpName || '')}" onerror="this.style.display='none'"/>` : ''}
+              ${allianceId ? `<img class="dashboard-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=64" title="${escHtml(allianceName || '')}" onerror="this.style.display='none'"/>` : ''}
+              ${corpName     ? `<span class="dashboard-org-name">${escHtml(corpName)}</span>` : ''}
+              ${allianceName ? `<span class="dashboard-org-sep"> · </span><span class="dashboard-org-name">${escHtml(allianceName)}</span>` : ''}
+            </div>
+            <div class="dashboard-welcome-stats">
+              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Born</span><span class="dashboard-stat-value">${escHtml(birthday || '—')}</span></div>
+              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Security Status</span><span class="dashboard-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus ?? '—'))}</span></div>
+              <div class="dashboard-welcome-stat dashboard-welcome-stat--home">
+                <span class="dashboard-stat-label">Home Station</span>
+                <span class="dashboard-stat-value dashboard-home-station-value">
+                  <span class="dashboard-home-name">${escHtml(homeStationName || '—')}</span>
+                  ${homeSecValueDisplay}
+                  ${homeSecBreadcrumb}
+                </span>
+              </div>
+              <div class="dashboard-welcome-stat">
+                <span class="dashboard-stat-label">Total Net Worth</span>
+                <span class="dashboard-stat-value" id="welcomeNetWorthValue">
+                  <span style="color:var(--text-3);font-size:11px;">Calculating…</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
     try {
       if (!mainAccount) return;
 
-      // ── Use authenticated character endpoint so we get home_location_id ──
-      // The public /v5/characters/{id}/ endpoint omits home_location_id and
-      // home_location_type. getCharacterInfo() calls the same URL with a token.
+      // ── FAST PATH: render instantly from character_information.db ─────────
+      let renderedFromDb = false;
+      try {
+        const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
+        if (dbData?.info) {
+          const info     = dbData.info;
+          const loc      = dbData.location;   // most-recent location row
+          const birthday = info.birthday
+            ? new Date(info.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
+            : '—';
+
+          // Fetch corp/alliance names from ESI names cache (fast, often already cached)
+          let corpName = '', allianceName = '';
+          try {
+            const names = await window.eveAPI.getNames(
+              [info.corporation_id, info.alliance_id].filter(Boolean)
+            );
+            corpName     = names[info.corporation_id]  || '';
+            allianceName = names[info.alliance_id]     || '';
+          } catch (_) {}
+
+          renderBanner({
+            charId:          mainAccount.characterId,
+            charName:        mainAccount.characterName,
+            birthday,
+            secStatus:       typeof info.security_status === 'number' ? info.security_status.toFixed(1) : '—',
+            corpId:          info.corporation_id,
+            corpName,
+            allianceId:      info.alliance_id,
+            allianceName,
+            homeStationName: loc?.station_name || loc?.solar_system_name || '—',
+            homeSystemSec:   null,
+            stale:           false,
+          });
+          renderedFromDb = true;
+          logToConsole('Welcome banner loaded from local DB.', 'info');
+        }
+      } catch (dbErr) {
+        // DB read failed — fall through to ESI path
+      }
+
+      // ── SLOW PATH: ESI fetch (enriches with home station sec status) ──────
+      // Always runs to get the authoritative home_location_id and system sec.
       let charInfo = null;
       try {
         charInfo = await window.eveAPI.getCharacterInfo(mainAccount.characterId);
@@ -97,7 +286,6 @@ async function loadDashboard() {
             homeStationName = stationInfo.name || `ID ${homeId}`;
           }
         } else if (homeId && (homeType === 'structure' || Number(homeId) >= 1_000_000_000_000)) {
-          // Route through locator: ESI auth -> ESI public -> adam4eve fallback
           try {
             const loc = await window.eveAPI.getStructureInfo(homeId, mainAccount.characterId);
             homeStationName = (loc && loc.name) ? loc.name : `Structure ${homeId}`;
@@ -113,68 +301,20 @@ async function loadDashboard() {
         }
       } catch (e) { console.warn('Home station fetch failed:', e.message); }
 
-      // ── Security colour helpers ────────────────────────────────────────────
-      const charSecColor = (s) => {
-        const n = parseFloat(s);
-        if (isNaN(n)) return 'var(--text-2)';
-        if (n >= 5.0) return '#4ada8a';
-        if (n >= 0.1) return '#f0a800';
-        return '#e45c5c';
-      };
+      // Re-render the banner with full ESI data (overwrites the DB-sourced render)
+      renderBanner({
+        charId:    mainAccount.characterId,
+        charName:  mainAccount.characterName,
+        birthday,  secStatus,
+        corpId,    corpName,
+        allianceId, allianceName,
+        homeStationName, homeSystemSec,
+        stale: false,
+      });
 
-      const systemSecMeta = (sec) => {
-        if (sec === null) return { color: 'var(--text-2)', label: null, cls: '' };
-        if (sec < 0.0)    return { color: 'var(--lawless)',  label: 'Lawless',  cls: 'sec-lawless'  };
-        if (sec < 0.1)    return { color: 'var(--nullsec)',  label: 'Null Sec', cls: 'sec-nullsec'  };
-        if (sec < 0.45)   return { color: 'var(--lowsec)',   label: 'Low Sec',  cls: 'sec-lowsec'   };
-        if (sec >= 0.999) return { color: 'var(--newbie)',   label: 'Newbie',   cls: 'sec-newbie'   };
-        return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
-      };
-
-      const sysMeta = systemSecMeta(homeSystemSec);
-      const homeSecValueDisplay = homeSystemSec !== null
-        ? `<span style="color:${sysMeta.color};">${homeSystemSec.toFixed(1)}</span>` : '';
-      const homeSecBreadcrumb = sysMeta.label
-        ? `<span class="sec-breadcrumb ${sysMeta.cls}">${sysMeta.label}</span>` : '';
-
-      if (!welcomeBanner) return;
-      welcomeBanner.innerHTML = `
-        <div class="dashboard-welcome-inner">
-          <img class="dashboard-portrait"
-               src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=128"
-               alt="${escHtml(mainAccount.characterName)}"
-               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=64'"/>
-          <div class="dashboard-welcome-text">
-            <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
-            <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
-            <div class="dashboard-welcome-affil">
-              ${corpId     ? `<img class="dashboard-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=64" title="${escHtml(corpName)}" onerror="this.style.display='none'"/>` : ''}
-              ${allianceId ? `<img class="dashboard-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=64" title="${escHtml(allianceName)}" onerror="this.style.display='none'"/>` : ''}
-              ${corpName     ? `<span class="dashboard-org-name">${escHtml(corpName)}</span>` : ''}
-              ${allianceName ? `<span class="dashboard-org-sep"> · </span><span class="dashboard-org-name">${escHtml(allianceName)}</span>` : ''}
-            </div>
-            <div class="dashboard-welcome-stats">
-              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Born</span><span class="dashboard-stat-value">${escHtml(birthday)}</span></div>
-              <div class="dashboard-welcome-stat"><span class="dashboard-stat-label">Security Status</span><span class="dashboard-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus))}</span></div>
-              <div class="dashboard-welcome-stat dashboard-welcome-stat--home">
-                <span class="dashboard-stat-label">Home Station</span>
-                <span class="dashboard-stat-value dashboard-home-station-value">
-                  <span class="dashboard-home-name">${escHtml(homeStationName)}</span>
-                  ${homeSecValueDisplay}
-                  ${homeSecBreadcrumb}
-                </span>
-              </div>
-              <div class="dashboard-welcome-stat">
-                <span class="dashboard-stat-label">Total Net Worth</span>
-                <span class="dashboard-stat-value" id="welcomeNetWorthValue">
-                  <span style="color:var(--text-3);font-size:11px;">Calculating…</span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>`;
     } catch (e) {
-      if (welcomeBanner && mainAccount) {
+      // ESI failed — if we already rendered from DB, keep that. Otherwise minimal fallback.
+      if (!document.querySelector('.dashboard-welcome-inner') && welcomeBanner && mainAccount) {
         welcomeBanner.innerHTML = `<div class="dashboard-welcome-inner"><div class="dashboard-welcome-text">
           <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
           <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>

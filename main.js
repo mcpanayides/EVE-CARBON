@@ -5,7 +5,8 @@ const https = require('https');
 const http = require('http');
 const crypto = require('crypto');
 const fs = require('fs');
-const createLocator = require('./src/locator');
+const createLocator      = require('./src/locator');
+const charInfoDb         = require('./src/character_info_db');
 
 if (typeof globalThis.crypto !== 'object' || typeof globalThis.crypto.randomUUID !== 'function') {
   globalThis.crypto = globalThis.crypto || {};
@@ -43,16 +44,19 @@ const CALLBACK_URL = 'http://127.0.0.1:12500/auth/callback/';
 const CLIENT_ID      = process.env.EVE_CLIENT_ID;
 const CLIENT_SECRET  = process.env.EVE_CLIENT_SECRET;
 const SCOPES         = [
- 'esi-characters.read_blueprints.v1',
+  'esi-characters.read_blueprints.v1',
   'esi-assets.read_assets.v1',
   'esi-corporations.read_blueprints.v1',
   'esi-industry.read_character_jobs.v1',
   'esi-industry.read_corporation_jobs.v1',
   'esi-wallet.read_character_wallet.v1',
-  'esi-clones.read_clones.v1',           // ← home location (medical clone location)
-  'esi-skills.read_skills.v1',            // ← total skill points
-  'esi-markets.read_character_orders.v1', // ← active market orders (escrow)
-  'esi-contracts.read_character_contracts.v1', // ← contracts (escrow)
+  'esi-clones.read_clones.v1',                  // home location + jump clones + implants
+  'esi-skills.read_skills.v1',                  // total skill points
+  'esi-markets.read_character_orders.v1',       // active market orders (escrow)
+  'esi-contracts.read_character_contracts.v1',  // contracts (escrow)
+  'esi-location.read_location.v1',              // current solar system / station
+  'esi-location.read_ship_type.v1',             // current ship type
+  'esi-planets.manage_planets.v1',              // planetary interaction colonies
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
 
@@ -93,16 +97,21 @@ async function initSde() {
 }
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir;
+let userDataPath, dbPath, configPath, cacheDir, appDataDir;
 let pingFileWatcher = null;
 let pingFileWatchTimer = null;
 
 function initPaths() {
   userDataPath = app.getPath('userData');
-  dbPath = path.join(userDataPath, 'blueprints.json');
-  configPath = path.join(userDataPath, 'config.json');
-  cacheDir = path.join(userDataPath, 'cache');
-  try { fs.mkdirSync(cacheDir, { recursive: true }); } catch (e) { /* ignore */ }
+  dbPath       = path.join(userDataPath, 'blueprints.json');
+  configPath   = path.join(userDataPath, 'config.json');
+  cacheDir     = path.join(userDataPath, 'cache');
+  // character_information.db lives in the project /data folder (beside sde.sql)
+  appDataDir   = app.isPackaged
+    ? path.join(process.resourcesPath || __dirname, 'data')
+    : path.join(__dirname, 'data');
+  try { fs.mkdirSync(cacheDir,   { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(appDataDir, { recursive: true }); } catch (e) { /* ignore */ }
 }
 
 function getCachePath(key) {
@@ -144,6 +153,7 @@ function getLocator() {
 app.whenReady().then(async () => {
   initPaths();
   await initSde();
+  await charInfoDb.initCharacterDb(appDataDir);
   createWindow();
 });
 
@@ -281,6 +291,32 @@ function startCallbackServer() {
         win.webContents.send('account-added', { characterId, characterName });
       }
 
+      // ── Auto full-sync on first login ────────────────────────────────────
+      // Run in background — don't block the HTTP response
+      setImmediate(async () => {
+        try {
+          console.log(`[CharSync] Auto-syncing all data for ${characterName} (${characterId})…`);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('char-sync-progress', { characterId, characterName, step: 'start' });
+          }
+          const summary = await fullCharacterSync(characterId, characterName, (step, detail) => {
+            console.log(`[CharSync] ${characterName} — ${step}: ${detail}`);
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('char-sync-progress', { characterId, characterName, step, detail });
+            }
+          });
+          console.log(`[CharSync] ✓ ${characterName} sync complete:`, summary);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('char-sync-progress', { characterId, characterName, step: 'done', summary });
+          }
+        } catch (e) {
+          console.error(`[CharSync] Auto-sync failed for ${characterName}:`, e.message);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('char-sync-progress', { characterId, characterName, step: 'error', detail: e.message });
+          }
+        }
+      });
+
       // Add the Content-Type header so the browser knows how to render the hexagon
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(`<html><body style="background:#070b14;color:#4ada8a;font-family:monospace;padding:2rem;text-align:center;">
@@ -389,12 +425,14 @@ ipcMain.handle('get-character-jobs', async (_, characterId) => {
   }
 });
 
-ipcMain.handle('remove-account', (_, characterId) => {
+ipcMain.handle('remove-account', async (_, characterId) => {
   const db = loadDB();
   delete db.accounts[characterId];
   delete db.blueprints[characterId];
   delete db.assets[characterId];
   saveDB(db);
+  // Also remove all tables for this character from character_information.db
+  try { await charInfoDb.removeCharacterData(characterId); } catch (e) { /* ignore */ }
   return true;
 });
 
@@ -491,6 +529,290 @@ ipcMain.handle('get-all-blueprints', () => {
     }
   }
   return all;
+});
+
+// ─── Full character data sync ─────────────────────────────────────────────────
+// Syncs everything: info, wallet, location, ship, implants, PI, assets, blueprints
+// into character_information.db.  Called on first SSO login AND on manual re-sync.
+async function fullCharacterSync(characterId, characterName, progressCb) {
+  const report = (step, detail) => {
+    if (progressCb) progressCb(step, detail);
+  };
+
+  await charInfoDb.ensureCharacterTables(characterId);
+
+  const token = await getValidToken(characterId);
+  const authHdr = { Authorization: `Bearer ${token}` };
+  const summary = { characterId, characterName, steps: {} };
+
+  // 1. Character sheet
+  try {
+    report('character_info', 'Fetching character sheet…');
+    const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`, authHdr);
+    await charInfoDb.upsertCharacterInfo(characterId, info);
+    summary.steps.info = 'ok';
+    report('character_info', `✓ ${info.name || characterName}`);
+  } catch (e) {
+    summary.steps.info = `error: ${e.message}`;
+    report('character_info', `✗ ${e.message}`);
+  }
+
+  // 2. Wallet balance
+  try {
+    report('wallet', 'Fetching wallet balance…');
+    const balance = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
+    await charInfoDb.insertWalletSnapshot(characterId, typeof balance === 'number' ? balance : 0);
+    summary.steps.wallet = `${balance} ISK`;
+    report('wallet', `✓ ${(balance || 0).toLocaleString()} ISK`);
+  } catch (e) {
+    summary.steps.wallet = `error: ${e.message}`;
+    report('wallet', `✗ ${e.message}`);
+  }
+
+  // 3. Current location
+  try {
+    report('location', 'Fetching current location…');
+    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    let stationName = null;
+    try {
+      if (loc.station_id) {
+        const sInfo = await getLocator().resolveLocation(loc.station_id, characterId);
+        stationName = sInfo?.name || null;
+      } else if (loc.structure_id) {
+        const sInfo = await getLocator().resolveLocation(loc.structure_id, characterId);
+        stationName = sInfo?.name || null;
+      }
+    } catch (_) {}
+    // Resolve system name
+    let sysName = null;
+    if (loc.solar_system_id) {
+      try {
+        const nm = await resolveNames([loc.solar_system_id]);
+        sysName = nm[loc.solar_system_id] || null;
+      } catch (_) {}
+    }
+    await charInfoDb.upsertLocation(characterId, { ...loc, solar_system_name: sysName }, stationName);
+    summary.steps.location = stationName || sysName || 'unknown';
+    report('location', `✓ ${stationName || sysName || loc.solar_system_id}`);
+  } catch (e) {
+    summary.steps.location = `error: ${e.message}`;
+    report('location', `✗ ${e.message}`);
+  }
+
+  // 4. Current ship
+  try {
+    report('ship', 'Fetching current ship…');
+    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    let typeName = '';
+    if (ship.ship_type_id) {
+      try {
+        const nm = await resolveNames([ship.ship_type_id]);
+        typeName = nm[ship.ship_type_id] || '';
+      } catch (_) {}
+    }
+    await charInfoDb.upsertShip(characterId, ship, typeName);
+    summary.steps.ship = ship.ship_name || typeName;
+    report('ship', `✓ ${ship.ship_name || typeName}`);
+  } catch (e) {
+    summary.steps.ship = `error: ${e.message}`;
+    report('ship', `✗ ${e.message}`);
+  }
+
+  // 5. Active implants (clones endpoint gives both active implants + jump clones)
+  try {
+    report('implants', 'Fetching implants & clones…');
+    const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
+
+    // Active implants (separate endpoint)
+    let activeImplants = [];
+    try {
+      activeImplants = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+    } catch (_) {}
+
+    // Resolve implant type names
+    const allImplantIds = [...new Set(activeImplants || [])];
+    const implantNames = allImplantIds.length ? await resolveNames(allImplantIds) : {};
+    const implants = allImplantIds.map((id, i) => ({
+      implant_id: id,
+      type_name:  implantNames[id] || `Type ${id}`,
+      slot:       i + 1,
+    }));
+    await charInfoDb.replaceImplants(characterId, implants);
+    summary.steps.implants = `${implants.length} active`;
+    report('implants', `✓ ${implants.length} active implants`);
+
+    // Jump clones
+    if (cloneData && Array.isArray(cloneData.jump_clones)) {
+      // Resolve jump clone location names
+      const locIds = cloneData.jump_clones.map(c => c.location_id).filter(Boolean);
+      const locMeta = locIds.length ? await getLocator().resolveLocations(locIds, characterId) : {};
+
+      // Collect all implant IDs from jump clones for batch resolve
+      const jcImplantIds = [...new Set(cloneData.jump_clones.flatMap(c => c.implants || []))];
+      const jcImplantNames = jcImplantIds.length ? await resolveNames(jcImplantIds) : {};
+
+      const jumpClones = cloneData.jump_clones.map(c => ({
+        jump_clone_id: c.jump_clone_id,
+        location_id:   c.location_id,
+        location_name: locMeta[c.location_id]?.name || `Location ${c.location_id}`,
+        name:          c.name || null,
+        implants:      (c.implants || []).map(id => ({
+          type_id:   id,
+          type_name: jcImplantNames[id] || `Type ${id}`,
+        })),
+      }));
+      await charInfoDb.replaceJumpClones(characterId, jumpClones);
+      summary.steps.jump_clones = `${jumpClones.length} clones`;
+      report('implants', `✓ ${jumpClones.length} jump clones`);
+    }
+  } catch (e) {
+    summary.steps.implants = `error: ${e.message}`;
+    report('implants', `✗ ${e.message}`);
+  }
+
+  // 6. Planetary Interaction
+  try {
+    report('pi', 'Fetching PI colonies…');
+    const colonies = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/planets/?datasource=tranquility`, authHdr);
+    if (Array.isArray(colonies)) {
+      const sysIds = [...new Set(colonies.map(c => c.solar_system_id).filter(Boolean))];
+      const sysNames = sysIds.length ? await resolveNames(sysIds) : {};
+      const piData = colonies.map(c => ({
+        planet_id:         c.planet_id,
+        planet_type:       c.planet_type || null,
+        solar_system_id:   c.solar_system_id,
+        solar_system_name: sysNames[c.solar_system_id] || null,
+        upgrade_level:     c.upgrade_level || 0,
+        num_pins:          c.num_pins || 0,
+        last_update:       c.last_update ? new Date(c.last_update).getTime() : null,
+      }));
+      await charInfoDb.replacePiColonies(characterId, piData);
+      summary.steps.pi = `${piData.length} colonies`;
+      report('pi', `✓ ${piData.length} PI colonies`);
+    }
+  } catch (e) {
+    summary.steps.pi = `error: ${e.message}`;
+    report('pi', `✗ ${e.message}`);
+  }
+
+  // 7. Assets (full paginated)
+  try {
+    report('assets', 'Fetching assets (paginated)…');
+    let allAssets = [];
+    let page = 1;
+    while (true) {
+      const data = await httpGet(
+        `${ESI_BASE}/v3/characters/${characterId}/assets/?page=${page}&datasource=tranquility`, authHdr
+      );
+      allAssets = allAssets.concat(data);
+      report('assets', `  page ${page}: ${allAssets.length} items so far…`);
+      if (!data || data.length < 1000) break;
+      page++;
+    }
+    const typeIds     = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
+    const locationIds = [...new Set(allAssets.map(a => a.location_id).filter(Boolean))];
+    const nameMap     = await resolveNames(typeIds);
+    const locationMeta = await getLocator().resolveLocations(locationIds, characterId);
+
+    const assets = allAssets.map(asset => {
+      const loc = locationMeta[asset.location_id] || {};
+      return {
+        item_id:           asset.item_id,
+        type_id:           asset.type_id,
+        name:              nameMap[asset.type_id] || `Type ${asset.type_id}`,
+        location_id:       asset.location_id,
+        location_name:     loc.name || `Location ${asset.location_id}`,
+        location_flag:     asset.location_flag || '',
+        quantity:          asset.is_singleton ? 1 : (asset.quantity || 1),
+        is_singleton:      asset.is_singleton,
+        solar_system_id:   loc.solar_system_id   || null,
+        solar_system_name: loc.solar_system_name || null,
+        region_id:         loc.region_id         || null,
+        region_name:       loc.region_name       || null,
+        security_status:   typeof loc.security_status === 'number' ? loc.security_status : null,
+      };
+    });
+
+    await charInfoDb.replaceAssets(characterId, assets);
+    summary.steps.assets = `${assets.length} items`;
+    report('assets', `✓ ${assets.length} assets stored`);
+  } catch (e) {
+    summary.steps.assets = `error: ${e.message}`;
+    report('assets', `✗ ${e.message}`);
+  }
+
+  // 8. Blueprints (full paginated)
+  try {
+    report('blueprints', 'Fetching blueprints (paginated)…');
+    let allBPs = [];
+    let page = 1;
+    while (true) {
+      const data = await httpGet(
+        `${ESI_BASE}/v3/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr
+      );
+      allBPs = allBPs.concat(data);
+      report('blueprints', `  page ${page}: ${allBPs.length} blueprints so far…`);
+      if (data.length < 1000) break;
+      page++;
+    }
+    const typeIds = [...new Set(allBPs.map(b => b.type_id))];
+    const nameMap = await resolveNames(typeIds);
+    const blueprints = allBPs.map(bp => ({
+      item_id:       bp.item_id,
+      type_id:       bp.type_id,
+      name:          nameMap[bp.type_id] || `Type ${bp.type_id}`,
+      location_id:   bp.location_id,
+      location_flag: bp.location_flag,
+      quantity:      bp.quantity,
+      runs:          bp.runs,
+      me:            bp.material_efficiency,
+      te:            bp.time_efficiency,
+      isBPC:         bp.quantity === -2,
+    }));
+    await charInfoDb.replaceBlueprints(characterId, blueprints);
+    summary.steps.blueprints = `${blueprints.length} BPs`;
+    report('blueprints', `✓ ${blueprints.length} blueprints stored`);
+
+    // Also update the legacy blueprints.json so existing blueprint UI still works
+    const db2 = loadDB();
+    db2.blueprints[characterId] = { updatedAt: Date.now(), items: blueprints };
+    saveDB(db2);
+  } catch (e) {
+    summary.steps.blueprints = `error: ${e.message}`;
+    report('blueprints', `✗ ${e.message}`);
+  }
+
+  return summary;
+}
+
+// ─── IPC: Full character sync (manual re-sync button) ─────────────────────────
+ipcMain.handle('sync-character-full', async (event, characterId) => {
+  const db = loadDB();
+  const account = db.accounts[characterId];
+  if (!account) throw new Error('Account not found');
+  const characterName = account.characterName;
+  const win = BrowserWindow.fromWebContents(event.sender);
+
+  const summary = await fullCharacterSync(characterId, characterName, (step, detail) => {
+    console.log(`[CharSync] ${characterName} — ${step}: ${detail}`);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('char-sync-progress', { characterId, characterName, step, detail });
+    }
+  });
+  return summary;
+});
+
+// ─── IPC: Get stored character info from CharDB ───────────────────────────────
+ipcMain.handle('get-character-info-db', async (_, characterId) => {
+  return charInfoDb.getCharacterData(characterId);
+});
+
+ipcMain.handle('get-character-assets-db', async (_, characterId) => {
+  return charInfoDb.getCharacterAssets(characterId);
+});
+
+ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
+  return charInfoDb.getCharacterBlueprints(characterId);
 });
 
 async function syncAssetsInternal(characterId) {

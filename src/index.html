@@ -543,9 +543,14 @@
   </div>
 </div>
 
-<div class="app-console">
-  <span class="console-time" id="console-time"></span>
-  <span class="console-msg" id="console-msg">[System] ESI connection ready...</span>
+<div class="app-console" id="appConsole">
+  <div class="console-statusbar" id="consoleStatusbar">
+    <span class="console-label">▶ LOG</span>
+    <span class="console-time" id="console-time"></span>
+    <span class="console-msg" id="console-msg">[System] ESI connection ready...</span>
+    <button class="console-toggle" id="consoleToggleBtn" title="Expand/collapse console log">▲</button>
+  </div>
+  <div class="console-log" id="consoleLog"></div>
 </div>
 
 </body>

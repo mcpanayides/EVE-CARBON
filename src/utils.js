@@ -70,15 +70,65 @@ function showToast(msg, type = 'info') {
 function logToConsole(message, type = 'info') {
   const consoleMsg  = document.getElementById('console-msg');
   const consoleTime = document.getElementById('console-time');
-  if (!consoleMsg || !consoleTime) return;
+  const consoleLog  = document.getElementById('consoleLog');
+
   const now = new Date();
   const timeString = now.toLocaleTimeString('en-US', {
     hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
   });
-  consoleTime.textContent = `[${timeString}]`;
-  consoleMsg.textContent  = message;
-  consoleMsg.className    = `console-msg ${type}`;
+
+  // ── Update the always-visible status bar ──────────────────────────────────
+  if (consoleTime) consoleTime.textContent = `[${timeString}]`;
+  if (consoleMsg)  {
+    consoleMsg.textContent = message;
+    consoleMsg.className   = `console-msg ${type}`;
+  }
+
+  // ── Append to scrollable history log ─────────────────────────────────────
+  if (consoleLog) {
+    const entry = document.createElement('div');
+    entry.className = `console-log-entry ${type}`;
+    entry.innerHTML =
+      `<span class="log-time">[${timeString}]</span>` +
+      `<span class="log-msg">${escHtml(String(message))}</span>`;
+    // column-reverse means prepend = visually appears at bottom
+    consoleLog.insertBefore(entry, consoleLog.firstChild);
+
+    // Cap history at 200 entries to avoid memory growth
+    while (consoleLog.children.length > 200) {
+      consoleLog.removeChild(consoleLog.lastChild);
+    }
+  }
 }
+
+// ── Console expand/collapse (initialised once on DOMContentLoaded) ────────────
+(function initConsoleToggle() {
+  function setup() {
+    const console_el  = document.getElementById('appConsole');
+    const toggleBtn   = document.getElementById('consoleToggleBtn');
+    const statusbar   = document.getElementById('consoleStatusbar');
+    if (!console_el || !toggleBtn) return;
+
+    let expanded = false;
+
+    function toggle() {
+      expanded = !expanded;
+      console_el.classList.toggle('expanded', expanded);
+      toggleBtn.textContent = expanded ? '▼' : '▲';
+      toggleBtn.title = expanded ? 'Collapse console log' : 'Expand console log';
+    }
+
+    // Click the toggle button OR anywhere on the status bar
+    toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+    if (statusbar) statusbar.addEventListener('click', toggle);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setup();
+  }
+})();
 
 async function withLoadingLogs(taskName, errorContainerId, asyncWork) {
   try {

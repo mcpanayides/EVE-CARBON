@@ -43,35 +43,14 @@ function bindIndustrySubNav() {
       if (tab) navigateIndustryTab(tab);
     });
   });
-}
 
-// ─── navigateIndustryTab ──────────────────────────────────────────────────────
-// Handles switching the visible pane and firing the appropriate data fetch
-function navigateIndustryTab(tab) {
-  // 1. Visually update the active button state
-  document.querySelectorAll('.industry-sub-btn').forEach(b => b.classList.remove('active'));
-  const activeBtn = document.querySelector(`.industry-sub-btn[data-industry-tab="${tab}"]`);
-  if (activeBtn) activeBtn.classList.add('active');
-
-  // 2. Hide all industry tab content areas
-  document.querySelectorAll('.industry-tab-content').forEach(content => {
-    content.style.display = 'none';
-  });
-
-  // 3. Show the newly selected tab content
-  const targetContent = document.getElementById(`industryTab-${tab}`);
-  if (targetContent) {
-    targetContent.style.display = 'block'; 
-  }
-
-  // 4. Trigger specific data load logic based on the selected tab
-  if (tab === 'blueprints') {
-    if (typeof loadBlueprintLibrary === 'function') loadBlueprintLibrary();
-  } else if (tab === 'pi') {
-    // Execute the new Planetary Interaction module!
-    if (typeof loadPlanetaryInteraction === 'function') loadPlanetaryInteraction();
-  } else if (tab === 'jobs') {
-    // Placeholder for jobs
+  // Auto-open "My Blueprints" whenever the industry page is entered so
+  // #industryTabContent is never a blank placeholder.
+  // Guard: only fire if the content area is actually empty (first entry or
+  // after a page close/reopen) to avoid clobbering an already-open tab.
+  const content = document.getElementById('industryTabContent');
+  if (content && !content.hasChildNodes()) {
+    navigateIndustryTab('blueprints');
   }
 }
 
@@ -90,7 +69,9 @@ function closePage(page) {
 }
 
 // ─── syncME / syncTE ─────────────────────────────────────────────────────────
-// Called from inline oninput on the sliders in the sidebar.
+// Called from inline oninput on sliders (e.g. inside the full calculator tab).
+// The sidebar sliders have been removed; these are now only used by
+// calculator-tab controls injected dynamically by navigateIndustryTab().
 function syncME(value) {
   selectedME = Number(value);
   const display = document.getElementById('meDisplay');
@@ -104,7 +85,8 @@ function syncTE(value) {
 }
 
 // ─── calculate ────────────────────────────────────────────────────────────────
-// Called from inline onclick on the CALCULATE button in the sidebar.
+// Called from the CALCULATE button inside the full calculator tab.
+// The "My Blueprints" View button uses openBlueprintDetail() directly instead.
 async function calculate() {
   if (!selectedBpTypeId) {
     showToast('Select a blueprint first.', 'error');

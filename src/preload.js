@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterAssets:  (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
   getPIColonies:       (characterId) => ipcRenderer.invoke('get-pi-colonies', characterId),
 
+  // Wallet journal, transactions and loyalty points (from CharDB, synced every 30 min)
+  getWalletJournal:       (charId) => ipcRenderer.invoke('get-wallet-journal', charId),
+  getWalletTransactions:  (charId) => ipcRenderer.invoke('get-wallet-transactions', charId),
+  getLoyaltyPoints:       (charId) => ipcRenderer.invoke('get-loyalty-points', charId),
+
   // Accounts
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
   removeAccount: (id)  => ipcRenderer.invoke('remove-account', id),
@@ -34,7 +39,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Blueprints
   syncBlueprints:    (charId) => ipcRenderer.invoke('sync-blueprints', charId),
   getBlueprints:     (charId) => ipcRenderer.invoke('get-blueprints', charId),
-  getAllBlueprints:   ()       => ipcRenderer.invoke('get-all-blueprints'),
+  getAllBlueprintsFromDb: () => ipcRenderer.invoke('get-all-blueprints-from-db'),
 
   // Public ESI / Fuzzwork
   search:                (q)       => ipcRenderer.invoke('esi-search', q),
@@ -76,6 +81,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Jabber
   connectJabber:    (config) => ipcRenderer.invoke('jabber-connect', config),
   disconnectJabber: ()       => ipcRenderer.invoke('jabber-disconnect'),
+
+  // Queries SDE for manufacturing materials and applies the ME bonus.
+  // Returns { materials, productTypeId, productName, productQty } or null.
+  sdeBlueprintMaterials: (blueprintTypeId, me) =>
+  ipcRenderer.invoke('sde-blueprint-materials', blueprintTypeId, me),
 
   // ── IPC event listeners ───────────────────────────────────────────────────
   // Single `on` definition covering all allowed channels.

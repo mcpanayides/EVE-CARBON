@@ -5,12 +5,12 @@
   --bg-panel:       rgba(13, 13, 13, 0.85);   /* sidebar, settings menu          */
   --bg-card:        rgba(33, 33, 33, 0.85);   /* settings panel blocks/cards     */
   --bg-card-deep:   rgba(12, 12, 12, 0.85);   /* blueprint-card, selected-bp, .panel */
-  --bg-hover:       rgba(22, 22, 22, 0.85);   /* nav-btn hover                   */
+  --bg-hover:       rgba(51, 51, 51, 0.356);   /* nav-btn hover                   */
   --bg-hover-subtle: rgba(255,255,255,0.03);  /* console statusbar hover         */
   --bg-input:       rgba(10, 10, 10, 0.85);   /* text/number/password/select/textarea */
   --bg-modal:       rgba(14, 14, 14, 0.85);   /* modal dialog background         */
   --bg-code:        #080808;                  /* inline <code> background        */
-  --backdrop:       rgba(0, 0, 0, 0.82);      /* modal backdrop overlay          */
+  --backdrop:       rgba(167, 29, 132, 0.82);      /* modal backdrop overlay          */
 
   /* ── BORDERS ─────────────────────────────────────────────────────────────── */
   --border:         #1e1e1e;                  /* primary border (sidebar, titlebar, scrollbar thumb, nav) */
@@ -26,8 +26,8 @@
 
   /* ── TEXT ────────────────────────────────────────────────────────────────── */
   --text-1:         #c8c8c8;                  /* primary body text, toast, settings labels */
-  --text-2:         #b4b4b4;                  /* secondary: titlebar-title, nav labels, icon-btn */
-  --text-3:         #7e7e7e;                  /* tertiary: titlebar-sep/subtitle, console-toggle, log-time */
+  --text-2:         #696969;                  /* secondary: titlebar-title, nav labels, icon-btn */
+  --text-3:         #525252;                  /* tertiary: titlebar-sep/subtitle, console-toggle, log-time */
   --text-4:         #4a4a4a;                  /* panel-header label              */
   --text-5:         #3a3a3a;                  /* empty-state title               */
   --text-6:         #2d2d2d;                  /* empty-state sub, console-label  */
@@ -47,13 +47,13 @@
   --warning:        #e67e22;                  /* toast.warning, console warning  */
   --assets:         #ab7ab8;                  /* asset-type label colour         */
   --liquidisk:      #4ec9b0;                  /* liquid ISK value colour         */
-  --newbie:         #4ec9b0;                  /* newbie/trial account label      */
 
   /* ── STATUS LIGHTS (sidebar nav) ────────────────────────────────────────── */
   --status-online:  #3ddc84;                  /* green dot — character online    */
   --status-offline: #d0263d;                  /* red dot — character offline     */
 
   /* ── SECURITY STATUS ─────────────────────────────────────────────────────── */
+  --newbie:         #4ec9b0;                  /* newbie/trial account label      */
   --hisec:          #3d85c8;                  /* high-sec space label            */
   --lowsec:         #d4a017;                  /* low-sec space label             */
   --nullsec:        #c0392b;                  /* null-sec space label            */
@@ -95,7 +95,7 @@
   --accent-40:      rgba(192, 57, 43, 0.40);  /* focus border, scrollbar hover   */
 
   /* ── MISC ────────────────────────────────────────────────────────────────── */
-  --text-input:     #888;                     /* field input / select text colour */
+  --text-input:     #c2c2c2;                     /* field input / select text colour */
   --text-on-accent: #000;                     /* text on solid accent bg (add-btn hover) */
   --shadow-dark:    rgba(0, 0, 0, 0.35);      /* toast box-shadow                */
   --shadow-darker:  rgba(0, 0, 0, 0.80);      /* modal box-shadow                */

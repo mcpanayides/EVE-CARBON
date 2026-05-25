@@ -91,13 +91,13 @@
           <span class="nav-label">Market</span>
         </button>
         <div class="nav-divider"></div>
-        <button id="openSettingsBtn" class="nav-btn" title="Open UI Settings">
-          <span class="nav-icon">⚙</span>
-          <span class="nav-label">Settings</span>
-        </button>
         <button id="openBugReportBtn" class="nav-btn" title="File a Bug Report" onclick="openBugReport()">
           <span class="nav-icon">⚠</span>
           <span class="nav-label">Bug Report</span>
+        </button>
+        <button id="openSettingsBtn" class="nav-btn" title="Open UI Settings">
+          <span class="nav-icon">⚙</span>
+          <span class="nav-label">Settings</span>
         </button>
       </nav>
     </div>
@@ -115,64 +115,11 @@
     </div>
 
 
-    <div id="selectedBpCard" class="selected-bp-card" style="display:none;">
-      <img id="selectedBpIcon" src="" alt="" class="bp-card-icon"/>
-      <div class="bp-card-info">
-        <div id="selectedBpName" class="bp-card-name"></div>
-        <div id="selectedBpMeta" class="bp-card-id"></div>
-      </div>
-      <button class="bp-card-clear" onclick="clearSelection()">✕</button>
-    </div>
+    <!-- selectedBpCard and researchPanel removed: blueprint selection, ME/TE
+         controls, and the CALCULATE button are now self-contained inside the
+         detail panel rendered by openBlueprintDetail() in blueprints.js.
+         The sidebar remains clean while the Industry > My Blueprints tab is open. -->
 
-    <div class="panel" id="researchPanel" style="display:none;">
-      <div class="panel-header"><span class="panel-icon">◆</span><span>RESEARCH & FACILITY</span></div>
-      <div class="field-group">
-        <label class="field-label">ME % <span id="meDisplay" class="val-display">3</span></label>
-        <input type="range" id="meSlider" min="0" max="10" value="3" step="1" class="slider" oninput="syncME(this.value)"/>
-      </div>
-      <div class="field-group">
-        <label class="field-label">TE % <span id="teDisplay" class="val-display">2</span></label>
-        <input type="range" id="teSlider" min="0" max="20" value="2" step="2" class="slider" oninput="syncTE(this.value)"/>
-      </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label class="field-label">RUNS</label>
-          <input type="number" id="runs" class="field-input" value="1" min="1" max="99999"/>
-        </div>
-        <div class="field-group">
-          <label class="field-label">COPIES</label>
-          <input type="number" id="copies" class="field-input" value="1" min="1" max="9999"/>
-        </div>
-      </div>
-      <div class="field-group">
-        <label class="field-label">STRUCTURE BONUS</label>
-        <select id="structME" class="field-input">
-          <option value="0">No bonus (NPC)</option>
-          <option value="1">1.0% (Raitaru/Azbel)</option>
-          <option value="1.9">1.9% (Sotiyo)</option>
-          <option value="2">2.0% (Max)</option>
-        </select>
-      </div>
-      <div class="field-group">
-        <label class="field-label">IMPLANT BONUS</label>
-        <select id="implantBonus" class="field-input">
-          <option value="0">None</option>
-          <option value="1">1% (BX-801)</option>
-          <option value="2">2% (BX-802)</option>
-          <option value="4">4% (BX-804)</option>
-        </select>
-      </div>
-      <div class="tier-toggles">
-        <label class="checkbox-label"><input type="checkbox" id="showT3" checked/> Components</label>
-        <label class="checkbox-label"><input type="checkbox" id="showT2" checked/> Reactions</label>
-        <label class="checkbox-label"><input type="checkbox" id="showT1" checked/> Processed</label>
-        <label class="checkbox-label"><input type="checkbox" id="showT0" checked/> Raw</label>
-      </div>
-      <button class="calc-btn" id="calcBtn" onclick="calculate()">⬡ CALCULATE</button>
-      <div id="statusMsg" class="status-msg"></div>
-    </div>
-    <button id="openSettingsBtn" class="settings-fab" title="Open UI Settings">⚙</button>
-    <button id="openBugReportBtn" class="bug-fab" title="File a Bug Report" onclick="openBugReport()">⚠</button>
 
   </div>
 
@@ -254,7 +201,6 @@
       </div>
 
       <!-- Industry Page -->
-      <!-- FIX: closed industry page div properly; asset/wallet pages are now siblings not children -->
       <div id="page-industry" class="nav-page" style="flex-direction:column; height:100%; overflow:hidden;">
         <div class="page-header">
           <div>
@@ -266,7 +212,8 @@
         <div class="industry-layout">
           <div class="industry-subnav">
             <div class="industry-subnav-label">TOOLS</div>
-            <button class="industry-sub-btn" data-industry-tab="blueprints"><span class="industry-sub-icon">⬡</span>My Blueprints</button>
+            <!-- data-industry-tab drives navigateIndustryTab(); "blueprints" is the default -->
+            <button class="industry-sub-btn active" data-industry-tab="blueprints"><span class="industry-sub-icon">⬡</span>My Blueprints</button>
             <button class="industry-sub-btn" data-industry-tab="search"><span class="industry-sub-icon">◑</span>BP Search</button>
             <button class="industry-sub-btn" data-industry-tab="active-jobs"><span class="industry-sub-icon">◈</span>Active Jobs</button>
             <button class="industry-sub-btn" data-industry-tab="calculator"><span class="industry-sub-icon">⚙</span>Calculator</button>
@@ -279,12 +226,11 @@
             <button class="industry-sub-btn" data-industry-tab="gas"><span class="industry-sub-icon">⬡</span>Gas Calculator</button>
             <button class="industry-sub-btn" data-industry-tab="moon"><span class="industry-sub-icon">◎</span>Moon Scanning</button>
           </div>
+          <!-- industryTabContent is the single mount-point for all tab UIs.
+               navigateIndustryTab('blueprints') renders the library + detail panel here.
+               No duplicate bpLibList / results IDs exist anywhere else in the document. -->
           <div id="industryTabContent" class="industry-content">
-            <div class="empty-state" style="margin-top:80px;">
-              <div class="empty-icon">⬡</div>
-              <div class="empty-title">SELECT A TOOL</div>
-              <div class="empty-sub">Choose an option from the panel on the left.</div>
-            </div>
+            <!-- Populated immediately by navigateToPage('industry') → navigateIndustryTab('blueprints') -->
           </div>
         </div>
       </div>
@@ -346,9 +292,8 @@
           <button class="close-page-btn" onclick="closePage('wallets')">✕</button>
         </div>
         <!-- Summary bar -->
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg-card); flex-shrink:0; flex-wrap:wrap; gap:10px;">
-          <span id="walletsSummary" class="asset-summary">Loading…</span>
-          <span style="font-size:11px; color:var(--text-3); font-family:var(--mono);">SOURCE: LOCAL DB · NO ESI CALL</span>
+        <div style="display:flex; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--bg-card); flex-shrink:0; flex-wrap:wrap; gap:10px;">
+          <span id="walletsSummary" class="asset-summary"></span>
         </div>
         <!-- Total combined ISK row -->
         <div id="walletsTotalRow" style="display:none; padding:14px 20px; background:var(--bg-panel); border-bottom:1px solid var(--border); flex-shrink:0;">
@@ -442,43 +387,7 @@
 
     </div><!-- end navPagesContainer -->
 
-    <!-- FIX: mainLibraryView is now a sibling of navPagesContainer, not nested inside it -->
-    <div class="panel" id="mainLibraryView" style="display:none; flex-direction:column; height:100%;">
-      <div class="panel-header">
-        <span class="panel-icon">◎</span>
-        <span>MY BLUEPRINT LIBRARY</span>
-        <button id="toggleLibraryBtn" class="icon-btn" title="Hide blueprint library"></button>
-        <span id="bpLibCount" class="panel-count" style="margin-left:auto; background:var(--accent); color:#000; padding:2px 8px; border-radius:10px; font-weight:bold;">0</span>
-      </div>
-      <div id="bpTabs" style="display:flex; gap:8px; padding:8px 12px; flex-wrap:wrap;"></div>
-      <div id="bpTabContents" style="padding:12px;"></div>
-      <div class="bp-filter-row" style="padding:15px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
-        <input type="text" id="bpLibSearch" class="field-input" style="flex:1; min-width:200px; font-size:14px; padding:10px;" placeholder="Search your blueprint library..."/>
-        <select id="bpLibFilter" class="field-input" style="width:160px; padding:10px;">
-          <option value="all">All Blueprints</option>
-          <option value="bpo">BPO (Originals) Only</option>
-          <option value="bpc">BPC (Copies) Only</option>
-        </select>
-        <select id="bpLibSort" class="field-input" style="width:160px; padding:10px;">
-          <option value="name">Name</option>
-          <option value="me">ME High-Low</option>
-          <option value="te">TE High-Low</option>
-          <option value="runs">Runs Remaining</option>
-        </select>
-        <input type="number" id="bpLibMinME" class="field-input" style="width:90px; padding:10px;" placeholder="Min ME" min="0" max="10">
-        <input type="number" id="bpLibMinTE" class="field-input" style="width:90px; padding:10px;" placeholder="Min TE" min="0" max="20">
-        <input type="number" id="bpLibMinRuns" class="field-input" style="width:100px; padding:10px;" placeholder="Min Runs" min="1">
-      </div>
-      <div id="bpLibList" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:15px; padding:15px; overflow-y:auto; flex:1;">
-        <div class="empty-state" style="grid-column: 1 / -1;">
-          <div class="empty-icon">⬡</div>
-          <div class="empty-title">LIBRARY EMPTY</div>
-          <div class="empty-sub">Sync a character from the sidebar to populate your blueprints.</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="results" class="results-area" style="display:none;"></div>
+    <!-- Blueprint library and results are rendered inside #industryTabContent by navigateIndustryTab() -->
 
   </div>
 
@@ -559,6 +468,117 @@
     </div>
     <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px;">
       <button id="saveSettingsBtn" class="calc-btn">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Wallet Journal Modal ─────────────────────────────────────────── -->
+<div id="walletJournalBackdrop" class="modal-backdrop" style="display:none; position:fixed; inset:0; align-items:center; justify-content:center; z-index:10010; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px);">
+  <div id="walletJournalModal" style="
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:12px;
+    width:96vw; height:92vh; display:flex; flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,0.7); overflow:hidden;">
+    <!-- Header -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); background:rgba(8,8,8,0.95); flex-shrink:0;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <img id="journalCharPortrait" src="" alt="" style="width:40px;height:40px;border-radius:50%;border:1px solid var(--border);object-fit:cover;"/>
+        <div>
+          <div id="journalCharName" style="font-size:14px;font-weight:700;color:var(--text-1);letter-spacing:0.05em;"></div>
+          <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);">WALLET JOURNAL</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <!-- Page tabs -->
+        <div style="display:flex; border:1px solid var(--border); border-radius:6px; overflow:hidden;">
+          <button class="journal-tab-btn active" data-tab="overview" style="padding:6px 14px;font-size:11px;font-family:var(--mono);font-weight:600;letter-spacing:0.08em;cursor:pointer;background:var(--accent);color:#000;border:none;">OVERVIEW</button>
+          <button class="journal-tab-btn" data-tab="transactions" style="padding:6px 14px;font-size:11px;font-family:var(--mono);font-weight:600;letter-spacing:0.08em;cursor:pointer;background:none;color:var(--text-2);border:none;">TRANSACTIONS</button>
+          <button class="journal-tab-btn" data-tab="lp" style="padding:6px 14px;font-size:11px;font-family:var(--mono);font-weight:600;letter-spacing:0.08em;cursor:pointer;background:none;color:var(--text-2);border:none;">LP STANDINGS</button>
+        </div>
+        <button onclick="closeWalletJournal()" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--text-2);cursor:pointer;padding:6px 10px;font-size:14px;line-height:1;">✕</button>
+      </div>
+    </div>
+    <!-- Tab content -->
+    <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <!-- Overview tab: ring chart — fills all remaining space -->
+      <div id="journalTab-overview" class="journal-tab-content" style="
+          flex:1; display:flex; align-items:center; justify-content:center;
+          padding:0; overflow:hidden; height:100%;">
+        <!-- Two-column layout that fills the space -->
+        <div style="display:flex; align-items:center; justify-content:center;
+                    gap:0; width:100%; height:100%;">
+          <!-- Left: ring -->
+          <div style="flex:1; display:flex; align-items:center; justify-content:center;
+                      height:100%; border-right:1px solid var(--border);">
+            <div style="position:relative; width:320px; height:320px;">
+              <canvas id="journalRingChart" width="320" height="320"></canvas>
+              <div id="journalRingCenter" style="position:absolute;top:50%;left:50%;
+                  transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+                <div id="journalRingValue" style="font-size:22px;font-weight:700;
+                    color:var(--text-1);font-family:var(--mono);white-space:nowrap;">—</div>
+                <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);
+                    letter-spacing:0.08em;margin-top:4px;">30 Days Income</div>
+              </div>
+            </div>
+          </div>
+          <!-- Right: stats + legend -->
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:center;
+                      padding:60px; gap:32px; height:100%;">
+            <div>
+              <div style="font-size:10px;color:var(--text-3);letter-spacing:0.12em;
+                          font-family:var(--mono);margin-bottom:8px;">INCOME (30 DAYS)</div>
+              <div id="journalIncomeTotal" style="font-size:32px;font-weight:700;
+                  color:#4ecbb0;font-family:var(--mono);">—</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-3);letter-spacing:0.12em;
+                          font-family:var(--mono);margin-bottom:8px;">EXPENSES (30 DAYS)</div>
+              <div id="journalExpenseTotal" style="font-size:32px;font-weight:700;
+                  color:var(--danger);font-family:var(--mono);">—</div>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:24px;">
+              <div style="font-size:10px;color:var(--text-3);letter-spacing:0.12em;
+                          font-family:var(--mono);margin-bottom:16px;">INCOME BREAKDOWN</div>
+              <div id="journalLegend" style="display:flex;flex-direction:column;gap:14px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Transactions tab -->
+      <div id="journalTab-transactions" class="journal-tab-content" style="display:none;flex:1;overflow-y:auto;">
+        <div style="overflow-x:auto;height:100%;">
+          <table style="width:100%;border-collapse:collapse;min-width:680px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;white-space:nowrap;">DATE</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">TYPE</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">AMOUNT</th>
+                <th style="padding:10px 12px;text-align:right;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">BALANCE</th>
+                <th style="padding:10px 12px;text-align:left;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">DESCRIPTION</th>
+              </tr>
+            </thead>
+            <tbody id="journalTransactionBody">
+              <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:12px;">Loading transactions…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- LP tab -->
+      <div id="journalTab-lp" class="journal-tab-content" style="display:none;flex:1;overflow-y:auto;">
+        <div style="overflow-x:auto;height:100%;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="padding:10px 16px;text-align:left;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">CORPORATION</th>
+                <th style="padding:10px 16px;text-align:right;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">LOYALTY POINTS</th>
+                <th style="padding:10px 16px;text-align:left;font-size:10px;color:var(--text-3);letter-spacing:0.1em;font-weight:600;">CLOSEST LP STORE</th>
+              </tr>
+            </thead>
+            <tbody id="journalLPBody">
+              <tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:12px;">Loading LP standings…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>

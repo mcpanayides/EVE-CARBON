@@ -304,12 +304,320 @@ async function renderWallets() {
         </div>
         <div class="wallet-footer">
           <span class="wallet-meta">${escHtml(syncLabel)}</span>
-          <button class="wallet-action">View Journal</button>
+          <button class="wallet-action journal-open-btn" data-char-id="${account.characterId}" data-char-name="${escHtml(account.characterName)}">View Journal</button>
         </div>`;
       walletsGrid.appendChild(card);
       countUp(card.querySelector('.wallet-balance-number'), rawBalance);
+
+      // Wire View Journal button
+      card.querySelector('.journal-open-btn').addEventListener('click', () => {
+        openWalletJournal(account.characterId, account.characterName);
+      });
     });
   } finally {
     walletsGrid._isLoading = false;
   }
+}
+// ── Wallet Journal Modal ───────────────────────────────────────────────────────
+
+// EVE ref_type → category mapping for the ring chart
+const JOURNAL_CATEGORIES = {
+  bounty_prizes:              'Bounty',
+  bounty_prize:               'Bounty',
+  agent_mission_reward:       'Bounty',
+  agent_mission_time_bonus_reward: 'Bounty',
+  mission_reward:             'Bounty',
+  incursion_participant_payou: 'Bounty',
+  // Trade
+  market_transaction:         'Trade',
+  contract_reward:            'Trade',
+  contract_price:             'Trade',
+  contract_collateral:        'Trade',
+  contract_deposit:           'Trade',
+  contract_auction_bid:       'Trade',
+  contract_auction_bid_corp:  'Trade',
+  contract_price_payment_corp:'Trade',
+  market_escrow:              'Trade',
+  transaction_tax:            'Trade',
+  brokers_fee:                'Trade',
+  // Transfers
+  player_donation:            'Transfers',
+  corporation_account_withdrawal: 'Transfers',
+  corporation_dividend_payment:   'Transfers',
+  ess_escrow_transfer:        'Transfers',
+  // Miscellaneous (everything else falls here)
+};
+
+const CATEGORY_COLORS = {
+  Bounty:    '#e05252',   // red
+  Trade:     '#4ecbb0',   // teal
+  Misc:      '#8c8c8c',   // grey
+  Transfers: '#e6c84a',   // yellow
+};
+
+function classifyEntry(entry) {
+  const rt = (entry.ref_type || '').toLowerCase();
+  return JOURNAL_CATEGORIES[rt] || 'Misc';
+}
+
+async function openWalletJournal(characterId, characterName) {
+  const backdrop = document.getElementById('walletJournalBackdrop');
+  if (!backdrop) return;
+
+  // Set header
+  document.getElementById('journalCharPortrait').src =
+    `https://images.evetech.net/characters/${characterId}/portrait?size=64`;
+  document.getElementById('journalCharName').textContent = characterName;
+
+  // Reset to overview tab
+  setJournalTab('overview');
+  backdrop.style.display = 'flex';
+
+  // Load data in parallel
+  const [journalEntries, lpData] = await Promise.all([
+    loadJournalEntries(characterId),
+    loadLPData(characterId),
+  ]);
+
+  renderJournalOverview(journalEntries);
+  renderJournalTransactions(journalEntries);
+  renderJournalLP(lpData);
+}
+
+function closeWalletJournal() {
+  const backdrop = document.getElementById('walletJournalBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
+  // Destroy chart to free memory
+  const canvas = document.getElementById('journalRingChart');
+  if (canvas && canvas._chartInstance) {
+    canvas._chartInstance.destroy();
+    canvas._chartInstance = null;
+  }
+}
+
+function setJournalTab(tab) {
+  document.querySelectorAll('.journal-tab-btn').forEach(btn => {
+    const active = btn.dataset.tab === tab;
+    btn.style.background = active ? 'var(--accent)' : 'none';
+    btn.style.color      = active ? '#000' : 'var(--text-2)';
+    btn.classList.toggle('active', active);
+  });
+  document.querySelectorAll('.journal-tab-content').forEach(el => {
+    el.style.display = el.id === `journalTab-${tab}` ? '' : 'none';
+  });
+}
+
+// Bind tab buttons (runs once when modal HTML is created; safe to call multiple times)
+(function bindJournalTabs() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.journal-tab-btn');
+    if (!btn) return;
+    setJournalTab(btn.dataset.tab);
+  });
+  // Close on backdrop click
+  document.addEventListener('click', (e) => {
+    const backdrop = document.getElementById('walletJournalBackdrop');
+    if (backdrop && e.target === backdrop) closeWalletJournal();
+  });
+})();
+
+// ── Data loaders ─────────────────────────────────────────────────────────────
+async function loadJournalEntries(characterId) {
+  // Primary: read from CharDB (synced every 30 min by coreCharacterSync)
+  try {
+    const rows = await window.eveAPI.getWalletJournal(characterId);
+    if (Array.isArray(rows) && rows.length) return rows;
+  } catch (e) { /* fall through */ }
+  // Fallback: live ESI call if DB is empty (e.g. character never synced yet)
+  try {
+    const url  = `https://esi.evetech.net/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`;
+    const data = await window.eveAPI.esiFetch(url).catch(() => null);
+    if (Array.isArray(data) && data.length) return data;
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+async function loadLPData(characterId) {
+  // Primary: read from CharDB (synced every 30 min by coreCharacterSync)
+  try {
+    const rows = await window.eveAPI.getLoyaltyPoints(characterId);
+    if (Array.isArray(rows) && rows.length) return rows;
+  } catch (e) { /* fall through */ }
+  // Fallback: live ESI call if DB is empty
+  try {
+    const url  = `https://esi.evetech.net/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`;
+    const data = await window.eveAPI.esiFetch(url).catch(() => null);
+    if (Array.isArray(data)) return data;
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+// ── Renderers ─────────────────────────────────────────────────────────────────
+function renderJournalOverview(entries) {
+  const now    = Date.now();
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+
+  // Only last 30 days
+  const recent = entries.filter(e => {
+    const t = e.date ? new Date(e.date).getTime() : 0;
+    return t >= cutoff;
+  });
+
+  // Split income vs expenses by category
+  const incomeByCat  = { Bounty: 0, Trade: 0, Misc: 0, Transfers: 0 };
+  const expenseByCat = { Bounty: 0, Trade: 0, Misc: 0, Transfers: 0 };
+  let totalIncome = 0, totalExpense = 0;
+
+  recent.forEach(e => {
+    const amt = parseFloat(e.amount) || 0;
+    const cat = classifyEntry(e);
+    if (amt >= 0) {
+      incomeByCat[cat] = (incomeByCat[cat] || 0) + amt;
+      totalIncome += amt;
+    } else {
+      expenseByCat[cat] = (expenseByCat[cat] || 0) + Math.abs(amt);
+      totalExpense += Math.abs(amt);
+    }
+  });
+
+  // Update income/expense totals
+  document.getElementById('journalIncomeTotal').textContent  = formatISK(totalIncome);
+  document.getElementById('journalExpenseTotal').textContent = formatISK(totalExpense);
+  document.getElementById('journalRingValue').textContent    = formatISK(totalIncome);
+
+  // Build chart data from income categories only
+  const cats   = Object.keys(incomeByCat).filter(c => incomeByCat[c] > 0);
+  const values = cats.map(c => incomeByCat[c]);
+  const colors = cats.map(c => CATEGORY_COLORS[c] || '#8c8c8c');
+
+  // Legend
+  const legendEl = document.getElementById('journalLegend');
+  if (legendEl) {
+    const allCats = Object.keys(incomeByCat);
+    legendEl.innerHTML = allCats.map(cat => {
+      const pct = totalIncome > 0 ? (incomeByCat[cat] / totalIncome * 100).toFixed(1) : '0.0';
+      const amt = formatISK(incomeByCat[cat]);
+      return `<div style="display:flex;align-items:center;gap:12px;">
+        <span style="width:12px;height:12px;border-radius:50%;background:${CATEGORY_COLORS[cat]};flex-shrink:0;"></span>
+        <span style="font-size:13px;color:var(--text-2);font-family:var(--mono);min-width:44px;">${pct}%</span>
+        <span style="font-size:13px;color:var(--text-1);flex:1;">${cat}</span>
+        <span style="font-size:12px;color:var(--text-3);font-family:var(--mono);">${amt}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Ring chart
+  const canvas = document.getElementById('journalRingChart');
+  if (!canvas) return;
+  if (canvas._chartInstance) {
+    canvas._chartInstance.destroy();
+    canvas._chartInstance = null;
+  }
+  if (typeof Chart === 'undefined') return;
+
+  canvas._chartInstance = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: cats,
+      datasets: [{
+        data:            values.length ? values : [1],
+        backgroundColor: values.length ? colors : ['#2a2a2a'],
+        borderColor:     'transparent',
+        borderWidth:     0,
+        hoverOffset:     6,
+      }]
+    },
+    options: {
+      cutout: '86%',
+      responsive: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.raw;
+              const pct = totalIncome > 0 ? (v / totalIncome * 100).toFixed(1) : '0.0';
+              return ` ${pct}%  ${formatISK(v)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderJournalTransactions(entries) {
+  const tbody = document.getElementById('journalTransactionBody');
+  if (!tbody) return;
+
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:12px;">No journal entries found. Sync this character to populate data.</td></tr>`;
+    return;
+  }
+
+  // Sort newest first
+  const sorted = [...entries].sort((a, b) => {
+    return new Date(b.date || 0) - new Date(a.date || 0);
+  });
+
+  tbody.innerHTML = sorted.slice(0, 500).map(e => {
+    const amt     = parseFloat(e.amount) || 0;
+    const bal     = parseFloat(e.balance) || 0;
+    const amtColor = amt >= 0 ? '#4ecbb0' : 'var(--danger)';
+    const amtStr   = (amt >= 0 ? '+' : '') + formatISK(amt);
+    const dateStr  = e.date ? new Date(e.date).toLocaleString('en-ZA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }) : '—';
+    // Human-readable ref type
+    const typeLabel = (e.ref_type || '—')
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+    const desc = escHtml(e.description || e.reason || '—');
+
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td style="padding:9px 12px;font-size:11px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;">${dateStr}</td>
+      <td style="padding:9px 12px;font-size:12px;color:var(--text-2);white-space:nowrap;">${typeLabel}</td>
+      <td style="padding:9px 12px;font-size:12px;color:${amtColor};font-family:var(--mono);text-align:right;white-space:nowrap;">${amtStr}</td>
+      <td style="padding:9px 12px;font-size:12px;color:var(--text-3);font-family:var(--mono);text-align:right;white-space:nowrap;">${formatISK(bal)}</td>
+      <td style="padding:9px 12px;font-size:12px;color:var(--text-2);max-width:300px;word-break:break-word;">${desc}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function renderJournalLP(lpRows) {
+  const tbody = document.getElementById('journalLPBody');
+  if (!tbody) return;
+
+  if (!lpRows.length) {
+    tbody.innerHTML = `<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:12px;">No LP data found. Sync this character to populate standings.</td></tr>`;
+    return;
+  }
+
+  // Sort by LP descending
+  const sorted = [...lpRows].sort((a, b) => (b.loyalty_points || 0) - (a.loyalty_points || 0));
+
+  // Resolve corporation names via ESI names endpoint
+  let nameMap = {};
+  try {
+    const ids = sorted.map(r => r.corporation_id).filter(Boolean);
+    if (ids.length) {
+      const names = await window.eveAPI.getNames(ids).catch(() => []);
+      if (Array.isArray(names)) names.forEach(n => { nameMap[n.id] = n.name; });
+    }
+  } catch (e) { /* leave names as IDs */ }
+
+  tbody.innerHTML = sorted.map(row => {
+    const corpId   = row.corporation_id || 0;
+    const corpName = escHtml(nameMap[corpId] || `Corp ${corpId}`);
+    const lp       = (row.loyalty_points || 0).toLocaleString();
+    // No live store lookup available without additional ESI; show placeholder
+    const store    = '—';
+
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td style="padding:11px 16px;font-size:13px;color:var(--text-1);">${corpName}</td>
+      <td style="padding:11px 16px;font-size:13px;color:var(--accent);font-family:var(--mono);text-align:right;">${lp}</td>
+      <td style="padding:11px 16px;font-size:12px;color:var(--text-3);">${store}</td>
+    </tr>`;
+  }).join('');
 }

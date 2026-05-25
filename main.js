@@ -57,6 +57,7 @@ const SCOPES         = [
   'esi-location.read_location.v1',              // current solar system / station
   'esi-location.read_ship_type.v1',             // current ship type
   'esi-planets.manage_planets.v1',              // planetary interaction colonies
+  'esi-characters.read_loyalty.v1',             // loyalty points per corporation
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
 
@@ -805,6 +806,75 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     report('blueprints', `✗ ${e.message}`);
   }
 
+  // 9. Wallet journal (most recent 2500 entries)
+  try {
+    report('wallet_journal', 'Fetching wallet journal…');
+    const journal = await httpGet(
+      `${ESI_BASE}/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
+      authHdr
+    );
+    if (Array.isArray(journal)) {
+      await charInfoDb.replaceWalletJournal(characterId, journal);
+      summary.steps.wallet_journal = `${journal.length} entries`;
+      report('wallet_journal', `✓ ${journal.length} journal entries`);
+    }
+  } catch (e) {
+    summary.steps.wallet_journal = `error: ${e.message}`;
+    report('wallet_journal', `✗ ${e.message}`);
+  }
+
+  // 10. Wallet transactions (most recent 2500)
+  try {
+    report('wallet_transactions', 'Fetching wallet transactions…');
+    const raw = await httpGet(
+      `${ESI_BASE}/v1/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
+      authHdr
+    );
+    if (Array.isArray(raw)) {
+      // Resolve type names and location names in batch
+      const typeIds     = [...new Set(raw.map(t => t.type_id).filter(Boolean))];
+      const locationIds = [...new Set(raw.map(t => t.location_id).filter(Boolean))];
+      const nameMap     = typeIds.length     ? await resolveNames(typeIds)                               : {};
+      const locMeta     = locationIds.length ? await getLocator().resolveLocations(locationIds, characterId) : {};
+      const transactions = raw.map(t => ({
+        ...t,
+        type_name:     nameMap[t.type_id]             || `Type ${t.type_id}`,
+        location_name: locMeta[t.location_id]?.name   || `Location ${t.location_id}`,
+      }));
+      await charInfoDb.replaceWalletTransactions(characterId, transactions);
+      summary.steps.wallet_transactions = `${transactions.length} txns`;
+      report('wallet_transactions', `✓ ${transactions.length} transactions`);
+    }
+  } catch (e) {
+    summary.steps.wallet_transactions = `error: ${e.message}`;
+    report('wallet_transactions', `✗ ${e.message}`);
+  }
+
+  // 11. Loyalty points
+  try {
+    report('loyalty_points', 'Fetching loyalty points…');
+    const lpRaw = await httpGet(
+      `${ESI_BASE}/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`,
+      authHdr
+    );
+    if (Array.isArray(lpRaw)) {
+      // Resolve corporation names in batch
+      const corpIds  = [...new Set(lpRaw.map(r => r.corporation_id).filter(Boolean))];
+      const nameMap  = corpIds.length ? await resolveNames(corpIds) : {};
+      const lpRows   = lpRaw.map(r => ({
+        corporation_id:   r.corporation_id,
+        loyalty_points:   r.loyalty_points || 0,
+        corporation_name: nameMap[r.corporation_id] || `Corp ${r.corporation_id}`,
+      }));
+      await charInfoDb.replaceLoyaltyPoints(characterId, lpRows);
+      summary.steps.loyalty_points = `${lpRows.length} corps`;
+      report('loyalty_points', `✓ ${lpRows.length} LP entries`);
+    }
+  } catch (e) {
+    summary.steps.loyalty_points = `error: ${e.message}`;
+    report('loyalty_points', `✗ ${e.message}`);
+  }
+
   return summary;
 }
 
@@ -959,6 +1029,67 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     saveDB(db2);
   } catch (e) { summary.steps.blueprints = `error: ${e.message}`; report('blueprints', `✗ ${e.message}`); }
 
+  // 8. Wallet journal (30-min cadence — skip if recently synced)
+  const WALLET_JOURNAL_STALE_MS = 30 * 60 * 1000;
+  try {
+    const lastSync = await charInfoDb.getWalletJournalSyncedAt(characterId).catch(() => 0);
+    if (Date.now() - lastSync >= WALLET_JOURNAL_STALE_MS) {
+      report('wallet_journal', 'Fetching wallet journal…');
+      const journal = await httpGet(
+        `${ESI_BASE}/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
+        authHdr
+      );
+      if (Array.isArray(journal)) {
+        await charInfoDb.replaceWalletJournal(characterId, journal);
+        summary.steps.wallet_journal = `${journal.length} entries`;
+        report('wallet_journal', `✓ ${journal.length} journal entries`);
+      }
+
+      // Wallet transactions (fetched alongside journal on same cadence)
+      const raw = await httpGet(
+        `${ESI_BASE}/v1/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
+        authHdr
+      );
+      if (Array.isArray(raw)) {
+        const typeIds     = [...new Set(raw.map(t => t.type_id).filter(Boolean))];
+        const locationIds = [...new Set(raw.map(t => t.location_id).filter(Boolean))];
+        const nameMap     = typeIds.length     ? await resolveNames(typeIds)                                : {};
+        const locMeta     = locationIds.length ? await getLocator().resolveLocations(locationIds, characterId) : {};
+        const transactions = raw.map(t => ({
+          ...t,
+          type_name:     nameMap[t.type_id]           || `Type ${t.type_id}`,
+          location_name: locMeta[t.location_id]?.name || `Location ${t.location_id}`,
+        }));
+        await charInfoDb.replaceWalletTransactions(characterId, transactions);
+        summary.steps.wallet_transactions = `${transactions.length} txns`;
+        report('wallet_transactions', `✓ ${transactions.length} transactions`);
+      }
+
+      // Loyalty points (same cadence)
+      const lpRaw = await httpGet(
+        `${ESI_BASE}/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`,
+        authHdr
+      );
+      if (Array.isArray(lpRaw)) {
+        const corpIds = [...new Set(lpRaw.map(r => r.corporation_id).filter(Boolean))];
+        const nameMap = corpIds.length ? await resolveNames(corpIds) : {};
+        const lpRows  = lpRaw.map(r => ({
+          corporation_id:   r.corporation_id,
+          loyalty_points:   r.loyalty_points || 0,
+          corporation_name: nameMap[r.corporation_id] || `Corp ${r.corporation_id}`,
+        }));
+        await charInfoDb.replaceLoyaltyPoints(characterId, lpRows);
+        summary.steps.loyalty_points = `${lpRows.length} corps`;
+        report('loyalty_points', `✓ ${lpRows.length} LP entries`);
+      }
+    } else {
+      report('wallet_journal', 'wallet journal fresh — skipping');
+    }
+  } catch (e) {
+    summary.steps.wallet_journal = `error: ${e.message}`;
+    report('wallet_journal', `✗ ${e.message}`);
+  }
+
   return summary;
 }
 
@@ -1032,8 +1163,216 @@ ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
   return charInfoDb.getCharacterBlueprints(characterId);
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADDITIONS FOR main.js
+// Insert both blocks below immediately AFTER the existing:
+//   ipcMain.handle('get-character-blueprints-db', ...)   (around line 1162)
+//
+// These two handlers power the new blueprints.js "My Blueprints" tab.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── IPC: Get ALL blueprints from SQLite (all synced characters) ──────────────
+// Reads char_{id}_blueprints tables directly from character_information.db.
+// Returns a flat array of blueprint rows, each augmented with characterId and
+// characterName from the accounts store (blueprints.json).
+//
+// Called by: loadBlueprintLibrary() in blueprints.js
+//            via window.eveAPI.getAllBlueprintsFromDb()
+
+ipcMain.handle('get-all-blueprints-from-db', async () => {
+  const db       = loadDB();
+  const accounts = db.accounts || {};
+  const all      = [];
+
+  for (const [charIdStr, account] of Object.entries(accounts)) {
+    const characterId   = Number(charIdStr);
+    const characterName = account.characterName || 'Unknown';
+
+    try {
+      const rows = await charInfoDb.getCharacterBlueprints(characterId);
+      if (Array.isArray(rows)) {
+        rows.forEach(row => {
+          all.push({
+            ...row,
+            characterId,
+            characterName,
+          });
+        });
+      }
+    } catch (e) {
+      console.warn(`[get-all-blueprints-from-db] Skipped character ${characterId}: ${e.message}`);
+    }
+  }
+
+  return all;
+});
+
+// ─── IPC: SDE blueprint materials with ME bonus applied ──────────────────────
+// Queries the local SDE sqlite (sde.sql) for the manufacturing activity of
+// blueprintTypeId, then applies the ME reduction formula:
+//
+//   adjustedQty = max(1, ceil(baseQty × (1 − me/100)))
+//
+// Also resolves the product type name and quantity from industryActivityProducts.
+//
+// Returns:
+//   {
+//     materials:    [{ typeId, name, baseQty, adjustedQty, isComponent }],
+//     productTypeId: number | null,
+//     productName:   string | null,
+//     productQty:    number,
+//   }
+//
+// Called by: openBlueprintDetail() in blueprints.js
+//            via window.eveAPI.sdeBlueprintMaterials(typeId, me)
+
+ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => {
+  if (!sdeDb) return null;
+
+  const MANUFACTURING = 1;  // activityID for manufacturing in SDE
+
+  // ── 1. Fetch raw materials from industryActivityMaterials ──────────────────
+  // The SDE table is: industryActivityMaterials(typeID, activityID, materialTypeID, quantity)
+  let matRows = [];
+  try {
+    matRows = await sdeDb.all(
+      `SELECT materialTypeID, quantity
+         FROM industryActivityMaterials
+        WHERE typeID     = ?
+          AND activityID = ?`,
+      blueprintTypeId, MANUFACTURING
+    );
+  } catch (e) {
+    console.warn('[sde-blueprint-materials] industryActivityMaterials query failed:', e.message);
+    return null;
+  }
+
+  if (!matRows.length) return null;
+
+  // ── 2. Resolve material type names ────────────────────────────────────────
+  const matTypeIds  = matRows.map(r => r.materialTypeID);
+  const nameMap     = {};
+
+  // Try invTypes first (most SDE builds), fall back to invtypes (lowercase)
+  const nameTables  = [
+    { t: 'invTypes',    col: 'typeName', idcol: 'typeID' },
+    { t: 'invtypes',    col: 'typeName', idcol: 'typeID' },
+    { t: 'invTypes_en', col: 'typeName', idcol: 'typeID' },
+    { t: 'types',       col: 'name',     idcol: 'id'     },
+  ];
+
+  // Detect which invTypes table exists once and reuse
+  let invTypesTable = null;
+  for (const q of nameTables) {
+    try {
+      await sdeDb.get(`SELECT 1 FROM ${q.t} LIMIT 1`);
+      invTypesTable = q;
+      break;
+    } catch (_) {}
+  }
+
+  if (invTypesTable) {
+    // Batch fetch: SQLite supports up to ~999 params in IN clause
+    const chunks = [];
+    for (let i = 0; i < matTypeIds.length; i += 900) {
+      chunks.push(matTypeIds.slice(i, i + 900));
+    }
+    for (const chunk of chunks) {
+      const placeholders = chunk.map(() => '?').join(',');
+      try {
+        const rows = await sdeDb.all(
+          `SELECT ${invTypesTable.idcol} AS typeID, ${invTypesTable.col} AS typeName
+             FROM ${invTypesTable.t}
+            WHERE ${invTypesTable.idcol} IN (${placeholders})`,
+          chunk
+        );
+        rows.forEach(r => { nameMap[r.typeID] = r.typeName; });
+      } catch (_) {}
+    }
+  }
+
+  // ── 3. Detect sub-components (types that are themselves manufactured) ───────
+  // A material "is a component" if there exists a blueprint that produces it.
+  const componentSet = new Set();
+  for (const typeId of matTypeIds) {
+    try {
+      const row = await sdeDb.get(
+        `SELECT 1 FROM industryActivityProducts
+          WHERE activityID = ? AND productTypeID = ? LIMIT 1`,
+        MANUFACTURING, typeId
+      );
+      if (row) componentSet.add(typeId);
+    } catch (_) {}
+  }
+
+  // ── 4. Apply ME bonus ─────────────────────────────────────────────────────
+  const clampedME = Math.max(0, Math.min(10, me));
+
+  const materials = matRows.map(row => {
+    const baseQty     = row.quantity;
+    const adjustedQty = baseQty <= 1
+      ? 1
+      : Math.max(1, Math.ceil(baseQty * (1 - clampedME / 100)));
+    return {
+      typeId:      row.materialTypeID,
+      name:        nameMap[row.materialTypeID] || `Type ${row.materialTypeID}`,
+      baseQty,
+      adjustedQty,
+      isComponent: componentSet.has(row.materialTypeID),
+    };
+  });
+
+  // ── 5. Resolve product info from industryActivityProducts ─────────────────
+  let productTypeId = null;
+  let productName   = null;
+  let productQty    = 1;
+
+  try {
+    const prodRow = await sdeDb.get(
+      `SELECT productTypeID, quantity
+         FROM industryActivityProducts
+        WHERE typeID     = ?
+          AND activityID = ?
+        LIMIT 1`,
+      blueprintTypeId, MANUFACTURING
+    );
+    if (prodRow) {
+      productTypeId = prodRow.productTypeID;
+      productQty    = prodRow.quantity || 1;
+      if (invTypesTable) {
+        try {
+          const nameRow = await sdeDb.get(
+            `SELECT ${invTypesTable.col} AS typeName
+               FROM ${invTypesTable.t}
+              WHERE ${invTypesTable.idcol} = ?`,
+            productTypeId
+          );
+          productName = nameRow?.typeName || null;
+        } catch (_) {}
+      }
+    }
+  } catch (e) {
+    console.warn('[sde-blueprint-materials] product lookup failed:', e.message);
+  }
+
+  return { materials, productTypeId, productName, productQty };
+});
+
 ipcMain.handle('get-pi-colonies', async (_, characterId) => {
   return charInfoDb.getCharacterPIColonies(characterId);
+});
+
+// ─── IPC: Wallet journal / transactions / loyalty points (from CharDB) ────────
+ipcMain.handle('get-wallet-journal', async (_, characterId) => {
+  return charInfoDb.getWalletJournal(characterId);
+});
+
+ipcMain.handle('get-wallet-transactions', async (_, characterId) => {
+  return charInfoDb.getWalletTransactions(characterId);
+});
+
+ipcMain.handle('get-loyalty-points', async (_, characterId) => {
+  return charInfoDb.getLoyaltyPoints(characterId);
 });
 
 async function syncAssetsInternal(characterId) {

@@ -607,12 +607,15 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'ice') {
     renderIceCalculator(right);
 
+  } else if (tab === 'gas') {
+    renderGasCalculator(right);
+
   } else {
     const labels = {
       'active-jobs': 'Active Jobs', 'calculator': 'Blueprint Calculator',
       'cost-index': 'Cost Index', 'shopping-lists': 'Shopping Lists',
       'invention': 'Invention Buddy', 'reactions': 'Reactions Profit',
-      'gas': 'Gas Calculator', 'moon': 'Moon Scanning Reformatter',
+      'moon': 'Moon Scanning Reformatter',
     };
     right.innerHTML = `
       <div class="empty-state" style="margin-top:80px;">
@@ -1387,6 +1390,251 @@ function buildIceTable() {
         </td>
         <td style="padding:10px 14px;text-align:right;font-family:var(--mono);color:var(--text-2);">
           ${rawSellM3 > 0 ? formatNumber(rawSellM3) : '—'}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ─── Gas Calculator ───────────────────────────────────────────────────────────
+// Gas is a raw-sell calculator — there is no refining step for gas in EVE.
+// Value = Jita sell price per unit, ISK/m³, and ISK/full Venture hold (5000 m³).
+// Groups: Cytoserocin (lowsec), Mykoserocin (nullsec), Fullerites (wormhole),
+//         Hiemal Tricarboxyl Vapor (pochven).
+
+// ── Gas type data ─────────────────────────────────────────────────────────────
+// typeId from EVE SDE. volume = m³ per unit.
+// ventureHold: the standard Venture gas-cloud scoop cargo hold is 5000 m³,
+//   so ventureUnits = 5000 / volume.
+const GAS_DATA = [
+  // ── Cytoserocin — Lowsec booster gas ────────────────────────────────────
+  { name: 'Amber Cytoserocin',     typeId: 25268, group: 'Cytoserocin', volume: 10 },
+  { name: 'Azure Cytoserocin',     typeId: 25279, group: 'Cytoserocin', volume: 10 },
+  { name: 'Celadon Cytoserocin',   typeId: 25275, group: 'Cytoserocin', volume: 10 },
+  { name: 'Golden Cytoserocin',    typeId: 25273, group: 'Cytoserocin', volume: 10 },
+  { name: 'Lime Cytoserocin',      typeId: 25277, group: 'Cytoserocin', volume: 10 },
+  { name: 'Malachite Cytoserocin', typeId: 25281, group: 'Cytoserocin', volume: 10 },
+  { name: 'Vermillion Cytoserocin',typeId: 25271, group: 'Cytoserocin', volume: 10 },
+  { name: 'Viridian Cytoserocin',  typeId: 25269, group: 'Cytoserocin', volume: 10 },
+  // ── Mykoserocin — Nullsec booster gas ───────────────────────────────────
+  { name: 'Amber Mykoserocin',     typeId: 28694, group: 'Mykoserocin', volume: 10 },
+  { name: 'Azure Mykoserocin',     typeId: 28700, group: 'Mykoserocin', volume: 10 },
+  { name: 'Celadon Mykoserocin',   typeId: 28698, group: 'Mykoserocin', volume: 10 },
+  { name: 'Golden Mykoserocin',    typeId: 28696, group: 'Mykoserocin', volume: 10 },
+  { name: 'Lime Mykoserocin',      typeId: 28702, group: 'Mykoserocin', volume: 10 },
+  { name: 'Malachite Mykoserocin', typeId: 28704, group: 'Mykoserocin', volume: 10 },
+  { name: 'Vermillion Mykoserocin',typeId: 28706, group: 'Mykoserocin', volume: 10 },
+  { name: 'Viridian Mykoserocin',  typeId: 28708, group: 'Mykoserocin', volume: 10 },
+  // ── Fullerites — Wormhole reaction gas ──────────────────────────────────
+  { name: 'Fullerite-C50',  typeId: 30370, group: 'Fullerite', volume: 1  },
+  { name: 'Fullerite-C60',  typeId: 30371, group: 'Fullerite', volume: 1  },
+  { name: 'Fullerite-C70',  typeId: 30372, group: 'Fullerite', volume: 1  },
+  { name: 'Fullerite-C72',  typeId: 30373, group: 'Fullerite', volume: 2  },
+  { name: 'Fullerite-C84',  typeId: 30374, group: 'Fullerite', volume: 2  },
+  { name: 'Fullerite-C28',  typeId: 30375, group: 'Fullerite', volume: 2  },
+  { name: 'Fullerite-C32',  typeId: 30376, group: 'Fullerite', volume: 5  },
+  { name: 'Fullerite-C320', typeId: 30377, group: 'Fullerite', volume: 5  },
+  { name: 'Fullerite-C540', typeId: 30378, group: 'Fullerite', volume: 10 },
+  // ── Hiemal — Pochven ────────────────────────────────────────────────────
+  { name: 'Hiemal Tricarboxyl Vapor', typeId: 52306, group: 'Pochven', volume: 10 },
+];
+
+// Venture gas hold = 5000 m³
+const VENTURE_HOLD_M3 = 5000;
+
+// ── Gas calculator state ──────────────────────────────────────────────────────
+let _gasSort    = { col: 'iskM3', dir: -1 };
+let _gasPrices  = {};
+let _gasLoading = false;
+
+async function renderGasCalculator(container) {
+  container.innerHTML = `
+    <div id="gasCalcWrap" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+
+      <!-- toolbar -->
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+                  padding:12px 16px;border-bottom:1px solid var(--border);
+                  background:var(--bg-card);flex-shrink:0;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);
+                     letter-spacing:0.1em;">GAS CALCULATOR · JITA 4-4</span>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+          <button id="gasRefreshBtn" class="icon-btn"
+                  style="padding:5px 12px;font-size:12px;">⟳ REFRESH</button>
+        </div>
+        <div id="gasPriceAge" style="font-size:10px;color:var(--text-3);font-family:var(--mono);"></div>
+      </div>
+
+      <!-- legend strip -->
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--border);
+                  background:var(--bg-panel);flex-shrink:0;padding:8px 16px;
+                  align-items:center;gap:20px;flex-wrap:wrap;">
+        ${[
+          ['Cytoserocin', '#e3a84d', 'Lowsec booster gas'],
+          ['Mykoserocin',  '#4ecbb0', 'Nullsec booster gas'],
+          ['Fullerite',    '#ab7ab8', 'Wormhole reaction gas'],
+          ['Pochven',      '#c05c7e', 'Pochven special gas'],
+        ].map(([label, color, tip]) => `
+          <span style="display:flex;align-items:center;gap:6px;font-size:10px;
+                       font-family:var(--mono);color:var(--text-2);" title="${tip}">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                         background:${color};flex-shrink:0;"></span>
+            ${label}
+          </span>`).join('')}
+        <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);margin-left:auto;">
+          Venture hold = ${VENTURE_HOLD_M3.toLocaleString()} m³ &nbsp;·&nbsp;
+          Gas is sold raw — no refining step
+        </span>
+      </div>
+
+      <!-- table -->
+      <div style="flex:1;overflow-y:auto;">
+        <table id="gasTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);background:var(--bg-card);
+                       position:sticky;top:0;z-index:1;">
+              <th class="gas-th" data-col="group"   style="text-align:left;padding:10px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;">GROUP ↕</th>
+              <th class="gas-th" data-col="name"    style="text-align:left;padding:10px 8px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;">GAS TYPE ↕</th>
+              <th class="gas-th" data-col="vol"     style="text-align:right;padding:10px 8px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;">M³/UNIT ↕</th>
+              <th class="gas-th" data-col="iskUnit" style="text-align:right;padding:10px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;">ISK/UNIT ↕</th>
+              <th class="gas-th" data-col="iskM3"   style="text-align:right;padding:10px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--accent);">ISK/M³ ↕</th>
+              <th class="gas-th" data-col="venture" style="text-align:right;padding:10px 14px;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;">ISK/VENTURE ↕</th>
+            </tr>
+          </thead>
+          <tbody id="gasTableBody">
+            <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-3);
+                font-family:var(--mono);font-size:12px;">⬡ Fetching Jita prices…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="padding:8px 16px;border-top:1px solid var(--border);background:var(--bg-card);
+                  font-size:10px;color:var(--text-3);font-family:var(--mono);flex-shrink:0;">
+        Prices from Jita 4-4 CNAP (sell orders). Gas is sold raw — no refining or tax applies.
+        ISK/Venture assumes a full ${VENTURE_HOLD_M3.toLocaleString()} m³ Venture gas hold.
+      </div>
+    </div>`;
+
+  // Sortable headers
+  document.querySelectorAll('#gasCalcWrap .gas-th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (_gasSort.col === col) _gasSort.dir *= -1;
+      else { _gasSort.col = col; _gasSort.dir = -1; }
+      buildGasTable();
+    });
+  });
+
+  document.getElementById('gasRefreshBtn').addEventListener('click', () => loadGasPrices());
+
+  await loadGasPrices();
+}
+
+async function loadGasPrices() {
+  if (_gasLoading) return;
+  _gasLoading = true;
+  const refreshBtn = document.getElementById('gasRefreshBtn');
+  if (refreshBtn) refreshBtn.disabled = true;
+
+  try {
+    const allIds = [...new Set(GAS_DATA.map(g => g.typeId))];
+    const raw    = await window.eveAPI.getJitaPrices(allIds);
+    _gasPrices   = raw || {};
+
+    const ageEl = document.getElementById('gasPriceAge');
+    if (ageEl) ageEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+    buildGasTable();
+  } catch (err) {
+    logToConsole(`Gas prices fetch failed: ${err.message}`, 'error');
+    const body = document.getElementById('gasTableBody');
+    if (body) body.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;
+      color:var(--danger);font-family:var(--mono);font-size:12px;">
+      ⚠ Failed to fetch prices: ${escHtml(err.message)}</td></tr>`;
+  } finally {
+    _gasLoading = false;
+    const btn = document.getElementById('gasRefreshBtn');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function buildGasTable() {
+  const body = document.getElementById('gasTableBody');
+  if (!body) return;
+
+  const rows = GAS_DATA.map(gas => {
+    const p           = _gasPrices[gas.typeId];
+    const iskPerUnit  = p?.sell > 0 ? p.sell : (p?.buy || 0);
+    const iskPerM3    = gas.volume > 0 ? iskPerUnit / gas.volume : 0;
+    const ventureUnits = Math.floor(VENTURE_HOLD_M3 / gas.volume);
+    const iskVenture  = iskPerUnit * ventureUnits;
+    return { gas, iskPerUnit, iskPerM3, iskVenture, ventureUnits };
+  });
+
+  // Sort
+  const col = _gasSort.col;
+  const dir = _gasSort.dir;
+  rows.sort((a, b) => {
+    if      (col === 'name')    return dir * a.gas.name.localeCompare(b.gas.name);
+    else if (col === 'group')   return dir * a.gas.group.localeCompare(b.gas.group);
+    else if (col === 'vol')     return dir * (a.gas.volume    - b.gas.volume);
+    else if (col === 'iskUnit') return dir * (a.iskPerUnit    - b.iskPerUnit);
+    else if (col === 'iskM3')   return dir * (a.iskPerM3      - b.iskPerM3);
+    else if (col === 'venture') return dir * (a.iskVenture    - b.iskVenture);
+    return dir * (a.iskPerM3 - b.iskPerM3);
+  });
+
+  const maxIskM3 = Math.max(...rows.map(r => r.iskPerM3), 1);
+
+  const groupColors = {
+    'Cytoserocin': '#e3a84d',
+    'Mykoserocin': '#4ecbb0',
+    'Fullerite':   '#ab7ab8',
+    'Pochven':     '#c05c7e',
+  };
+
+  body.innerHTML = rows.map((r, i) => {
+    const { gas, iskPerUnit, iskPerM3, iskVenture, ventureUnits } = r;
+    const gc    = groupColors[gas.group] || 'var(--text-3)';
+    const barW  = Math.round((iskPerM3 / maxIskM3) * 100);
+    const isTop = i === 0;
+
+    return `
+      <tr style="border-bottom:1px solid var(--border);
+                 background:${isTop ? 'rgba(255,255,255,0.03)' : 'transparent'};
+                 ${isTop ? 'outline:1px solid var(--accent);' : ''}">
+        <td style="padding:10px 14px;white-space:nowrap;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                       background:${gc};margin-right:6px;vertical-align:middle;"></span>
+          <span style="font-family:var(--mono);font-size:10px;color:${gc};">${gas.group}</span>
+        </td>
+        <td style="padding:10px 8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <img src="https://images.evetech.net/types/${gas.typeId}/icon?size=32"
+                 onerror="this.onerror=null;this.style.display='none';"
+                 style="width:24px;height:24px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+            <span style="color:var(--text-1);font-weight:600;">${escHtml(gas.name)}</span>
+          </div>
+        </td>
+        <td style="padding:10px 8px;text-align:right;font-family:var(--mono);color:var(--text-2);">
+          ${gas.volume.toFixed(0)}
+        </td>
+        <td style="padding:10px 14px;text-align:right;font-family:var(--mono);color:var(--text-2);">
+          ${iskPerUnit > 0 ? formatNumber(iskPerUnit) : '—'}
+        </td>
+        <td style="padding:10px 14px;text-align:right;">
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+            <div style="width:60px;height:4px;background:var(--bg-card);border-radius:2px;overflow:hidden;flex-shrink:0;">
+              <div style="height:100%;width:${barW}%;background:${isTop ? 'var(--accent)' : 'var(--text-3)'};border-radius:2px;"></div>
+            </div>
+            <span style="font-family:var(--mono);font-weight:700;
+                         color:${isTop ? 'var(--accent)' : 'var(--text-1)'};">
+              ${iskPerM3 > 0 ? formatNumber(iskPerM3) : '—'}
+            </span>
+          </div>
+        </td>
+        <td style="padding:10px 14px;text-align:right;font-family:var(--mono);
+                   color:${isTop ? 'var(--accent)' : 'var(--text-2)'};"
+            title="${ventureUnits.toLocaleString()} units × ${formatNumber(iskPerUnit)} ISK">
+          ${iskVenture > 0 ? formatNumber(iskVenture) : '—'}
         </td>
       </tr>`;
   }).join('');

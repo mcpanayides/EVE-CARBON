@@ -78,125 +78,11 @@ async function autoRefreshStaleCharacters(accounts) {
   }
 }
 
-// ── Skeleton HTML builders ─────────────────────────────────────────────────
-function _skelBanner() {
-  return `
-    <div class="skel-banner" id="skelBanner">
-      <!-- Portrait column -->
-      <div class="skel-banner-portrait"></div>
-      <!-- Identity column -->
-      <div class="skel-banner-body">
-        <div class="skel skel-text-xs" style="width:80px"></div>
-        <div class="skel skel-text-2xl skel-delay-1" style="width:260px"></div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <div class="skel skel-text-sm skel-delay-2" style="width:140px"></div>
-          <div class="skel skel-text-sm skel-delay-3" style="width:60px;border-radius:999px"></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-          <div class="skel skel-text-sm skel-delay-2" style="width:200px"></div>
-          <div class="skel skel-text-sm skel-delay-3" style="width:170px"></div>
-          <div class="skel skel-text-sm skel-delay-4" style="width:190px"></div>
-        </div>
-      </div>
-      <!-- Extra col -->
-      <div class="skel-banner-extra">
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div class="skel skel-text-xs skel-delay-1" style="width:50px"></div>
-          <div class="skel skel-text-md skel-delay-2" style="width:100px"></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <div class="skel skel-text-xs skel-delay-2" style="width:60px"></div>
-          <div class="skel skel-text-md skel-delay-3" style="width:110px"></div>
-        </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">
-          ${[1,2,3,4,5].map(i=>`<div class="skel skel-circle skel-delay-${i}" style="width:28px;height:28px"></div>`).join('')}
-        </div>
-      </div>
-      <!-- Ship col -->
-      <div class="skel-banner-ship"></div>
-    </div>`;
-}
-
-function _skelSummaryPanel() {
-  // KPI row + chart + char bars
-  const bars = [220, 180, 200, 160].map((w, i) => `
-    <div class="skel-char-row">
-      <div class="skel skel-circle skel-delay-${i+1}" style="width:26px;height:26px"></div>
-      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-        <div class="skel skel-text-sm skel-delay-${i+1}" style="width:${w}px;max-width:100%"></div>
-        <div class="skel skel-char-bar-track skel-delay-${i+2}"></div>
-      </div>
-      <div class="skel skel-text-sm skel-delay-${i+1}" style="width:70px"></div>
-    </div>`).join('');
-
-  const chartBarHeights = [35, 55, 42, 60, 48, 52, 38, 44];
-  const chartBars = chartBarHeights.map((h, i) =>
-    `<div class="skel skel-chart-bar skel-delay-${(i%6)+1}" style="height:${h}px"></div>`
-  ).join('');
-
-  return `
-    <div>
-      <!-- KPI cards -->
-      <div class="skel-kpi-row">
-        ${[1,2,3].map(i=>`
-          <div class="skel-kpi-card">
-            <div class="skel skel-text-xs skel-delay-${i}" style="width:90px"></div>
-            <div class="skel skel-text-xl skel-delay-${i}" style="width:130px"></div>
-            <div class="skel skel-text-xs skel-delay-${i}" style="width:70px"></div>
-          </div>`).join('')}
-      </div>
-      <!-- Wealth chart -->
-      <div class="skel-chart-wrap">
-        <div class="skel skel-text-xs skel-delay-1" style="width:120px"></div>
-        <div class="skel-chart-bars">${chartBars}</div>
-      </div>
-      <!-- Character wealth bars -->
-      <div class="skel-char-bars-wrap">
-        <div class="skel skel-text-xs skel-delay-1" style="width:100px;margin-bottom:4px"></div>
-        ${bars}
-      </div>
-    </div>`;
-}
-
-function _skelJobsPanel() {
-  const rows = [1,2,3,4,5,6].map(i => `
-    <div class="skel-jobs-row">
-      <div class="skel skel-circle skel-delay-${i}" style="width:22px;height:22px;flex-shrink:0"></div>
-      <div class="skel skel-text-sm skel-delay-${i}" style="flex:1.2"></div>
-      <div class="skel skel-text-sm skel-delay-${(i%3)+1}" style="flex:0.8"></div>
-      <div class="skel skel-text-sm skel-delay-${(i%4)+1}" style="flex:0.6"></div>
-    </div>`).join('');
-  return `<div class="skel-jobs-wrap">${rows}</div>`;
-}
-
-function _injectDashboardSkeletons() {
-  const welcomeBannerEl = document.getElementById('dashboardWelcomeBanner');
-  const summaryPanelEl  = document.getElementById('dashboardNetworthSummary');
-  const jobsTableEl     = document.getElementById('dashboardJobsTable');
-
-  // Banner: inject if empty or has no real content yet
-  if (welcomeBannerEl && !document.getElementById('skelBanner') &&
-      !welcomeBannerEl.querySelector('.banner-portrait-col')) {
-    welcomeBannerEl.innerHTML = _skelBanner();
-  }
-  // Summary panel: inject if empty or still showing old loading row
-  if (summaryPanelEl && !summaryPanelEl.querySelector('.skel-kpi-row, .dash-wealth-header, .dashboard-empty')) {
-    summaryPanelEl.innerHTML = _skelSummaryPanel();
-  }
-  // Jobs table: inject if empty or still showing old loading row
-  if (jobsTableEl && !jobsTableEl.querySelector('.skel-jobs-wrap, .dashboard-jobs-list, .dashboard-empty')) {
-    jobsTableEl.innerHTML = _skelJobsPanel();
-  }
-}
-
 async function loadDashboard() {
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const jobsTable      = document.getElementById('dashboardJobsTable');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
   const mainCharLabel  = document.getElementById('dashboardMainCharName');
-
-  // ── Inject shimmer skeletons immediately so there's no blank flash ─────────
-  if (!_dashboardLoading) _injectDashboardSkeletons();
 
   // Render from cache immediately if available
   try {
@@ -285,14 +171,21 @@ async function loadDashboard() {
         ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
 
       // ── Implant icons HTML ───────────────────────────────────────────────
-      // implants is the full DB rows array passed in, each with implant_id + type_name
+      // implants: { implant_id, type_name } — icons from Fuzzworks with evetech fallback
       const implantIconsHtml = implants.length
-        ? implants.map(row => `
-            <img class="banner-implant-icon"
-                 src="https://images.evetech.net/types/${row.implant_id}/icon?size=32"
-                 alt="${escHtml(row.type_name || String(row.implant_id))}"
-                 title="${escHtml(row.type_name || String(row.implant_id))}"
-                 onerror="this.style.display='none'"/>`).join('')
+        ? implants
+            .sort((a, b) => (a.implant_id || 0) - (b.implant_id || 0))
+            .map(row => {
+              const id    = row.implant_id;
+              const label = escHtml(row.type_name || `Implant ${id}`);
+              const fuzz  = `https://www.fuzzwork.co.uk/icons/items/${id}_32.png`;
+              const eve   = `https://images.evetech.net/types/${id}/icon?size=32`;
+              return `<img class="banner-implant-icon"
+                 src="${fuzz}"
+                 alt="${label}"
+                 title="${label}"
+                 onerror="if(this._f){this.style.display='none';}else{this._f=1;this.src='${eve}';}"/>`;
+            }).join('')
         : `<span class="banner-implant-empty">No implants</span>`;
 
       // ── Ship column HTML ─────────────────────────────────────────────────
@@ -421,8 +314,43 @@ async function loadDashboard() {
         ? (BLOODLINE_NAMES[info.bloodline_id] || `ID ${info.bloodline_id}`)
         : null;
 
-      // ── Implants — full rows from char_{id}_implants ({ implant_id, type_name, slot })
-      const implants = Array.isArray(dbData.implants) ? dbData.implants : [];
+      // ── Implants — normalise all possible DB key/shape variants ────────────
+      // getCharacterData may return implants under several key names depending
+      // on the DB table naming convention used in the main process.
+      // We try each in priority order and normalise every row to { implant_id, type_name }.
+      let implants = [];
+      const _rawImplants =
+        dbData.implants          ||   // expected key
+        dbData.implantsList      ||   // alt key
+        dbData.character_implants||   // alt key
+        info.implants            ||   // sometimes nested under info
+        null;
+
+      if (Array.isArray(_rawImplants) && _rawImplants.length > 0) {
+        implants = _rawImplants.map(row => ({
+          // handle both { implant_id } and { type_id } column names
+          implant_id: row.implant_id || row.type_id || row.id || row.implantId,
+          type_name:  row.type_name  || row.name    || row.typeName || null,
+        })).filter(r => r.implant_id);
+        logToConsole(`Implants from DB: ${implants.length} found`, 'info');
+      } else {
+        // DB key not found or empty — try a direct IPC call for implants
+        logToConsole('Implants not in getCharacterData — trying getCharacterImplants…', 'info');
+        try {
+          const raw = await window.eveAPI.getCharacterImplants(mainAccount.characterId).catch(() => null);
+          if (Array.isArray(raw) && raw.length > 0) {
+            implants = raw.map(row => ({
+              implant_id: row.implant_id || row.type_id || row.id || (typeof row === 'number' ? row : null),
+              type_name:  row.type_name  || row.name    || null,
+            })).filter(r => r.implant_id);
+            logToConsole(`Implants from IPC: ${implants.length} found`, 'info');
+          } else {
+            logToConsole('No implants returned from IPC either — character may have none or needs sync.', 'info');
+          }
+        } catch (implantErr) {
+          logToConsole(`Implant IPC call failed: ${implantErr.message}`, 'error');
+        }
+      }
 
       // ── Current ship — from char_{id}_ship (most recent row) ─────────────
       const currentShipTypeId   = ship?.ship_type_id   || null;
@@ -737,28 +665,36 @@ function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTot
 
   const getCSSVar       = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const CHAR_COLORS     = ['--accent','--assets','--liquidisk','--warning','--danger','--tier-0'].map(getCSSVar);
-  const CHAR_DASHES     = [[], [6,3], [3,3], [8,4], [4,4], [2,4]];
   const growthFactors   = [0.41,0.48,0.54,0.59,0.63,0.68,0.74,0.80,0.87,0.92,0.96,1.0];
 
+  // Character lines: solid, no dots
   const charDatasets = charData.map(({ acc, total }, i) => ({
     label: acc.characterName,
     data: growthFactors.map(f => Math.round(total * f)),
     borderColor: CHAR_COLORS[i % CHAR_COLORS.length],
-    borderWidth: 2,
-    borderDash: CHAR_DASHES[i % CHAR_DASHES.length],
-    pointBackgroundColor: CHAR_COLORS[i % CHAR_COLORS.length],
-    pointRadius: (ctx) => ctx.dataIndex % 2 === 0 ? 3 : 0,
-    pointHoverRadius: 5, fill: false, tension: 0.3,
+    borderWidth: 1.5,
+    borderDash: [],
+    pointRadius: 0,
+    pointHoverRadius: 4,
+    fill: false, tension: 0.3,
   }));
 
+  // Total line: neon red, solid, dot at every point
   if (charData.length > 1) {
+    const TOTAL_RED = '#ff2010';
     charDatasets.push({
       label: 'Total',
       data: growthFactors.map(f => Math.round(grandTotal * f)),
-      borderColor: '#ffffff', borderWidth: 1.5, borderDash: [4,4],
-      pointBackgroundColor: '#ffffff',
-      pointRadius: (ctx) => ctx.dataIndex % 2 === 0 ? 3 : 0,
-      pointHoverRadius: 5, fill: false, tension: 0.3,
+      borderColor: TOTAL_RED,
+      borderWidth: 2,
+      borderDash: [],
+      pointBackgroundColor: TOTAL_RED,
+      pointBorderColor: 'rgba(255,32,16,0.45)',
+      pointBorderWidth: 3,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      fill: false, tension: 0.3,
+      _isTotal: true,
     });
   }
 
@@ -821,9 +757,29 @@ function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTot
       const canvas = document.getElementById('wealthGrowthChart');
       if (!canvas) return;
       if (canvas._chartInstance) canvas._chartInstance.destroy();
+
+      // Neon glow plugin — only fires for the Total dataset (_isTotal flag)
+      const totalGlowPlugin = {
+        id: 'totalGlow',
+        beforeDatasetDraw(chart, args) {
+          if (!chart.data.datasets[args.index]._isTotal) return;
+          const c = chart.ctx;
+          c.save();
+          c.shadowColor   = 'rgba(255, 32, 16, 0.80)';
+          c.shadowBlur    = 16;
+          c.shadowOffsetX = 0;
+          c.shadowOffsetY = 0;
+        },
+        afterDatasetDraw(chart, args) {
+          if (!chart.data.datasets[args.index]._isTotal) return;
+          chart.ctx.restore();
+        },
+      };
+
       canvas._chartInstance = new Chart(canvas, {
         type: 'line',
         data: { labels: monthLabels, datasets: charDatasets },
+        plugins: [totalGlowPlugin],
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: {

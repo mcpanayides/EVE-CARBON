@@ -135,6 +135,10 @@ function bindEvents() {
     loadBlueprintLibrary();
   });
 
-  // Jabber events
-  bindJabberEvents();
+  // Jabber events — jabber.js must be loaded before app.js in index.html
+  if (typeof bindJabberEvents === 'function') {
+    bindJabberEvents();
+  } else {
+    console.error('[app.js] bindJabberEvents not found — ensure jabber.js is listed before app.js in index.html');
+  }
 }

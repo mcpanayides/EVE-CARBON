@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen } = require('electron');
 const path = require('path');
 const https = require('https');
 const http = require('http');
@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const createLocator      = require('./src/locator');
 const charInfoDb         = require('./src/character_info_db');
+const jabberDataDb       = require('./src/jabber_data_db');
 
 // Load environment variables from .env file in both development and production.
 const envPath = app.isPackaged
@@ -53,13 +54,14 @@ const CALLBACK_URL = 'http://127.0.0.1:12500/auth/callback/';
 const CLIENT_ID      = process.env.EVE_CLIENT_ID;
 const CLIENT_SECRET  = process.env.EVE_CLIENT_SECRET;
 const SCOPES         = [
-  'esi-characters.read_blueprints.v1',
-  'esi-assets.read_assets.v1',
-  'esi-corporations.read_blueprints.v1',
-  'esi-industry.read_character_jobs.v1',
-  'esi-industry.read_corporation_jobs.v1',
-  'esi-wallet.read_character_wallet.v1',
+  'esi-characters.read_blueprints.v1',          // character blueprints + ME/PE/TE
+  'esi-assets.read_assets.v1',                  // assets
+  'esi-corporations.read_blueprints.v1',        // corp blueprints
+  'esi-industry.read_character_jobs.v1',        // character industry jobs
+  'esi-industry.read_corporation_jobs.v1',      // corp industry jobs (only returns jobs where the character is the installer, not all corp jobs)
+  'esi-wallet.read_character_wallet.v1',        // wallet balance
   'esi-clones.read_clones.v1',                  // home location + jump clones + implants
+  'esi-clones.read_implants.v1',                // implants 
   'esi-skills.read_skills.v1',                  // total skill points
   'esi-markets.read_character_orders.v1',       // active market orders (escrow)
   'esi-contracts.read_character_contracts.v1',  // contracts (escrow)
@@ -67,36 +69,41 @@ const SCOPES         = [
   'esi-location.read_ship_type.v1',             // current ship type
   'esi-planets.manage_planets.v1',              // planetary interaction colonies
   'esi-characters.read_loyalty.v1',             // loyalty points per corporation
+  'esi-skills.read_skills.v1',                  // total skill points 
+  'esi-skills.read_skillqueue.v1',              // current skill queue (for estimating free time until next SP gain) 
+  'esi-fleets.read_fleet.v1',                    // for fleet role tags in Jabber messages (e.g. FC, squad commander, etc.)
+
+
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
-
+ 
 // Use sqlite3 (native) with the promise-based `sqlite` wrapper. This avoids
 // relying on `better-sqlite3` native bindings which can be fragile when
 // packaging Electron apps. The `sqlite` API is async and works well with
 // `ipcRenderer.invoke` from the renderer.
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
-
+ 
 // SDE DB handle (sqlite) if available
 let sdeDb = null;
-
+ 
 function getSdePath() {
   // In production, packaged apps should read from process.resourcesPath
   // (your extraResources / unpacked files end up there)
   const devPath  = path.join(__dirname, 'data', 'sde.sql');
   const prodPath = path.join(process.resourcesPath || __dirname, 'data', 'sde.sql');
-
+ 
   const sdePath = app.isPackaged ? prodPath : devPath;
   return sdePath;
 }
-
+ 
 async function initSde() {
   const sdePath = getSdePath();
   if (!fs.existsSync(sdePath)) {
     console.log('[SDE] not found at', sdePath);
     return;
   }
-
+ 
   try {
     sdeDb = await open({ filename: sdePath, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY });
     console.log('[SDE] opened:', sdePath);
@@ -105,12 +112,12 @@ async function initSde() {
     sdeDb = null;
   }
 }
-
+ 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 let userDataPath, dbPath, configPath, cacheDir, appDataDir;
 let pingFileWatcher = null;
 let pingFileWatchTimer = null;
-
+ 
 function initPaths() {
   userDataPath = app.getPath('userData');
   dbPath       = path.join(userDataPath, 'blueprints.json');
@@ -123,12 +130,12 @@ function initPaths() {
   try { fs.mkdirSync(cacheDir,   { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(appDataDir, { recursive: true }); } catch (e) { /* ignore */ }
 }
-
+ 
 function getCachePath(key) {
   const safe = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
   return path.join(cacheDir || userDataPath || '.', `${safe}.json`);
 }
-
+ 
 function readCache(key) {
   try {
     const fullPath = getCachePath(key);
@@ -144,7 +151,7 @@ function readCache(key) {
     return null;
   }
 }
-
+ 
 function writeCache(key, value, days = 7) {
   try {
     const fullPath = getCachePath(key);
@@ -152,7 +159,7 @@ function writeCache(key, value, days = 7) {
     fs.writeFileSync(fullPath, JSON.stringify(payload), 'utf8');
   } catch (e) { /* ignore */ }
 }
-
+ 
 // Locator: shared location resolver (player structures + NPC stations)
 let locator = null;
 function getLocator() {
@@ -166,7 +173,7 @@ function getLocator() {
   });
   return locator;
 }
-
+ 
 app.whenReady().then(async () => {
   initPaths();
   await initSde();
@@ -175,10 +182,15 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error('[charInfoDb] init failed, continuing:', e.message);
   }
+  try {
+    await jabberDataDb.initJabberDb(appDataDir);
+  } catch (e) {
+    console.error('[jabberDataDb] init failed, continuing:', e.message);
+  }
   createWindow();
 });
-
-
+ 
+ 
 // ─── Simple JSON "database" s
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch { return { accounts: {}, blueprints: {}, assets: {} }; }
@@ -188,7 +200,7 @@ function loadConfig() {
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { return {}; }
 }
 function saveConfig(cfg) { fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2)); }
-
+ 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 function httpGet(url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -215,7 +227,7 @@ function httpGet(url, headers = {}) {
     req.end();
   });
 }
-
+ 
 function httpPost(url, body, headers = {}, formEncoded = false) {
   return new Promise((resolve, reject) => {
     const postData = formEncoded ? body : JSON.stringify(body);
@@ -246,7 +258,7 @@ function httpPost(url, body, headers = {}, formEncoded = false) {
     req.end();
   });
 }
-
+ 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
 function generateCodeVerifier() {
   return crypto.randomBytes(32).toString('base64url');
@@ -254,35 +266,35 @@ function generateCodeVerifier() {
 function generateCodeChallenge(verifier) {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
-
+ 
 // ─── SSO state store (per login attempt) ──────────────────────────────────────
 const pendingAuth = {}; // state -> { codeVerifier, mainWindow }
-
+ 
 // ─── Caches ───────────────────────────────────────────────────────────────────
 const nameCache = {};
 const bpCache   = {};
-
+ 
 // ─── Local callback HTTP server ───────────────────────────────────────────────
 let callbackServer = null;
-
+ 
 function startCallbackServer() {
   if (callbackServer) return;
   callbackServer = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
     if (url.pathname !== '/auth/callback' && url.pathname !== '/auth/callback/') { res.end(); return; }
-
+ 
     const code  = url.searchParams.get('code');
     const state = url.searchParams.get('state');
-
+ 
     if (!code || !state || !pendingAuth[state]) {
       res.writeHead(400);
       res.end('<html><body style="background:#070b14;color:#e24b4a;font-family:monospace;padding:2rem;"><h2>❌ Auth Error</h2><p>Invalid callback. Close this window.</p></body></html>');
       return;
     }
-
+ 
     const { codeVerifier, win } = pendingAuth[state];
     delete pendingAuth[state];
-
+ 
     try {
       // Exchange code for tokens (PKCE — no secret key needed)
       const formBody = new URLSearchParams({
@@ -292,17 +304,17 @@ function startCallbackServer() {
         redirect_uri:  CALLBACK_URL,
         code_verifier: codeVerifier,
       }).toString();
-
+ 
       const tokenData = await httpPost(SSO_TOKEN_URL, formBody, {}, true);
-
+ 
       // Verify the token to get character info
       const charInfo = await httpGet(SSO_VERIFY_URL, {
         'Authorization': `Bearer ${tokenData.access_token}`
       });
-
+ 
       const characterId   = charInfo.CharacterID;
       const characterName = charInfo.CharacterName;
-
+ 
       // Save to DB
       const db = loadDB();
       db.accounts[characterId] = {
@@ -314,12 +326,12 @@ function startCallbackServer() {
         addedAt:      Date.now(),
       };
       saveDB(db);
-
+ 
       // Notify renderer
       if (win && !win.isDestroyed()) {
         win.webContents.send('account-added', { characterId, characterName });
       }
-
+ 
       // ── Auto full-sync on first login ────────────────────────────────────
       // Run in background — don't block the HTTP response
       setImmediate(async () => {
@@ -345,7 +357,7 @@ function startCallbackServer() {
           }
         }
       });
-
+ 
       // Add the Content-Type header so the browser knows how to render the hexagon
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(`<html><body style="background:#070b14;color:#4ada8a;font-family:monospace;padding:2rem;text-align:center;">
@@ -356,7 +368,7 @@ function startCallbackServer() {
           <p style="color:#3a5070;margin-top:2rem;font-size:11px;">You can close this window.</p>
         </div>
       </body></html>`);
-
+ 
     } catch (e) {
       res.writeHead(500);
       res.end(`<html><body style="background:#070b14;color:#e24b4a;font-family:monospace;padding:2rem;"><h2>Auth Failed</h2><p>${e.message}</p></body></html>`);
@@ -365,19 +377,19 @@ function startCallbackServer() {
       }
     }
   });
-
+ 
   callbackServer.listen(CALLBACK_PORT, '127.0.0.1');
 }
-
+ 
 // ─── Token refresh ────────────────────────────────────────────────────────────
 async function getValidToken(characterId) {
   const db = loadDB();
   const account = db.accounts[characterId];
   if (!account) throw new Error('Account not found');
-
+ 
   // If token still valid (with 60s buffer), return it
   if (Date.now() < account.expiresAt - 60000) return account.accessToken;
-
+ 
   // Refresh it
   const cfg = loadConfig();
   const formBody = new URLSearchParams({
@@ -385,7 +397,7 @@ async function getValidToken(characterId) {
     refresh_token: account.refreshToken,
     client_id:     CLIENT_ID,
   }).toString();
-
+ 
   const tokenData = await httpPost(SSO_TOKEN_URL, formBody, {}, true);
   account.accessToken  = tokenData.access_token;
   account.refreshToken = tokenData.refresh_token || account.refreshToken;
@@ -394,8 +406,63 @@ async function getValidToken(characterId) {
   saveDB(db);
   return account.accessToken;
 }
-
+ 
 // ─── Window ───────────────────────────────────────────────────────────────────
+// ─── Ping Alert Window ────────────────────────────────────────────────────────
+// Opens a frameless, always-on-top popup centred on the primary display
+// whenever a director-bot broadcast is received.
+ 
+let activePingAlertWin = null;  // only one alert at a time
+ 
+function createPingAlertWindow(msg) {
+  // Close any existing alert before opening a new one
+  if (activePingAlertWin && !activePingAlertWin.isDestroyed()) {
+    activePingAlertWin.close();
+  }
+ 
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+  const W = 620;
+  const H = 420;
+ 
+  const win = new BrowserWindow({
+    width:           W,
+    height:          H,
+    x:               Math.round((sw - W) / 2),
+    y:               Math.round((sh - H) / 2),
+    resizable:       false,
+    movable:         true,
+    minimizable:     false,
+    maximizable:     false,
+    fullscreenable:  false,
+    alwaysOnTop:     true,
+    skipTaskbar:     false,
+    frame:           false,
+    transparent:     false,
+    backgroundColor: '#070b14',
+    webPreferences: {
+      preload:          path.join(__dirname, 'src', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+ 
+  // Set always-on-top at the highest level (screen-saver) so it floats over
+  // other applications, not just other Electron windows.
+  win.setAlwaysOnTop(true, 'screen-saver');
+ 
+  win.loadFile(path.join(__dirname, 'src', 'ping-alert.html'));
+ 
+  // Send the message payload once the renderer is ready
+  win.webContents.once('did-finish-load', () => {
+    win.webContents.send('ping-alert-data', msg);
+  });
+ 
+  activePingAlertWin = win;
+  win.on('closed', () => { activePingAlertWin = null; });
+}
+ 
+// IPC: renderer close button calls this (ping-alert window closes itself via window.close())
+ 
 function createWindow() {
   const win = new BrowserWindow({
     width: 1800,
@@ -411,10 +478,10 @@ function createWindow() {
       nodeIntegration: false,
     }
   });
-
+ 
   // ADD THIS — remove once issue is resolved
   win.webContents.openDevTools();
-
+ 
   const url = require('url');
   win.loadURL(url.format({
     pathname: path.join(__dirname, 'src', 'index.html'),
@@ -423,10 +490,10 @@ function createWindow() {
   }));
   return win;
 }
-
+ 
 // ─── IPC: Config ──────────────────────────────────────────────────────────────
 // Config is now hardcoded — no client-side config needed
-
+ 
 // ─── IPC: Accounts ────────────────────────────────────────────────────────────
 ipcMain.handle('get-accounts', () => {
   const db = loadDB();
@@ -436,14 +503,14 @@ ipcMain.handle('get-accounts', () => {
     addedAt:       a.addedAt,
   }));
 });
-
+ 
 ipcMain.handle('get-character-jobs', async (_, characterId) => {
   // Completed jobs never change — cache aggressively to avoid hammering ESI.
   // This is the single biggest source of 429s in the dashboard refresh loop.
   const cacheKey = `jobs_completed_${characterId}`;
   const cached = readCache(cacheKey);
   if (cached) return cached;
-
+ 
   try {
     const token = await getValidToken(characterId);
     const url = `${ESI_BASE}/latest/characters/${characterId}/industry/jobs/?datasource=tranquility&status=completed`;
@@ -469,7 +536,7 @@ ipcMain.handle('get-character-jobs', async (_, characterId) => {
     return [];
   }
 });
-
+ 
 ipcMain.handle('remove-account', async (_, characterId) => {
   const db = loadDB();
   delete db.accounts[characterId];
@@ -480,21 +547,21 @@ ipcMain.handle('remove-account', async (_, characterId) => {
   try { await charInfoDb.removeCharacterData(characterId); } catch (e) { /* ignore */ }
   return true;
 });
-
+ 
 // ─── IPC: SSO Login ───────────────────────────────────────────────────────────
 ipcMain.handle('start-sso-login', (event) => {
   const cfg = loadConfig();
   // Client ID is hardcoded — always available
-
+ 
   startCallbackServer();
-
+ 
   const codeVerifier   = generateCodeVerifier();
   const codeChallenge  = generateCodeChallenge(codeVerifier);
   const state          = crypto.randomBytes(16).toString('hex');
-
+ 
   const win = BrowserWindow.fromWebContents(event.sender);
   pendingAuth[state] = { codeVerifier, win };
-
+ 
   const params = new URLSearchParams({
     response_type:         'code',
     redirect_uri:          CALLBACK_URL,
@@ -504,17 +571,17 @@ ipcMain.handle('start-sso-login', (event) => {
     code_challenge_method: 'S256',
     state,
   });
-
+ 
   const authUrl = `${SSO_AUTH_URL}?${params.toString()}`;
   shell.openExternal(authUrl);
   return { ok: true };
 });
-
+ 
 // ─── IPC: Fetch & sync blueprints for a character ─────────────────────────────
 ipcMain.handle('sync-blueprints', async (_, characterId) => {
   const token = await getValidToken(characterId);
   const db    = loadDB();
-
+ 
   // Fetch character blueprints
   let allBPs = [];
   let page = 1;
@@ -527,11 +594,11 @@ ipcMain.handle('sync-blueprints', async (_, characterId) => {
     if (data.length < 1000) break;
     page++;
   }
-
+ 
   // Resolve type names for all BPs
   const typeIds = [...new Set(allBPs.map(b => b.type_id))];
   const nameMap = await resolveNames(typeIds);
-
+ 
   const blueprints = allBPs.map(bp => ({
     item_id:       bp.item_id,
     type_id:       bp.type_id,
@@ -544,22 +611,22 @@ ipcMain.handle('sync-blueprints', async (_, characterId) => {
     te:            bp.time_efficiency,
     isBPC:         bp.quantity === -2,
   }));
-
+ 
   db.blueprints[characterId] = {
     updatedAt: Date.now(),
     items: blueprints,
   };
   saveDB(db);
-
+ 
   return { count: blueprints.length, blueprints };
 });
-
+ 
 // ─── IPC: Get saved blueprints ────────────────────────────────────────────────
 ipcMain.handle('get-blueprints', (_, characterId) => {
   const db = loadDB();
   return db.blueprints[characterId] || null;
 });
-
+ 
 ipcMain.handle('get-all-blueprints', () => {
   const db = loadDB();
   const all = [];
@@ -575,35 +642,39 @@ ipcMain.handle('get-all-blueprints', () => {
   }
   return all;
 });
-
+ 
 // ─── Implant slot resolver ────────────────────────────────────────────────────
-// ESI's /v1/characters/{id}/implants/ returns type IDs in no guaranteed order.
-// Dogma attribute 331 ("implantness") on each type holds the real slot (1-10).
-// Results are cached in nameCache so each type is only looked up once per session.
+// ESI /v1/characters/{id}/implants/ returns type IDs in no guaranteed order.
+// Dogma attribute 331 (implantSlot) holds the slot number (1-10) for stat implants.
+// Hardwiring implants use the same attribute. Results cached in a dedicated map.
+const implantSlotCache = {};
 async function resolveImplantSlots(typeIds) {
   const slotMap = {};
   await Promise.all(typeIds.map(async (id) => {
-    const cacheKey = `implant_slot_${id}`;
-    if (nameCache[cacheKey] !== undefined) {
-      slotMap[id] = nameCache[cacheKey];
+    if (implantSlotCache[id] !== undefined) {
+      slotMap[id] = implantSlotCache[id];
       return;
     }
     try {
       const typeData = await httpGet(
         `${ESI_BASE}/v3/universe/types/${id}/?datasource=tranquility`
       );
-      const attr = (typeData?.dogma_attributes || []).find(a => a.attribute_id === 331);
-      const slot = attr ? Math.round(attr.value) : null;
-      nameCache[cacheKey] = slot;
+      const attrs = typeData?.dogma_attributes || [];
+      // Attribute 331 = implantSlot (value 1-10)
+      const slotAttr = attrs.find(a => a.attribute_id === 331);
+      const slot = slotAttr && slotAttr.value >= 1 && slotAttr.value <= 10
+        ? Math.round(slotAttr.value)
+        : null;
+      implantSlotCache[id] = slot;
       slotMap[id] = slot;
     } catch (_) {
-      nameCache[cacheKey] = null;
+      implantSlotCache[id] = null;
       slotMap[id] = null;
     }
   }));
   return slotMap;
 }
-
+ 
 // ─── Full character data sync ─────────────────────────────────────────────────
 // Syncs everything: info, wallet, location, ship, implants, PI, assets, blueprints
 // into character_information.db.  Called on first SSO login AND on manual re-sync.
@@ -611,13 +682,13 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   const report = (step, detail) => {
     if (progressCb) progressCb(step, detail);
   };
-
+ 
   await charInfoDb.ensureCharacterTables(characterId);
-
+ 
   const token = await getValidToken(characterId);
   const authHdr = { Authorization: `Bearer ${token}` };
   const summary = { characterId, characterName, steps: {} };
-
+ 
   // 1. Character sheet
   try {
     report('character_info', 'Fetching character sheet…');
@@ -629,7 +700,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.info = `error: ${e.message}`;
     report('character_info', `✗ ${e.message}`);
   }
-
+ 
   // 2. Wallet balance
   try {
     report('wallet', 'Fetching wallet balance…');
@@ -641,7 +712,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.wallet = `error: ${e.message}`;
     report('wallet', `✗ ${e.message}`);
   }
-
+ 
   // 3. Current location
   try {
     report('location', 'Fetching current location…');
@@ -671,7 +742,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.location = `error: ${e.message}`;
     report('location', `✗ ${e.message}`);
   }
-
+ 
   // 4. Current ship
   try {
     report('ship', 'Fetching current ship…');
@@ -690,20 +761,30 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.ship = `error: ${e.message}`;
     report('ship', `✗ ${e.message}`);
   }
-
+ 
   // 5. Active implants (clones endpoint gives both active implants + jump clones)
   try {
     report('implants', 'Fetching implants & clones…');
     const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
-
-    // Active implants (separate endpoint)
+ 
+    // Active implants require esi-clones.read_implants.v1 scope.
+    // DO NOT silently swallow errors -- a 403/401 means the token is missing
+    // the scope; the character must re-authenticate to get a new token.
     let activeImplants = [];
+    let implantFetchError = null;
     try {
-      activeImplants = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
-    } catch (_) {}
-
+      const raw = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+      activeImplants = Array.isArray(raw) ? raw : [];
+      console.log(`[CharSync] implants raw ESI for ${characterId}:`, JSON.stringify(activeImplants));
+    } catch (implantErr) {
+      implantFetchError = implantErr.message;
+      console.error(`[CharSync] ✗ implants fetch FAILED for ${characterId}: ${implantErr.message}`);
+      console.error(`[CharSync]   → Likely missing 'esi-clones.read_implants.v1' scope -- re-authenticate the character.`);
+      report('implants', `✗ implant fetch failed: ${implantErr.message} (re-authenticate to fix)`);
+    }
+ 
     // Resolve implant type names and real slot numbers (dogma attribute 331)
-    const allImplantIds = [...new Set(activeImplants || [])];
+    const allImplantIds = [...new Set(activeImplants)];
     const implantNames = allImplantIds.length ? await resolveNames(allImplantIds) : {};
     const slotMap      = allImplantIds.length ? await resolveImplantSlots(allImplantIds) : {};
     const implants = allImplantIds.map(id => ({
@@ -711,20 +792,25 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
       type_name:  implantNames[id] || `Type ${id}`,
       slot:       slotMap[id] ?? null,
     }));
-    await charInfoDb.replaceImplants(characterId, implants);
-    summary.steps.implants = `${implants.length} active`;
-    report('implants', `✓ ${implants.length} active implants`);
-
+    // Only wipe+replace DB rows when the fetch succeeded -- preserve stale data on error.
+    if (!implantFetchError) {
+      await charInfoDb.replaceImplants(characterId, implants);
+    }
+    summary.steps.implants = implantFetchError ? `error: ${implantFetchError}` : `${implants.length} active`;
+    if (!implantFetchError) {
+      report('implants', `✓ ${implants.length} active implants`);
+    }
+ 
     // Jump clones
     if (cloneData && Array.isArray(cloneData.jump_clones)) {
       // Resolve jump clone location names
       const locIds = cloneData.jump_clones.map(c => c.location_id).filter(Boolean);
       const locMeta = locIds.length ? await getLocator().resolveLocations(locIds, characterId) : {};
-
+ 
       // Collect all implant IDs from jump clones for batch resolve
       const jcImplantIds = [...new Set(cloneData.jump_clones.flatMap(c => c.implants || []))];
       const jcImplantNames = jcImplantIds.length ? await resolveNames(jcImplantIds) : {};
-
+ 
       const jumpClones = cloneData.jump_clones.map(c => ({
         jump_clone_id: c.jump_clone_id,
         location_id:   c.location_id,
@@ -743,7 +829,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.implants = `error: ${e.message}`;
     report('implants', `✗ ${e.message}`);
   }
-
+ 
   // 6. Planetary Interaction
   try {
     report('pi', 'Fetching PI colonies…');
@@ -768,7 +854,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.pi = `error: ${e.message}`;
     report('pi', `✗ ${e.message}`);
   }
-
+ 
   // 7. Assets (full paginated)
   try {
     report('assets', 'Fetching assets (paginated)…');
@@ -785,7 +871,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     }
     const typeIds = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
     const nameMap = await resolveNames(typeIds);
-
+ 
     // Only resolve IDs that are real stations/structures — not container item_ids.
     // Nested items (inside crates, fitted to ships) have location_id = parent item_id.
     // Sending those to the locator always fails; the getCharacterAssets() JOIN handles them.
@@ -796,7 +882,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
         .filter(id => id && !allItemIds.has(id))
     )];
     const locationMeta = await getLocator().resolveLocations(rootLocationIds, characterId);
-
+ 
     const assets = allAssets.map(asset => {
       const loc = locationMeta[asset.location_id] || {};
       return {
@@ -818,11 +904,11 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
         owner_name:        loc.owner_name        || null,
       };
     });
-
+ 
     await charInfoDb.replaceAssets(characterId, assets);
     summary.steps.assets = `${assets.length} items`;
     report('assets', `✓ ${assets.length} assets stored`);
-
+ 
     // ── Re-resolve any locations that came back null ───────────────────────────
     // Upwell structures that 401'd or missed Hammertime get a second pass here.
     // The locator's file cache is now warm, so many will succeed this time.
@@ -847,7 +933,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.assets = `error: ${e.message}`;
     report('assets', `✗ ${e.message}`);
   }
-
+ 
   // 8. Blueprints (full paginated)
   try {
     report('blueprints', 'Fetching blueprints (paginated)…');
@@ -879,7 +965,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     await charInfoDb.replaceBlueprints(characterId, blueprints);
     summary.steps.blueprints = `${blueprints.length} BPs`;
     report('blueprints', `✓ ${blueprints.length} blueprints stored`);
-
+ 
     // Also update the legacy blueprints.json so existing blueprint UI still works
     const db2 = loadDB();
     db2.blueprints[characterId] = { updatedAt: Date.now(), items: blueprints };
@@ -888,7 +974,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.blueprints = `error: ${e.message}`;
     report('blueprints', `✗ ${e.message}`);
   }
-
+ 
   // 9. Wallet journal (most recent 2500 entries)
   try {
     report('wallet_journal', 'Fetching wallet journal…');
@@ -905,7 +991,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.wallet_journal = `error: ${e.message}`;
     report('wallet_journal', `✗ ${e.message}`);
   }
-
+ 
   // 10. Wallet transactions (most recent 2500)
   try {
     report('wallet_transactions', 'Fetching wallet transactions…');
@@ -932,7 +1018,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.wallet_transactions = `error: ${e.message}`;
     report('wallet_transactions', `✗ ${e.message}`);
   }
-
+ 
   // 11. Loyalty points
   try {
     report('loyalty_points', 'Fetching loyalty points…');
@@ -957,10 +1043,10 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     summary.steps.loyalty_points = `error: ${e.message}`;
     report('loyalty_points', `✗ ${e.message}`);
   }
-
+ 
   return summary;
 }
-
+ 
 // ─── IPC: Full character sync (manual re-sync button) ─────────────────────────
 ipcMain.handle('sync-character-full', async (event, characterId) => {
   const db = loadDB();
@@ -968,7 +1054,7 @@ ipcMain.handle('sync-character-full', async (event, characterId) => {
   if (!account) throw new Error('Account not found');
   const characterName = account.characterName;
   const win = BrowserWindow.fromWebContents(event.sender);
-
+ 
   const summary = await fullCharacterSync(characterId, characterName, (step, detail) => {
     console.log(`[CharSync] ${characterName} — ${step}: ${detail}`);
     if (win && !win.isDestroyed()) {
@@ -977,19 +1063,19 @@ ipcMain.handle('sync-character-full', async (event, characterId) => {
   });
   return summary;
 });
-
+ 
 // ─── Core-only sync (everything except assets) ────────────────────────────────
 // Called by the 20-minute auto-refresh. Assets are deliberately excluded so
 // they can be governed by their own 12-hour staleness rule via
 // 'sync-character-assets-if-stale'.
 async function coreCharacterSync(characterId, characterName, progressCb) {
   const report = (step, detail) => { if (progressCb) progressCb(step, detail); };
-
+ 
   await charInfoDb.ensureCharacterTables(characterId);
   const token   = await getValidToken(characterId);
   const authHdr = { Authorization: `Bearer ${token}` };
   const summary = { characterId, characterName, steps: {} };
-
+ 
   // 1. Character sheet
   try {
     report('character_info', 'Fetching character sheet…');
@@ -998,7 +1084,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     summary.steps.info = 'ok';
     report('character_info', `✓ ${info.name || characterName}`);
   } catch (e) { summary.steps.info = `error: ${e.message}`; report('character_info', `✗ ${e.message}`); }
-
+ 
   // 2. Wallet balance
   try {
     report('wallet', 'Fetching wallet balance…');
@@ -1007,7 +1093,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     summary.steps.wallet = `${balance} ISK`;
     report('wallet', `✓ ${(balance || 0).toLocaleString()} ISK`);
   } catch (e) { summary.steps.wallet = `error: ${e.message}`; report('wallet', `✗ ${e.message}`); }
-
+ 
   // 3. Current location
   try {
     report('location', 'Fetching current location…');
@@ -1025,7 +1111,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     summary.steps.location = stationName || sysName || 'unknown';
     report('location', `✓ ${stationName || sysName || loc.solar_system_id}`);
   } catch (e) { summary.steps.location = `error: ${e.message}`; report('location', `✗ ${e.message}`); }
-
+ 
   // 4. Current ship
   try {
     report('ship', 'Fetching current ship…');
@@ -1036,20 +1122,35 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     summary.steps.ship = ship.ship_name || typeName;
     report('ship', `✓ ${ship.ship_name || typeName}`);
   } catch (e) { summary.steps.ship = `error: ${e.message}`; report('ship', `✗ ${e.message}`); }
-
+ 
   // 5. Implants & jump clones
   try {
     report('implants', 'Fetching implants & clones…');
     const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
     let activeImplants = [];
-    try { activeImplants = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr); } catch (_) {}
-    const allImplantIds  = [...new Set(activeImplants || [])];
+    let implantFetchError = null;
+    try {
+      const raw = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+      activeImplants = Array.isArray(raw) ? raw : [];
+      console.log(`[CharSync] coreSync implants raw ESI for ${characterId}:`, JSON.stringify(activeImplants));
+    } catch (implantErr) {
+      implantFetchError = implantErr.message;
+      console.error(`[CharSync] ✗ coreSync implants fetch FAILED for ${characterId}: ${implantErr.message}`);
+      console.error(`[CharSync]   → Likely missing 'esi-clones.read_implants.v1' scope -- re-authenticate the character.`);
+      report('implants', `✗ implant fetch failed: ${implantErr.message} (re-authenticate to fix)`);
+    }
+    const allImplantIds  = [...new Set(activeImplants)];
     const implantNames   = allImplantIds.length ? await resolveNames(allImplantIds) : {};
     const slotMap        = allImplantIds.length ? await resolveImplantSlots(allImplantIds) : {};
     const implants = allImplantIds.map(id => ({ implant_id: id, type_name: implantNames[id] || `Type ${id}`, slot: slotMap[id] ?? null }));
-    await charInfoDb.replaceImplants(characterId, implants);
-    summary.steps.implants = `${implants.length} active`;
-    report('implants', `✓ ${implants.length} active implants`);
+    // Only wipe+replace DB rows when the fetch succeeded -- preserve stale data on error.
+    if (!implantFetchError) {
+      await charInfoDb.replaceImplants(characterId, implants);
+    }
+    summary.steps.implants = implantFetchError ? `error: ${implantFetchError}` : `${implants.length} active`;
+    if (!implantFetchError) {
+      report('implants', `✓ ${implants.length} active implants`);
+    }
     if (cloneData && Array.isArray(cloneData.jump_clones)) {
       const locIds       = cloneData.jump_clones.map(c => c.location_id).filter(Boolean);
       const locMeta      = locIds.length ? await getLocator().resolveLocations(locIds, characterId) : {};
@@ -1066,7 +1167,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
       report('implants', `✓ ${jumpClones.length} jump clones`);
     }
   } catch (e) { summary.steps.implants = `error: ${e.message}`; report('implants', `✗ ${e.message}`); }
-
+ 
   // 6. Planetary Interaction
   try {
     report('pi', 'Fetching PI colonies…');
@@ -1085,7 +1186,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
       report('pi', `✓ ${piData.length} PI colonies`);
     }
   } catch (e) { summary.steps.pi = `error: ${e.message}`; report('pi', `✗ ${e.message}`); }
-
+ 
   // 7. Blueprints (full paginated) — kept in core; small payload, fast
   try {
     report('blueprints', 'Fetching blueprints…');
@@ -1112,7 +1213,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     db2.blueprints[characterId] = { updatedAt: Date.now(), items: blueprints };
     saveDB(db2);
   } catch (e) { summary.steps.blueprints = `error: ${e.message}`; report('blueprints', `✗ ${e.message}`); }
-
+ 
   // 8. Wallet journal (30-min cadence — skip if recently synced)
   const WALLET_JOURNAL_STALE_MS = 30 * 60 * 1000;
   try {
@@ -1128,7 +1229,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
         summary.steps.wallet_journal = `${journal.length} entries`;
         report('wallet_journal', `✓ ${journal.length} journal entries`);
       }
-
+ 
       // Wallet transactions (fetched alongside journal on same cadence)
       const raw = await httpGet(
         `${ESI_BASE}/v1/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
@@ -1148,7 +1249,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
         summary.steps.wallet_transactions = `${transactions.length} txns`;
         report('wallet_transactions', `✓ ${transactions.length} transactions`);
       }
-
+ 
       // Loyalty points (same cadence)
       const lpRaw = await httpGet(
         `${ESI_BASE}/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`,
@@ -1173,10 +1274,10 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     summary.steps.wallet_journal = `error: ${e.message}`;
     report('wallet_journal', `✗ ${e.message}`);
   }
-
+ 
   return summary;
 }
-
+ 
 // ─── IPC: Core-only auto-sync (20-min cadence, no assets) ─────────────────────
 ipcMain.handle('sync-character-core', async (event, characterId) => {
   const db = loadDB();
@@ -1184,7 +1285,7 @@ ipcMain.handle('sync-character-core', async (event, characterId) => {
   if (!account) throw new Error('Account not found');
   const characterName = account.characterName;
   const win = BrowserWindow.fromWebContents(event.sender);
-
+ 
   return coreCharacterSync(characterId, characterName, (step, detail) => {
     console.log(`[CoreSync] ${characterName} — ${step}: ${detail}`);
     if (win && !win.isDestroyed()) {
@@ -1192,32 +1293,32 @@ ipcMain.handle('sync-character-core', async (event, characterId) => {
     }
   });
 });
-
+ 
 // ─── IPC: Asset-only sync — skips if synced within the last 12 hours ──────────
 const ASSET_STALE_MS = 12 * 60 * 60 * 1000; // 12 hours
-
+ 
 ipcMain.handle('sync-character-assets-if-stale', async (event, characterId) => {
   const db = loadDB();
   const account = db.accounts[characterId];
   if (!account) throw new Error('Account not found');
   const characterName = account.characterName;
   const win = BrowserWindow.fromWebContents(event.sender);
-
+ 
   // Check how old the asset data is
   const lastAssetSync = await charInfoDb.getAssetSyncedAt(characterId).catch(() => 0);
   const ageMs = Date.now() - (lastAssetSync || 0);
-
+ 
   if (lastAssetSync && ageMs < ASSET_STALE_MS) {
     const hoursOld = (ageMs / 3_600_000).toFixed(1);
     console.log(`[AssetSync] ${characterName}: assets fresh (${hoursOld}h old) — skipping.`);
     return { skipped: true, characterId, characterName, ageMs };
   }
-
+ 
   console.log(`[AssetSync] ${characterName}: assets stale — syncing…`);
   if (win && !win.isDestroyed()) {
     win.webContents.send('char-sync-progress', { characterId, characterName, step: 'assets', detail: 'Fetching assets (paginated)…' });
   }
-
+ 
   try {
     const r = await syncAssetsInternal(characterId);
     console.log(`[AssetSync] ${characterName}: ✓ ${r.count} assets stored.`);
@@ -1233,20 +1334,20 @@ ipcMain.handle('sync-character-assets-if-stale', async (event, characterId) => {
     throw e;
   }
 });
-
+ 
 // ─── IPC: Get stored character info from CharDB ───────────────────────────────
 ipcMain.handle('get-character-info-db', async (_, characterId) => {
   return charInfoDb.getCharacterData(characterId);
 });
-
+ 
 ipcMain.handle('get-character-assets-db', async (_, characterId) => {
   return charInfoDb.getCharacterAssets(characterId);
 });
-
+ 
 ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
   return charInfoDb.getCharacterBlueprints(characterId);
 });
-
+ 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADDITIONS FOR main.js
 // Insert both blocks below immediately AFTER the existing:
@@ -1254,7 +1355,7 @@ ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
 //
 // These two handlers power the new blueprints.js "My Blueprints" tab.
 // ═══════════════════════════════════════════════════════════════════════════════
-
+ 
 // ─── IPC: Get ALL blueprints from SQLite (all synced characters) ──────────────
 // Reads char_{id}_blueprints tables directly from character_information.db.
 // Returns a flat array of blueprint rows, each augmented with characterId and
@@ -1262,16 +1363,16 @@ ipcMain.handle('get-character-blueprints-db', async (_, characterId) => {
 //
 // Called by: loadBlueprintLibrary() in blueprints.js
 //            via window.eveAPI.getAllBlueprintsFromDb()
-
+ 
 ipcMain.handle('get-all-blueprints-from-db', async () => {
   const db       = loadDB();
   const accounts = db.accounts || {};
   const all      = [];
-
+ 
   for (const [charIdStr, account] of Object.entries(accounts)) {
     const characterId   = Number(charIdStr);
     const characterName = account.characterName || 'Unknown';
-
+ 
     try {
       const rows = await charInfoDb.getCharacterBlueprints(characterId);
       if (Array.isArray(rows)) {
@@ -1287,10 +1388,10 @@ ipcMain.handle('get-all-blueprints-from-db', async () => {
       console.warn(`[get-all-blueprints-from-db] Skipped character ${characterId}: ${e.message}`);
     }
   }
-
+ 
   return all;
 });
-
+ 
 // ─── IPC: SDE blueprint materials with ME bonus applied ──────────────────────
 // Queries the local SDE sqlite (sde.sql) for the manufacturing activity of
 // blueprintTypeId, then applies the ME reduction formula:
@@ -1309,12 +1410,12 @@ ipcMain.handle('get-all-blueprints-from-db', async () => {
 //
 // Called by: openBlueprintDetail() in blueprints.js
 //            via window.eveAPI.sdeBlueprintMaterials(typeId, me)
-
+ 
 ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => {
   if (!sdeDb) return null;
-
+ 
   const MANUFACTURING = 1;  // activityID for manufacturing in SDE
-
+ 
   // ── 1. Fetch raw materials from industryActivityMaterials ──────────────────
   // The SDE table is: industryActivityMaterials(typeID, activityID, materialTypeID, quantity)
   let matRows = [];
@@ -1330,13 +1431,13 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
     console.warn('[sde-blueprint-materials] industryActivityMaterials query failed:', e.message);
     return null;
   }
-
+ 
   if (!matRows.length) return null;
-
+ 
   // ── 2. Resolve material type names ────────────────────────────────────────
   const matTypeIds  = matRows.map(r => r.materialTypeID);
   const nameMap     = {};
-
+ 
   // Try invTypes first (most SDE builds), fall back to invtypes (lowercase)
   const nameTables  = [
     { t: 'invTypes',    col: 'typeName', idcol: 'typeID' },
@@ -1344,7 +1445,7 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
     { t: 'invTypes_en', col: 'typeName', idcol: 'typeID' },
     { t: 'types',       col: 'name',     idcol: 'id'     },
   ];
-
+ 
   // Detect which invTypes table exists once and reuse
   let invTypesTable = null;
   for (const q of nameTables) {
@@ -1354,7 +1455,7 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
       break;
     } catch (_) {}
   }
-
+ 
   if (invTypesTable) {
     // Batch fetch: SQLite supports up to ~999 params in IN clause
     const chunks = [];
@@ -1374,7 +1475,7 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
       } catch (_) {}
     }
   }
-
+ 
   // ── 3. Detect sub-components (types that are themselves manufactured) ───────
   // A material "is a component" if there exists a blueprint that produces it.
   const componentSet = new Set();
@@ -1388,10 +1489,10 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
       if (row) componentSet.add(typeId);
     } catch (_) {}
   }
-
+ 
   // ── 4. Apply ME bonus ─────────────────────────────────────────────────────
   const clampedME = Math.max(0, Math.min(10, me));
-
+ 
   const materials = matRows.map(row => {
     const baseQty     = row.quantity;
     const adjustedQty = baseQty <= 1
@@ -1405,12 +1506,12 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
       isComponent: componentSet.has(row.materialTypeID),
     };
   });
-
+ 
   // ── 5. Resolve product info from industryActivityProducts ─────────────────
   let productTypeId = null;
   let productName   = null;
   let productQty    = 1;
-
+ 
   try {
     const prodRow = await sdeDb.get(
       `SELECT productTypeID, quantity
@@ -1438,27 +1539,27 @@ ipcMain.handle('sde-blueprint-materials', async (_, blueprintTypeId, me = 0) => 
   } catch (e) {
     console.warn('[sde-blueprint-materials] product lookup failed:', e.message);
   }
-
+ 
   return { materials, productTypeId, productName, productQty };
 });
-
+ 
 ipcMain.handle('get-pi-colonies', async (_, characterId) => {
   return charInfoDb.getCharacterPIColonies(characterId);
 });
-
+ 
 // ─── IPC: Wallet journal / transactions / loyalty points (from CharDB) ────────
 ipcMain.handle('get-wallet-journal', async (_, characterId) => {
   return charInfoDb.getWalletJournal(characterId);
 });
-
+ 
 ipcMain.handle('get-wallet-transactions', async (_, characterId) => {
   return charInfoDb.getWalletTransactions(characterId);
 });
-
+ 
 ipcMain.handle('get-loyalty-points', async (_, characterId) => {
   return charInfoDb.getLoyaltyPoints(characterId);
 });
-
+ 
 async function syncAssetsInternal(characterId) {
   const token = await getValidToken(characterId);
   let allAssets = [];
@@ -1472,10 +1573,10 @@ async function syncAssetsInternal(characterId) {
     if (!data || data.length < 1000) break;
     page++;
   }
-
+ 
   const typeIds     = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
   const nameMap     = await resolveNames(typeIds);
-
+ 
   // Build a Set of all item_ids so we can detect container-child rows.
   // Items whose location_id matches another item's item_id are nested inside
   // a container or fitted to a ship — their location is NOT a station/structure
@@ -1487,11 +1588,11 @@ async function syncAssetsInternal(characterId) {
       .map(a => a.location_id)
       .filter(id => id && !allItemIds.has(id))   // keep only real station/structure IDs
   )];
-
+ 
   // Resolve all location metadata via the shared locator module.
   // Handles NPC stations, player structures (ESI auth -> Hammertime -> zKillboard -> adam4eve).
   const locationMeta = await getLocator().resolveLocations(rootLocationIds, characterId);
-
+ 
   // locationMeta[id] has the full locator shape:
   //   { name, solar_system_id, solar_system_name, constellation_id, constellation_name,
   //     region_id, region_name, security_status, owner_id, owner_name }
@@ -1519,13 +1620,13 @@ async function syncAssetsInternal(characterId) {
       owner_name:         loc.owner_name         || null,
     };
   });
-
+ 
   // ── Write to SQLite (character_information.db) ───────────────────────────────
   // This is the primary store the assets page reads from. Always write here so
   // the 12-hour stale sync keeps the DB current, not just blueprints.json.
   await charInfoDb.ensureCharacterTables(characterId);
   await charInfoDb.replaceAssets(characterId, assets);
-
+ 
   // ── Re-resolve any locations that came back null ─────────────────────────────
   // Some Upwell structures fail on first pass (401, Hammertime miss, etc.).
   // After replaceAssets the DB has nulls for those rows. We do a second targeted
@@ -1547,20 +1648,20 @@ async function syncAssetsInternal(characterId) {
     const stillUnresolved = await charInfoDb.getUnresolvedAssetLocations(characterId).catch(() => []);
     console.log(`[AssetSync] Re-resolve complete: ${unresolved.length - stillUnresolved.length} fixed, ${stillUnresolved.length} still unresolved.`);
   }
-
+ 
   // ── Also keep the legacy blueprints.json in sync ─────────────────────────────
   const db = loadDB();
   db.assets = db.assets || {};
   db.assets[characterId] = { updatedAt: Date.now(), items: assets };
   saveDB(db);
-
+ 
   return { count: assets.length, items: assets };
 }
-
+ 
 ipcMain.handle('sync-assets', async (_, characterId) => {
   return syncAssetsInternal(characterId);
 });
-
+ 
 ipcMain.handle('sync-all-assets', async () => {
   // Check cache first to avoid re-syncing too often
   try {
@@ -1571,11 +1672,11 @@ ipcMain.handle('sync-all-assets', async () => {
   } catch (e) {
     // ignore cache errors
   }
-
+ 
   const db = loadDB();
   const accounts = Object.values(db.accounts || {});
   const result = { total: 0, characters: [] };
-
+ 
   // Limit concurrency to avoid hammering ESI
   const CONCURRENCY = 4;
   async function workerPool(list, fn) {
@@ -1595,7 +1696,7 @@ ipcMain.handle('sync-all-assets', async () => {
     await Promise.all(workers);
     return results;
   }
-
+ 
   const syncResults = await workerPool(accounts, async (account) => {
     try {
       const r = await syncAssetsInternal(account.characterId);
@@ -1604,18 +1705,18 @@ ipcMain.handle('sync-all-assets', async () => {
       return { characterId: account.characterId, characterName: account.characterName, error: err.message };
     }
   });
-
+ 
   for (const s of syncResults) {
     if (s.count) result.total += s.count;
     result.characters.push(s);
   }
-
+ 
   // Cache the overall result for faster subsequent calls
   try { writeCache('sync_all_assets', { updatedAt: Date.now(), result }, 0.25); } catch (e) {}
-
+ 
   return result;
 });
-
+ 
 ipcMain.handle('watch-ping-file', async (_, filePath) => {
   try {
     if (pingFileWatcher) {
@@ -1645,7 +1746,7 @@ ipcMain.handle('watch-ping-file', async (_, filePath) => {
     return false;
   }
 });
-
+ 
 ipcMain.handle('unwatch-ping-file', () => {
   if (pingFileWatcher) {
     pingFileWatcher.close();
@@ -1657,16 +1758,16 @@ ipcMain.handle('unwatch-ping-file', () => {
   }
   return true;
 });
-
+ 
 let jabberClient = null;
 let jabberConnectionActive = false;
-
+ 
 function broadcastToRenderers(channel, payload) {
   BrowserWindow.getAllWindows().forEach(win => {
     if (!win.isDestroyed()) win.webContents.send(channel, payload);
   });
 }
-
+ 
 ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
   try {
     if (!service || !jid || !password) {
@@ -1676,30 +1777,30 @@ ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
     if (!username || !domain) {
       return { success: false, message: 'Invalid JID format. Use user@domain.' };
     }
-
+ 
     if (jabberClient) {
       try { await jabberClient.stop(); } catch (_) {}
       jabberClient = null;
       jabberConnectionActive = false;
     }
-
+ 
     const { client: xmppClient } = await getXmppClient();
     jabberClient = xmppClient({ service, domain, username, password });
-
+ 
     jabberClient.on('error', (err) => {
       broadcastToRenderers('jabber-status', { status: 'error', message: err?.message || String(err) });
     });
-
+ 
     jabberClient.on('offline', () => {
       jabberConnectionActive = false;
       broadcastToRenderers('jabber-status', { status: 'offline', message: 'Disconnected' });
     });
-
+ 
     jabberClient.on('online', (address) => {
       jabberConnectionActive = true;
       broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${address.toString()}` });
     });
-
+ 
     jabberClient.on('stanza', (stanza) => {
       if (!stanza.is('message')) return;
       const body = stanza.getChildText('body');
@@ -1707,9 +1808,23 @@ ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
       const from = stanza.attrs.from || '';
       const type = stanza.attrs.type || 'chat';
       const isDirector = /director/i.test(from) || /director/i.test(body);
-      broadcastToRenderers('jabber-message', { from, type, body, isDirector, raw: stanza.toString() });
+      const msg = { from, type, body, isDirector, raw: stanza.toString() };
+      broadcastToRenderers('jabber-message', msg);
+      if (isDirector) {
+        // Parse fields for the alert (reuse jabberDataDb parser)
+        jabberDataDb.insertJabberMessage(msg)
+          .then(stored => createPingAlertWindow(stored || msg))
+          .catch(e => {
+            console.error('[jabberDataDb] failed to store message:', e.message);
+            createPingAlertWindow(msg);
+          });
+      } else {
+        jabberDataDb.insertJabberMessage(msg).catch(e =>
+          console.error('[jabberDataDb] failed to store message:', e.message)
+        );
+      }
     });
-
+ 
     await jabberClient.start();
     return { success: true, message: 'Connecting...' };
   } catch (err) {
@@ -1717,7 +1832,7 @@ ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
     return { success: false, message: err.message || String(err) };
   }
 });
-
+ 
 ipcMain.handle('jabber-disconnect', async () => {
   if (jabberClient) {
     try { await jabberClient.stop(); } catch (_) {}
@@ -1726,12 +1841,21 @@ ipcMain.handle('jabber-disconnect', async () => {
   }
   return true;
 });
-
+ 
+ipcMain.handle('jabber-get-messages', async (_, limit = 200) => {
+  try {
+    return await jabberDataDb.getRecentMessages(limit);
+  } catch (e) {
+    console.error('[jabberDataDb] jabber-get-messages failed:', e.message);
+    return [];
+  }
+});
+ 
 ipcMain.handle('get-assets', (_, characterId) => {
   const db = loadDB();
   return db.assets?.[characterId] || null;
 });
-
+ 
 ipcMain.handle('get-all-assets', () => {
   const db = loadDB();
   const all = [];
@@ -1747,7 +1871,7 @@ ipcMain.handle('get-all-assets', () => {
   }
   return all;
 });
-
+ 
 // ─── IPC: Wallet Balance ──────────────────────────────────────────────────────
 ipcMain.handle('get-wallet', async (_, characterId) => {
   try {
@@ -1762,7 +1886,7 @@ ipcMain.handle('get-wallet', async (_, characterId) => {
     return 0;
   }
 });
-
+ 
 // ─── IPC: Public ESI (no auth) ────────────────────────────────────────────────
 // IPC: resolve a single location (structure or station) -> full metadata
 // Used by dashboard for home station and blueprints for location names.
@@ -1770,15 +1894,15 @@ ipcMain.handle('get-wallet', async (_, characterId) => {
 ipcMain.handle('get-structure-info', async (_, structureId, characterId) => {
   return getLocator().resolveLocation(structureId, characterId);
 });
-
+ 
 ipcMain.handle('resolve-location', async (_, locationId, characterId) => {
   return getLocator().resolveLocation(locationId, characterId);
 });
-
+ 
 ipcMain.handle('resolve-system-names', async (_, systemIds) => {
   return getLocator().resolveSystemNames(systemIds);
 });
-
+ 
 // ─── IPC: Station / structure database sync ───────────────────────────────────
 // Thin wrapper — all sync logic lives in locator.syncStationDatabase() so
 // the locator remains the single authority on station/structure data.
@@ -1786,10 +1910,10 @@ ipcMain.handle('resolve-system-names', async (_, systemIds) => {
 // Returns { npc, upwell } on success, { skipped: true } if under 24 h old,
 // or { error: string } on failure.
 const STATION_SYNC_TTL_MS = 24 * 60 * 60 * 1000;
-
+ 
 ipcMain.handle('sync-station-database', async (_, opts = {}) => {
   const force = opts && opts.force === true;
-
+ 
   // Freshness guard — skip if synced recently and caller didn't force.
   if (!force) {
     const lastSync = await charInfoDb.getStationsLastSync('npc_stations').catch(() => 0);
@@ -1798,7 +1922,7 @@ ipcMain.handle('sync-station-database', async (_, opts = {}) => {
       return { skipped: true };
     }
   }
-
+ 
   try {
     await charInfoDb.initStationTables();
     // Delegate entirely to the locator; pass httpPost so the locator can use
@@ -1811,7 +1935,7 @@ ipcMain.handle('sync-station-database', async (_, opts = {}) => {
     return { error: e.message };
   }
 });
-
+ 
 // Returns the ms-epoch timestamp of the last successful station sync, or 0.
 // Accepts optional { key } — defaults to 'npc_stations'.
 ipcMain.handle('get-station-sync-timestamp', async (_, opts = {}) => {
@@ -1822,7 +1946,7 @@ ipcMain.handle('get-station-sync-timestamp', async (_, opts = {}) => {
     return 0;
   }
 });
-
+ 
 // Upwell structures sync — placeholder for future implementation.
 // Currently a no-op that returns { upwell: 0, skipped: false } so the UI
 // button works without errors. Upwell structures are populated automatically
@@ -1831,23 +1955,23 @@ ipcMain.handle('sync-upwell-database', async (_, opts = {}) => {
   console.log('[UpwellSync] Manual trigger — structures are seeded automatically during character syncs.');
   return { npc: 0, upwell: 0 };
 });
-
+ 
 ipcMain.handle('esi-search', async (_, query) => {
   return httpGet(`${ESI_BASE}/v2/search/?categories=inventory_type&search=${encodeURIComponent(query)}&strict=false&datasource=tranquility`);
 });
-
+ 
 ipcMain.handle('esi-names', async (_, ids) => {
   if (!ids || !ids.length) return [];
   const map = await resolveNames(ids);
   return ids.map(id => ({ id, name: map[id] || `Type ${id}` }));
 });
-
-
+ 
+ 
 // ─── IPC: Public ESI proxy ────────────────────────────────────────────────────
 ipcMain.handle('esi-fetch', async (_, url) => {
   return httpGet(url);
 });
-
+ 
 // ─── IPC: Global market prices (adjusted_price / average_price) ──────────────
 // Single public endpoint — no auth. Returns all tradeable items at once.
 // This is the same price source EVE uses for net worth calculations.
@@ -1875,7 +1999,7 @@ ipcMain.handle('get-market-prices', async () => {
     return {};
   }
 });
-
+ 
 // ─── IPC: Authenticated character sheet ──────────────────────────────────────
 ipcMain.handle('get-character-info', async (_, characterId) => {
   try {
@@ -1889,7 +2013,7 @@ ipcMain.handle('get-character-info', async (_, characterId) => {
     return null;
   }
 });
-
+ 
 // ─── IPC: Clones / home location ─────────────────────────────────────────────
 ipcMain.handle('get-clones', async (_, characterId) => {
   try {
@@ -1903,7 +2027,7 @@ ipcMain.handle('get-clones', async (_, characterId) => {
     return null;
   }
 });
-
+ 
 // ─── IPC: Character market orders (for escrow) ───────────────────────────────
 // Returns active buy orders — their 'escrow' field is ISK locked up.
 ipcMain.handle('get-character-orders', async (_, characterId) => {
@@ -1919,7 +2043,7 @@ ipcMain.handle('get-character-orders', async (_, characterId) => {
     return [];
   }
 });
-
+ 
 // ─── IPC: Character contracts (for escrow) ───────────────────────────────────
 // Returns all contracts; we sum 'price' on outstanding buyer contracts.
 ipcMain.handle('get-character-contracts', async (_, characterId) => {
@@ -1935,33 +2059,33 @@ ipcMain.handle('get-character-contracts', async (_, characterId) => {
     return [];
   }
 });
-
+ 
 ipcMain.handle('cache-get', (_, key) => {
   return readCache(key);
 });
-
+ 
 ipcMain.handle('cache-set', (_, key, value, days = 7) => {
   writeCache(key, value, days);
   return true;
 });
-
+ 
 ipcMain.handle('ui-get-config', () => {
   const cfg = loadConfig();
   return cfg.uiTheme || null;
 });
-
+ 
 ipcMain.handle('ui-save-config', (_, uiTheme) => {
   const cfg = loadConfig();
   cfg.uiTheme = uiTheme || {};
   saveConfig(cfg);
   return true;
 });
-
+ 
 ipcMain.handle('app-get-config', () => {
   const cfg = loadConfig();
   return cfg || {};
 });
-
+ 
 ipcMain.handle('app-save-config', (_, appConfig) => {
   const cfg = loadConfig();
   cfg.app = cfg.app || {};
@@ -1969,7 +2093,7 @@ ipcMain.handle('app-save-config', (_, appConfig) => {
   saveConfig(cfg);
   return true;
 });
-
+ 
 ipcMain.handle('get-blueprint-materials', async (_, typeId) => {
   if (bpCache[typeId]) return bpCache[typeId];
   try {
@@ -1984,7 +2108,7 @@ ipcMain.handle('get-blueprint-materials', async (_, typeId) => {
     return emptyData;
   }
 });
-
+ 
 ipcMain.handle('find-bp-for-product', async (_, productTypeId) => {
   const key = `prod_${productTypeId}`;
   if (bpCache[key]) return bpCache[key];
@@ -1998,7 +2122,7 @@ ipcMain.handle('find-bp-for-product', async (_, productTypeId) => {
     return null;
   }
 });
-
+ 
 ipcMain.handle('get-product-for-blueprint', async (_, blueprintTypeId) => {
   // Query SDE to find what this blueprint produces
   if (!sdeDb) return null;
@@ -2014,7 +2138,7 @@ ipcMain.handle('get-product-for-blueprint', async (_, blueprintTypeId) => {
     return null;
   }
 });
-
+ 
 // ─── Jita Market Prices (Jita 4-4 is station 60003760) ──────────────────────
 ipcMain.handle('get-jita-prices', async (_, typeIds) => {
   const JITA_STATION_ID = 60003760; // Jita IV - Moon 4 (Caldari Navy Assembly Plant)
@@ -2044,16 +2168,16 @@ ipcMain.handle('get-jita-prices', async (_, typeIds) => {
           // If region endpoint fails, fall back to empty
           orderData = [];
         }
-
+ 
         // Filter for orders at Jita station if present
         orderData = Array.isArray(orderData) ? orderData.filter(o => Number(o.location_id) === JITA_STATION_ID) : [];
-
+ 
         if (!orderData || orderData.length === 0) {
           prices[typeId] = { buy: 0, sell: 0 };
           writeCache(cacheKey, { buy: 0, sell: 0 }, 1); // Cache misses for 1 day
           continue;
         }
-
+ 
         // Separate buy and sell orders
         const buyOrders = orderData.filter(o => o.is_buy_order);
         const sellOrders = orderData.filter(o => !o.is_buy_order);
@@ -2083,7 +2207,7 @@ ipcMain.handle('get-jita-prices', async (_, typeIds) => {
   
   return prices;
 });
-
+ 
 // ─── Name resolver (batched) ─────────────────────────────────────────────────
 async function resolveNames(ids) {
   const uncached = ids.filter(id => !nameCache[id]);
@@ -2099,7 +2223,7 @@ async function resolveNames(ids) {
   }
   return Object.fromEntries(ids.map(id => [id, nameCache[id] || `Type ${id}`]));
 }
-
+ 
 // IPC: SDE name lookup (best-effort fallback to a local SDE sqlite file)
 ipcMain.handle('sde-get-name', async (_, typeId) => {
   if (!sdeDb) return null;
@@ -2117,7 +2241,7 @@ ipcMain.handle('sde-get-name', async (_, typeId) => {
   }
   return null;
 });
-
+ 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 app.on('window-all-closed', () => {
   if (callbackServer) callbackServer.close();

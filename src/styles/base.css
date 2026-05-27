@@ -13,10 +13,10 @@
   --backdrop:       rgba(167, 29, 132, 0.82);      /* modal backdrop overlay          */
 
   /* ── BORDERS ─────────────────────────────────────────────────────────────── */
-  --border:         #1e1e1e;                  /* primary border (sidebar, titlebar, scrollbar thumb, nav) */
-  --border-b:       #181818;                  /* sidebar/main-content scrollbar thumb */
-  --border-c:       #141414;                  /* app-console top border          */
-  --border-d:       #1c1c1c;                  /* .panel outer border             */
+  --border:         #f800002c;                  /* primary border (sidebar, titlebar, scrollbar thumb, nav) */
+  --border-b:       #0084ff63;                  /* sidebar/main-content scrollbar thumb */
+  --border-c:       #c23c3c5b;                  /* app-console top border          */
+  --border-d:       #ff000031;                  /* .panel outer border             */
   --border-e:       #1a1a1a;                  /* .panel header divider, blueprint-card border, code border */
 
   /* ── ACCENT — CONCORD crimson ────────────────────────────────────────────── */
@@ -26,13 +26,13 @@
 
   /* ── TEXT ────────────────────────────────────────────────────────────────── */
   --text-1:         #c8c8c8;                  /* primary body text, toast, settings labels */
-  --text-2:         #696969;                  /* secondary: titlebar-title, nav labels, icon-btn */
-  --text-3:         #525252;                  /* tertiary: titlebar-sep/subtitle, console-toggle, log-time */
-  --text-4:         #4a4a4a;                  /* panel-header label              */
-  --text-5:         #3a3a3a;                  /* empty-state title               */
-  --text-6:         #2d2d2d;                  /* empty-state sub, console-label  */
-  --text-7:         #2a2a2a;                  /* console timestamp               */
-  --text-8:         #404040;                  /* console default message text    */
+  --text-2:         #d4d4d4;                  /* secondary: titlebar-title, nav labels, icon-btn */
+  --text-3:         #bdbdbd;                  /* tertiary: titlebar-sep/subtitle, console-toggle, log-time */
+  --text-4:         #7c7c7c;                  /* panel-header label              */
+  --text-5:         #8a8a8a;                  /* empty-state title               */
+  --text-6:         #696969;                  /* empty-state sub, console-label  */
+  --text-7:         #535353;                  /* console timestamp               */
+  --text-8:         #666666;                  /* console default message text    */
   --text-9:         #6e6e6e;                  /* console info message text       */
 
   /* ── TIER COLOURS ────────────────────────────────────────────────────────── */

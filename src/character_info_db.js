@@ -296,10 +296,16 @@ async function replaceImplants(characterId, implants) {
   const p   = `char_${characterId}`;
   await db.run(`DELETE FROM ${p}_implants`);
   for (const imp of implants) {
+    // Guard against main.js passing the ESI field as type_id instead of implant_id
+    const implantId = imp.implant_id ?? imp.type_id ?? imp.id ?? imp.implantId ?? null;
+    const typeName  = imp.type_name  ?? imp.name    ?? imp.typeName ?? '';
+    // Use explicit null for slot — do NOT use `|| null` which converts slot 0 to null
+    const slot      = (imp.slot != null && imp.slot !== '') ? Number(imp.slot) : null;
+    console.log(`[CharDB] replaceImplants char=${characterId} implant_id=${implantId} type_name=${typeName} slot=${slot}`);
     await db.run(
       `INSERT INTO ${p}_implants (implant_id, type_name, slot, synced_at)
        VALUES (?,?,?,?)`,
-      [imp.implant_id, imp.type_name || '', imp.slot || null, now]
+      [implantId, typeName, slot, now]
     );
   }
 }

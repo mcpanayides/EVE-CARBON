@@ -247,45 +247,67 @@ const PAGE_HTML = {
   // ── Jabber ──────────────────────────────────────────────────────────────────
   jabber: `
     <div id="page-jabber" class="nav-page"
-         style="flex-direction:column; height:100%;">
+         style="flex-direction:column; height:100%; min-width:0; overflow:hidden;">
       <div class="page-header">
-        <h2>Jabber</h2>
-        <button class="close-page-btn" onclick="closePage('jabber')">✕</button>
+        <div>
+          <h2>Jabber</h2>
+          <div class="page-description">Live broadcast feed — newest pings on top.</div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('jabber')">&#x2715;</button>
       </div>
-      <div class="page-content" style="display:flex; flex-direction:column; gap:18px;">
-        <div class="panel"
-             style="padding:16px; background:var(--bg-panel); border:1px solid var(--border); border-radius:10px;">
-          <div style="font-size:13px; color:var(--text-2); line-height:1.5;">
-            Jabber login settings are now managed in the settings menu.
-            Open the ⚙ button and save your Jabber service, JID and password there,
-            then return here to connect.
-          </div>
-        </div>
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
-        </div>
-        <div class="ping-filter-row">
-          <span style="font-size:13px; color:var(--text-2);">
-            Director bot filter is managed in the settings menu.
-          </span>
-          <span id="jabberSummary" class="asset-summary">No messages received yet.</span>
-        </div>
-        <div class="asset-table-wrapper" style="padding:0;">
-          <table id="jabberTable" class="asset-table ping-table">
-            <thead>
-              <tr>
-                <th>From</th><th>Message</th><th>Type</th><th>Director</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colspan="4" class="loading-row">
-                  Auto-connecting to Jabber; saved settings are used from the settings menu.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+
+      <!-- Status + controls bar -->
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+                  padding:10px 16px; border-bottom:1px solid var(--border);
+                  background:var(--bg-card); flex-shrink:0;">
+        <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
+        <span style="flex:1;"></span>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
+          <input type="checkbox" id="jabberDirectorOnly" checked
+                 style="accent-color:var(--accent);"/>
+          Director only
+        </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
+          <input type="checkbox" id="jabberBroadcastOnly" checked
+                 style="accent-color:var(--accent);"/>
+          Broadcasts only
+        </label>
+        <span id="jabberSummary" class="asset-summary" style="white-space:nowrap;">0 pings</span>
+      </div>
+
+      <!-- Ping table -->
+      <div class="asset-table-wrapper" style="padding:0; flex:1; overflow-y:auto;">
+        <table id="jabberTable" class="asset-table ping-table" style="width:100%; table-layout:fixed;">
+          <colgroup>
+            <col style="width:140px;"/>
+            <col style="width:120px;"/>
+            <col style="width:110px;"/>
+            <col style="width:90px;"/>
+            <col style="width:130px;"/>
+            <col style="width:90px;"/>
+            <col style="width:110px;"/>
+            <col style="width:80px;"/>
+            <col style=""/>
+          </colgroup>
+          <thead>
+            <tr>
+              <th>EVE Time</th>
+              <th>FC Name</th>
+              <th>Formup</th>
+              <th>PAP Type</th>
+              <th>Doctrine</th>
+              <th>Sig</th>
+              <th>Pinged By</th>
+              <th>Target</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="9" class="loading-row">Loading message history&#x2026;</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>`,
 

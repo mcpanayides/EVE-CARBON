@@ -126,6 +126,7 @@ async function loadDashboard() {
                              currentShipTypeName = null,
                              stale = false }) {
       if (!welcomeBanner) return;
+      console.log('[implants] renderBanner received:', JSON.stringify(implants));
 
       const charSecColor = (s) => {
         const n = parseFloat(s);
@@ -180,6 +181,8 @@ async function loadDashboard() {
         const unslotted = [];
         for (const row of implants) {
           const s = Number(row.slot);
+          // Log each row so issues with id/slot are immediately visible in DevTools
+          console.log(`[implants] slot=${row.slot} implant_id=${row.implant_id} type_id=${row.type_id} type_name=${row.type_name}`);
           if (s >= 1 && s <= 10) { bySlot[s] = row; }
           else { unslotted.push(row); }
         }
@@ -193,14 +196,28 @@ async function loadDashboard() {
           if (!row) {
             return `<div class="implant-slot implant-slot--empty" title="Slot ${slot}"><span class="implant-slot-num">${slot}</span></div>`;
           }
-          const id    = row.implant_id;
-          const label = escHtml(row.type_name || `Implant ${id}`);
-          const fuzz  = `https://www.fuzzwork.co.uk/icons/items/${id}_32.png`;
-          const eve   = `https://images.evetech.net/types/${id}/icon?size=32`;
-          return `<div class="implant-slot implant-slot--filled" title="${label}">
+          // Resolve the type ID: normalisation already ran above but guard all
+          // possible field names so a DB schema mismatch never silently breaks icons.
+          const id = row.implant_id || row.type_id || row.id || row.implantId || null;
+          const label = escHtml(row.type_name || (id ? `Implant ${id}` : `Slot ${slot}`));
+
+          if (!id) {
+            // ID is genuinely missing — render as a visually distinct unknown slot
+            return `<div class="implant-slot implant-slot--filled implant-slot--unknown" title="${label}">
+              <span class="implant-slot-num">${slot}</span>
+              <span class="implant-slot-unknown-icon">?</span>
+            </div>`;
+          }
+
+          // Use size=64: broader CDN coverage than size=32.
+          // On error: swap to the 32px fallback first, then show the "?" placeholder
+          // so a broken image is never silently invisible.
+          const icon64 = `https://images.evetech.net/types/${id}/icon?size=64`;
+          const icon32 = `https://images.evetech.net/types/${id}/icon?size=32`;
+          return `<div class="implant-slot implant-slot--filled" title="${label}" data-implant-id="${id}">
             <span class="implant-slot-num">${slot}</span>
-            <img class="banner-implant-icon" src="${fuzz}" alt="${label}"
-                 onerror="if(this._f){this.style.display='none';}else{this._f=1;this.src='${eve}';}"/>
+            <img class="banner-implant-icon" src="${icon64}" alt="${label}"
+                 onerror="if(this.src!=='${icon32}'){this.src='${icon32}';}else{this.style.display='none';this.parentElement.classList.add('implant-slot--icon-error');}"/>
           </div>`;
         }
         return `<div class="implant-grid-row">${[1,2,3,4,5].map(slotHtml).join('')}</div>` +
@@ -348,28 +365,13 @@ async function loadDashboard() {
 
       if (Array.isArray(_rawImplants) && _rawImplants.length > 0) {
         implants = _rawImplants.map(row => ({
-          // handle both { implant_id } and { type_id } column names
           implant_id: row.implant_id || row.type_id || row.id || row.implantId,
           type_name:  row.type_name  || row.name    || row.typeName || null,
+          slot:       row.slot != null ? Number(row.slot) : null,
         })).filter(r => r.implant_id);
         logToConsole(`Implants from DB: ${implants.length} found`, 'info');
       } else {
-        // DB key not found or empty — try a direct IPC call for implants
-        logToConsole('Implants not in getCharacterData — trying getCharacterImplants…', 'info');
-        try {
-          const raw = await window.eveAPI.getCharacterImplants(mainAccount.characterId).catch(() => null);
-          if (Array.isArray(raw) && raw.length > 0) {
-            implants = raw.map(row => ({
-              implant_id: row.implant_id || row.type_id || row.id || (typeof row === 'number' ? row : null),
-              type_name:  row.type_name  || row.name    || null,
-            })).filter(r => r.implant_id);
-            logToConsole(`Implants from IPC: ${implants.length} found`, 'info');
-          } else {
-            logToConsole('No implants returned from IPC either — character may have none or needs sync.', 'info');
-          }
-        } catch (implantErr) {
-          logToConsole(`Implant IPC call failed: ${implantErr.message}`, 'error');
-        }
+        logToConsole('Implants array empty or missing — character may have none or needs a sync.', 'info');
       }
 
       // ── Current ship — from char_{id}_ship (most recent row) ─────────────

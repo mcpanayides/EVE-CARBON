@@ -86,6 +86,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Jabber
   connectJabber:    (config) => ipcRenderer.invoke('jabber-connect', config),
   disconnectJabber: ()       => ipcRenderer.invoke('jabber-disconnect'),
+  getJabberMessages:(limit)  => ipcRenderer.invoke('jabber-get-messages', limit),
+  wipeJabberData:   ()       => ipcRenderer.invoke('jabber-wipe-data'),
 
   // Queries SDE for manufacturing materials and applies the ME bonus.
   // Returns { materials, productTypeId, productName, productQty } or null.
@@ -103,6 +105,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
       'jabber-status',
       'jabber-message',
       'ping-file-updated',
+      'ping-alert-data',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => fn(...args));

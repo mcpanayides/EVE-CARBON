@@ -1,0 +1,60 @@
+<!-- ── Industry Page ──────────────────────────────────────────────────────── -->
+<div id="page-industry" class="nav-page"
+     style="flex-direction:column; height:100%; overflow:hidden;">
+  <div class="page-header">
+    <div>
+      <h2>Industry</h2>
+      <div class="page-description">Manufacturing, blueprints, reactions and more.</div>
+    </div>
+    <button class="close-page-btn" onclick="closePage('industry')">✕</button>
+  </div>
+
+  <div class="industry-layout">
+    <!-- Left sub-nav -->
+    <div class="industry-subnav">
+      <div class="industry-subnav-label">TOOLS</div>
+      <!-- data-industry-tab drives navigateIndustryTab(); "blueprints" is the default -->
+      <button class="industry-sub-btn active" data-industry-tab="blueprints">
+        <span class="industry-sub-icon">⬡</span>My Blueprints
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="search">
+        <span class="industry-sub-icon">◑</span>BP Search
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="active-jobs">
+        <span class="industry-sub-icon">◈</span>Active Jobs
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="calculator">
+        <span class="industry-sub-icon">⚙</span>Calculator
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="cost-index">
+        <span class="industry-sub-icon">◎</span>Cost Index
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="shopping-lists">
+        <span class="industry-sub-icon">⬡</span>Shopping Lists
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="invention">
+        <span class="industry-sub-icon">◆</span>Invention Buddy
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="reactions">
+        <span class="industry-sub-icon">◈</span>Reactions Profit
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="ore">
+        <span class="industry-sub-icon">⬡</span>Ore Calculator
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="ice">
+        <span class="industry-sub-icon">⬡</span>Ice Calculator
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="gas">
+        <span class="industry-sub-icon">⬡</span>Gas Calculator
+      </button>
+      <button class="industry-sub-btn" data-industry-tab="moon">
+        <span class="industry-sub-icon">◎</span>Moon Scanning
+      </button>
+    </div>
+
+    <!-- Single mount-point; navigateIndustryTab() renders content here -->
+    <div id="industryTabContent" class="industry-content">
+      <!-- Populated by navigateToPage('industry') → navigateIndustryTab('blueprints') -->
+    </div>
+  </div>
+</div>

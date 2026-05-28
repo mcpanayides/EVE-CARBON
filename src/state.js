@@ -26,7 +26,7 @@ let jabberSettings = {
   directorOnly: true,
 };
 let jabberMessages            = [];
-let jabberFilterDirectorOnly  = true;
+let jabberFilterDirectorOnly  = false;
 let jabberConnected           = false;
 
 let allAssetsCache     = null;

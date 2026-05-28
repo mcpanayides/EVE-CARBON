@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Director Ping</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:           #060606;
+      --bg-panel:     rgba(13, 13, 13, 0.80);
+      --bg-deep:      rgba(5, 5, 5, 0.80);
+      --bg-card:      rgba(20, 20, 20, 0.80);
+      --border:       #f800002c;
+      --border-e:     #1a1a1a;
+      --accent:       #c0392b;
+      --accent-dim:   rgba(192, 57, 43, 0.12);
+      --accent-30:    rgba(192, 57, 43, 0.30);
+      --text-1:       #c8c8c8;
+      --text-2:       #d4d4d4;
+      --text-3:       #bdbdbd;
+      --text-4:       #7c7c7c;
+      --warning:      #e67e22;
+      --danger:       #e74c3c;
+      --success:      #27ae60;
+      --mono:         'Fira Code', monospace;
+      --font:         'Fira Sans', sans-serif;
+      --radius:       2px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 640px;
+      height: 440px;
+      overflow: hidden;
+      background: #060606;
+      font-family: var(--font);
+      color: var(--text-1);
+      user-select: none;
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Crosshatch background (matches main app body) ── */
+    html, body {
+      background-image:
+        repeating-linear-gradient(
+          -45deg,
+          rgba(255,255,255,0.018) 0px,
+          rgba(255,255,255,0.018) 1px,
+          transparent 1px,
+          transparent 4px
+        ),
+        repeating-linear-gradient(
+          45deg,
+          rgba(255,255,255,0.018) 0px,
+          rgba(255,255,255,0.018) 0.5px,
+          transparent 0.5px,
+          transparent 4px
+        );
+      background-size: 4px 4px;
+    }
+
+    /* ── Upper-left radial glow (matches body::before in main app) ── */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -80px;
+      left: -60px;
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(15, 67, 180, 0.61)  0%,
+        rgba(140, 15,  8, 0.466) 30%,
+        rgba(100,  8,  4, 0.08)  55%,
+        transparent 75%
+      );
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 50%;
+    }
+
+    /* ── Bottom-right secondary glow (matches body::after in main app) ── */
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -160px;
+      right:  -160px;
+      width:  640px;
+      height: 640px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(59, 158, 175, 0.1)   0%,
+        rgba(43,  54, 207, 0.164) 40%,
+        transparent 70%
+      );
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 50%;
+    }
+
+    /* ── Concord ambient glow divs (matches main app) ── */
+    .concord-bg-glow {
+      position: fixed;
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 50%;
+      mix-blend-mode: screen;
+    }
+    .concord-glow-main {
+      top: -220px; left: -220px;
+      width: 900px; height: 900px;
+      background: radial-gradient(
+        ellipse at 35% 35%,
+        rgba(0, 43, 235, 0.61)    0%,
+        rgba(32, 16, 122, 0.534) 28%,
+        rgba(3, 16, 90, 0.09)    52%,
+        transparent 70%
+      );
+      animation: concordGlowPulse 8s ease-in-out infinite;
+    }
+    .concord-glow-secondary {
+      top: 35%; left: -80px;
+      width: 380px; height: 380px;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(4, 26, 100, 0.1)    0%,
+        rgba(41, 68, 126, 0.329) 45%,
+        transparent 70%
+      );
+      animation: concordGlowPulse 12s ease-in-out infinite reverse;
+    }
+    @keyframes concordGlowPulse {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50%      { opacity: 1.0;  transform: scale(1.06); }
+    }
+
+    /* ── Corner accents — relative to .window ── */
+    .corner { position: absolute; width: 16px; height: 16px; z-index: 10; }
+    .corner-tl { top:  6px; left:  6px; border-top:  1px solid var(--accent); border-left:  1px solid var(--accent); }
+    .corner-tr { top:  6px; right: 6px; border-top:  1px solid var(--accent); border-right: 1px solid var(--accent); }
+    .corner-bl { bottom: 6px; left:  6px; border-bottom: 1px solid var(--accent); border-left:  1px solid var(--accent); }
+    .corner-br { bottom: 6px; right: 6px; border-bottom: 1px solid var(--accent); border-right: 1px solid var(--accent); }
+
+    /* ── Outer border glow — relative to .window ── */
+    .shell {
+      position: absolute; inset: 0;
+      border: 1px solid #f800002c;
+      border-radius: 4px;
+      box-shadow:
+        inset 0 0 40px rgba(192, 57, 43, 0.04),
+        0 0 0 1px rgba(192, 57, 43, 0.10),
+        0 0 30px rgba(192, 57, 43, 0.12),
+        0 0 60px rgba(192, 57, 43, 0.06);
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    /* ── Main layout ── */
+    .window {
+      position: relative;
+      width: 576px; height: 376px;
+      display: flex;
+      flex-direction: column;
+      z-index: 2;
+      opacity: 1;
+      border-radius: 4px;
+      overflow: hidden;
+      animation: slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-fill-mode: forwards;
+    }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .window { animation: none; opacity: 1; transform: none; }
+    }
+
+    /* ── Title bar ── */
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px 9px 18px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(192, 57, 43, 0.10) 0%, rgba(5, 5, 5, 0.80) 60%);
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+    }
+
+    .alert-badge {
+      display: flex; align-items: center; gap: 7px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--warning);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .alert-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--warning);
+      box-shadow: 0 0 7px var(--warning);
+      animation: pulse-dot 1.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.35; transform: scale(0.65); }
+    }
+
+    .titlebar-sig {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--text-2);
+      text-transform: uppercase;
+      font-family: var(--mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .close-btn {
+      -webkit-app-region: no-drag;
+      width: 26px; height: 26px;
+      border: 1px solid var(--border-e);
+      border-radius: var(--radius);
+      background: rgba(192, 57, 43, 0.08);
+      color: var(--text-4);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .close-btn:hover {
+      background: rgba(192, 57, 43, 0.30);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ── From banner ── */
+    .from-banner {
+      padding: 9px 18px;
+      border-bottom: 1px solid var(--border-e);
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      background: rgba(192, 57, 43, 0.06);
+      flex-shrink: 0;
+    }
+
+    .from-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: var(--text-4);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .from-name {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+
+    .from-time {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-4);
+      white-space: nowrap;
+    }
+
+    /* ── Fields grid — 3 columns ── */
+    .fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border-e);
+      border-bottom: 1px solid var(--border-e);
+      flex-shrink: 0;
+    }
+
+    .field {
+      background: var(--bg-panel);
+      padding: 8px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .field-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--text-4);
+      text-transform: uppercase;
+    }
+
+    .field-value {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--text-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .field-value.highlight { color: var(--warning); }
+    .field-value.muted     { color: var(--text-4); }
+
+    /* second row of fields — 2 cols */
+    .fields-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-e);
+      border-bottom: 1px solid var(--border-e);
+      flex-shrink: 0;
+    }
+
+    /* ── Message block ── */
+    .hurf-block {
+      flex: 1;
+      padding: 10px 18px;
+      overflow-y: auto;
+      background: rgba(6, 6, 6, 0.75);
+    }
+
+    .hurf-block::-webkit-scrollbar       { width: 3px; }
+    .hurf-block::-webkit-scrollbar-thumb { background: var(--border-e); border-radius: 2px; }
+
+    .hurf-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      color: var(--text-4);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .hurf-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-3);
+      word-break: break-word;
+      font-family: var(--mono);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 7px 18px;
+      border-top: 1px solid var(--border-e);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-panel);
+      flex-shrink: 0;
+    }
+
+    .footer-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-4);
+      letter-spacing: 0.07em;
+    }
+
+    .footer-meta .accent { color: var(--accent); }
+
+    /* ── Countdown ring ── */
+    .countdown-ring {
+      position: relative;
+      width: 26px; height: 26px;
+      flex-shrink: 0;
+    }
+    .countdown-ring svg { transform: rotate(-90deg); }
+    .countdown-ring .track { fill: none; stroke: var(--border-e); stroke-width: 2.5; }
+    .countdown-ring .fill {
+      fill: none; stroke: var(--accent); stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 69.1;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 1s linear;
+    }
+    .countdown-num {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono);
+      font-size: 8px;
+      color: var(--text-4);
+    }
+
+    /* ── Dismiss button ── */
+    .dismiss-btn {
+      -webkit-app-region: no-drag;
+      padding: 5px 16px;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-30);
+      border-radius: var(--radius);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .dismiss-btn:hover {
+      background: rgba(192, 57, 43, 0.25);
+      border-color: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 10px rgba(192, 57, 43, 0.25);
+    }
+
+    /* PAP type badge */
+    .pap-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-family: var(--mono);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 1px 7px;
+      border-radius: var(--radius);
+      text-transform: uppercase;
+    }
+        /* Stratop — red */
+    .pap-stratop  { background: rgba(192,57,43,0.15);  color: #e05a4a;  border: 1px solid rgba(192,57,43,0.35); }
+        /* Peacetime — blue */
+    .pap-peacetime{ background: rgba(52,120,210,0.12); color: #6aabf7;  border: 1px solid rgba(52,120,210,0.30); }
+    /* Other named sig — green */
+    .pap-sig      { background: rgba(39,174,96,0.10);  color: #4ada8a;  border: 1px solid rgba(39,174,96,0.28); }
+    /* No PAP detected — grey */
+    .pap-none     { background: rgba(255,255,255,0.03); color: var(--text-4); border: 1px solid var(--border-e); }
+    
+  </style>
+</head>
+<body>
+  <!-- Concord ambient glows (matches main app) -->
+  <div class="concord-bg-glow concord-glow-main"></div>
+  <div class="concord-bg-glow concord-glow-secondary"></div>
+
+  <div class="window">
+
+    <!-- Border glow + corner accents -->
+    <div class="shell"></div>
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-bl"></div>
+    <div class="corner corner-br"></div>
+
+    <!-- Title bar -->
+    <div class="titlebar">
+      <div class="alert-badge">
+        <div class="alert-dot"></div>
+        Director Ping
+      </div>
+      <div class="titlebar-sig" id="sigLabel">Broadcast</div>
+      <button class="close-btn" id="closeBtn" title="Dismiss">✕</button>
+    </div>
+
+    <!-- Who pinged -->
+    <div class="from-banner">
+      <span class="from-label">From</span>
+      <span class="from-name" id="fromName">—</span>
+      <span class="from-time" id="eveTime">—</span>
+    </div>
+
+    <!-- Row 1: FC · Formup · Comms -->
+    <div class="fields-grid">
+      <div class="field">
+        <span class="field-label">FC Name</span>
+        <span class="field-value highlight" id="fcName">—</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Formup Location</span>
+        <span class="field-value highlight" id="formupLoc">—</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Comms</span>
+        <span class="field-value highlight" id="commsVal">—</span>
+      </div>
+    </div>
+
+    <!-- Row 2: PAP Type · Doctrine -->
+    <div class="fields-grid-2">
+      <div class="field">
+        <span class="field-label">PAP Type</span>
+        <span class="field-value" id="papType">—</span>
+      </div>
+      <div class="field">
+        <span class="field-label">Doctrine</span>
+        <span class="field-value" id="doctrine">—</span>
+      </div>
+    </div>
+
+    <!-- HURF / raw message -->
+    <div class="hurf-block">
+      <div class="hurf-label">Message</div>
+      <div class="hurf-text" id="hurfText">—</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-meta">
+        Target: <span class="accent" id="targetSig">—</span>
+        &nbsp;·&nbsp;
+        Sig: <span class="accent" id="sigName">—</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; -webkit-app-region: no-drag;">
+        <div class="countdown-ring" title="Auto-dismiss">
+          <svg width="26" height="26" viewBox="0 0 26 26">
+            <circle class="track" cx="13" cy="13" r="11"/>
+            <circle class="fill"  cx="13" cy="13" r="11" id="countdownArc"/>
+          </svg>
+          <div class="countdown-num" id="countdownNum">30</div>
+        </div>
+        <button class="dismiss-btn" id="dismissBtn">Dismiss</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const DISMISS_SECS  = 30;
+    const CIRCUMFERENCE = 2 * Math.PI * 11; // r=11 → 69.115
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function esc(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g,  '&amp;')
+        .replace(/</g,  '&lt;')
+        .replace(/>/g,  '&gt;')
+        .replace(/"/g,  '&quot;');
+    }
+
+    function clean(str) {
+      if (!str) return '';
+      // Strip invisible unicode + URLs
+      return str
+        .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD\uFFFD]/g, '')
+        .replace(/https?:\/\/\S+/gi, '')
+        .trim();
+    }
+
+    function truncate(str, max) {
+      if (!str) return '—';
+      const s = clean(str);
+      return s.length > max ? s.slice(0, max - 1) + '…' : (s || '—');
+    }
+
+    // ── Parser ───────────────────────────────────────────────────────────────
+    // Handles the standard Aether/GSOL bot format:
+    //   "FC Name: X Formup Location: Y PAP Type: Z Doctrine: W Comms: V --- ..."
+    // Returns an object with all parsed fields.
+    function parsePingBody(body) {
+      if (!body) return {};
+
+      const fields = {};
+
+      // Known labelled fields — order matters (longest match first)
+      const labels = [
+        { key: 'fc',       pattern: /FC\s*Name\s*:/i },
+        { key: 'formup',   pattern: /Formup\s*Location\s*:/i },
+        { key: 'comms',    pattern: /Comms?\s*:/i },
+        { key: 'papType',  pattern: /PAP\s*Type\s*:/i },
+        { key: 'doctrine', pattern: /Doctrine\s*:/i },
+        { key: 'target',   pattern: /Target(?:\s*Sig)?\s*:/i },
+        { key: 'sig',      pattern: /Sig\s*:/i },
+      ];
+
+      // Find each label's position in the body string
+      const hits = [];
+      for (const { key, pattern } of labels) {
+        const m = body.match(new RegExp(pattern.source, 'i'));
+        if (m) hits.push({ key, index: m.index, labelLen: m[0].length });
+      }
+      hits.sort((a, b) => a.index - b.index);
+
+      // Extract value = text between this label-end and the next label (or ---)
+      const sep = body.search(/\s*---\s*/);
+      for (let i = 0; i < hits.length; i++) {
+        const start = hits[i].index + hits[i].labelLen;
+        const end   = i + 1 < hits.length ? hits[i + 1].index : (sep > 0 ? sep : body.length);
+        fields[hits[i].key] = body.slice(start, end).trim();
+      }
+
+      // Hurf = text after '---'
+      if (sep > 0) {
+        fields.hurf = body.slice(sep).replace(/^-+\s*/, '').trim();
+      }
+
+      return fields;
+    }
+
+    // ── Populate UI ──────────────────────────────────────────────────────────
+    function populate(msg) {
+      // If the message already has parsed fields (from DB), use them directly.
+      // Otherwise parse from the raw body.
+      let fc      = msg.fc_name         || null;
+      let formup  = msg.formup_location  || null;
+      let comms   = msg.comms            || null;
+      let papType = msg.pap_type         || null;
+      let doctrine= msg.doctrine         || null;
+      let hurf    = msg.hurf             || null;
+      let target  = msg.target_sig       || null;
+      let sig     = msg.sig              || null;
+      let from    = msg.gsol_member      || msg.who_pinged
+                    || (msg.from ? msg.from.split('/').pop() : null)
+                    || '—';
+      let eveTime = msg.eve_timecode     || msg.ping_timestamp || null;
+
+      // If any key field is missing, try to parse the raw body
+      if (!fc && !formup && (msg.body || msg.hurf)) {
+        const parsed = parsePingBody(msg.body || msg.hurf || '');
+        fc       = fc       || parsed.fc       || null;
+        formup   = formup   || parsed.formup   || null;
+        comms    = comms    || parsed.comms    || null;
+        papType  = papType  || parsed.papType  || null;
+        doctrine = doctrine || parsed.doctrine || null;
+        hurf     = hurf     || parsed.hurf     || msg.body || null;
+        target   = target   || parsed.target   || null;
+        sig      = sig      || parsed.sig      || null;
+      }
+
+      // Title bar sig label
+      const sigLabel = sig ? sig.toUpperCase() + ' BROADCAST' : 'DIRECTOR BROADCAST';
+      document.getElementById('sigLabel').textContent  = sigLabel;
+
+      // From / time
+      document.getElementById('fromName').textContent  = esc(from);
+      document.getElementById('eveTime').textContent   = eveTime ? esc(eveTime) + ' EVE' : '';
+
+      // FC
+      document.getElementById('fcName').textContent    = truncate(fc, 28) !== '—' ? truncate(fc, 28) : '—';
+
+      // Formup
+      document.getElementById('formupLoc').textContent = truncate(formup, 28);
+
+      // Comms
+      document.getElementById('commsVal').textContent  = truncate(comms, 28);
+
+      // PAP type — badge colour
+      const papEl = document.getElementById('papType');
+      const papClean = clean(papType || '');
+      if (papClean) {
+        const cls = /stratop/i.test(papClean)   ? 'pap-stratop'
+                  : /peacetime/i.test(papClean) ? 'pap-peacetime'
+                  : 'pap-sig';
+        papEl.innerHTML = `<span class="pap-badge ${cls}">${esc(papClean)}</span>`;
+      } else {
+        papEl.innerHTML = '<span class="pap-badge pap-none">No PAP</span>';
+      }
+
+      // Doctrine
+      document.getElementById('doctrine').textContent  = truncate(doctrine, 36);
+      if (doctrine) document.getElementById('doctrine').title = clean(doctrine);
+
+      // Hurf
+      document.getElementById('hurfText').textContent  = hurf ? clean(hurf) : (msg.body ? clean(msg.body) : '—');
+
+      // Footer
+      document.getElementById('targetSig').textContent = truncate(target, 20);
+      document.getElementById('sigName').textContent   = truncate(sig, 20);
+    }
+
+    // ── Countdown ────────────────────────────────────────────────────────────
+    let secsLeft = DISMISS_SECS;
+    const arc    = document.getElementById('countdownArc');
+    const numEl  = document.getElementById('countdownNum');
+
+    arc.style.strokeDasharray  = CIRCUMFERENCE;
+    arc.style.strokeDashoffset = 0;
+
+    function tick() {
+      secsLeft--;
+      numEl.textContent = secsLeft;
+      arc.style.strokeDashoffset = CIRCUMFERENCE * (1 - secsLeft / DISMISS_SECS);
+      if (secsLeft <= 0) dismiss();
+    }
+
+    const timer = setInterval(tick, 1000);
+
+    // ── Dismiss / close ───────────────────────────────────────────────────────
+    // window.close() is the correct Electron call from a renderer.
+    // Both buttons must be -webkit-app-region: no-drag (set via CSS on footer
+    // wrapper and close-btn itself).
+    function dismiss() {
+      clearInterval(timer);
+      window.close();
+    }
+
+    document.getElementById('closeBtn').addEventListener('click',   dismiss);
+    document.getElementById('dismissBtn').addEventListener('click', dismiss);
+
+    // ── Receive data from main process ────────────────────────────────────────
+    // Populate with empty defaults immediately so the UI is never a blank panel.
+    // The real data arrives via the IPC event below and re-populates all fields.
+    populate({});
+
+    if (window.eveAPI && typeof window.eveAPI.on === 'function') {
+      window.eveAPI.on('ping-alert-data', (msg) => populate(msg));
+    }
+  </script>
+</body>
+</html>

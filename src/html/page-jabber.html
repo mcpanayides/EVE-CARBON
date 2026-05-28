@@ -1,0 +1,61 @@
+<!-- ── Jabber Page ────────────────────────────────────────────────────────── -->
+<div id="page-jabber" class="nav-page"
+     style="flex-direction:column; height:100%;">
+  <div class="page-header">
+    <h2>Jabber</h2>
+    <button class="close-page-btn" onclick="closePage('jabber')">✕</button>
+  </div>
+
+  <div class="page-content" style="display:flex; flex-direction:column; gap:18px;">
+
+    <!-- Status row -->
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
+    </div>
+
+    <!-- Summary row -->
+    <div class="ping-filter-row">
+      <span id="jabberSummary" class="asset-summary">No messages received yet.</span>
+    </div>
+
+    <!-- Messages table -->
+    <div class="asset-table-wrapper" style="padding:0;">
+      <table id="jabberTable" class="asset-table ping-table"
+             style="table-layout:auto; width:100%;">
+        <colgroup>
+          <col style="width:160px; min-width:140px;"><!-- EVE Time -->
+          <col style="min-width:80px;">               <!-- FC Name -->
+          <col style="min-width:80px;">               <!-- Formup -->
+          <col style="min-width:70px;">               <!-- PAP Type -->
+          <col style="min-width:100px;">              <!-- Doctrine -->
+          <col style="min-width:60px;">               <!-- SIG -->
+          <col style="min-width:80px;">               <!-- Comms -->
+          <col style="min-width:80px;">               <!-- Pinged By -->
+          <col style="min-width:60px;">               <!-- Target -->
+          <col style="min-width:120px;">              <!-- Message -->
+        </colgroup>
+        <thead>
+          <tr>
+            <th style="white-space:nowrap;">EVE Time</th>
+            <th>FC Name</th>
+            <th>Formup</th>
+            <th>PAP Type</th>
+            <th>Doctrine</th>
+            <th>SIG</th>
+            <th>Comms</th>
+            <th>Pinged By</th>
+            <th>Target</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="10" class="loading-row">
+              Auto-connecting to Jabber; saved settings are used from the settings menu.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

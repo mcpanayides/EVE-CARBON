@@ -1,0 +1,58 @@
+<!-- ── Characters Page ────────────────────────────────────────────────────── -->
+<div id="page-characters" class="nav-page active"
+     style="flex-direction:column; height:100%; min-width:0; overflow:hidden;">
+  <div class="page-header">
+    <div>
+      <h2>Characters</h2>
+      <div class="page-description">
+        The first character is selected by default on startup.
+        Drag cards to reorder your character list.
+      </div>
+    </div>
+    <button class="close-page-btn" onclick="closePage('characters')">✕</button>
+  </div>
+
+  <!-- Selected character banner -->
+  <div id="selectedCharacterSection"
+       style="display:none; padding:20px; border-bottom:1px solid var(--border); background:var(--bg-card);">
+    <div class="selected-character-card">
+      <div style="display:flex; gap:16px; align-items:center;">
+        <img id="selectedCharPortrait" src="" alt=""
+             style="width:64px; height:64px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;" />
+        <div style="flex:1;">
+          <div style="font-size:11px; color:var(--text-2); letter-spacing:0.1em; margin-bottom:4px; font-weight:600;">
+            SELECTED CHARACTER
+          </div>
+          <div id="selectedCharName"
+               style="font-size:18px; font-weight:600; color:var(--text-1); margin-bottom:4px;">
+            No Character Selected
+          </div>
+          <div id="selectedCharMeta"
+               style="font-size:10px; color:var(--text-3); font-family:var(--mono);"></div>
+        </div>
+        <button class="char-action-btn" onclick="clearSelectedCharacter()" title="Clear selection">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search + add -->
+  <div class="char-filter-row"
+       style="padding:15px; border-bottom:1px solid var(--border); display:flex;
+              flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
+    <input type="text" id="charSearch" class="field-input"
+           style="flex:1; min-width:200px; font-size:14px; padding:10px;"
+           placeholder="Search characters..." />
+    <button class="add-character-btn" id="addCharacterNavBtn" title="Add character">
+      + ADD CHARACTER
+    </button>
+  </div>
+
+  <!-- Accounts grid -->
+  <div id="accountsListNav" class="accounts-grid">
+    <div class="empty-state" style="width:100%;">
+      <div class="empty-icon">⬡</div>
+      <div class="empty-title">NO CHARACTERS</div>
+      <div class="empty-sub">Click + ADD CHARACTER to login with EVE SSO.</div>
+    </div>
+  </div>
+</div>

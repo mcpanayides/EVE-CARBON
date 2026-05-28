@@ -262,16 +262,6 @@ const PAGE_HTML = {
                   background:var(--bg-card); flex-shrink:0;">
         <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
         <span style="flex:1;"></span>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
-          <input type="checkbox" id="jabberDirectorOnly" checked
-                 style="accent-color:var(--accent);"/>
-          Director only
-        </label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2); cursor:pointer;">
-          <input type="checkbox" id="jabberBroadcastOnly" checked
-                 style="accent-color:var(--accent);"/>
-          Broadcasts only
-        </label>
         <span id="jabberSummary" class="asset-summary" style="white-space:nowrap;">0 pings</span>
       </div>
 
@@ -286,6 +276,7 @@ const PAGE_HTML = {
             <col style="width:130px;"/>
             <col style="width:90px;"/>
             <col style="width:110px;"/>
+            <col style="width:110px;"/>
             <col style="width:80px;"/>
             <col style=""/>
           </colgroup>
@@ -297,6 +288,7 @@ const PAGE_HTML = {
               <th>PAP Type</th>
               <th>Doctrine</th>
               <th>Sig</th>
+              <th>Comms</th>
               <th>Pinged By</th>
               <th>Target</th>
               <th>Message</th>
@@ -304,7 +296,7 @@ const PAGE_HTML = {
           </thead>
           <tbody>
             <tr>
-              <td colspan="9" class="loading-row">Loading message history&#x2026;</td>
+              <td colspan="10" class="loading-row">Loading message history&#x2026;</td>
             </tr>
           </tbody>
         </table>
@@ -348,7 +340,7 @@ async function loadAllPages() {
   //    Falls back to a minimal placeholder if the file cannot be loaded so the
   //    app still starts correctly in unexpected environments.
   try {
-    const res  = await fetch('page-assets.html');
+    const res  = await fetch('./html/page-assets.html');
     const html = await res.text();
     const tmp  = document.createElement('div');
     tmp.innerHTML = html;

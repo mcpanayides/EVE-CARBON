@@ -51,12 +51,6 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
 - **macOS:** `npm run build-mac`
 - **Linux:** `npm run build-linux`
 
-## No icon?
-The build requires `assets/icon.ico` for Windows. If you don't have one, either:
-- Remove the `"icon"` lines from `package.json`, or
-- Drop any `.ico` file into the `assets/` folder and name it `icon.ico`
-
-You can convert a PNG to ICO at https://convertio.co/png-ico/
 
 ## Notes
 - All data comes from the public EVE ESI API — no API key or login needed
@@ -69,6 +63,8 @@ You can convert a PNG to ICO at https://convertio.co/png-ico/
    - 🤝Adam4EVE  - Station Name resolutions
    - 🤝EVE Rift for making an incredible app, and giving me many ideas and tonnes of inspiration 
    - 🤝EVE Online [Fenris Creations] for making an incredible game, and giving the power to the people to build all the amazing tools
+   - 🩷Built with blood sweat tears 😭😭, and lots of Claude code...
+
 
 
 

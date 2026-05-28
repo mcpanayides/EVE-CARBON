@@ -1,7 +1,7 @@
 {
   "name": "eve-carbon",
   "productName": "EVE Carbon",
-  "version": "1.0.0",
+  "version": "1.0",
   "author": "Mia Christina Panayides",
   "description": "This is a desktop application built with Electron that calculates the cost of manufacturing items in EVE Online based on their blueprints and market prices.",
   "main": "main.js",
@@ -16,6 +16,9 @@
   "build": {
     "appId": "com.eve.carbon",
     "productName": "EVE-Carbon",
+    "directories": {
+      "buildResources": "assets"
+    },
     "icon": "assets/icon.ico",
     "extraResources": [
       {
@@ -51,11 +54,11 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.ico"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.ico"
     },
     "files": [
       "**/*",

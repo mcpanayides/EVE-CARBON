@@ -1,0 +1,58 @@
+<!-- ── Dashboard Page ─────────────────────────────────────────────────────── -->
+<div id="page-dashboard" class="nav-page"
+     style="flex-direction:column; height:100%; min-width:0; overflow:hidden;">
+  <div class="page-header">
+    <div>
+      <h2>Dashboard</h2>
+      <div class="page-description">
+        Command center — net worth, industry jobs, and character status.
+      </div>
+    </div>
+    <button class="close-page-btn" onclick="closePage('dashboard')">&#x2715;</button>
+  </div>
+
+  <div class="page-content"
+       style="display:flex; flex-direction:column; gap:16px; padding:16px; overflow-y:auto;">
+
+    <!-- ── Welcome banner ────────────────────────────────────────────────────
+         Replaced at runtime by renderBanner() in dashboard.js.
+         The skeleton below matches the live layout so there is no layout
+         shift while the first data load is in flight.
+    ──────────────────────────────────────────────────────────────────────── -->
+    <div id="dashboardWelcomeBanner" class="dashboard-welcome-banner">
+      <!-- portrait -->
+      <div class="banner-portrait-col">
+        <div class="dashboard-portrait"
+             style="background:var(--bg-2);border-radius:4px;width:96px;height:96px;"></div>
+      </div>
+      <!-- identity + stats -->
+      <div class="banner-main-col">
+        <div class="banner-identity-col">
+          <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+          <div id="dashboardMainCharName" class="dashboard-welcome-name">Loading…</div>
+        </div>
+      </div>
+      <!-- ship (empty until loaded) -->
+      <div class="banner-ship-col banner-ship-col--empty"></div>
+    </div>
+
+    <!-- ── Main grid ─────────────────────────────────────────────────────── -->
+    <div id="dashboardContent" class="dashboard-grid" style="position:relative;">
+
+      <div class="dashboard-panel" id="dashboardSummaryPanel">
+        <div class="dashboard-panel-title">&#x2B21; NET WORTH &amp; WEALTH GROWTH</div>
+        <div id="dashboardNetworthSummary">
+          <div class="loading-row">Loading…</div>
+        </div>
+      </div>
+
+      <div class="dashboard-panel" id="dashboardJobsPanel">
+        <div class="dashboard-panel-title">&#x25C8; FINISHED INDUSTRY JOBS</div>
+        <div id="dashboardJobsTable">
+          <div class="loading-row">Loading jobs…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

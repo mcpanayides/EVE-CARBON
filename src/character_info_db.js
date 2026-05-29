@@ -29,6 +29,20 @@ async function initCharacterDb(dataDir) {
   await charDb.run('PRAGMA journal_mode=WAL');
   await charDb.run('PRAGMA foreign_keys=ON');
 
+  // Global migration: add pins_json to every existing pi_colonies table.
+  // initCharacterTables migrations are per-character (run on first use),
+  // so characters added before this column existed would not receive it
+  // without this pass over all existing tables.
+  const piTables = await charDb.all(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_pi_colonies'"
+  );
+  for (const { name } of piTables) {
+    try {
+      await charDb.run(`ALTER TABLE ${name} ADD COLUMN pins_json TEXT`);
+      console.log(`[CharDB] Migration applied: ${name}.pins_json`);
+    } catch (_) { /* column already exists — ignore */ }
+  }
+
   console.log(`[CharDB] Opened: ${dbFile}`);
   return charDb;
 }
@@ -106,15 +120,18 @@ async function ensureCharacterTables(characterId) {
 
     -- Planetary Interaction colonies
     CREATE TABLE IF NOT EXISTS ${p}_pi_colonies (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      planet_id        INTEGER,
-      planet_type      TEXT,
-      solar_system_id  INTEGER,
-      solar_system_name TEXT,
-      upgrade_level    INTEGER,
-      num_pins         INTEGER,
-      last_update      INTEGER,
-      synced_at        INTEGER
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      planet_id            INTEGER,
+      planet_type          TEXT,
+      solar_system_id      INTEGER,
+      solar_system_name    TEXT,
+      upgrade_level        INTEGER,
+      num_pins             INTEGER,
+      last_update          INTEGER,
+      extractor_expires_at INTEGER,  -- ms epoch of soonest active extractor head expiry (NULL = idle)
+      storage_json         TEXT,     -- JSON: [{pin_id,label,capacity_m3,used_m3,fill_pct,contents[]}]
+      pins_json            TEXT,     -- JSON: full ESI pins array for View All panel
+      synced_at            INTEGER
     );
 
     -- Assets (full inventory)
@@ -204,6 +221,9 @@ async function ensureCharacterTables(characterId) {
     [`ALTER TABLE ${p}_assets ADD COLUMN volume REAL`, `${p}_assets.volume`],
     [`ALTER TABLE ${p}_assets ADD COLUMN owner_id INTEGER`, `${p}_assets.owner_id`],
     [`ALTER TABLE ${p}_assets ADD COLUMN owner_name TEXT`, `${p}_assets.owner_name`],
+    [`ALTER TABLE ${p}_pi_colonies ADD COLUMN extractor_expires_at INTEGER`, `${p}_pi_colonies.extractor_expires_at`],
+    [`ALTER TABLE ${p}_pi_colonies ADD COLUMN storage_json TEXT`,            `${p}_pi_colonies.storage_json`],
+    [`ALTER TABLE ${p}_pi_colonies ADD COLUMN pins_json TEXT`,               `${p}_pi_colonies.pins_json`],
   ];
   for (const [sql, label] of migrateColumns) {
     try {
@@ -335,16 +355,19 @@ async function replacePiColonies(characterId, colonies) {
     await db.run(
       `INSERT INTO ${p}_pi_colonies
          (planet_id, planet_type, solar_system_id, solar_system_name,
-          upgrade_level, num_pins, last_update, synced_at)
-       VALUES (?,?,?,?,?,?,?,?)`,
+          upgrade_level, num_pins, last_update, extractor_expires_at, storage_json, pins_json, synced_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [
-        col.planet_id          || null,
-        col.planet_type        || null,
-        col.solar_system_id    || null,
-        col.solar_system_name  || null,
-        col.upgrade_level      || 0,
-        col.num_pins           || 0,
-        col.last_update        || null,
+        col.planet_id            || null,
+        col.planet_type          || null,
+        col.solar_system_id      || null,
+        col.solar_system_name    || null,
+        col.upgrade_level        || 0,
+        col.num_pins             || 0,
+        col.last_update          || null,
+        col.extractor_expires_at || null,
+        col.storage_json         || null,
+        col.pins_json            || null,
         now,
       ]
     );

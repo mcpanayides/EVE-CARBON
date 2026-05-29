@@ -15,6 +15,7 @@ const { registerAssetHandlers }     = require('./src/ipc/assets_ipc');
 const { registerStationHandlers }   = require('./src/ipc/station_ipc');
 const { registerConfigHandlers }    = require('./src/ipc/config_ipc');
 const { registerPingFileHandlers }  = require('./src/ipc/ping_ipc');
+const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
 
 // Load environment variables from .env file in both development and production.
 const envPath = app.isPackaged
@@ -277,6 +278,14 @@ app.whenReady().then(async () => {
   registerPingFileHandlers({
     ipcHandle,
     watcherState: pingWatcherState,
+  });
+  registerPIHandlers({
+    ipcHandle,
+    getValidToken,
+    httpGet,
+    resolveNames,
+    charInfoDb,
+    getSdeDb: () => sdeDb,
   });
   // Jabber must register AFTER initPaths() so configPath is set, and AFTER
   // registerConfigHandlers() so app-get-config is available when jabber_ipc
@@ -683,40 +692,11 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
  
   // 6. Planetary Interaction
   try {
-    report('pi', 'Fetching PI colonies…');
-    const colonies = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/planets/?datasource=tranquility`, authHdr);
-    if (Array.isArray(colonies)) {
-      const sysIds   = [...new Set(colonies.map(c => c.solar_system_id).filter(Boolean))];
-      const sysNames = sysIds.length ? await resolveNames(sysIds) : {};
-      const piData   = await Promise.all(colonies.map(async c => {
-        let extractor_expires_at = null;
-        try {
-          const detail = await httpGet(
-            `${ESI_BASE}/v3/characters/${characterId}/planets/${c.planet_id}/?datasource=tranquility`,
-            authHdr
-          );
-          const now      = Date.now();
-          const expiries = (detail.pins || [])
-            .filter(p => p.expiry_time)
-            .map(p => new Date(p.expiry_time).getTime())
-            .filter(t => t > now);
-          extractor_expires_at = expiries.length ? Math.min(...expiries) : null;
-        } catch { /* leave null — detail call failed, status will show idle */ }
-        return {
-          planet_id:            c.planet_id,
-          planet_type:          c.planet_type || null,
-          solar_system_id:      c.solar_system_id,
-          solar_system_name:    sysNames[c.solar_system_id] || null,
-          upgrade_level:        c.upgrade_level || 0,
-          num_pins:             c.num_pins || 0,
-          last_update:          c.last_update ? new Date(c.last_update).getTime() : null,
-          extractor_expires_at,
-        };
-      }));
-      await charInfoDb.replacePiColonies(characterId, piData);
-      summary.steps.pi = `${piData.length} colonies`;
-      report('pi', `✓ ${piData.length} PI colonies`);
-    }
+    const count = await syncPIForCharacter(
+      { characterId, accessToken: token, httpGet, resolveNames, charInfoDb, getSdeDb: () => sdeDb },
+      report
+    );
+    summary.steps.pi = `${count} colonies`;
   } catch (e) {
     summary.steps.pi = `error: ${e.message}`;
     report('pi', `✗ ${e.message}`);
@@ -1046,40 +1026,11 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
  
   // 6. Planetary Interaction
   try {
-    report('pi', 'Fetching PI colonies…');
-    const colonies = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/planets/?datasource=tranquility`, authHdr);
-    if (Array.isArray(colonies)) {
-      const sysIds   = [...new Set(colonies.map(c => c.solar_system_id).filter(Boolean))];
-      const sysNames = sysIds.length ? await resolveNames(sysIds) : {};
-      const piData   = await Promise.all(colonies.map(async c => {
-        let extractor_expires_at = null;
-        try {
-          const detail = await httpGet(
-            `${ESI_BASE}/v3/characters/${characterId}/planets/${c.planet_id}/?datasource=tranquility`,
-            authHdr
-          );
-          const now      = Date.now();
-          const expiries = (detail.pins || [])
-            .filter(p => p.expiry_time)
-            .map(p => new Date(p.expiry_time).getTime())
-            .filter(t => t > now);
-          extractor_expires_at = expiries.length ? Math.min(...expiries) : null;
-        } catch { /* leave null — detail call failed, status will show idle */ }
-        return {
-          planet_id:            c.planet_id,
-          planet_type:          c.planet_type || null,
-          solar_system_id:      c.solar_system_id,
-          solar_system_name:    sysNames[c.solar_system_id] || null,
-          upgrade_level:        c.upgrade_level || 0,
-          num_pins:             c.num_pins || 0,
-          last_update:          c.last_update ? new Date(c.last_update).getTime() : null,
-          extractor_expires_at,
-        };
-      }));
-      await charInfoDb.replacePiColonies(characterId, piData);
-      summary.steps.pi = `${piData.length} colonies`;
-      report('pi', `✓ ${piData.length} PI colonies`);
-    }
+    const count = await syncPIForCharacter(
+      { characterId, accessToken: token, httpGet, resolveNames, charInfoDb, getSdeDb: () => sdeDb },
+      report
+    );
+    summary.steps.pi = `${count} colonies`;
   } catch (e) { summary.steps.pi = `error: ${e.message}`; report('pi', `✗ ${e.message}`); }
  
   // 7. Blueprints (full paginated) — kept in core; small payload, fast

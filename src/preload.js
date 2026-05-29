@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Aliases used by dashboard.js, characters.js, wallets, and PI
   getCharacterData:    (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
   getCharacterAssets:  (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
-  getPIColonies:       (characterId) => ipcRenderer.invoke('get-pi-colonies', characterId),
+  getPIColonies:       (characterId) => ipcRenderer.invoke('get-pi-colonies', { characterId }),
+  syncPI:              (characterId) => ipcRenderer.invoke('sync-pi',        { characterId }),
 
   // Wallet journal, transactions and loyalty points (from CharDB, synced every 30 min)
   getWalletJournal:       (charId) => ipcRenderer.invoke('get-wallet-journal', charId),

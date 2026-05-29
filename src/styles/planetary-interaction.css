@@ -2,7 +2,7 @@
    planetary-interaction.css — PI Dashboard styling
    ══════════════════════════════════════════════════════════════════ */
 
-/* ── Outer wrapper injected into #piContainer ───────────────────── */
+/* ── Outer wrapper ──────────────────────────────────────────────── */
 .pi-container {
   padding: 16px;
   display: flex;
@@ -28,7 +28,34 @@
   font-family: var(--mono);
 }
 
-/* ── Filter bar — single horizontal row ─────────────────────────── */
+/* ── Sync button ────────────────────────────────────────────────── */
+.pi-sync-btn {
+  flex-shrink:    0;
+  background:     transparent;
+  border:         1px solid var(--border);
+  border-radius:  var(--radius);
+  color:          var(--text-2);
+  font-size:      10px;
+  font-family:    var(--mono);
+  letter-spacing: 0.06em;
+  padding:        3px 10px;
+  cursor:         pointer;
+  transition:     background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space:    nowrap;
+}
+
+.pi-sync-btn:hover {
+  background:    var(--accent-dim);
+  color:         var(--accent);
+  border-color:  var(--accent);
+}
+
+.pi-sync-btn:disabled {
+  opacity:    0.45;
+  cursor:     not-allowed;
+}
+
+/* ── Filter bar ─────────────────────────────────────────────────── */
 .pi-filter-bar {
   display: flex;
   flex-direction: row;
@@ -45,7 +72,6 @@
 .pi-filter-item {
   display: flex;
   align-items: center;
-  gap: 0;
   flex: 1;
   height: 100%;
   padding: 0 10px;
@@ -75,7 +101,6 @@
   align-items: center;
 }
 
-/* Override base.css !important rules for these specific selects */
 .pi-filter-bar select.pi-filter-select,
 .pi-filter-bar select.pi-filter-select:focus {
   background: transparent !important;
@@ -98,7 +123,6 @@
   cursor: not-allowed;
 }
 
-/* Hover tint on the whole filter item */
 .pi-filter-item:focus-within {
   background: rgba(255,255,255,0.025);
 }
@@ -124,7 +148,6 @@
   color: var(--accent);
 }
 
-/* Active filter badge */
 .pi-filter-active-badge {
   font-size: 9px;
   font-family: var(--mono);
@@ -187,212 +210,338 @@
   gap: 12px;
 }
 
-/* ── Planet card ────────────────────────────────────────────────── */
+/* ── Card shell ─────────────────────────────────────────────────── */
 .pi-card {
-  background: var(--bg-card-deep);
-  border: 1px solid var(--border-e);
-  border-radius: var(--radius);
-  padding: 14px;
-  display: flex;
+  background:     var(--surface-1, var(--bg-card-deep));
+  border:         1px solid var(--border-1, var(--border-e));
+  border-radius:  6px;
+  overflow:       hidden;
+  display:        flex;
   flex-direction: column;
-  gap: 12px;
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  gap:            0;
+  transition:     border-color 0.15s ease, transform 0.18s ease;
 }
 
 .pi-card:hover {
-  border-color: var(--accent-30);
+  border-color: var(--border-2, var(--accent-30));
   transform: translateY(-2px);
 }
 
-.pi-card-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* ── Top row: [icon] [body] [meta] ──────────────────────────────── */
+.pi-card-row {
+  display:     flex;
+  align-items: flex-start;
+  gap:         10px;
+  padding:     10px 12px 8px;
 }
 
-/* Planet icon + owner portrait badge */
-.pi-card-owner {
-  position: relative;
+/* ── Icon block ─────────────────────────────────────────────────── */
+.pi-card-icon-wrap {
+  position:    relative;
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width:       54px;
+  height:      54px;
 }
 
-.pi-planet-render {
-  width: 56px;
-  height: 56px;
+.pi-card-planet-img {
+  width:         54px;
+  height:        54px;
+  border-radius: 6px;
+  object-fit:    cover;
+  display:       block;
+  background:    var(--surface-2, var(--bg-deep));
+}
+
+.pi-card-portrait-pip {
+  position:      absolute;
+  bottom:        -4px;
+  right:         -4px;
+  width:         22px;
+  height:        22px;
   border-radius: 50%;
-  border: 1px solid var(--border-b);
-  object-fit: cover;
-  display: block;
+  border:        2px solid var(--surface-1, var(--bg-card-deep));
+  object-fit:    cover;
+  background:    var(--surface-2, var(--bg-deep));
 }
 
-.pi-owner-portrait {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-card-deep);
-  object-fit: cover;
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
+/* ── Body ───────────────────────────────────────────────────────── */
+.pi-card-body {
+  flex:           1;
+  min-width:      0;
+  display:        flex;
+  flex-direction: column;
+  gap:            2px;
 }
 
-.pi-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.pi-planet-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 3px;
-  white-space: nowrap;
-  overflow: hidden;
+.pi-card-name {
+  font-size:     13px;
+  font-weight:   600;
+  color:         var(--text-1);
+  white-space:   nowrap;
+  overflow:      hidden;
   text-overflow: ellipsis;
+  line-height:   1.3;
 }
 
-.pi-planet-type {
-  font-size: 10px;
-  color: var(--text-3);
-  letter-spacing: 0.12em;
+.pi-card-type {
+  font-size:      10px;
+  color:          var(--text-3);
   text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height:    1.2;
+  margin-bottom:  3px;
+}
+
+/* ── Inline stat pills ──────────────────────────────────────────── */
+.pi-inline-stats {
+  display:       flex;
+  align-items:   center;
+  gap:           4px;
+  margin-bottom: 5px;
+}
+
+.pi-inline-stat {
+  font-size:   10px;
+  color:       var(--text-2);
   font-family: var(--mono);
 }
 
-.pi-card-badges {
-  display: flex;
+.pi-inline-sep {
+  font-size: 10px;
+  color:     var(--text-3);
+}
+
+/* ── Meta column ────────────────────────────────────────────────── */
+.pi-card-meta {
+  flex-shrink:    0;
+  display:        flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 5px;
-  flex-shrink: 0;
+  align-items:    flex-end;
+  gap:            4px;
+  padding-top:    1px;
 }
 
 .pi-cc-badge {
-  background: var(--accent-dim);
-  color: var(--accent);
-  font-size: 10px;
-  font-family: var(--mono);
-  padding: 3px 7px;
-  border-radius: var(--radius);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size:      10px;
+  font-weight:    700;
+  font-family:    var(--mono);
+  letter-spacing: 0.06em;
+  color:          var(--accent, #e2c97e);
+  border:         1px solid var(--accent, #e2c97e);
+  border-radius:  3px;
+  padding:        1px 6px;
+  white-space:    nowrap;
+  text-transform: uppercase;
 }
 
-/* Jump distance badge */
+/* ── Jump badge ─────────────────────────────────────────────────── */
 .pi-jump-badge {
-  font-size: 10px;
-  font-family: var(--mono);
-  font-weight: 600;
-  padding: 3px 7px;
-  border-radius: var(--radius);
+  font-size:      10px;
+  font-family:    var(--mono);
+  font-weight:    600;
+  padding:        3px 7px;
+  border-radius:  var(--radius);
   letter-spacing: 0.04em;
 }
 
-.pi-jump-badge.same {
-  background: rgba(39, 174, 96, 0.12);
-  color: var(--success);
-  border: 1px solid rgba(39, 174, 96, 0.25);
+.pi-jump-badge.same       { background: rgba(39,174,96,0.12);  color: var(--success); border: 1px solid rgba(39,174,96,0.25); }
+.pi-jump-badge.near-green { background: rgba(39,174,96,0.10);  color: var(--success); border: 1px solid rgba(39,174,96,0.22); }
+.pi-jump-badge.near-yellow{ background: rgba(230,126,34,0.10); color: var(--warning); border: 1px solid rgba(230,126,34,0.25); }
+.pi-jump-badge.far-red    { background: rgba(192,57,43,0.10);  color: var(--danger);  border: 1px solid rgba(192,57,43,0.25); }
+.pi-jump-badge.far        { background: transparent; color: var(--text-3); border: 1px solid var(--border); }
+
+/* ── Storage bars ───────────────────────────────────────────────── */
+.pi-bars-block {
+  display:        flex;
+  flex-direction: column;
+  gap:            4px;
+  margin-top:     2px;
 }
 
-.pi-jump-badge.near-green {
-  background: rgba(39, 174, 96, 0.10);
-  color: var(--success);
-  border: 1px solid rgba(39, 174, 96, 0.22);
+.pi-bar-row {
+  display:               grid;
+  grid-template-columns: 18px 1fr 30px;
+  align-items:           center;
+  gap:                   5px;
 }
 
-.pi-jump-badge.near-yellow {
-  background: rgba(230, 126, 34, 0.10);
-  color: var(--warning);
-  border: 1px solid rgba(230, 126, 34, 0.25);
+.pi-bar-label {
+  font-size:      9px;
+  font-weight:    700;
+  font-family:    var(--mono);
+  color:          var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.pi-jump-badge.far-red {
-  background: rgba(192, 57, 43, 0.10);
-  color: var(--danger);
-  border: 1px solid rgba(192, 57, 43, 0.25);
+.pi-bar-track {
+  height:        7px;
+  background:    rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow:      hidden;
 }
 
-.pi-jump-badge.far {
-  background: transparent;
-  color: var(--text-3);
-  border: 1px solid var(--border);
+.pi-bar-fill {
+  height:        100%;
+  border-radius: 4px;
+  transition:    width 0.3s ease;
 }
 
-/* ── Stats grid ─────────────────────────────────────────────────── */
-.pi-stats-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  background: rgba(255,255,255,0.02);
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-b);
-}
+.pi-bar-fill.green    { background: #4caf50; }
+.pi-bar-fill.blue     { background: #42a5f5; }
+.pi-bar-fill.high     { background: var(--warning, #ff9800); }
+.pi-bar-fill.critical { background: var(--danger,  #f44336); }
 
-.pi-stat-box   { display: flex; flex-direction: column; gap: 3px; }
-.pi-stat-label { font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.12em; font-family: var(--mono); }
-.pi-stat-value { font-size: 12px; color: var(--text-1); font-family: var(--mono); }
-
-/* ── Status indicator ───────────────────────────────────────────── */
-.pi-status {
-  font-size: 10px;
-  font-weight: 600;
+.pi-bar-pct {
+  font-size:   9px;
   font-family: var(--mono);
-  letter-spacing: 0.08em;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
+  color:       var(--text-3);
+  text-align:  right;
 }
 
-.pi-status::before {
-  content: '';
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+/* ── View All Pins toggle ───────────────────────────────────────── */
+.pi-pins-toggle {
+  display:        flex;
+  align-items:    center;
+  gap:            5px;
+  width:          100%;
+  background:     transparent;
+  border:         none;
+  border-top:     1px solid var(--border-b, rgba(255,255,255,0.06));
+  color:          var(--text-3);
+  font-size:      10px;
+  font-family:    var(--mono);
+  letter-spacing: 0.06em;
+  padding:        5px 12px;
+  cursor:         pointer;
+  text-align:     left;
+  transition:     background 0.12s ease, color 0.12s ease;
+}
+
+.pi-pins-toggle::before {
+  content:     '▶';
+  font-size:   8px;
+  transition:  transform 0.15s ease;
   flex-shrink: 0;
 }
 
-/* ── Active / Extracting — green ────────────────────────────────── */
+.pi-pins-toggle.open::before { transform: rotate(90deg); }
+
+.pi-pins-toggle:hover {
+  background: rgba(255,255,255,0.03);
+  color:      var(--text-2);
+}
+
+/* ── Pins detail panel ──────────────────────────────────────────── */
+.pi-pins-detail {
+  border-top:  1px solid var(--border-b, rgba(255,255,255,0.06));
+  padding:     6px 10px 8px;
+  background:  rgba(0,0,0,0.15);
+}
+
+.pi-pins-list {
+  display:        flex;
+  flex-direction: column;
+  gap:            3px;
+}
+
+.pi-pin-row {
+  display:     flex;
+  align-items: center;
+  gap:         6px;
+  min-height:  22px;
+}
+
+.pi-pin-icon {
+  width:        20px;
+  height:       20px;
+  border-radius: 3px;
+  object-fit:   cover;
+  flex-shrink:  0;
+  background:   rgba(255,255,255,0.04);
+}
+
+.pi-pin-name {
+  flex:          1;
+  font-size:     10px;
+  color:         var(--text-2);
+  font-family:   var(--mono);
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+
+.pi-pin-expiry {
+  font-size:   9px;
+  font-family: var(--mono);
+  color:       #4ada8a;
+  flex-shrink: 0;
+}
+
+.pi-pin-count {
+  font-size:   9px;
+  font-family: var(--mono);
+  color:       var(--text-3);
+  flex-shrink: 0;
+  min-width:   24px;
+  text-align:  right;
+}
+
+/* ── Status pill ────────────────────────────────────────────────── */
+.pi-status {
+  margin:         0;
+  border-top:     1px solid var(--border-1, var(--border-b));
+  border-radius:  0;
+  padding:        5px 12px;
+  font-size:      11px;
+  font-weight:    600;
+  font-family:    var(--mono);
+  letter-spacing: 0.08em;
+  display:        flex;
+  align-items:    center;
+  gap:            8px;
+}
+
+.pi-status::before {
+  content:       '';
+  display:       inline-block;
+  width:         7px;
+  height:        7px;
+  border-radius: 50%;
+  flex-shrink:   0;
+}
+
 .pi-status.active {
-  color: #4ada8a;
-  background: rgba(39, 174, 96, 0.10);
-  border-color: rgba(39, 174, 96, 0.28);
+  color:        #4ada8a;
+  background:   rgba(39,174,96,0.10);
+  border-color: rgba(39,174,96,0.28);
 }
 .pi-status.active::before {
   background: #4ada8a;
   box-shadow: 0 0 6px #4ada8a, 0 0 2px #4ada8a;
-  animation: pi-pulse 2s ease-in-out infinite;
+  animation:  pi-pulse 2s ease-in-out infinite;
 }
 
-/* ── Warning / Storage full — yellow ────────────────────────────── */
 .pi-status.warning {
-  color: #e6a817;
-  background: rgba(230, 168, 23, 0.10);
-  border-color: rgba(230, 168, 23, 0.28);
+  color:        #e6a817;
+  background:   rgba(230,168,23,0.10);
+  border-color: rgba(230,168,23,0.28);
 }
 .pi-status.warning::before {
   background: #e6a817;
   box-shadow: 0 0 6px #e6a817;
 }
 
-/* ── Idle / Waiting — grey ──────────────────────────────────────── */
 .pi-status.idle {
-  color: var(--text-3);
-  background: rgba(255, 255, 255, 0.03);
+  color:        var(--text-3);
+  background:   rgba(255,255,255,0.03);
   border-color: var(--border-b);
 }
 .pi-status.idle::before {
   background: var(--text-3);
-  opacity: 0.5;
+  opacity:    0.5;
 }
 
-/* Pulse animation for active extractors */
 @keyframes pi-pulse {
   0%, 100% { opacity: 1;    box-shadow: 0 0 6px #4ada8a, 0 0 2px #4ada8a; }
   50%       { opacity: 0.55; box-shadow: 0 0 3px #4ada8a; }

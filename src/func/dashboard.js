@@ -626,13 +626,15 @@ async function loadDashboard() {
         const finished = job.end_date || job.completed_date || null;
         const finishedStr = finished ? new Date(finished).toLocaleString() : '—';
 
+        const itemIcon64 = `https://images.evetech.net/types/${itemTypeId}/icon?size=64`;
+        const itemIcon32 = `https://images.evetech.net/types/${itemTypeId}/icon?size=32`;
         const itemIconHtml = itemTypeId ? `<img
-          src="https://images.evetech.net/types/${itemTypeId}/icon?size=32"
+          src="${itemIcon64}"
           alt="${escHtml(itemName)}"
           style="width:22px;height:22px;border-radius:3px;vertical-align:middle;
                  margin-right:6px;object-fit:cover;flex-shrink:0;
                  border:1px solid var(--border);background:var(--bg-2);"
-          onerror="this.style.display='none'"/>` : '';
+          onerror="if(this.src!=='${itemIcon32}'){this.src='${itemIcon32}';}else{this.style.display='none';}"/>` : '';
 
         const charPortraitHtml = `<img
           src="https://images.evetech.net/characters/${job.character_id}/portrait?size=32"

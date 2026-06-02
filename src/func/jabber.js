@@ -579,6 +579,7 @@ async function populateJabberSettings() {
     jid:          jabber.jid          || '',
     password:     jabber.password     || '',
     directorOnly: typeof jabber.directorOnly === 'boolean' ? jabber.directorOnly : true,
+    pack:         jabber.pack         || 'gsf_sigs',
   };
 
   const serviceInput  = document.getElementById('jabberService');
@@ -590,6 +591,8 @@ async function populateJabberSettings() {
   if (jidInput)      jidInput.value        = jabberSettings.jid;
   if (passwordInput) passwordInput.value   = jabberSettings.password;
   if (directorCheck) directorCheck.checked = jabberSettings.directorOnly;
+
+  await populatePackDropdown(jabberSettings.pack);
 }
 
 function gatherJabberSettings() {
@@ -598,7 +601,61 @@ function gatherJabberSettings() {
     jid:          document.getElementById('jabberJid')?.value.trim()       || '',
     password:     document.getElementById('jabberPassword')?.value         || '',
     directorOnly: document.getElementById('jabberDirectorOnly')?.checked   ?? true,
+    pack:         document.getElementById('jabberPackSelect')?.value       || 'gsf_sigs',
   };
+}
+
+// ── Pack dropdown helpers ─────────────────────────────────────────────────────
+
+let _cachedPacks = [];
+
+async function populatePackDropdown(selectedPackId) {
+  const select = document.getElementById('jabberPackSelect');
+  if (!select) return;
+
+  try {
+    _cachedPacks = await window.eveAPI.getPacks();
+    select.innerHTML = '';
+
+    for (const pack of _cachedPacks) {
+      const opt = document.createElement('option');
+      opt.value = pack.id;
+      opt.textContent = pack.alliance && pack.alliance !== pack.name
+        ? `${pack.name} — ${pack.alliance}`
+        : pack.name;
+      if (pack.id === selectedPackId) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    // If nothing matched the saved id, default to first option
+    if (!_cachedPacks.find(p => p.id === selectedPackId) && _cachedPacks.length) {
+      select.value = _cachedPacks[0].id;
+    }
+
+    updatePackInfo(select.value);
+
+    select.onchange = () => updatePackInfo(select.value);
+  } catch (e) {
+    console.warn('[jabber] populatePackDropdown failed:', e.message);
+  }
+}
+
+function updatePackInfo(packId) {
+  const infoEl    = document.getElementById('jabberPackInfo');
+  const deleteBtn = document.getElementById('jabberDeletePackBtn');
+  const pack      = _cachedPacks.find(p => p.id === packId);
+
+  if (infoEl) {
+    const parts = [];
+    if (pack?.description) parts.push(pack.description);
+    if (pack?.author)      parts.push(`By: ${pack.author}`);
+    if (pack?.version)     parts.push(`v${pack.version}`);
+    infoEl.textContent = parts.join(' · ');
+  }
+
+  if (deleteBtn) {
+    deleteBtn.style.display = pack?.source === 'user' ? 'inline-block' : 'none';
+  }
 }
 
 async function autoConnectJabber() {
@@ -769,6 +826,54 @@ function bindJabberEvents() {
         showToast('Jabber database and credentials wiped.', 'success');
       } catch (e) {
         showToast(`Wipe failed: ${e.message}`, 'error');
+      }
+    });
+  }
+
+  // Import pack button
+  const importPackBtn = document.getElementById('jabberImportPackBtn');
+  if (importPackBtn && !importPackBtn._packBound) {
+    importPackBtn._packBound = true;
+    importPackBtn.addEventListener('click', async () => {
+      try {
+        const result = await window.eveAPI.importPack();
+        if (result.canceled) return;
+        if (!result.success) {
+          showToast(`Import failed: ${result.error}`, 'error');
+          return;
+        }
+        // Refresh dropdown and select the newly imported pack
+        const select = document.getElementById('jabberPackSelect');
+        await populatePackDropdown(result.pack.id);
+        if (select) select.value = result.pack.id;
+        updatePackInfo(result.pack.id);
+        showToast(`Pack "${result.pack.name}" imported.`, 'success');
+      } catch (e) {
+        showToast(`Import error: ${e.message}`, 'error');
+      }
+    });
+  }
+
+  // Delete pack button
+  const deletePackBtn = document.getElementById('jabberDeletePackBtn');
+  if (deletePackBtn && !deletePackBtn._packBound) {
+    deletePackBtn._packBound = true;
+    deletePackBtn.addEventListener('click', async () => {
+      const select = document.getElementById('jabberPackSelect');
+      const packId = select?.value;
+      const pack   = _cachedPacks.find(p => p.id === packId);
+      if (!pack || pack.source !== 'user') return;
+      if (!confirm(`Delete the pack "${pack.name}"? This cannot be undone.`)) return;
+      try {
+        const result = await window.eveAPI.deletePack(packId);
+        if (!result.success) {
+          showToast(`Delete failed: ${result.error}`, 'error');
+          return;
+        }
+        await populatePackDropdown('gsf_sigs');
+        showToast(`Pack "${pack.name}" deleted.`, 'success');
+      } catch (e) {
+        showToast(`Delete error: ${e.message}`, 'error');
       }
     });
   }

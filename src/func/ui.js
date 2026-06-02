@@ -52,6 +52,10 @@ async function populateSettingsInputs() {
 async function saveAllSettings() {
   const jabber = gatherJabberSettings();
   await window.eveAPI.saveAppConfig({ jabber });
+  // Reload SIG/comms data whenever settings are saved so a pack change takes
+  // effect immediately without requiring an app restart.
+  if (typeof loadJabberSigsMap === 'function')     loadJabberSigsMap();
+  if (typeof loadJabberCommsChannels === 'function') loadJabberCommsChannels();
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────

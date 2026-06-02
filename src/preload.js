@@ -113,6 +113,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   openPingAlert:       (rowId)  => ipcRenderer.invoke('jabber-open-ping-alert', rowId),
   getPingAlertData:    ()       => ipcRenderer.invoke('jabber-get-ping-alert-data'),
 
+  // Alliance packs
+  getPacks:            ()       => ipcRenderer.invoke('get-packs'),
+  importPack:          ()       => ipcRenderer.invoke('import-pack'),
+  deletePack:          (id)     => ipcRenderer.invoke('delete-pack', id),
+
   // Queries SDE for manufacturing materials and applies the ME bonus.
   // Returns { materials, productTypeId, productName, productQty } or null.
   sdeBlueprintMaterials: (blueprintTypeId, me) =>

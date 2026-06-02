@@ -1,3 +1,11 @@
+pack_info:
+  id: "gsf_sigs"
+  name: "Goonswarm Federation"
+  alliance: "Goonswarm Federation"
+  description: "GSF SIGs, Squads, and comms channels"
+  author: "EVE-Carbon"
+  version: "1.0"
+
 groups:
   - name: "All"
     display_name: "[A] All"

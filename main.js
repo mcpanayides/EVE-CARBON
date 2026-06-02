@@ -130,7 +130,7 @@ async function initSde() {
 }
  
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir, appDataDir;
+let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir;
 // Shared state for ping file watcher — passed into registerPingFileHandlers
 // so the app-quit handler can still close it without knowing the internals.
 const pingWatcherState = { watcher: null, timer: null };
@@ -144,8 +144,10 @@ function initPaths() {
   appDataDir   = app.isPackaged
     ? path.join(process.resourcesPath || __dirname, 'data')
     : path.join(__dirname, 'data');
-  try { fs.mkdirSync(cacheDir,   { recursive: true }); } catch (e) { /* ignore */ }
-  try { fs.mkdirSync(appDataDir, { recursive: true }); } catch (e) { /* ignore */ }
+  userPacksDir = path.join(userDataPath, 'packs');
+  try { fs.mkdirSync(cacheDir,    { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(appDataDir,  { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(userPacksDir,{ recursive: true }); } catch (e) { /* ignore */ }
 }
  
 function getCachePath(key) {
@@ -199,6 +201,25 @@ function getLocator() {
   return locator;
 }
  
+// Resolve a pack YAML file path from a packId stored in config.
+// packId formats:
+//   undefined / 'gsf_sigs'   → built-in yaml/gsf_sigs.yaml
+//   'some_id'                → built-in yaml/some_id.yaml
+//   'user:filename.yaml'     → userData/packs/filename.yaml
+function resolvePackFile(packId) {
+  const cfg      = loadConfig();
+  const activeId = packId || cfg?.app?.jabber?.pack || 'gsf_sigs';
+  if (activeId.startsWith('user:')) {
+    const fileName = activeId.slice(5);
+    return { filePath: path.join(userPacksDir, fileName), baseDir: userPacksDir };
+  }
+  const yamlName = /\.(yaml|yml)$/.test(activeId) ? activeId : `${activeId}.yaml`;
+  return {
+    filePath: path.join(__dirname, 'yaml', yamlName),
+    baseDir:  path.join(__dirname, 'yaml'),
+  };
+}
+
 // Handlers that need no async init — register before app.whenReady() so they
 // are always available regardless of what the async chain does later.
 ipcMain.handle('open-external-url', (_, url) => {
@@ -352,13 +373,13 @@ app.whenReady().then(async () => {
     return row?.solarSystemID ?? null;
   });
 
-  // Comms channels from yaml/gsf_sigs.yaml — returns the comms_channels array
+  // Comms channels — reads the active alliance pack (from config), returns comms_channels array
   ipcHandle('get-comms-channels', async () => {
     try {
-      const yaml     = require('js-yaml');
-      const yamlPath = path.join(__dirname, 'yaml', 'gsf_sigs.yaml');
-      const raw      = fs.readFileSync(yamlPath, 'utf8');
-      const data     = yaml.load(raw);
+      const yaml               = require('js-yaml');
+      const { filePath }       = resolvePackFile();
+      const raw                = fs.readFileSync(filePath, 'utf8');
+      const data               = yaml.load(raw);
       return (data.comms_channels || []).map(c => ({
         name:  c.name,
         match: Array.isArray(c.match) ? c.match : [c.match],
@@ -370,24 +391,111 @@ app.whenReady().then(async () => {
     }
   });
 
-  // GSF SIGs / Squads — read yaml/gsf_sigs.yaml and return parsed groups with
-  // absolute file:// icon URLs so the renderer can display icons directly.
+  // SIGs / Squads — reads the active alliance pack (from config), returns groups with icon URLs
   ipcHandle('get-sig-groups', async () => {
     try {
-      const yaml     = require('js-yaml');
-      const { pathToFileURL } = require('url');
-      const yamlPath = path.join(__dirname, 'yaml', 'gsf_sigs.yaml');
-      const raw      = fs.readFileSync(yamlPath, 'utf8');
-      const data     = yaml.load(raw);
+      const yaml               = require('js-yaml');
+      const { pathToFileURL }  = require('url');
+      const { filePath, baseDir } = resolvePackFile();
+      const raw                = fs.readFileSync(filePath, 'utf8');
+      const data               = yaml.load(raw);
       return (data.groups || []).map(g => ({
-        name:     g.name,
-        type:     g.type,
-        color:    g.color,
-        iconUrl:  pathToFileURL(path.join(__dirname, 'yaml', g.icon)).href,
+        name:    g.name,
+        type:    g.type,
+        color:   g.color,
+        iconUrl: g.icon ? pathToFileURL(path.join(baseDir, g.icon)).href : null,
       }));
     } catch (e) {
       console.warn('[get-sig-groups] failed:', e.message);
       return [];
+    }
+  });
+
+  // Alliance pack management ─────────────────────────────────────────────────
+
+  // Returns all available packs: built-in (yaml/) + user-imported (userData/packs/)
+  ipcHandle('get-packs', async () => {
+    const jsy   = require('js-yaml');
+    const packs = [];
+
+    const scanDir = (dir, source) => {
+      try {
+        const files = fs.readdirSync(dir).filter(f => /\.(yaml|yml)$/.test(f));
+        for (const file of files) {
+          try {
+            const raw  = fs.readFileSync(path.join(dir, file), 'utf8');
+            const data = jsy.load(raw);
+            if (!data || (!data.groups && !data.comms_channels)) continue;
+            const id = source === 'user' ? `user:${file}` : file.replace(/\.(yaml|yml)$/, '');
+            packs.push({
+              id,
+              source,
+              file,
+              name:        data.pack_info?.name        || file.replace(/\.(yaml|yml)$/, ''),
+              alliance:    data.pack_info?.alliance     || '',
+              description: data.pack_info?.description  || '',
+              author:      data.pack_info?.author       || '',
+              version:     data.pack_info?.version      || '',
+            });
+          } catch {}
+        }
+      } catch {}
+    };
+
+    scanDir(path.join(__dirname, 'yaml'), 'builtin');
+    scanDir(userPacksDir, 'user');
+    return packs;
+  });
+
+  // Opens a file-picker so the user can import a YAML pack into userData/packs/
+  ipcHandle('import-pack', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog({
+      title: 'Import Alliance Pack',
+      filters: [{ name: 'YAML Pack Files', extensions: ['yaml', 'yml'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths.length) return { success: false, canceled: true };
+
+    const srcPath = result.filePaths[0];
+    const jsy     = require('js-yaml');
+    try {
+      const raw  = fs.readFileSync(srcPath, 'utf8');
+      const data = jsy.load(raw);
+      if (!data || (!data.groups && !data.comms_channels)) {
+        return { success: false, error: 'Invalid pack: must contain groups or comms_channels sections' };
+      }
+      const fileName = path.basename(srcPath);
+      fs.copyFileSync(srcPath, path.join(userPacksDir, fileName));
+      return {
+        success: true,
+        pack: {
+          id:          `user:${fileName}`,
+          source:      'user',
+          file:        fileName,
+          name:        data.pack_info?.name        || fileName.replace(/\.(yaml|yml)$/, ''),
+          alliance:    data.pack_info?.alliance     || '',
+          description: data.pack_info?.description  || '',
+          author:      data.pack_info?.author       || '',
+          version:     data.pack_info?.version      || '',
+        },
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Deletes a user-imported pack (cannot delete built-in packs)
+  ipcHandle('delete-pack', async (_, packId) => {
+    if (!packId?.startsWith('user:')) return { success: false, error: 'Cannot delete built-in packs' };
+    const fileName = packId.slice(5);
+    const filePath = path.join(userPacksDir, fileName);
+    try {
+      if (!fs.existsSync(filePath)) return { success: false, error: 'Pack file not found' };
+      fs.unlinkSync(filePath);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
     }
   });
 

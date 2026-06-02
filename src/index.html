@@ -178,15 +178,36 @@
       <!-- Jabber tab -->
       <div id="settingsTabJabber" class="settings-tab">
         <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+
+          <!-- Alliance Pack selector -->
           <div class="settings-panel-block">
-            <div class="settings-panel-title">Jabber Settings</div>
+            <div class="settings-panel-title">Alliance Pack</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
+              Packs define SIG/Squad groups, icons, and comms channels for your alliance. Select a built-in pack or import one shared by your leadership.
+            </div>
             <div class="ui-settings-grid">
               <div class="ui-settings-row">
-                <label>Jabber Service URL</label>
+                <label>Active Pack</label>
+                <select id="jabberPackSelect" class="field-input" style="cursor:pointer;"></select>
+              </div>
+            </div>
+            <div id="jabberPackInfo" style="font-size:12px; color:var(--text-3); margin-top:8px; min-height:16px;"></div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+              <button id="jabberImportPackBtn" class="calc-btn" style="font-size:12px;">Import Pack (.yaml)</button>
+              <button id="jabberDeletePackBtn" class="calc-btn" style="display:none; font-size:12px; border-color:var(--danger) !important; color:var(--danger) !important;">Delete Pack</button>
+            </div>
+          </div>
+
+          <!-- Credentials -->
+          <div class="settings-panel-block" style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+            <div class="settings-panel-title">Jabber Credentials</div>
+            <div class="ui-settings-grid">
+              <div class="ui-settings-row">
+                <label>Service URL</label>
                 <input id="jabberService" class="field-input" type="text" placeholder="xmpp://jabber.example.com:5222" />
               </div>
               <div class="ui-settings-row">
-                <label>Jabber JID</label>
+                <label>JID</label>
                 <input id="jabberJid" class="field-input" type="text" placeholder="user@domain" />
               </div>
               <div class="ui-settings-row">
@@ -195,9 +216,11 @@
               </div>
             </div>
             <div style="font-size:12px; color:var(--text-3); margin-top:10px;">
-              These values are stored locally and will be preserved until you change them.
+              Stored locally and preserved until changed.
             </div>
           </div>
+
+          <!-- Danger zone -->
           <div class="settings-panel-block" style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
             <div class="settings-panel-title" style="color:var(--danger, #c94040);">Danger Zone</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:12px;">
@@ -207,6 +230,7 @@
               ⚠ WIPE JABBER DATABASE &amp; SETTINGS
             </button>
           </div>
+
         </div>
       </div>
       <!-- Forums tab -->

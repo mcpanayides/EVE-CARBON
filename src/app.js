@@ -53,7 +53,7 @@ function bindIndustrySubNav() {
   // Guard: only fire if the content area is actually empty (first entry or
   // after a page close/reopen) to avoid clobbering an already-open tab.
   const content = document.getElementById('industryTabContent');
-  if (content && !content.hasChildNodes()) {
+  if (content && !content.querySelector(':scope > *')) {
     navigateIndustryTab('blueprints');
   }
 }

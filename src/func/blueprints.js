@@ -9,22 +9,23 @@
 
 // ─── Load & filter ────────────────────────────────────────────────────────────
 
+let _bpLibLoading = false;
+
 async function loadBlueprintLibrary() {
+  _bpLibLoading = true;
+  _renderBpLibLoadingState();   // show bar immediately if the tab is already open
+
   try {
-    // Pull from the SQLite character_information.db across ALL synced characters.
-    // Falls back to the legacy blueprints.json if the new handler isn't registered yet.
     let bps = [];
     try {
       bps = await window.eveAPI.getAllBlueprintsFromDb();
     } catch (_) {
-      // Graceful fallback to the old JSON-backed handler
       bps = await window.eveAPI.getAllBlueprints();
     }
 
     allLibBPs = Array.isArray(bps) ? bps : [];
     allLibBPs.sort((a, b) => (a.type_name || a.name || '').localeCompare(b.type_name || b.name || ''));
 
-    // Normalise field names — the DB stores type_name; the old JSON stored name
     allLibBPs = allLibBPs.map(bp => ({
       ...bp,
       name:  bp.type_name || bp.name || `Type ${bp.type_id}`,
@@ -38,7 +39,56 @@ async function loadBlueprintLibrary() {
   } catch (err) {
     console.error('Failed to load blueprint library from DB:', err);
     showToast('Error loading blueprints from database.', 'error');
+    _renderBpLibLoadingState(true);
+  } finally {
+    _bpLibLoading = false;
   }
+}
+
+function _renderBpLibLoadingState(isError = false) {
+  const listDiv = document.getElementById('bpLibList');
+  if (!listDiv) return;
+
+  if (isError) {
+    listDiv.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:48px 20px;
+                  font-family:var(--mono);font-size:11px;color:var(--danger);">
+        ⚠ FAILED TO LOAD BLUEPRINT LIBRARY
+      </div>`;
+    return;
+  }
+
+  // Build shimmer skeleton cards that match the real bp-lib-item shape
+  const card = () => `
+    <div class="bp-skel-card">
+      <!-- thumb -->
+      <div class="bp-skel-block" style="width:48px;height:48px;border-radius:14px;flex-shrink:0;"></div>
+      <!-- content -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;">
+        <div class="bp-skel-block" style="height:14px;width:65%;"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="bp-skel-block" style="width:32px;height:8px;"></div>
+            <div class="bp-skel-block" style="flex:1;height:5px;border-radius:3px;"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="bp-skel-block" style="width:32px;height:8px;"></div>
+            <div class="bp-skel-block" style="flex:1;height:5px;border-radius:3px;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- right: portrait + badge + button -->
+      <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+        <div class="bp-skel-block" style="width:36px;height:36px;border-radius:4px;"></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+          <div class="bp-skel-block" style="width:56px;height:18px;border-radius:3px;"></div>
+          <div class="bp-skel-block" style="width:48px;height:22px;border-radius:4px;"></div>
+        </div>
+      </div>
+    </div>`;
+
+  // Fill the grid with 16 skeleton cards (enough to cover a typical screen)
+  listDiv.innerHTML = Array.from({ length: 16 }, card).join('');
 }
 
 function handleLibraryFilter() {
@@ -370,6 +420,10 @@ async function openBlueprintDetail(bp) {
               style="padding:6px 16px;font-size:11px;background:var(--bg-hover);">
         ⬡ SHOW COMPONENT TREE
       </button>
+      <button id="bpAddToListBtn" class="bp-view-btn" type="button"
+              style="padding:6px 16px;font-size:11px;background:var(--bg-hover);margin-left:auto;">
+        ➕ ADD TO SHOPPING LIST
+      </button>
     </div>
     <div id="bpComponentTree" style="display:none;margin-top:16px;"></div>`;
 
@@ -379,6 +433,14 @@ async function openBlueprintDetail(bp) {
     if (typeof selectedME      !== 'undefined') selectedME       = bp.me;
     if (typeof selectedTE      !== 'undefined') selectedTE       = bp.te;
     navigateIndustryTab('calculator');
+  });
+
+  // Add to Shopping List
+  document.getElementById('bpAddToListBtn')?.addEventListener('click', () => {
+    const slMats = materials.map(m => ({ typeId: m.typeId, name: m.name, qty: m.adjustedQty }));
+    if (typeof showAddToShoppingListModal === 'function') {
+      showAddToShoppingListModal(slMats, bp.name || `Type ${bp.type_id}`);
+    }
   });
 
   // Component tree toggle — passes SDE materials so root level never needs Fuzzwork
@@ -858,6 +920,13 @@ function initIndustryPage() {
       if (tab) navigateIndustryTab(tab);
     });
   });
+
+  // Auto-open blueprints if the panel has no rendered content yet.
+  // Uses querySelector(:scope > *) so HTML comments don't count as content.
+  const content = document.getElementById('industryTabContent');
+  if (content && !content.querySelector(':scope > *')) {
+    navigateIndustryTab('blueprints');
+  }
 }
 
 function navigateIndustryTab(tab) {
@@ -898,7 +967,15 @@ function navigateIndustryTab(tab) {
       </div>
       <div id="results" style="display:none;height:100%;overflow-y:auto;"></div>`;
     bindLibraryEvents();
-    renderBlueprintList(allLibBPs);
+    // Always render shimmer skeleton first so the user sees something immediately.
+    // If data is already loaded, defer the real render to the next event-loop tick
+    // so the browser has a chance to paint the skeleton before the heavy DOM work.
+    _renderBpLibLoadingState();
+    if (!_bpLibLoading) {
+      setTimeout(() => renderBlueprintList(allLibBPs), 0);
+    }
+    // If _bpLibLoading is true, loadBlueprintLibrary() will call renderBlueprintList
+    // when it finishes — no extra action needed here.
 
   } else if (tab === 'search') {
     right.innerHTML = `
@@ -948,6 +1025,9 @@ function navigateIndustryTab(tab) {
 
   } else if (tab === 'active-jobs') {
     renderActiveJobsPage(right);
+
+  } else if (tab === 'shopping-lists') {
+    if (typeof renderShoppingLists === 'function') renderShoppingLists(right);
 
   } else {
     const labels = {

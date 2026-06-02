@@ -4,6 +4,34 @@
                                 dropdowns, category browse
    ══════════════════════════════════════════════════════════════════ */
 
+/* ── Blueprint skeleton shimmer ──────────────────────────────────── */
+@keyframes bp-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.bp-skel-block {
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 0%,
+    var(--bg-hover) 40%,
+    var(--bg-card) 80%
+  );
+  background-size: 200% 100%;
+  animation: bp-shimmer 1.6s ease-in-out infinite;
+  border-radius: 4px;
+}
+.bp-skel-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid transparent;
+  border-radius: 18px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  pointer-events: none;
+}
+
 /* ── BLUEPRINT LIBRARY ── */
 .bp-filter-row  { display: flex; gap: 6px; margin-bottom: 8px; }
 .field-input.small { font-size: 12px; padding: 4px 8px; }

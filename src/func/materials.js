@@ -374,7 +374,11 @@ function renderBpSearchDetail(container, itemName, blueprintTypeId, productTypeI
                  class="field-input"
                  style="width:80px;padding:4px 8px;font-size:12px;font-family:var(--mono);">
         </div>
-        <div style="margin-left:auto;">
+        <div style="display:flex;gap:8px;margin-left:auto;">
+          <button id="bpSearchAddListBtn" class="bp-view-btn"
+                  style="padding:5px 14px;font-size:11px;background:var(--bg-hover);">
+            ➕ ADD TO LIST
+          </button>
           <button id="bpSearchCalcBtn" class="bp-view-btn"
                   style="padding:5px 14px;font-size:11px;">
             ◈ OPEN IN CALCULATOR
@@ -454,6 +458,20 @@ function renderBpSearchDetail(container, itemName, blueprintTypeId, productTypeI
     const runs = Math.max(1, parseInt(e.target.value) || 1);
     const me   = parseInt(container.querySelector('#bpSearchME').value);
     _bpSearchUpdate(container, baseMats, prices, productQty, me, runs);
+  });
+
+  // ── Add to Shopping List ─────────────────────────────────────────────────
+  container.querySelector('#bpSearchAddListBtn')?.addEventListener('click', () => {
+    const me   = parseInt(container.querySelector('#bpSearchME').value) || 0;
+    const runs = parseInt(container.querySelector('#bpSearchRuns').value) || 1;
+    const slMats = baseMats.map(m => ({
+      typeId: m.typeId,
+      name:   m.name,
+      qty:    Math.max(1, Math.ceil(m.baseQty * (1 - me / 100))) * runs,
+    }));
+    if (typeof showAddToShoppingListModal === 'function') {
+      showAddToShoppingListModal(slMats, itemName);
+    }
   });
 
   // ── Open in calculator ───────────────────────────────────────────────────

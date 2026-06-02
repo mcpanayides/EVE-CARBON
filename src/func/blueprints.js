@@ -780,13 +780,23 @@ function navigateIndustryTab(tab) {
 
   } else if (tab === 'search') {
     right.innerHTML = `
-      <div style="padding:20px;">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);margin-bottom:12px;">BLUEPRINT SEARCH</div>
-        <div style="position:relative;">
-          <input id="bpName" class="field-input" placeholder="Search for any item..." style="width:100%;box-sizing:border-box;"/>
-          <div id="searchDropdown" class="dropdown" style="display:none;"></div>
+      <div style="display:flex;flex-direction:column;height:100%;">
+        <div style="padding:14px 20px 12px;border-bottom:1px solid var(--border);
+                    background:var(--bg-card);flex-shrink:0;position:relative;z-index:10;">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);
+                      letter-spacing:0.1em;margin-bottom:8px;">BLUEPRINT SEARCH — ALL EVE BLUEPRINTS</div>
+          <div style="position:relative;">
+            <input id="bpName" class="field-input"
+                   placeholder="Search for any blueprint or item name…"
+                   style="width:100%;box-sizing:border-box;padding-right:120px;"/>
+            <div style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                        font-family:var(--mono);font-size:10px;color:var(--text-3);pointer-events:none;">
+              ESI TYPE SEARCH
+            </div>
+            <div id="searchDropdown" class="dropdown" style="display:none;"></div>
+          </div>
         </div>
-        <div id="results" style="margin-top:16px;"></div>
+        <div id="results" style="flex:1;overflow-y:auto;min-height:0;"></div>
       </div>`;
     const inp = document.getElementById('bpName');
     if (inp) {

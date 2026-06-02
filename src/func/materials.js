@@ -182,33 +182,36 @@ async function handleManualSearchInput() {
   const query = input.value.trim();
   if (query.length < 2) { dropdown.style.display = 'none'; return; }
 
+  // Show a loading indicator immediately so the user knows something is happening
+  dropdown.innerHTML = `
+    <div class="dropdown-item" style="color:var(--text-3);cursor:default;justify-content:center;">
+      Searching…
+    </div>`;
+  dropdown.style.display = 'block';
+
+  // Search local SDE first (fast, no ESI dependency)
+  let results = [];
   try {
-    const data = await window.eveAPI.search(query);
-    const ids  = (data?.inventory_type || []).slice(0, 12);
-    if (!ids.length) { dropdown.style.display = 'none'; return; }
+    results = await window.eveAPI.searchTypes(query, 15);
+  } catch (_) {}
 
-    const names = {};
-    for (const id of ids) {
-      try { const n = await window.eveAPI.sdeGetName(id); if (n) names[id] = n; } catch (e) { /* ignore */ }
-    }
-    try {
-      const esiNames = await window.eveAPI.getNames(ids);
-      Object.assign(names, esiNames || {});
-    } catch (e) { /* ignore */ }
-
-    dropdown.innerHTML = '';
-    ids.forEach(id => {
-      const name = names[id] || `Type ${id}`;
-      const item = document.createElement('div');
-      item.className = 'dropdown-item';
-      item.innerHTML = `<span>${escHtml(name)}</span><small>#${id}</small>`;
-      item.addEventListener('click', () => selectManualSearchItem({ id, name }));
-      dropdown.appendChild(item);
-    });
-    dropdown.style.display = 'block';
-  } catch (err) {
-    dropdown.style.display = 'none';
+  if (!results.length) {
+    dropdown.innerHTML = `
+      <div class="dropdown-item" style="color:var(--text-3);cursor:default;justify-content:center;">
+        No results for "${escHtml(query)}"
+      </div>`;
+    return;
   }
+
+  dropdown.innerHTML = '';
+  results.forEach(({ id, name }) => {
+    const item = document.createElement('div');
+    item.className = 'dropdown-item';
+    item.innerHTML = `<span>${escHtml(name)}</span><small>#${id}</small>`;
+    item.addEventListener('click', () => selectManualSearchItem({ id, name }));
+    dropdown.appendChild(item);
+  });
+  dropdown.style.display = 'block';
 }
 
 async function selectManualSearchItem(item) {
@@ -220,52 +223,378 @@ async function selectManualSearchItem(item) {
 }
 
 async function loadManualBlueprintSearch(typeId, itemName) {
-  const card    = document.getElementById('selectedBpCard');
-  const icon    = document.getElementById('selectedBpIcon');
-  const nameEl  = document.getElementById('selectedBpName');
-  const metaEl  = document.getElementById('selectedBpMeta');
   const results = document.getElementById('results');
+  if (!results) return;
 
-  if (card)   card.style.display = 'flex';
-  if (icon)   { icon.src = `https://images.evetech.net/types/${typeId}/bp?size=64`; icon.alt = itemName; }
-  if (nameEl) nameEl.textContent = itemName;
+  const ESI_IMG = 'https://images.evetech.net/types';
 
-  let blueprintDetails = null;
+  // Loading skeleton
+  results.innerHTML = `
+    <div style="padding:20px;">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+        <img src="${ESI_IMG}/${typeId}/bp?size=64"
+             onerror="this.onerror=null;this.src='${ESI_IMG}/${typeId}/icon?size=64';"
+             style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);flex-shrink:0;">
+        <div>
+          <div style="font-size:18px;font-weight:700;color:var(--text-1);margin-bottom:4px;">
+            ${escHtml(itemName)}
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);">
+            RESOLVING BLUEPRINT DATA…
+          </div>
+        </div>
+      </div>
+      <div style="height:2px;background:var(--bg-card);border-radius:1px;overflow:hidden;">
+        <div style="height:100%;width:40%;background:var(--accent);
+                    animation:bpLoadSlide 1.2s ease-in-out infinite;"></div>
+      </div>
+    </div>`;
+
+  // Step 1: try treating typeId as a blueprint directly
+  let blueprintTypeId = typeId;
+  let sdeResult = null;
+
   try {
-    const data    = await window.eveAPI.findBpForProduct(typeId);
-    const payload = data?.[typeId] || data;
-    blueprintDetails = payload?.blueprintDetails || null;
-  } catch (err) { /* not found */ }
+    sdeResult = await window.eveAPI.sdeBlueprintMaterials(typeId, 0);
+  } catch (_) {}
 
-  if (metaEl) {
-    metaEl.textContent = blueprintDetails
-      ? `Blueprint ID ${blueprintDetails.blueprintTypeID} • Runs ${blueprintDetails.maxProductionLimit ?? 'N/A'}`
-      : 'No public blueprint copy found on Fuzzwork.';
+  // Step 2: typeId might be a product — find its blueprint
+  if (!sdeResult?.materials?.length) {
+    try {
+      const bpData = await window.eveAPI.findBpForProduct(typeId);
+      const entry  = bpData?.[typeId];
+      const bpId   = entry?.blueprintDetails?.blueprintTypeID;
+      if (bpId) {
+        blueprintTypeId = bpId;
+        try {
+          sdeResult = await window.eveAPI.sdeBlueprintMaterials(blueprintTypeId, 0);
+        } catch (_) {}
+      }
+    } catch (_) {}
   }
 
-  if (results) {
-    results.style.display = 'block';
+  // Step 3: Fuzzwork fallback
+  if (!sdeResult?.materials?.length) {
+    try {
+      const fw = await window.eveAPI.getBlueprintMaterials(blueprintTypeId);
+      if (fw?.materials?.length) {
+        sdeResult = {
+          materials: fw.materials.map(m => ({
+            typeId:      m.typeid,
+            name:        m.name || `Type ${m.typeid}`,
+            baseQty:     m.quantity,
+            adjustedQty: m.quantity,
+            isComponent: false,
+          })),
+          productTypeId: null,
+          productName:   null,
+          productQty:    1,
+        };
+      }
+    } catch (_) {}
+  }
+
+  if (!sdeResult?.materials?.length) {
     results.innerHTML = `
-      <div class="panel" style="display:flex;gap:12px;align-items:center;padding:12px;">
-        <img src="https://images.evetech.net/types/${typeId}/bp?size=64"
-             style="width:48px;height:48px;border-radius:6px;border:1px solid var(--border);"
-             onerror="this.onerror=null;this.src='https://images.evetech.net/types/${typeId}/icon?size=64';"/>
-        <div style="flex:1;">
-          <div style="font-weight:700;color:var(--text-1);">${escHtml(itemName)}</div>
-          <div style="font-size:11px;color:var(--text-2);">Type ID: ${typeId}</div>
-          <div style="margin-top:8px;font-size:12px;color:var(--text-3);">${escHtml(metaEl ? metaEl.textContent : '')}</div>
+      <div style="padding:32px 20px;text-align:center;">
+        <div style="font-size:28px;margin-bottom:12px;opacity:0.3;">⬡</div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--text-3);">
+          No blueprint data found for <strong style="color:var(--text-2);">${escHtml(itemName)}</strong>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button id="manual-view-materials" class="calc-btn">View Materials</button>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);margin-top:8px;">
+          This item may not have a manufacturing blueprint, or may be a reaction / PI schematic.
         </div>
       </div>`;
+    return;
+  }
 
-    const mvBtn = document.getElementById('manual-view-materials');
-    if (mvBtn) {
-      mvBtn.addEventListener('click', async () => {
-        showToast('Calculating materials...', 'info');
-        await openMaterialsInTab(typeId);
-      });
+  // Fetch Jita prices for all materials + the product
+  const matTypeIds  = sdeResult.materials.map(m => m.typeId);
+  const productId   = sdeResult.productTypeId || typeId;
+  const priceIds    = [...new Set([...matTypeIds, productId])];
+  let prices = {};
+  try {
+    prices = await window.eveAPI.getJitaPrices(priceIds) || {};
+  } catch (_) {}
+
+  renderBpSearchDetail(results, itemName, blueprintTypeId, productId, sdeResult, prices);
+}
+
+function renderBpSearchDetail(container, itemName, blueprintTypeId, productTypeId, sdeResult, prices) {
+  const ESI_IMG    = 'https://images.evetech.net/types';
+  const baseMats   = sdeResult.materials;    // store for ME recalculation
+  const productQty = sdeResult.productQty || 1;
+  const productName = sdeResult.productName || itemName;
+
+  container.innerHTML = `
+    <div id="bpSearchWrap" style="padding:20px;">
+
+      <!-- ── Header ── -->
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+        <img src="${ESI_IMG}/${blueprintTypeId}/bp?size=64"
+             onerror="this.onerror=null;this.src='${ESI_IMG}/${blueprintTypeId}/icon?size=64';"
+             style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);flex-shrink:0;">
+        <div style="flex:1;">
+          <div style="font-size:18px;font-weight:700;color:var(--text-1);margin-bottom:6px;">
+            ${escHtml(itemName)}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <span style="background:var(--bg-card);border:1px solid var(--border);border-radius:3px;
+                         padding:2px 10px;font-family:var(--mono);font-size:10px;color:var(--text-3);">
+              BP ID ${blueprintTypeId}
+            </span>
+            ${sdeResult.productTypeId
+              ? `<span style="background:var(--bg-card);border:1px solid var(--border);border-radius:3px;
+                              padding:2px 10px;font-family:var(--mono);font-size:10px;color:var(--text-3);">
+                   PRODUCT ID ${sdeResult.productTypeId}
+                 </span>`
+              : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Controls: ME slider + Runs ── -->
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+                  padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);
+                  border-radius:6px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);
+                       letter-spacing:0.08em;white-space:nowrap;">MATERIAL EFFICIENCY</span>
+          <input type="range" id="bpSearchME" min="0" max="10" value="0"
+                 style="width:120px;accent-color:var(--accent);cursor:pointer;">
+          <span id="bpSearchMELabel"
+                style="font-family:var(--mono);font-size:13px;font-weight:700;
+                       color:var(--success);min-width:36px;">ME 0</span>
+        </div>
+        <div style="width:1px;height:20px;background:var(--border);flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);
+                       letter-spacing:0.08em;white-space:nowrap;">RUNS</span>
+          <input type="number" id="bpSearchRuns" min="1" max="99999" value="1"
+                 class="field-input"
+                 style="width:80px;padding:4px 8px;font-size:12px;font-family:var(--mono);">
+        </div>
+        <div style="margin-left:auto;">
+          <button id="bpSearchCalcBtn" class="bp-view-btn"
+                  style="padding:5px 14px;font-size:11px;">
+            ◈ OPEN IN CALCULATOR
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Produces ── -->
+      <div style="margin-bottom:14px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);
+                    letter-spacing:0.1em;margin-bottom:6px;">PRODUCES</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;
+                    background:var(--bg-card);border:1px solid var(--border);border-radius:4px;">
+          <img src="${ESI_IMG}/${productTypeId}/icon?size=32"
+               onerror="this.onerror=null;this.style.display='none';"
+               style="width:28px;height:28px;border-radius:3px;flex-shrink:0;">
+          <span style="color:var(--text-1);font-size:13px;flex:1;">${escHtml(productName)}</span>
+          <span id="bpSearchProductQty"
+                style="font-family:var(--mono);color:var(--text-2);font-size:12px;">
+            ×${productQty.toLocaleString()}
+          </span>
+          ${(() => {
+            const p = prices[productTypeId];
+            const sell = p?.sell > 0 ? p.sell : null;
+            return sell
+              ? `<span style="font-family:var(--mono);font-size:11px;color:var(--accent);">
+                   ${formatNumber(sell)} ISK/unit
+                 </span>`
+              : '';
+          })()}
+        </div>
+      </div>
+
+      <!-- ── Materials header ── -->
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);
+                  letter-spacing:0.1em;margin-bottom:8px;" id="bpSearchMatHeader">
+        MATERIALS — 1 RUN · ME0
+      </div>
+
+      <!-- ── Materials table ── -->
+      <div id="bpSearchMatTable" style="display:flex;flex-direction:column;gap:3px;
+                                        margin-bottom:16px;"></div>
+
+      <!-- ── Cost summary ── -->
+      <div id="bpSearchCostSummary" style="margin-bottom:16px;"></div>
+
+      <!-- ── Component tree ── -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button id="bpSearchTreeBtn" class="bp-view-btn"
+                style="padding:5px 14px;font-size:11px;background:var(--bg-hover);">
+          ⬡ SHOW COMPONENT TREE
+        </button>
+      </div>
+      <div id="bpSearchTree" style="display:none;"></div>
+
+    </div>
+    <style>
+      @keyframes bpLoadSlide {
+        0%   { margin-left:-40%; }
+        100% { margin-left:140%; }
+      }
+    </style>`;
+
+  // ── Initial render ────────────────────────────────────────────────────────
+  _bpSearchUpdate(container, baseMats, prices, productQty, 0, 1);
+
+  // ── ME slider ────────────────────────────────────────────────────────────
+  container.querySelector('#bpSearchME').addEventListener('input', e => {
+    const me   = parseInt(e.target.value);
+    const runs = parseInt(container.querySelector('#bpSearchRuns').value) || 1;
+    container.querySelector('#bpSearchMELabel').textContent = `ME ${me}`;
+    _bpSearchUpdate(container, baseMats, prices, productQty, me, runs);
+  });
+
+  // ── Runs input ───────────────────────────────────────────────────────────
+  container.querySelector('#bpSearchRuns').addEventListener('input', e => {
+    const runs = Math.max(1, parseInt(e.target.value) || 1);
+    const me   = parseInt(container.querySelector('#bpSearchME').value);
+    _bpSearchUpdate(container, baseMats, prices, productQty, me, runs);
+  });
+
+  // ── Open in calculator ───────────────────────────────────────────────────
+  container.querySelector('#bpSearchCalcBtn').addEventListener('click', () => {
+    if (typeof selectedBpTypeId !== 'undefined') selectedBpTypeId = blueprintTypeId;
+    if (typeof selectedME !== 'undefined') {
+      selectedME = parseInt(container.querySelector('#bpSearchME').value);
+    }
+    if (typeof selectedTE !== 'undefined') selectedTE = 0;
+    if (typeof navigateIndustryTab === 'function') navigateIndustryTab('calculator');
+  });
+
+  // ── Component tree ───────────────────────────────────────────────────────
+  container.querySelector('#bpSearchTreeBtn').addEventListener('click', async () => {
+    const treeDiv = container.querySelector('#bpSearchTree');
+    const treeBtn = container.querySelector('#bpSearchTreeBtn');
+    if (!treeDiv) return;
+    if (treeDiv.style.display !== 'none') {
+      treeDiv.style.display = 'none';
+      treeBtn.textContent   = '⬡ SHOW COMPONENT TREE';
+      return;
+    }
+    treeDiv.style.display = 'block';
+    treeBtn.textContent   = '⬡ HIDE COMPONENT TREE';
+    if (typeof renderComponentTreePanel === 'function') {
+      const me = parseInt(container.querySelector('#bpSearchME').value);
+      await renderComponentTreePanel(treeDiv, { type_id: blueprintTypeId, me, te: 0, name: itemName });
+    }
+  });
+}
+
+function _bpSearchUpdate(container, baseMats, prices, productQty, me, runs) {
+  const matHeader = container.querySelector('#bpSearchMatHeader');
+  const matTable  = container.querySelector('#bpSearchMatTable');
+  const costSumm  = container.querySelector('#bpSearchCostSummary');
+  const prodQtyEl = container.querySelector('#bpSearchProductQty');
+  if (!matTable) return;
+
+  if (matHeader) {
+    matHeader.textContent = `MATERIALS — ${runs > 1 ? runs + ' RUNS' : '1 RUN'} · ME${me}`;
+  }
+  if (prodQtyEl) {
+    prodQtyEl.textContent = `×${(productQty * runs).toLocaleString()}`;
+  }
+
+  const ESI_IMG = 'https://images.evetech.net/types';
+  let totalCost = 0;
+  let pricesAvailable = false;
+
+  const rows = baseMats.map(mat => {
+    const adjQty = Math.max(1, Math.ceil(mat.baseQty * (1 - me / 100))) * runs;
+    const baseQtyDisplay = mat.baseQty * runs;
+
+    const p = prices[mat.typeId];
+    const unitPrice = p?.sell > 0 ? p.sell : (p?.buy > 0 ? p.buy : 0);
+    const rowTotal  = unitPrice * adjQty;
+    if (unitPrice > 0) { totalCost += rowTotal; pricesAvailable = true; }
+
+    const isComponent = mat.isComponent;
+    const saved = baseQtyDisplay - adjQty;
+
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;
+                  background:${isComponent ? 'var(--bg-card)' : 'transparent'};
+                  border:1px solid ${isComponent ? 'var(--border)' : 'transparent'};">
+        <img src="${ESI_IMG}/${mat.typeId}/icon?size=32"
+             onerror="this.onerror=null;this.style.display='none';"
+             style="width:28px;height:28px;border-radius:3px;flex-shrink:0;">
+        <span style="flex:1;color:${isComponent ? 'var(--tier-top)' : 'var(--text-1)'};
+                     font-size:13px;font-weight:${isComponent ? '600' : '400'};">
+          ${isComponent ? '◈ ' : ''}${escHtml(mat.name || `Type ${mat.typeId}`)}
+        </span>
+        <span style="font-family:var(--mono);color:var(--text-1);font-size:12px;
+                     font-weight:600;flex-shrink:0;min-width:80px;text-align:right;">
+          ×${adjQty.toLocaleString()}
+        </span>
+        ${saved > 0
+          ? `<span style="font-family:var(--mono);color:var(--success);font-size:10px;
+                          flex-shrink:0;" title="ME saves ${saved.toLocaleString()} units">
+               −${saved.toLocaleString()}
+             </span>`
+          : '<span style="min-width:32px;"></span>'}
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);
+                     flex-shrink:0;min-width:90px;text-align:right;">
+          ${unitPrice > 0 ? formatNumber(unitPrice) + ' ISK' : '—'}
+        </span>
+        <span style="font-family:var(--mono);font-size:12px;font-weight:600;
+                     color:${unitPrice > 0 ? 'var(--text-1)' : 'var(--text-3)'};
+                     flex-shrink:0;min-width:110px;text-align:right;">
+          ${rowTotal > 0 ? formatNumber(rowTotal) : '—'}
+        </span>
+      </div>`;
+  });
+
+  // Column header row
+  matTable.innerHTML = `
+    <div style="display:flex;gap:10px;padding:4px 10px;font-family:var(--mono);
+                font-size:9px;color:var(--text-3);letter-spacing:0.08em;">
+      <span style="width:28px;flex-shrink:0;"></span>
+      <span style="flex:1;">MATERIAL</span>
+      <span style="min-width:80px;text-align:right;">QTY NEEDED</span>
+      <span style="min-width:32px;text-align:right;">ME SAVING</span>
+      <span style="min-width:90px;text-align:right;">JITA SELL/UNIT</span>
+      <span style="min-width:110px;text-align:right;">TOTAL COST</span>
+    </div>
+    ${rows.join('')}`;
+
+  // Cost summary
+  if (costSumm) {
+    if (!pricesAvailable) {
+      costSumm.innerHTML = `
+        <div style="padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);
+                    border-radius:4px;font-family:var(--mono);font-size:11px;color:var(--text-3);">
+          Market price data unavailable
+        </div>`;
+    } else {
+      costSumm.innerHTML = `
+        <div style="padding:14px 18px;background:var(--bg-card);border:1px solid var(--border);
+                    border-radius:6px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;">
+          <div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
+                        letter-spacing:0.12em;margin-bottom:4px;">
+              ESTIMATED BUILD COST (${runs > 1 ? runs + ' RUNS' : '1 RUN'} · ME${me} · JITA SELL)
+            </div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent);">
+              ${formatNumber(totalCost)} ISK
+            </div>
+          </div>
+          ${runs > 1
+            ? `<div style="padding-left:16px;border-left:1px solid var(--border);">
+                 <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
+                             letter-spacing:0.12em;margin-bottom:4px;">PER RUN</div>
+                 <div style="font-family:var(--mono);font-size:16px;color:var(--text-2);">
+                   ${formatNumber(totalCost / runs)} ISK
+                 </div>
+               </div>`
+            : ''}
+          <div style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text-3);">
+            Based on Jita 4-4 sell orders
+          </div>
+        </div>`;
     }
   }
 }

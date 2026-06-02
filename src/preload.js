@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAllBlueprintsFromDb: () => ipcRenderer.invoke('get-all-blueprints-from-db'),
 
   // Public ESI / Fuzzwork
+  searchTypes:           (q, lim)  => ipcRenderer.invoke('sde-search-types', q, lim),
   search:                (q)       => ipcRenderer.invoke('esi-search', q),
   getNames:              (ids)     => ipcRenderer.invoke('esi-names', ids),
   getBlueprintMaterials: (id)      => ipcRenderer.invoke('get-blueprint-materials', id),

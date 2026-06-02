@@ -380,6 +380,37 @@ function httpGetFull(url, headers = {}) {
   });
 }
 
+// ─── ESI retry wrapper ────────────────────────────────────────────────────────
+// Wraps httpGetFull with up to 3 retries and proper Retry-After / back-off
+// so a transient 429 or 5xx during asset pagination never silently drops a page.
+// Pass authHdr so a fresh token can be fetched if a 401 occurs mid-sync.
+async function httpGetFullWithRetry(url, headers = {}, maxRetries = 3) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let attempt = 0;
+  while (true) {
+    try {
+      return await httpGetFull(url, headers);
+    } catch (err) {
+      attempt++;
+      if (attempt > maxRetries) throw err;
+
+      if (err.isRateLimit) {
+        // ESI told us exactly how long to wait
+        const wait = ((err.retryAfter || 60) + 2) * 1000;
+        console.warn(`[ESI] 429 on ${url} — waiting ${err.retryAfter}s (attempt ${attempt}/${maxRetries})`);
+        await sleep(wait);
+      } else if (err.message && err.message.includes('HTTP 5')) {
+        // 5xx — brief exponential back-off
+        const wait = Math.min(2 ** attempt * 1000, 30000);
+        console.warn(`[ESI] transient error on ${url} — retry in ${wait}ms (attempt ${attempt}/${maxRetries})`);
+        await sleep(wait);
+      } else {
+        throw err; // not retryable (4xx auth error, network down, etc.)
+      }
+    }
+  }
+}
+
 function httpPost(url, body, headers = {}, formEncoded = false) {
   return new Promise((resolve, reject) => {
     const postData = formEncoded ? body : JSON.stringify(body);
@@ -748,22 +779,26 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   }
  
   // 7. Assets (full paginated)
+  // Re-fetch the token here — PI + implant resolution can take several minutes
+  // and the original token (20-min lifetime) may have expired by now.
+  try { Object.assign(authHdr, { Authorization: `Bearer ${await getValidToken(characterId)}` }); } catch (_) {}
   try {
     report('assets', 'Fetching assets (paginated)…');
     let allAssets = [];
     let page = 1;
     let totalPages = 1;
     while (true) {
-      const { data, xPages } = await httpGetFull(
+      const { data, xPages } = await httpGetFullWithRetry(
         `${ESI_BASE}/v3/characters/${characterId}/assets/?page=${page}&datasource=tranquility`, authHdr
       );
       if (page === 1) {
         totalPages = xPages || 1;
         report('assets', `  ESI reports ${totalPages} page(s)`);
       }
-      allAssets = allAssets.concat(data);
+      allAssets = allAssets.concat(data || []);
       report('assets', `  page ${page}/${totalPages}: ${allAssets.length} items so far…`);
-      if (page >= totalPages || !data || data.length < 1000) break;
+      // Trust xPages exclusively — the last page legitimately has < 1000 items.
+      if (page >= totalPages) break;
       page++;
     }
     const typeIds = [...new Set(allAssets.map(a => a.type_id).filter(Boolean))];
@@ -809,21 +844,32 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     // ── Re-resolve any locations that came back null ───────────────────────────
     // Upwell structures that 401'd or missed Hammertime get a second pass here.
     // The locator's file cache is now warm, so many will succeed this time.
+    // Run up to 10 in parallel; individual resolutions are capped at 5 s so one
+    // dead structure can't stall the whole sync.
     const unresolved = await charInfoDb.getUnresolvedAssetLocations(characterId).catch(() => []);
     if (unresolved.length) {
       report('assets', `  Re-resolving ${unresolved.length} unresolved structure location(s)…`);
-      for (const locationId of unresolved) {
-        try {
-          const geo = await getLocator().resolveLocation(locationId, characterId);
-          if (geo && (geo.name || geo.solar_system_id)) {
-            await charInfoDb.updateAssetLocation(characterId, locationId, geo);
+      const CONCURRENCY = 10;
+      const LOCATION_TIMEOUT_MS = 5000;
+      let fixed = 0;
+      for (let i = 0; i < unresolved.length; i += CONCURRENCY) {
+        const batch = unresolved.slice(i, i + CONCURRENCY);
+        await Promise.allSettled(batch.map(async (locationId) => {
+          try {
+            const raceResult = await Promise.race([
+              getLocator().resolveLocation(locationId, characterId),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), LOCATION_TIMEOUT_MS)),
+            ]);
+            if (raceResult && (raceResult.name || raceResult.solar_system_id)) {
+              await charInfoDb.updateAssetLocation(characterId, locationId, raceResult);
+              fixed++;
+            }
+          } catch (e) {
+            console.log(`[CharSync] Re-resolve failed for location ${locationId}: ${e.message}`);
           }
-        } catch (e) {
-          console.log(`[CharSync] Re-resolve failed for location ${locationId}: ${e.message}`);
-        }
+        }));
       }
       const stillUnresolved = await charInfoDb.getUnresolvedAssetLocations(characterId).catch(() => []);
-      const fixed = unresolved.length - stillUnresolved.length;
       report('assets', `  Location re-resolve: ${fixed} fixed, ${stillUnresolved.length} still pending.`);
     }
   } catch (e) {
@@ -838,13 +884,14 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     let page = 1;
     let totalBPPages = 1;
     while (true) {
-      const { data, xPages } = await httpGetFull(
+      const { data, xPages } = await httpGetFullWithRetry(
         `${ESI_BASE}/v3/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr
       );
       if (page === 1) totalBPPages = xPages || 1;
-      allBPs = allBPs.concat(data);
+      allBPs = allBPs.concat(data || []);
       report('blueprints', `  page ${page}/${totalBPPages}: ${allBPs.length} blueprints so far…`);
-      if (page >= totalBPPages || data.length < 1000) break;
+      // Trust xPages — last page legitimately has < 1000 items.
+      if (page >= totalBPPages) break;
       page++;
     }
     const typeIds = [...new Set(allBPs.map(b => b.type_id))];

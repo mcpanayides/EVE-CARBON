@@ -328,6 +328,54 @@ function registerEsiHandlers({
     return { materials, productTypeId, productName, productQty };
   });
 
+  // ─── IPC: SDE blueprint search — only returns blueprint types (categoryID=9) ──
+  ipcHandle('sde-search-types', async (_, query, limit = 15) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb) return [];
+
+    // Try joined query first (invTypes + invGroups, blueprint category = 9)
+    const joinedTables = [
+      { types: 'invTypes', groups: 'invGroups', typeCol: 'typeName', typeId: 'typeID', groupId: 'groupID', catId: 'categoryID' },
+      { types: 'invtypes', groups: 'invGroups', typeCol: 'typeName', typeId: 'typeID', groupId: 'groupID', catId: 'categoryID' },
+    ];
+    for (const q of joinedTables) {
+      try {
+        const rows = await sdeDb.all(
+          `SELECT t.${q.typeId} AS id, t.${q.typeCol} AS name
+             FROM ${q.types} t
+             JOIN ${q.groups} g ON t.${q.groupId} = g.${q.groupId}
+            WHERE t.${q.typeCol} LIKE ?
+              AND t.published = 1
+              AND g.${q.catId} = 9
+            ORDER BY CASE WHEN t.${q.typeCol} LIKE ? THEN 0 ELSE 1 END,
+                     t.${q.typeCol}
+            LIMIT ?`,
+          [`%${query}%`, `${query}%`, limit]
+        );
+        if (rows.length) return rows;
+      } catch (_) {}
+    }
+
+    // Fallback: filter by name containing "Blueprint" if join tables differ
+    const fallbackTables = [
+      { t: 'invTypes', col: 'typeName', idcol: 'typeID' },
+      { t: 'invtypes', col: 'typeName', idcol: 'typeID' },
+    ];
+    for (const { t, col, idcol } of fallbackTables) {
+      try {
+        const rows = await sdeDb.all(
+          `SELECT ${idcol} AS id, ${col} AS name FROM ${t}
+            WHERE ${col} LIKE ? AND ${col} LIKE '%Blueprint%' AND published = 1
+            ORDER BY CASE WHEN ${col} LIKE ? THEN 0 ELSE 1 END, ${col}
+            LIMIT ?`,
+          [`%${query}%`, `${query}%`, limit]
+        );
+        if (rows.length) return rows;
+      } catch (_) {}
+    }
+    return [];
+  });
+
   // ─── IPC: SDE name lookup (best-effort fallback to local SDE sqlite) ──────
   ipcHandle('sde-get-name', async (_, typeId) => {
     const sdeDb = getSdeDb(); if (!sdeDb) return null;

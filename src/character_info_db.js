@@ -378,14 +378,20 @@ async function replaceAssets(characterId, assets) {
   const db  = charDb;
   const now = Date.now();
   const p   = `char_${characterId}`;
-  // Wrap DELETE + all INSERTs in one transaction so a concurrent dashboard read
-  // never sees a partially-replaced table (which would make regions appear missing).
+  const tmp = `${p}_assets_new`;
+
+  // ── Write-then-swap strategy ─────────────────────────────────────────────────
+  // We write all new rows into a temporary table first.  Only if every insert
+  // succeeds do we atomically swap it in, so a crash/rollback mid-insert NEVER
+  // leaves the live assets table empty.
+  await db.run(`DROP TABLE IF EXISTS ${tmp}`);
+  await db.run(`CREATE TABLE ${tmp} AS SELECT * FROM ${p}_assets WHERE 0`); // same schema, empty
+
   await db.run('BEGIN');
   try {
-    await db.run(`DELETE FROM ${p}_assets`);
     for (const a of assets) {
       await db.run(
-        `INSERT OR REPLACE INTO ${p}_assets
+        `INSERT OR REPLACE INTO ${tmp}
            (item_id, type_id, type_name, location_id, location_name,
             location_flag, quantity, volume, is_singleton, solar_system_id,
             solar_system_name, region_id, region_name, security_status,
@@ -404,9 +410,14 @@ async function replaceAssets(characterId, assets) {
         ]
       );
     }
+    // Atomic swap: drop live table, rename temp into its place
+    await db.run(`DROP TABLE ${p}_assets`);
+    await db.run(`ALTER TABLE ${tmp} RENAME TO ${p}_assets`);
     await db.run('COMMIT');
   } catch (e) {
     await db.run('ROLLBACK').catch(() => {});
+    // Clean up temp table; the original live table is untouched
+    await db.run(`DROP TABLE IF EXISTS ${tmp}`).catch(() => {});
     throw e;
   }
 }

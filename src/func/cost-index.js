@@ -8,6 +8,7 @@ let _ciLoading      = false;
 let _ciSort         = { col: 'manufacturing', dir: -1 };
 let _ciRegion       = '';
 let _ciSystemQuery  = '';
+const _routeCache   = new Map(); // session-level cache: "anchorId:destId" → hops (or Infinity)
 let _ciJumpRange    = 4;
 let _ciReqFactory   = false;
 let _ciReqLab       = false;
@@ -449,36 +450,63 @@ function findCISystemByName(query) {
 }
 
 // ── Filter systems by jump range via ESI route ────────────────────────────────
+// Limits: max 5 concurrent requests, 300 ms delay between batches, session-level
+// cache for route distances so repeated anchor searches don't re-hit ESI.
+// Hard cap: if > 400 uncached systems remain, require a region filter first.
 
 async function filterByJumpRange(systems, anchorId, maxJumps) {
-  // Build a set of system IDs within range
   const inRange = new Set([anchorId]);
-
-  // Query routes to a sample of systems — ESI route API is cheap
-  // We batch check up to 1000 systems concurrently
   const targets = systems.map(s => s.id).filter(id => id !== anchorId);
-  const BATCH   = 20;
 
-  for (let i = 0; i < targets.length; i += BATCH) {
-    const batch = targets.slice(i, i + BATCH);
-    const checks = batch.map(async (destId) => {
+  // Separate cached from uncached hits
+  const uncached = [];
+  for (const destId of targets) {
+    const key  = `${anchorId}:${destId}`;
+    const hops = _routeCache.get(key);
+    if (hops !== undefined) {
+      if (hops <= maxJumps) inRange.add(destId);
+    } else {
+      uncached.push(destId);
+    }
+  }
+
+  // Guard: if still too many uncached systems, bail out with a warning.
+  // User should apply a region filter first to narrow things down.
+  if (uncached.length > 400) {
+    const rowCount = document.getElementById('ciRowCount');
+    if (rowCount) rowCount.textContent =
+      `Too many systems to check (${uncached.length}) — apply a region filter first`;
+    return systems.filter(s => inRange.has(s.id));
+  }
+
+  const BATCH = 5;
+  const DELAY = 300; // ms between batches
+
+  for (let i = 0; i < uncached.length; i += BATCH) {
+    const batch = uncached.slice(i, i + BATCH);
+    await Promise.all(batch.map(async destId => {
+      const key = `${anchorId}:${destId}`;
       try {
         const route = await window.eveAPI.esiFetch(
           `https://esi.evetech.net/latest/route/${anchorId}/${destId}/?datasource=tranquility&flag=shortest`
         );
-        if (Array.isArray(route) && route.length - 1 <= maxJumps) {
-          inRange.add(destId);
-        }
-      } catch (_) {
-        // unreachable / same system — include if same id
+        const hops = Array.isArray(route) ? route.length - 1 : Infinity;
+        _routeCache.set(key, hops);
+        if (hops <= maxJumps) inRange.add(destId);
+      } catch (err) {
+        // Don't cache rate-limit errors so we retry next time
+        if (!err?.isRateLimit) _routeCache.set(key, Infinity);
         if (destId === anchorId) inRange.add(destId);
       }
-    });
-    await Promise.all(checks);
+    }));
 
-    // Update progress every batch
     const rowCount = document.getElementById('ciRowCount');
-    if (rowCount) rowCount.textContent = `checking… (${Math.min(i + BATCH, targets.length)}/${targets.length})`;
+    if (rowCount) rowCount.textContent =
+      `checking… (${Math.min(i + BATCH, uncached.length)}/${uncached.length})`;
+
+    if (i + BATCH < uncached.length) {
+      await new Promise(r => setTimeout(r, DELAY));
+    }
   }
 
   return systems.filter(s => inRange.has(s.id));

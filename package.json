@@ -1,7 +1,7 @@
 {
   "name": "eve-carbon",
   "productName": "EVE Carbon",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": "Mia Christina Panayides",
   "description": "This is a desktop application built with Electron that calculates the cost of manufacturing items in EVE Online based on their blueprints and market prices.",
   "main": "main.js",

@@ -1,17 +1,22 @@
 name: Build and Release
 
 on:
-  push:
-    tags:
-      - 'v*'  # triggers on any tag like v0.5.1, v0.5.2 etc
+  workflow_run:
+    workflows: ["Auto-update Docs"]  # must match the name: field exactly
+    types:
+      - completed
 
 jobs:
   build:
     runs-on: windows-latest
-
+    # only run if update-docs succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: main  # important - gets the updated docs commit
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,6 +33,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.exe
-          body_path: CHANGELOG.md  # reads from a file
+          body_path: CHANGELOG.md
+          tag_name: ${{ github.event.workflow_run.head_branch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

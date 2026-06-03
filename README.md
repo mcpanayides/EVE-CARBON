@@ -24,14 +24,21 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
   * Fuzzwork API
   * EVE Tech Image Server
 
-## Building the .exe
+## 📥 Download
+The easiest way to get EVE Carbon is from the 
+[Releases page](https://github.com/mcpanayides/EVE-CARBON/releases) — 
+just download and run the installer, no setup needed.
+
+---
+
+## 🔧 Building from Source
+For developers who want to build or contribute:
 
 ### Requirements
-- [Node.js](https://nodejs.org/) v22 or higher (includes npm)
+- Node.js v22 or higher
 
 ### Steps
-
-1. **Install dependencies**
+1. Install dependencies
    ```
    npm install
    ```
@@ -51,6 +58,9 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
 - **macOS:** `npm run build-mac`
 - **Linux:** `npm run build-linux`
 
+### For what does what and where
+-- Please check the ./src/docs for more details
+
 
 ## Notes
 - All data comes from the public EVE ESI API — no API key or login needed
@@ -66,8 +76,3 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
    - 🩷Built with blood sweat tears 😭😭, and lots of Claude code...
 
 
-
-
-
-### For what does what and where
--- Please check the ./src/docs for more details

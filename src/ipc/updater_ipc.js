@@ -7,7 +7,10 @@
 // User data lives in %AppData%\EVE-Carbon\ and is never touched by the NSIS
 // installer, so upgrades are seamless (accounts, databases, settings all survive).
 
-const { shell } = require('electron');
+const { shell, BrowserWindow } = require('electron');
+const fs   = require('fs');
+const path = require('path');
+const os   = require('os');
 
 const GH_LATEST_URL   = 'https://api.github.com/repos/mcpanayides/EVE-CARBON/releases/latest';
 const GH_RELEASES_URL = 'https://github.com/mcpanayides/EVE-CARBON/releases/latest';
@@ -85,14 +88,54 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   });
 
   // ── Open download page in browser ──────────────────────────────────────────
-  // Opens the GitHub release download URL in the system browser.
-  // The NSIS installer handles the upgrade; user data in %AppData% is untouched.
   ipcHandle('updater-open-download', async (_, downloadUrl) => {
     const url = (downloadUrl && /^https?:\/\//.test(downloadUrl))
       ? downloadUrl
       : GH_RELEASES_URL;
     shell.openExternal(url);
     return { success: true };
+  });
+
+  // ── Auto-download installer and launch ──────────────────────────────────────
+  // Windows only: streams the .exe asset directly to a temp file, reports
+  // progress via 'updater-download-progress' IPC events, then spawns the
+  // NSIS installer and quits. Non-exe URLs fall back to opening the browser.
+  ipcHandle('updater-download-and-install', async (event, downloadUrl) => {
+    if (!downloadUrl || !/\.exe(\?.*)?$/i.test(downloadUrl)) {
+      // macOS / Linux — open browser as fallback
+      shell.openExternal(downloadUrl || GH_RELEASES_URL);
+      return { success: true, method: 'browser' };
+    }
+
+    const send = (stage, percent) => {
+      try {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('updater-download-progress', { stage, percent });
+        }
+      } catch (_) {}
+    };
+
+    const fileName = `EVE-Carbon-Setup-${Date.now()}.exe`;
+    const destPath = path.join(os.tmpdir(), fileName);
+
+    try {
+      send('Connecting…', 0);
+      await downloadBinary(downloadUrl, destPath, pct => send(`Downloading… ${pct}%`, pct));
+      send('Launching installer…', 100);
+
+      // Spawn detached so the installer survives the app quitting
+      const { spawn } = require('child_process');
+      spawn(destPath, [], { detached: true, stdio: 'ignore' }).unref();
+
+      setTimeout(() => app.quit(), 800);
+      return { success: true, method: 'install' };
+    } catch (e) {
+      // Clean up partial download
+      try { fs.unlinkSync(destPath); } catch (_) {}
+      console.error('[updater] download failed:', e.message);
+      return { success: false, error: e.message };
+    }
   });
 
   // ── Skip a specific version ─────────────────────────────────────────────────
@@ -108,6 +151,37 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
     } catch (e) {
       return { success: false, error: e.message };
     }
+  });
+}
+
+// Streams a binary URL to destPath, following redirects, calling onProgress(0-100).
+function downloadBinary(url, destPath, onProgress, redirectsLeft = 10) {
+  const https = require('https');
+  const http  = require('http');
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https') ? https : http;
+    const req = lib.get(url, { headers: { 'User-Agent': 'EVE-Carbon-Updater/1.0' } }, res => {
+      if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
+        return resolve(downloadBinary(res.headers.location, destPath, onProgress, redirectsLeft - 1));
+      }
+      if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
+
+      const total    = parseInt(res.headers['content-length'] || '0', 10);
+      let received   = 0;
+      const fileStream = fs.createWriteStream(destPath);
+
+      res.on('data', chunk => {
+        received += chunk.length;
+        if (total > 0) onProgress(Math.round(received / total * 100));
+      });
+      res.pipe(fileStream);
+      fileStream.on('finish', () => { fileStream.close(); resolve(destPath); });
+      fileStream.on('error', reject);
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(180000, () => { req.destroy(); reject(new Error('Download timed out')); });
+    req.end();
   });
 }
 

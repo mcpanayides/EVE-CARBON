@@ -133,9 +133,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
   salvageGetRigData:   ()       => ipcRenderer.invoke('salvage-get-rig-data'),
 
   // Updater
-  updaterCheck:        ()       => ipcRenderer.invoke('updater-check'),
-  updaterOpenDownload: (url)    => ipcRenderer.invoke('updater-open-download', url),
-  updaterSkipVersion:  (ver)    => ipcRenderer.invoke('updater-skip-version', ver),
+  updaterCheck:               ()    => ipcRenderer.invoke('updater-check'),
+  updaterOpenDownload:        (url) => ipcRenderer.invoke('updater-open-download', url),
+  updaterSkipVersion:         (ver) => ipcRenderer.invoke('updater-skip-version', ver),
+  updaterDownloadAndInstall:  (url) => ipcRenderer.invoke('updater-download-and-install', url),
 
   // Queries SDE for manufacturing materials and applies the ME bonus.
   // Returns { materials, productTypeId, productName, productQty } or null.
@@ -163,6 +164,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
       'ping-file-updated',
       'ping-alert-data',
       'sde-update-progress',
+      'updater-download-progress',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => fn(...args));

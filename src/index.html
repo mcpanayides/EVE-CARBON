@@ -621,6 +621,20 @@
     <span class="console-label">▶ LOG</span>
     <span class="console-time"  id="console-time"></span>
     <span class="console-msg"   id="console-msg">[System] ESI connection ready...</span>
+    <button id="verStatusBtn" title="Version: checking…"
+            style="display:inline-flex;align-items:center;gap:4px;
+                   background:none;border:none;padding:0;margin-left:8px;
+                   cursor:pointer;-webkit-app-region:no-drag;flex-shrink:0;">
+      <span id="verStatusLight"
+            style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                   background:#555;flex-shrink:0;
+                   box-shadow:0 0 0 1px rgba(0,0,0,0.25);
+                   transition:background 0.3s ease,box-shadow 0.3s ease;"></span>
+      <span id="verStatusLabel"
+            style="font-size:9px;font-family:var(--mono);letter-spacing:0.08em;
+                   color:var(--text-7);flex-shrink:0;margin-right:6px;
+                   transition:color 0.3s ease;">v—</span>
+    </button>
     <span id="sdeStatusLight"
           title="SDE: checking…"
           style="
@@ -630,7 +644,6 @@
             background:#555;
             flex-shrink:0;
             margin-right:6px;
-            margin-left:8px;
             box-shadow:0 0 0 1px rgba(0,0,0,0.25);
             transition:background 0.3s ease, box-shadow 0.3s ease;
           "></span>
@@ -801,6 +814,39 @@
 })();
 </script>
 
+<!-- ── Version Update Modal ──────────────────────────────────────────────────── -->
+<div id="verUpdateModal" class="modal-backdrop" style="display:none;"
+     onclick="if(event.target===this)document.getElementById('verUpdateModal').style.display='none'">
+  <div class="modal" style="max-width:360px;width:90%;">
+    <div class="modal-header" style="justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:10px;height:10px;border-radius:50%;background:var(--danger);
+                     box-shadow:0 0 8px rgba(208,38,61,0.7);flex-shrink:0;display:inline-block;"></span>
+        <span style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;color:var(--text-2);">APP UPDATE</span>
+      </div>
+      <button onclick="document.getElementById('verUpdateModal').style.display='none'"
+              class="icon-btn" style="font-size:15px;background:none;border:none;color:var(--text-3);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 20px 8px;">
+      <div id="verModalBody" style="font-size:14px;color:var(--text-1);line-height:1.7;margin-bottom:20px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <button id="verModalSkipBtn"
+                style="background:transparent;border:1px solid var(--border);color:var(--text-3);
+                       border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:var(--mono);
+                       letter-spacing:0.06em;">SKIP VERSION</button>
+        <button id="verModalLaterBtn"
+                style="background:transparent;border:1px solid var(--border);color:var(--text-2);
+                       border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:var(--mono);
+                       letter-spacing:0.06em;">LATER</button>
+        <button id="verModalDownloadBtn"
+                style="background:var(--accent);border:1px solid var(--accent);color:#fff;
+                       border-radius:4px;padding:6px 18px;font-size:12px;font-weight:700;cursor:pointer;
+                       font-family:var(--mono);letter-spacing:0.06em;">DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Donate Modal ──────────────────────────────────────────────────────────── -->
 <div id="donateBackdrop" class="modal-backdrop" style="display:none;" onclick="if(event.target===this)closeDonateModal()">
   <div class="modal bug-modal" style="max-width:820px; width:90%;">
@@ -925,6 +971,121 @@
     if (e.key === 'Escape') { closeDonateModal(); closeAttributionsModal(); }
   });
 
+  // ── Version status light ─────────────────────────────────────────────────
+  let _verResult = null;
+
+  function setVerLight(state, version) {
+    const btn   = document.getElementById('verStatusBtn');
+    const light = document.getElementById('verStatusLight');
+    const label = document.getElementById('verStatusLabel');
+    const cfg = {
+      checking: { bg: '#555',    shadow: 'none',                            color: 'var(--text-7)', title: 'Version: checking…' },
+      ok:       { bg: '#4ada8a', shadow: '0 0 6px rgba(74,218,138,0.7)',    color: '#4ada8a',       title: `Up to date — click for details` },
+      outdated: { bg: '#d0263d', shadow: '0 0 6px rgba(208,38,61,0.8)',     color: 'var(--danger)', title: `Update available — click to upgrade` },
+      error:    { bg: '#555',    shadow: 'none',                            color: 'var(--text-7)', title: 'Version check failed' },
+    }[state] || { bg: '#555', shadow: 'none', color: 'var(--text-7)', title: '' };
+    if (light) { light.style.background = cfg.bg; light.style.boxShadow = cfg.shadow; }
+    if (label) { label.textContent = version ? `v${version}` : 'v—'; label.style.color = cfg.color; }
+    if (btn)   btn.title = cfg.title;
+  }
+
+  // Load current version into label immediately
+  window.eveAPI.getAppVersion().then(v => {
+    const label = document.getElementById('verStatusLabel');
+    if (label) label.textContent = `v${v}`;
+  }).catch(() => {});
+
+  // Click: open update modal if update available, else show toast
+  document.getElementById('verStatusBtn')?.addEventListener('click', () => {
+    if (!_verResult) return;
+    if (!_verResult.hasUpdate) {
+      if (typeof showToast === 'function') showToast(`v${_verResult.currentVersion || '—'} — you're up to date.`, 'success');
+      return;
+    }
+    const body = document.getElementById('verModalBody');
+    if (body) body.innerHTML =
+      `<strong style="color:var(--accent);font-size:16px;">v${_verResult.latestVersion}</strong> is available.<br>
+       <span style="font-size:12px;color:var(--text-3);">You currently have v${_verResult.currentVersion}</span>`;
+    document.getElementById('verUpdateModal').style.display = 'flex';
+  });
+
+  document.getElementById('verModalDownloadBtn')?.addEventListener('click', async () => {
+    const url = _verResult?.downloadUrl || '';
+    const isExe = /\.exe(\?.*)?$/i.test(url);
+
+    if (!isExe) {
+      // macOS / Linux — open browser
+      window.eveAPI.updaterOpenDownload(url);
+      document.getElementById('verUpdateModal').style.display = 'none';
+      return;
+    }
+
+    // Windows — auto-download with progress UI
+    const downloadBtn = document.getElementById('verModalDownloadBtn');
+    const skipBtn     = document.getElementById('verModalSkipBtn');
+    const laterBtn    = document.getElementById('verModalLaterBtn');
+    const body        = document.getElementById('verModalBody');
+
+    downloadBtn.disabled = true;
+    skipBtn.disabled     = true;
+    laterBtn.disabled    = true;
+    downloadBtn.textContent = 'DOWNLOADING…';
+
+    body.innerHTML = `
+      <div style="font-size:13px;color:var(--text-1);margin-bottom:14px;">
+        Downloading <strong style="color:var(--accent);">v${_verResult.latestVersion}</strong>…
+      </div>
+      <div style="height:4px;background:var(--bg-deep);border-radius:2px;overflow:hidden;margin-bottom:8px;">
+        <div id="verDlBar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.3s ease;"></div>
+      </div>
+      <div id="verDlStage" style="font-size:10px;color:var(--text-3);font-family:var(--mono);letter-spacing:0.08em;">Connecting…</div>`;
+
+    const onProgress = ({ stage, percent }) => {
+      const bar   = document.getElementById('verDlBar');
+      const label = document.getElementById('verDlStage');
+      if (bar)   bar.style.width = percent + '%';
+      if (label) label.textContent = stage;
+    };
+    window.eveAPI.on('updater-download-progress', onProgress);
+
+    try {
+      const result = await window.eveAPI.updaterDownloadAndInstall(url);
+      window.eveAPI.off('updater-download-progress', onProgress);
+
+      if (result?.success) {
+        const label = document.getElementById('verDlStage');
+        if (label) label.textContent = 'Launching installer — the app will close…';
+        downloadBtn.textContent = 'INSTALLING…';
+      } else {
+        throw new Error(result?.error || 'Download failed');
+      }
+    } catch (e) {
+      window.eveAPI.off('updater-download-progress', onProgress);
+      body.innerHTML = `<div style="color:var(--danger);font-size:13px;">Download failed: ${e.message}</div>
+        <div style="font-size:12px;color:var(--text-3);margin-top:8px;">
+          <a href="#" id="verFallbackLink" style="color:var(--accent);">Open GitHub releases page instead</a>
+        </div>`;
+      document.getElementById('verFallbackLink')?.addEventListener('click', e => {
+        e.preventDefault();
+        window.eveAPI.updaterOpenDownload(url);
+      });
+      downloadBtn.textContent = 'DOWNLOAD';
+      downloadBtn.disabled = false;
+      skipBtn.disabled     = false;
+      laterBtn.disabled    = false;
+    }
+  });
+
+  document.getElementById('verModalSkipBtn')?.addEventListener('click', async () => {
+    if (_verResult?.latestVersion) await window.eveAPI.updaterSkipVersion(_verResult.latestVersion).catch(() => {});
+    setVerLight('ok', _verResult?.currentVersion);
+    document.getElementById('verUpdateModal').style.display = 'none';
+  });
+
+  document.getElementById('verModalLaterBtn')?.addEventListener('click', () => {
+    document.getElementById('verUpdateModal').style.display = 'none';
+  });
+
   // ── Update banner logic ───────────────────────────────────────────────────
   let _updateDownloadUrl = '';
 
@@ -956,10 +1117,15 @@
   setTimeout(async () => {
     try {
       const result = await window.eveAPI.updaterCheck();
+      _verResult = result;
       if (result?.hasUpdate) {
+        setVerLight('outdated', result.currentVersion);
         showUpdateBanner(result.latestVersion, result.currentVersion, result.downloadUrl);
+      } else {
+        setVerLight('ok', result?.currentVersion);
       }
     } catch (e) {
+      setVerLight('error');
       console.warn('[updater] startup check failed:', e.message);
     }
   }, 8000);

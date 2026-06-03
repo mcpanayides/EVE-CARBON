@@ -137,6 +137,32 @@
 .jformup-btn.done     { color: #4ada8a; border-color: rgba(39,174,96,0.35); background: rgba(39,174,96,0.10); }
 .jformup-btn.err      { color: #e05a4a; border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.10); }
 
+/* ── Comms green pill button ── */
+.jcomms-btn {
+  display: inline-block;
+  font-size: 9px;
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  background: rgba(74,218,138,0.12);
+  color: #4ada8a;
+  border: 1px solid rgba(74,218,138,0.32);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.jcomms-btn:hover {
+  background: rgba(74,218,138,0.22);
+  border-color: rgba(74,218,138,0.55);
+  color: #3ddc84;
+}
+
 /* ── Inline links (comms + message columns) ── */
 .jabber-link {
   color: var(--accent);

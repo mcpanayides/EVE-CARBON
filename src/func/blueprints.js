@@ -1023,6 +1023,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'gas') {
     renderGasCalculator(right);
 
+  } else if (tab === 'salvage') {
+    if (typeof renderSalvageCalculator === 'function') renderSalvageCalculator(right);
+
   } else if (tab === 'active-jobs') {
     renderActiveJobsPage(right);
 
@@ -1031,10 +1034,11 @@ function navigateIndustryTab(tab) {
 
   } else {
     const labels = {
-      'calculator': 'Blueprint Calculator',
+      'calculator':     'Blueprint Calculator',
       'shopping-lists': 'Shopping Lists',
-      'invention': 'Invention Buddy', 'reactions': 'Reactions Profit',
-      'moon': 'Moon Scanning Reformatter',
+      'invention':      'Invention Buddy',
+      'reactions':      'Reactions Profit',
+      'moon':           'Moon Scanning Reformatter',
     };
     right.innerHTML = `
       <div class="empty-state" style="margin-top:80px;">

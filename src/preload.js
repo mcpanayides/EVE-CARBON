@@ -129,6 +129,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   themeSaveCustom:     (data)   => ipcRenderer.invoke('theme-save-custom', data),
   themeDeleteCustom:   (id)     => ipcRenderer.invoke('theme-delete-custom', id),
 
+  // Salvage Calculator
+  salvageGetRigData:   ()       => ipcRenderer.invoke('salvage-get-rig-data'),
+
   // Updater
   updaterCheck:        ()       => ipcRenderer.invoke('updater-check'),
   updaterOpenDownload: (url)    => ipcRenderer.invoke('updater-open-download', url),

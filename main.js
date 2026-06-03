@@ -506,6 +506,67 @@ app.whenReady().then(async () => {
     }
   });
 
+  // ── Salvage Calculator — all rig blueprints with their salvage material requirements ──
+  ipcHandle('salvage-get-rig-data', async () => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb) return null;
+    try {
+      const rows = await sdeDb.all(`
+        WITH rig_size AS (
+          SELECT typeID, CAST(valueFloat AS INTEGER) AS rigSize
+          FROM dgmTypeAttributes
+          WHERE attributeID = 1547
+        )
+        SELECT
+          p.typeID          AS blueprintTypeID,
+          p.productTypeID   AS rigTypeID,
+          rt.typeName       AS rigName,
+          m.materialTypeID  AS matTypeID,
+          mt.typeName       AS matName,
+          m.quantity        AS matQty,
+          COALESCE(rs.rigSize, 0) AS rigSize
+        FROM industryActivityProducts p
+        JOIN invTypes rt ON rt.typeID = p.productTypeID
+        JOIN industryActivityMaterials m  ON m.typeID = p.typeID AND m.activityID = 1
+        JOIN invTypes mt ON mt.typeID = m.materialTypeID
+        LEFT JOIN rig_size rs ON rs.typeID = p.productTypeID
+        WHERE p.activityID = 1
+          AND mt.groupID = 754
+        ORDER BY rt.typeName, mt.typeName
+      `);
+
+      const salvageMats = await sdeDb.all(`
+        SELECT typeID, typeName
+        FROM invTypes
+        WHERE groupID = 754 AND published = 1
+        ORDER BY typeName
+      `);
+
+      const rigMap = new Map();
+      for (const row of rows) {
+        if (!rigMap.has(row.rigTypeID)) {
+          rigMap.set(row.rigTypeID, {
+            blueprintTypeID: row.blueprintTypeID,
+            rigTypeID:       row.rigTypeID,
+            rigName:         row.rigName,
+            rigSize:         row.rigSize,
+            materials:       [],
+          });
+        }
+        rigMap.get(row.rigTypeID).materials.push({
+          typeID: row.matTypeID,
+          name:   row.matName,
+          qty:    row.matQty,
+        });
+      }
+
+      return { rigs: Array.from(rigMap.values()), salvageMats };
+    } catch (e) {
+      console.error('[salvage-get-rig-data]', e.message);
+      return null;
+    }
+  });
+
   // Open the window only after ALL IPC handlers are registered.
   // Previously createWindow() was called first, causing the renderer to invoke
   // channels (app-get-config, jabber-get-messages, etc.) before their handlers

@@ -252,20 +252,20 @@ function jabberFcCell(fcName) {
   return `<span class="jabber-fc-cell">${img}<span class="jabber-fc-name">${escHtml(clean)}</span></span>`;
 }
 
-/** Render the comms cell: linkify embedded URLs; if a configured channel URL
- *  is found and no URL is already in the text, append a clickable ⊕ link. */
+/** Render the comms cell: green pill button when a configured URL exists,
+ *  otherwise linkify any embedded URLs in the text. */
 function jabberCommsCell(comms) {
   if (!comms) return '';
   const hasEmbedded = /https?:\/\//i.test(comms);
   const configUrl   = !hasEmbedded ? jabberCommsUrl(comms) : null;
 
+  if (configUrl) {
+    const label = comms.replace(/[​-‏﻿]/g, '').trim();
+    return `<button class="jcomms-btn" data-url="${escHtml(configUrl)}" title="Open ${escHtml(label)}">${escHtml(label)}</button>`;
+  }
+
   // Linkify handles any embedded URLs in the text
   let html = jabberLinkify(comms);
-
-  // Append a small join-link badge when a configured URL exists but isn't in the text
-  if (configUrl) {
-    html += ` <a class="jabber-link jabber-comms-join" href="#" data-url="${escHtml(configUrl)}" title="Open ${escHtml(comms)} comms">⊕</a>`;
-  }
   return html;
 }
 
@@ -739,6 +739,16 @@ function bindJabberEvents() {
         e.stopPropagation();
         const url = link.dataset.url;
         if (url) window.eveAPI.openExternalUrl(url);
+        return;
+      }
+
+      // ── Comms open ──
+      const commsBtn = e.target.closest('.jcomms-btn');
+      if (commsBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = commsBtn.dataset.url;
+        if (url) window.eveAPI.openExternalUrl(url).catch(() => {});
         return;
       }
 

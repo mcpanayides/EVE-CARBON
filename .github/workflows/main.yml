@@ -29,8 +29,11 @@ jobs:
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
 
+      - name: Fetch SDE
+        run: node scripts/fetch-sde.js
+
       - name: Build Windows exe
-        run: npm run build-win
+        run: npx electron-builder --win --x64 --publish never
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -63,8 +66,11 @@ jobs:
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
 
+      - name: Fetch SDE
+        run: node scripts/fetch-sde.js
+
       - name: Build macOS dmg
-        run: npm run build-mac
+        run: npx electron-builder --mac --publish never
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2

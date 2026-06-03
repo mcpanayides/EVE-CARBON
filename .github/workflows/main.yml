@@ -10,6 +10,8 @@ jobs:
   build-windows:
     runs-on: windows-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,6 +49,8 @@ jobs:
   build-mac:
     runs-on: macos-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

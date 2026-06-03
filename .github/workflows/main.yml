@@ -2,21 +2,19 @@ name: Build and Release
 
 on:
   workflow_run:
-    workflows: ["Auto-update Docs"]  # must match the name: field exactly
+    workflows: ["Auto-update Docs"]
     types:
       - completed
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
-    # only run if update-docs succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main  # important - gets the updated docs commit
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,6 +24,11 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
 
+      - name: Create .env file
+        run: |
+          echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
+          echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
+
       - name: Build Windows exe
         run: npm run build-win
 
@@ -34,6 +37,39 @@ jobs:
         with:
           files: dist/*.exe
           body_path: CHANGELOG.md
+          tag_name: ${{ github.event.workflow_run.head_branch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac:
+    runs-on: macos-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Create .env file
+        run: |
+          echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
+          echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
+
+      - name: Build macOS dmg
+        run: npm run build-mac
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
           tag_name: ${{ github.event.workflow_run.head_branch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

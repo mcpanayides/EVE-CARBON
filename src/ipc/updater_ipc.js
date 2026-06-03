@@ -1,15 +1,16 @@
-// ── updater_ipc.js — SourceForge update checker ───────────────────────────────
-// Checks https://sourceforge.net/projects/eve-carbon/best_release.json for a
-// newer version than the currently running app. If found, the renderer shows a
-// notification and the user can open the SourceForge download page.
+// ── updater_ipc.js — GitHub Releases update checker ───────────────────────────
+// Checks https://api.github.com/repos/mcpanayides/EVE-CARBON/releases/latest
+// for a newer version than the currently running app (tags must be "v"-prefixed,
+// e.g. v0.5.4). If found, the renderer shows a notification and the user can
+// open the GitHub Releases download page.
 //
 // User data lives in %AppData%\EVE-Carbon\ and is never touched by the NSIS
 // installer, so upgrades are seamless (accounts, databases, settings all survive).
 
 const { shell } = require('electron');
 
-const SF_BEST_RELEASE_URL = 'https://sourceforge.net/projects/eve-carbon/best_release.json';
-const SF_PROJECT_URL      = 'https://sourceforge.net/projects/eve-carbon/files/latest/download';
+const GH_LATEST_URL   = 'https://api.github.com/repos/mcpanayides/EVE-CARBON/releases/latest';
+const GH_RELEASES_URL = 'https://github.com/mcpanayides/EVE-CARBON/releases/latest';
 
 // Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
 function compareVersions(v1, v2) {
@@ -57,24 +58,12 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   ipcHandle('updater-check', async () => {
     try {
       const currentVersion = app.getVersion();
-      const data = await fetchJson(SF_BEST_RELEASE_URL);
+      const data = await fetchJson(GH_LATEST_URL);
 
-      // SourceForge returns platform_releases.windows or a generic release object.
-      // Try windows-specific first, then fall back to the generic release.
-      const release =
-        data?.platform_releases?.windows ||
-        data?.platform_releases?.bsd     ||
-        data?.release                    ||
-        null;
-
-      if (!release) return { hasUpdate: false };
-
-      // Extract semver from filename, e.g. "EVE-Carbon Setup 0.5.4.exe" → "0.5.4"
-      const filename = release.filename || '';
-      const match = filename.match(/(\d+\.\d+\.\d+)/);
-      if (!match) return { hasUpdate: false };
-
-      const latestVersion = match[1];
+      // GitHub returns tag_name like "v0.5.4" — strip the leading "v"
+      const tag = data?.tag_name;
+      if (!tag || !/^v?\d+\.\d+\.\d+/.test(tag)) return { hasUpdate: false };
+      const latestVersion = tag.replace(/^v/, '');
 
       // Check if this version was previously skipped
       const cfg = loadConfig();
@@ -82,7 +71,9 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
       if (skipped === latestVersion) return { hasUpdate: false };
 
       if (compareVersions(latestVersion, currentVersion) > 0) {
-        const downloadUrl = release.url || SF_PROJECT_URL;
+        // Prefer a direct .exe asset download, fall back to the release page
+        const exeAsset = (data.assets || []).find(a => /\.exe$/i.test(a.name));
+        const downloadUrl = exeAsset?.browser_download_url || data.html_url || GH_RELEASES_URL;
         return { hasUpdate: true, latestVersion, currentVersion, downloadUrl };
       }
 
@@ -94,12 +85,12 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   });
 
   // ── Open download page in browser ──────────────────────────────────────────
-  // Opens the SourceForge download (or best-release URL) in the system browser.
+  // Opens the GitHub release download URL in the system browser.
   // The NSIS installer handles the upgrade; user data in %AppData% is untouched.
   ipcHandle('updater-open-download', async (_, downloadUrl) => {
     const url = (downloadUrl && /^https?:\/\//.test(downloadUrl))
       ? downloadUrl
-      : SF_PROJECT_URL;
+      : GH_RELEASES_URL;
     shell.openExternal(url);
     return { success: true };
   });

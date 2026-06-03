@@ -1,4 +1,4 @@
-# EVE Carbon  [[still in production]]   v0.5.0 [most basic functions kinda working]
+# EVE Carbon
 Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a comprehensive desktop management tool for EVE Online. By integrating live ESI data with a local Static Data Export (SDE) database, it delivers lightning-fast recursive blueprint calculations, real-time wealth tracking, and integrated XMPP Jabber communications—all wrapped in a secure, customizable Electron interface. Whether you are scaling up capital ship production or optimizing regional supply chains, EVE-Carbon provides the critical data and organizational tools needed to dominate the industrial market.
 
 ## 🚀 Features

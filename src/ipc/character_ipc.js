@@ -34,6 +34,13 @@ function registerCharacterHandlers({
     return charInfoDb.getCharacterAssets(characterId);
   });
 
+  // Cheap freshness probe — one MAX(synced_at) query, no full asset read.
+  // The dashboard uses this to decide whether a character's cached asset value
+  // is still valid without re-reading (and re-pricing) every asset row.
+  ipcHandle('get-asset-synced-at', async (_, characterId) => {
+    return charInfoDb.getAssetSyncedAt(characterId);
+  });
+
   ipcHandle('get-character-blueprints-db', async (_, characterId) => {
     return charInfoDb.getCharacterBlueprints(characterId);
   });

@@ -1,5 +1,173 @@
 // ─── Characters ───────────────────────────────────────────────────────────────
 
+// ─── Manual sync queue ────────────────────────────────────────────────────────
+// A full character sync is an ESI-heavy, paginated operation. Letting the user
+// fire several at once (or spam one button) hammers ESI and triggers rate
+// limits. This queue serialises manual syncs so only ONE runs at a time, and
+// adds two guards:
+//   • dedupe   — a character already queued or running is never enqueued twice.
+//   • cooldown — after a character syncs, repeat requests are ignored for 60 s.
+// Together these collapse a 6×-button-mash into a single sync followed by a
+// one-minute timeout, exactly as intended.
+const _syncQueue         = [];          // characterIds waiting their turn
+const _syncInFlight      = new Set();   // ids queued OR running (dedupe)
+const _syncCooldownUntil = {};          // id -> timestamp until which clicks are ignored
+let   _syncWorkerRunning = false;
+const SYNC_COOLDOWN_MS    = 60 * 1000;  // 1 minute
+
+function _findSyncCard(id) {
+  const card = document.querySelector(`.character-card[data-character-id="${String(id)}"]`);
+  return { card, btn: card ? card.querySelector('.character-sync-btn') : null };
+}
+
+function _ensureCardSpinner(card, btn) {
+  if (!card || !btn) return null;
+  let spinner = card.querySelector('.char-sync-spinner');
+  if (!spinner) {
+    spinner = document.createElement('span');
+    spinner.className = 'char-sync-spinner sync-spinner spin';
+    spinner.style.cssText = 'width:14px;height:14px;margin-left:6px;display:inline-block;flex-shrink:0;';
+    btn.insertAdjacentElement('afterend', spinner);
+  }
+  spinner.style.display = 'inline-block';
+  return spinner;
+}
+
+// Re-apply queued/syncing visuals to a freshly-rendered card. loadAccounts()
+// can rebuild the list while the queue is still draining (e.g. an auto-sync
+// 'done' event), which would otherwise reset an in-flight card to plain SYNC.
+function _applyManualSyncStateIfActive(id, card) {
+  id = String(id);
+  if (!_syncInFlight.has(id)) return;
+  const btn = card.querySelector('.character-sync-btn');
+  if (!btn) return;
+  btn.textContent = _syncQueue.includes(id) ? 'QUEUED' : 'SYNCING';
+  btn.disabled    = true;
+  btn.classList.remove('success', 'failure');
+  _ensureCardSpinner(card, btn);
+}
+
+// Public entry point wired to every SYNC button. Decides whether to enqueue.
+function requestCharacterSync(id) {
+  id = String(id);
+
+  // Cooldown gate — collapses post-sync re-clicks into a no-op for 60 s.
+  const until = _syncCooldownUntil[id] || 0;
+  if (Date.now() < until) {
+    const secs = Math.ceil((until - Date.now()) / 1000);
+    showToast(`Synced recently — try again in ${secs}s.`, 'info');
+    return;
+  }
+
+  // Dedupe gate — already queued or running, so ignore silently (the button
+  // already shows QUEUED/SYNCING, giving the user feedback).
+  if (_syncInFlight.has(id)) return;
+
+  _syncInFlight.add(id);
+  _syncQueue.push(id);
+
+  // Reflect state on the card: next-up shows SYNCING once the worker reaches it,
+  // anything behind it shows QUEUED.
+  const { card, btn } = _findSyncCard(id);
+  if (btn) {
+    btn.textContent = _syncWorkerRunning ? 'QUEUED' : 'SYNCING';
+    btn.disabled    = true;
+    btn.classList.remove('success', 'failure');
+    _ensureCardSpinner(card, btn);
+  }
+
+  _runSyncWorker();
+}
+
+// Drains the queue one character at a time. Idempotent — safe to call on every
+// enqueue; only one worker loop ever runs.
+async function _runSyncWorker() {
+  if (_syncWorkerRunning) return;
+  _syncWorkerRunning = true;
+  try {
+    while (_syncQueue.length) {
+      const id = _syncQueue.shift();
+      await _performCharacterSync(id);
+    }
+  } finally {
+    _syncWorkerRunning = false;
+  }
+}
+
+// Runs a single full sync with the same UI/progress behaviour the inline
+// handler used to have. Button/card are looked up fresh so a re-render of the
+// card list mid-queue doesn't leave us pointing at a detached node.
+async function _performCharacterSync(id) {
+  id = String(id);
+  let { card, btn } = _findSyncCard(id);
+  let spinner = _ensureCardSpinner(card, btn);
+  if (btn) {
+    btn.textContent = 'SYNCING';
+    btn.disabled    = true;
+    btn.classList.remove('success', 'failure');
+  }
+
+  const stepLabels = {
+    start:          'Starting full sync…',
+    character_info: 'Character sheet',
+    wallet:         'Wallet',
+    location:       'Location',
+    ship:           'Ship',
+    implants:       'Implants & Clones',
+    pi:             'Planetary Interaction',
+    assets:         'Assets',
+    blueprints:     'Blueprints',
+    done:           'Sync complete',
+    error:          'Sync error',
+  };
+
+  const progressHandler = (data) => {
+    if (String(data.characterId) !== id) return;
+    const { step, detail } = data;
+    const label = stepLabels[step] || step;
+    const msg   = detail ? `${label}: ${detail}` : label;
+    if (typeof logToConsole === 'function') {
+      const level = step === 'error' ? 'error' : step === 'done' ? 'success' : 'info';
+      logToConsole(msg, level);
+    }
+  };
+  if (window.eveAPI && window.eveAPI.on) window.eveAPI.on('char-sync-progress', progressHandler);
+
+  showToast(`Syncing all data for character ${id}…`, 'info');
+
+  try {
+    const result = await window.eveAPI.syncCharacterFull(id);
+    ({ card, btn } = _findSyncCard(id)); // re-fetch in case the list re-rendered
+    if (btn) { btn.textContent = 'SYNCED'; btn.classList.remove('failure'); btn.classList.add('success'); }
+    if (typeof logToConsole === 'function') logToConsole(`✓ Full sync complete for ${result?.characterName || id}`, 'success');
+    showToast('✓ Full sync complete!', 'success');
+    if (typeof loadBlueprintLibrary === 'function') await loadBlueprintLibrary();
+  } catch (err) {
+    ({ card, btn } = _findSyncCard(id));
+    if (btn) { btn.textContent = 'FAILED'; btn.classList.remove('success'); btn.classList.add('failure'); }
+    if (typeof logToConsole === 'function') logToConsole(`✗ Sync failed: ${err.message}`, 'error');
+    showToast(`Sync failed: ${err.message}`, 'error');
+  } finally {
+    if (window.eveAPI && window.eveAPI.off) window.eveAPI.off('char-sync-progress', progressHandler);
+
+    // Start the 1-minute cooldown now and free the dedupe slot.
+    _syncCooldownUntil[id] = Date.now() + SYNC_COOLDOWN_MS;
+    _syncInFlight.delete(id);
+
+    // Restore the button after a short delay so the result stays visible.
+    setTimeout(() => {
+      const cur = _findSyncCard(id);
+      const sp  = cur.card ? cur.card.querySelector('.char-sync-spinner') : null;
+      if (sp) sp.style.display = 'none';
+      if (cur.btn) {
+        cur.btn.textContent = 'SYNC';
+        cur.btn.disabled    = false;
+        cur.btn.classList.remove('success', 'failure');
+      }
+    }, 4000);
+  }
+}
+
 async function loadAccounts() {
   try {
     const accounts = await window.eveAPI.getAccounts();
@@ -124,6 +292,8 @@ async function loadAccounts() {
       if (typeof window._applyAutoSyncStateIfActive === 'function') {
         window._applyAutoSyncStateIfActive(acc.characterId, item);
       }
+      // Same, for a manual sync still queued/running on this character.
+      _applyManualSyncStateIfActive(acc.characterId, item);
     });
 
     if (!selectedCharacterId && orderedAccounts.length > 0) selectCharacter(orderedAccounts[0]);
@@ -140,100 +310,13 @@ async function loadAccounts() {
       });
     });
 
-    // Wire sync buttons — full character sync into character_information.db
+    // Wire sync buttons — every click routes through the serialised sync queue
+    // (see requestCharacterSync) so concurrent syncs and button-spam can't
+    // overwhelm ESI.
     listDiv.querySelectorAll('.sync-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const target       = e.currentTarget;
-        const id           = target.getAttribute('data-id');
-        const card         = target.closest('.character-card');
-
-        // Prevent double-click
-        if (target.disabled) return;
-
-        // ── Show spinner next to button ──────────────────────────────────
-        let spinner = card.querySelector('.char-sync-spinner');
-        if (!spinner) {
-          spinner = document.createElement('span');
-          spinner.className = 'char-sync-spinner sync-spinner spin';
-          spinner.style.cssText = 'width:14px;height:14px;margin-left:6px;display:inline-block;flex-shrink:0;';
-          target.insertAdjacentElement('afterend', spinner);
-        } else {
-          spinner.style.display = 'inline-block';
-        }
-
-        const originalText = target.textContent;
-        target.textContent = 'SYNCING';
-        target.disabled    = true;
-        target.classList.remove('success', 'failure');
-
-        // Set up progress listener for this character
-        const progressHandler = (data) => {
-          if (String(data.characterId) !== String(id)) return;
-          const { step, detail } = data;
-
-          // Map sync steps to human labels for the console bar
-          const stepLabels = {
-            start:          'Starting full sync…',
-            character_info: 'Character sheet',
-            wallet:         'Wallet',
-            location:       'Location',
-            ship:           'Ship',
-            implants:       'Implants & Clones',
-            pi:             'Planetary Interaction',
-            assets:         'Assets',
-            blueprints:     'Blueprints',
-            done:           'Sync complete',
-            error:          'Sync error',
-          };
-          const label = stepLabels[step] || step;
-          const msg   = detail ? `${label}: ${detail}` : label;
-
-          // Output to app console bar
-          if (typeof logToConsole === 'function') {
-            const level = step === 'error' ? 'error' : step === 'done' ? 'success' : 'info';
-            logToConsole(msg, level);
-          }
-        };
-
-        if (window.eveAPI && window.eveAPI.on) {
-          window.eveAPI.on('char-sync-progress', progressHandler);
-        }
-
-        showToast(`Syncing all data for character ${id}…`, 'info');
-
-        try {
-          const result = await window.eveAPI.syncCharacterFull(id);
-
-          // Success
-          target.textContent = 'SYNCED';
-          target.classList.add('success');
-          if (typeof logToConsole === 'function') logToConsole(`✓ Full sync complete for ${result.characterName}`, 'success');
-          showToast(`✓ Full sync complete!`, 'success');
-
-          // Refresh blueprint library so other pages stay current
-          if (typeof loadBlueprintLibrary === 'function') await loadBlueprintLibrary();
-
-        } catch (err) {
-          target.textContent = 'FAILED';
-          target.classList.add('failure');
-          if (typeof logToConsole === 'function') logToConsole(`✗ Sync failed: ${err.message}`, 'error');
-          showToast(`Sync failed: ${err.message}`, 'error');
-
-        } finally {
-          // Remove progress listener
-          if (window.eveAPI && window.eveAPI.off) {
-            window.eveAPI.off('char-sync-progress', progressHandler);
-          }
-
-          // Hide spinner after a short delay
-          setTimeout(() => {
-            if (spinner) spinner.style.display = 'none';
-            target.textContent = originalText;
-            target.disabled    = false;
-            target.classList.remove('success', 'failure');
-          }, 4000);
-        }
+        requestCharacterSync(e.currentTarget.getAttribute('data-id'));
       });
     });
   } catch (err) {

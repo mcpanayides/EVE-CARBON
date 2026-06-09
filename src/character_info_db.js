@@ -590,6 +590,14 @@ async function getCharacterAssets(characterId) {
         SUM(a.quantity)                                     AS quantity,
         SUM(COALESCE(a.volume, 0) * a.quantity)             AS volume,
         MAX(a.is_singleton)                                 AS is_singleton,
+
+        -- Blueprint copy/original flag, borrowed from the blueprints table by
+        -- item_id (same physical item across both ESI endpoints):
+        --   1 = copy (BPC), 0 = original (BPO), NULL = not a blueprint.
+        -- Lets valuation price copies at 0.01 and originals at their real value
+        -- instead of pricing both at the original's market price.
+        MAX(bpc.is_bpc)                                     AS is_bpc,
+
         MAX(a.synced_at)                                    AS synced_at
 
       FROM ${p}_assets a
@@ -598,13 +606,20 @@ async function getCharacterAssets(characterId) {
       LEFT JOIN ${p}_assets p
         ON p.item_id = a.location_id
 
+      -- blueprint metadata for this exact item, if it is a blueprint
+      LEFT JOIN ${p}_blueprints bpc
+        ON bpc.item_id = a.item_id
+
       -- Stack non-singleton items of the same type in the same slot/flag.
       -- Singletons (assembled ships, fitted modules) always get their own row.
+      -- is_bpc is in the GROUP BY so a BPO and a BPC of the same blueprint in
+      -- the same location never merge into one (mis-priced) row.
       GROUP BY
         a.type_id,
         a.location_id,
         a.location_flag,
-        a.is_singleton
+        a.is_singleton,
+        bpc.is_bpc
 
       ORDER BY a.type_name ASC
     `);

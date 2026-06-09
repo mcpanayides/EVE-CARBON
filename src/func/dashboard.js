@@ -627,12 +627,44 @@ async function loadDashboard() {
       return results;
     }
 
+    // Asset value + escrow are expensive (full asset read + per-character ESI
+    // order calls) but change slowly — assets re-sync every 6 h, prices every
+    // 12 h. So we cache the per-character {assetValue, escrow, assetSyncedAt}
+    // and only recompute a character when its assets re-synced or this coarse
+    // TTL elapses (to pick up market-price drift). Liquid ISK is always read
+    // fresh — it's one cheap wallet row and the figure that moves most.
+    const NET_WORTH_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+    // Build totalByChar / overallValue from a per-character value map.
+    function assembleTotals(perChar) {
+      const totalByChar = {};
+      let overallValue = 0;
+      for (const acc of accounts) {
+        const cid = String(acc.characterId);
+        const pc  = perChar[cid] || {};
+        const v   = (pc.assetValue || 0) + (pc.escrow || 0);
+        totalByChar[cid] = v;
+        overallValue += v;
+      }
+      return { totalByChar, overallValue };
+    }
+
+    function renderNetWorth(perChar, totalWallet, walletByChar, loading) {
+      const { totalByChar, overallValue } = assembleTotals(perChar);
+      const grandTotal = totalWallet + overallValue;
+      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, loading);
+      const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
+      if (welcomeNWEl) {
+        welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
+      }
+      return { totalByChar, overallValue, grandTotal };
+    }
+
     // ── Step 1: Liquid ISK — read from local DB (instant, no ESI) ───────────
     const walletByChar = {};
     for (const acc of accounts) {
       try {
         const dbData = await window.eveAPI.getCharacterData(acc.characterId);
-        // wallet is the most-recent row from the _wallet table
         walletByChar[String(acc.characterId)] = dbData?.wallet?.balance || 0;
       } catch (e) {
         walletByChar[String(acc.characterId)] = 0;
@@ -641,67 +673,86 @@ async function loadDashboard() {
     let totalWallet = 0;
     accounts.forEach(acc => { totalWallet += walletByChar[String(acc.characterId)] || 0; });
 
-    // Show liquid ISK immediately while asset valuation runs
-    renderKPIPanel(summaryPanel, accounts, totalWallet, 0, totalWallet, {}, walletByChar, true);
+    // ── Step 2: Show the cached net worth instantly (stale-while-revalidate) ─
+    const cache      = await window.eveAPI.cacheGet('dashboard_asset_value').catch(() => null);
+    const perChar    = (cache && cache.perChar) ? { ...cache.perChar } : {};
+    const computedAt = (cache && cache.computedAt) || 0;
+    const ttlExpired = (Date.now() - computedAt) >= NET_WORTH_TTL_MS;
+
+    // Render whatever we have right away (cached asset value + fresh wallet).
+    // On a cold cache there's no asset value yet, so show the loading state.
+    renderNetWorth(perChar, totalWallet, walletByChar, !cache);
 
     try {
-      // ── Step 2: Asset value from DB × EVE market prices ──────────────────
-      // Read every character's assets from the local DB — no ESI call.
-      // getMarketPrices() is a single unauthenticated ESI call cached for 12 h.
-      const marketPrices = await window.eveAPI.getMarketPrices().catch(() => ({}));
+      // Drop cached entries for characters that were removed.
+      const liveIds = new Set(accounts.map(a => String(a.characterId)));
+      for (const cid of Object.keys(perChar)) if (!liveIds.has(cid)) delete perChar[cid];
 
-      const totalByChar = {};
-      let overallValue  = 0;
-
+      // ── Step 3: Decide which characters actually need recompute ──────────
+      // A character is dirty if it has no cached value, its assets re-synced
+      // since we last priced them, or the price-drift TTL has elapsed.
+      const dirty = [];
       for (const acc of accounts) {
-        const cid    = String(acc.characterId);
-        let   assets = [];
-        try { assets = await window.eveAPI.getCharacterAssetsDb(acc.characterId); } catch (_) {}
-        if (!Array.isArray(assets)) assets = [];
-
-        assets.forEach(asset => {
-          const priceEntry = marketPrices[asset.type_id] || {};
-          // adjusted_price is EVE's internal valuation — same as the in-game net worth
-          const unitPrice  = priceEntry.adjusted || priceEntry.average || 0;
-          const value      = unitPrice * (asset.quantity || 1);
-          overallValue    += value;
-          totalByChar[cid] = (totalByChar[cid] || 0) + value;
-        });
-      }
-
-      // ── Step 3: Market order escrow (serialised — 1 request per character) ─
-      // Active buy orders lock ISK in escrow — it's part of net worth.
-      // Serialised to avoid 429s; skipped entirely if all fail.
-      const escrowByChar = {};
-      await serialESI(accounts, async (acc) => {
-        const orders = await window.eveAPI.getCharacterOrders(acc.characterId);
-        let escrow = 0;
-        if (Array.isArray(orders)) {
-          orders.forEach(o => {
-            if (o.is_buy_order && typeof o.escrow === 'number') escrow += o.escrow;
-          });
+        const cid     = String(acc.characterId);
+        const cached  = perChar[cid];
+        let syncedAt  = 0;
+        try { syncedAt = await window.eveAPI.getAssetSyncedAt(acc.characterId); } catch (_) {}
+        if (!cached || cached.assetSyncedAt !== syncedAt || ttlExpired) {
+          dirty.push({ acc, cid, syncedAt });
         }
-        escrowByChar[String(acc.characterId)] = escrow;
-      });
-
-      // Fold escrow into per-character asset totals
-      accounts.forEach(acc => {
-        const cid = String(acc.characterId);
-        const e   = escrowByChar[cid] || 0;
-        totalByChar[cid] = (totalByChar[cid] || 0) + e;
-        overallValue     += e;
-      });
-
-      // ── Grand total ──────────────────────────────────────────────────────────
-      const grandTotal = totalWallet + overallValue;
-
-      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, false);
-
-      // Update welcome banner net worth figure
-      const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
-      if (welcomeNWEl) {
-        welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
       }
+
+      if (dirty.length) {
+        // ── Step 4: Recompute only the dirty characters ───────────────────
+        const marketPrices = await window.eveAPI.getMarketPrices().catch(() => ({}));
+
+        for (const { acc, cid, syncedAt } of dirty) {
+          let assets = [];
+          try { assets = await window.eveAPI.getCharacterAssetsDb(acc.characterId); } catch (_) {}
+          if (!Array.isArray(assets)) assets = [];
+
+          let assetValue = 0;
+          assets.forEach(asset => {
+            let unitPrice;
+            if (Number(asset.is_bpc) === 1) {
+              // Blueprint copies are valued nominally — they share a type_id with
+              // the original, so adjusted_price would otherwise count a copy as a
+              // full BPO (e.g. a Titan BPC as tens of billions).
+              unitPrice = 0.01;
+            } else {
+              const priceEntry = marketPrices[asset.type_id] || {};
+              // adjusted_price is EVE's internal valuation — same as the in-game
+              // net worth; for BPOs it reflects seeded Titan/Super values.
+              unitPrice = priceEntry.adjusted || priceEntry.average || 0;
+            }
+            assetValue += unitPrice * (asset.quantity || 1);
+          });
+
+          perChar[cid] = { assetValue, escrow: perChar[cid]?.escrow || 0, assetSyncedAt: syncedAt };
+        }
+
+        // Market-order escrow for the dirty characters only (serialised ESI).
+        await serialESI(dirty.map(d => d.acc), async (acc) => {
+          const cid    = String(acc.characterId);
+          const orders = await window.eveAPI.getCharacterOrders(acc.characterId);
+          let escrow = 0;
+          if (Array.isArray(orders)) {
+            orders.forEach(o => { if (o.is_buy_order && typeof o.escrow === 'number') escrow += o.escrow; });
+          }
+          if (perChar[cid]) perChar[cid].escrow = escrow;
+        });
+
+        // Persist the refreshed per-character cache. Only bump computedAt on a
+        // TTL-driven full refresh so price-drift refreshes still fire on
+        // schedule when only an asset re-sync forced a partial recompute.
+        const nextComputedAt = ttlExpired ? Date.now() : (computedAt || Date.now());
+        await window.eveAPI.cacheSet('dashboard_asset_value',
+          { computedAt: nextComputedAt, perChar }, 1).catch(() => {});
+      }
+
+      // ── Render final figures and keep dashboard_cache in sync ───────────
+      const { totalByChar, overallValue, grandTotal } =
+        renderNetWorth(perChar, totalWallet, walletByChar, false);
 
       await window.eveAPI.cacheSet('dashboard_cache', {
         accounts, mainAccount, walletByChar, totalByChar,

@@ -169,7 +169,7 @@
 .wallet-corp   { font-size: 11px; color: var(--text-2); letter-spacing: 0.05em; }
 .wallet-balance-container { padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; }
 .wallet-balance-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-3); font-family: var(--font); }
-.wallet-balance { font-size: 20px; font-family: var(--mono); color: var(--tier-top); }
+.wallet-balance { font-size: 20px; font-family: var(--mono); color: var(--liquidisk); }
 .wallet-balance .isk-symbol { font-size: 11px; color: var(--text-3); margin-left: 4px; letter-spacing: normal; }
 .wallet-footer { padding: 10px 16px; background: rgba(0,0,0,0.1); border-top: 1px solid var(--border-b); display: flex; justify-content: space-between; align-items: center; }
 .wallet-meta   { font-size: 10px; color: var(--text-3); font-family: var(--mono); }

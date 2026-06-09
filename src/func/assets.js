@@ -1,5 +1,43 @@
 // ─── Assets ───────────────────────────────────────────────────────────────────
 
+// ── Blueprint-aware valuation ────────────────────────────────────────────────
+// CCP's global adjusted/average price map (one cached call), used to value
+// blueprint originals (BPOs) — including seeded Titan/Super BPOs that have no
+// Jita 4-4 sell orders. Populated lazily by _ensureMarketPrices().
+let marketPriceCache = null;
+
+async function _ensureMarketPrices() {
+  if (marketPriceCache) return marketPriceCache;
+  try { marketPriceCache = await window.eveAPI.getMarketPrices() || {}; }
+  catch (_) { marketPriceCache = {}; }
+  return marketPriceCache;
+}
+
+// Per-unit ISK value for an asset, honouring blueprint copy/original rules:
+//   • BPC  (is_bpc === 1) → 0.01 ISK            (copies valued nominally)
+//   • BPO  (is_bpc === 0) → CCP adjusted/average price (true in-game value)
+//   • everything else     → Jita 4-4 sell, then buy
+// Returns 0 when the relevant price source hasn't loaded yet (caller shows
+// "Loading…" and re-runs once prices arrive).
+function assetUnitPrice(typeId, isBpc) {
+  const bp = String(isBpc); // normalise 1/'1', 0/'0', null/''/undefined
+  if (bp === '1') return 0.01;
+  if (bp === '0') {
+    const m = (marketPriceCache && marketPriceCache[typeId]) || {};
+    return m.adjusted || m.average || 0;
+  }
+  const e = priceCache[typeId] || {};
+  return e.sell || e.buy || 0;
+}
+
+// Format an ISK total: whole numbers for ≥1, two decimals for sub-1 values so a
+// single 0.01-ISK blueprint copy doesn't display as "0 ISK".
+function _formatAssetIsk(total) {
+  return total >= 1
+    ? Math.round(total).toLocaleString('en-US')
+    : total.toFixed(2);
+}
+
 // ── Read all assets from character_information.db (one call per character) ───
 // Returns a flat array with characterId / characterName attached, matching the
 // shape the rest of the code expects. No ESI call is made here.
@@ -278,6 +316,8 @@ function renderAssetTree() {
       _updateAssetPriceCells();
     }).catch(() => {});
   }
+  // BPO valuation needs CCP adjusted prices; load once and refresh cells.
+  _ensureMarketPrices().then(() => _updateAssetPriceCells());
 
   // ── Render each group ──────────────────────────────────────────────────────
   // Use a numeric group index (gi) as the DOM link between header and item rows.
@@ -340,6 +380,7 @@ function renderAssetTree() {
       itemTr.dataset.gi       = gi;
       itemTr.dataset.typeId   = asset.type_id  || '';
       itemTr.dataset.quantity = asset.quantity || 1;
+      itemTr.dataset.isBpc    = asset.is_bpc != null ? String(asset.is_bpc) : '';
 
       const qty      = asset.quantity || 1;
       const itemName = asset.name || asset.type_name || `Type ${asset.type_id}`;
@@ -351,12 +392,12 @@ function renderAssetTree() {
                 alt="" loading="lazy" />`
         : `<span class="asset-type-icon-placeholder"></span>`;
 
-      const cachedEntry = priceCache[asset.type_id] || {};
-      const cachedPrice = cachedEntry.sell || cachedEntry.buy || 0;
-      const priceText   = cachedPrice
-        ? `${Math.round(cachedPrice * qty).toLocaleString('en-US')} ISK`
+      const unitPrice   = assetUnitPrice(asset.type_id, asset.is_bpc);
+      const totalPrice  = unitPrice * qty;
+      const priceText   = totalPrice > 0
+        ? `${_formatAssetIsk(totalPrice)} ISK`
         : 'Loading…';
-      const priceClass  = cachedPrice ? 'has-price' : 'price-loading';
+      const priceClass  = totalPrice > 0 ? 'has-price' : 'price-loading';
 
       itemTr.innerHTML = `
         <td class="asset-item-icon-cell">${iconHtml}</td>
@@ -365,7 +406,8 @@ function renderAssetTree() {
         <td class="asset-item-vol-cell">${vol}</td>
         <td class="asset-item-price-cell ${priceClass}"
             data-type-id="${asset.type_id || ''}"
-            data-quantity="${qty}">${priceText}</td>`;
+            data-quantity="${qty}"
+            data-is-bpc="${asset.is_bpc != null ? asset.is_bpc : ''}">${priceText}</td>`;
 
       frag.appendChild(itemTr);
     }
@@ -407,17 +449,23 @@ function _updateAssetPriceCells() {
   tbody.querySelectorAll('td.asset-item-price-cell[data-type-id]').forEach(td => {
     const typeId = Number(td.dataset.typeId);
     const qty    = Number(td.dataset.quantity) || 1;
-    if (!typeId || !priceCache[typeId]) return;
-    const entry = priceCache[typeId];
-    const price = entry.sell || entry.buy || 0;
-    if (price) {
-      td.textContent = `${Math.round(price * qty).toLocaleString('en-US')} ISK`;
+    const isBpc  = td.dataset.isBpc;
+    if (!typeId) return;
+
+    const total = assetUnitPrice(typeId, isBpc) * qty;
+    if (total > 0) {
+      td.textContent = `${_formatAssetIsk(total)} ISK`;
       td.classList.remove('price-loading', 'price-na');
       td.classList.add('has-price');
     } else if (td.textContent === 'Loading…') {
-      td.textContent = 'N/A';
-      td.classList.remove('price-loading');
-      td.classList.add('price-na');
+      // Only fall to N/A once the relevant price source has actually loaded:
+      // BPOs depend on the market-price map, everything else on the Jita cache.
+      const loaded = String(isBpc) === '0' ? (marketPriceCache != null) : !!priceCache[typeId];
+      if (loaded) {
+        td.textContent = 'N/A';
+        td.classList.remove('price-loading');
+        td.classList.add('price-na');
+      }
     }
   });
 
@@ -427,9 +475,8 @@ function _updateAssetPriceCells() {
     const gi     = row.dataset.gi;
     const typeId = Number(row.dataset.typeId);
     const qty    = Number(row.dataset.quantity) || 1;
-    if (!gi || !typeId || !priceCache[typeId]) return;
-    const price = priceCache[typeId].sell || priceCache[typeId].buy || 0;
-    groupTotals[gi] = (groupTotals[gi] || 0) + price * qty;
+    if (!gi || !typeId) return;
+    groupTotals[gi] = (groupTotals[gi] || 0) + assetUnitPrice(typeId, row.dataset.isBpc) * qty;
   });
 
   // Write totals into header value spans (also keyed by gi)
@@ -437,7 +484,7 @@ function _updateAssetPriceCells() {
     const gi    = el.dataset.gi;
     const total = groupTotals[gi] || 0;
     el.textContent = total > 0
-      ? `${Math.round(total).toLocaleString('en-US')} ISK`
+      ? `${_formatAssetIsk(total)} ISK`
       : '—';
   });
 }

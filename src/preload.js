@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Read stored character data from CharDB
   getCharacterInfoDb:       (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
   getCharacterAssetsDb:     (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
+  getAssetSyncedAt:         (characterId) => ipcRenderer.invoke('get-asset-synced-at', characterId),
   getCharacterBlueprintsDb: (characterId) => ipcRenderer.invoke('get-character-blueprints-db', characterId),
 
   // Aliases used by dashboard.js, characters.js, wallets, and PI

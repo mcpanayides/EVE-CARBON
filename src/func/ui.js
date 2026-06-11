@@ -9,8 +9,113 @@ function setSettingsTab(tab) {
     const target = `settingsTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`;
     panel.style.display = panel.id === target ? 'block' : 'none';
   });
-  if (tab === 'database') populateDatabaseSettings();
-  if (tab === 'palette')  populatePaletteSettings();
+  if (tab === 'database')   populateDatabaseSettings();
+  if (tab === 'palette')    populatePaletteSettings();
+  if (tab === 'background') populateBackgroundSettings();
+}
+
+// ─── Background wallpaper ─────────────────────────────────────────────────────
+// Persisted in localStorage as { url, dim }. The image lives in a fixed
+// full-screen layer behind the whole UI (see #appBackground). Non-destructive:
+// "None" simply hides the layer and the original themed background returns.
+const BG_STORAGE_KEY = 'appBackground';
+
+function _getBgSettings() {
+  try { return JSON.parse(localStorage.getItem(BG_STORAGE_KEY) || 'null') || {}; }
+  catch (_) { return {}; }
+}
+function _saveBgSettings(s) {
+  try { localStorage.setItem(BG_STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+}
+
+function applyBackground(url, dim) {
+  const bg = document.getElementById('appBackground');
+  const ov = document.getElementById('appBackgroundOverlay');
+  if (!bg) return;
+  if (url) { bg.style.backgroundImage = `url("${url}")`; bg.style.display = 'block'; }
+  else     { bg.style.backgroundImage = ''; bg.style.display = 'none'; }
+  if (ov) ov.style.opacity = String((dim != null ? dim : 35) / 100);
+}
+
+// Restore the saved wallpaper at startup (called from app.js).
+function initBackground() {
+  const s = _getBgSettings();
+  applyBackground(s.url || null, s.dim != null ? s.dim : 35);
+}
+
+function _renderBgGrid(grid, list, activeUrl) {
+  if (!list.length) {
+    grid.innerHTML = `<div class="bg-preset-empty">No images yet — use “Add image…” to choose one, or drop files into the app's <code>assets/backgrounds</code> folder.</div>`;
+    return;
+  }
+  grid.innerHTML = '';
+  list.forEach(bg => {
+    const cell = document.createElement('div');
+    cell.className = 'bg-preset' + (bg.url === activeUrl ? ' active' : '');
+    cell.style.backgroundImage = `url("${bg.url}")`;
+    cell.title = bg.name;
+    cell.innerHTML = `<span class="bg-preset-label">${escHtml(bg.name)}</span>`;
+    cell.addEventListener('click', () => {
+      const cur = _getBgSettings();
+      cur.url = bg.url;
+      _saveBgSettings(cur);
+      applyBackground(cur.url, cur.dim != null ? cur.dim : 35);
+      grid.querySelectorAll('.bg-preset').forEach(c => c.classList.remove('active'));
+      cell.classList.add('active');
+    });
+    grid.appendChild(cell);
+  });
+}
+
+async function populateBackgroundSettings() {
+  const grid      = document.getElementById('bgPresetGrid');
+  const dimSlider = document.getElementById('bgDimSlider');
+  const dimValue  = document.getElementById('bgDimValue');
+  const pickBtn   = document.getElementById('bgPickBtn');
+  const noneBtn   = document.getElementById('bgNoneBtn');
+  if (!grid) return;
+
+  const saved = _getBgSettings();
+
+  if (dimSlider) {
+    dimSlider.value = saved.dim != null ? saved.dim : 35;
+    if (dimValue) dimValue.textContent = `${dimSlider.value}%`;
+    dimSlider.oninput = () => {
+      if (dimValue) dimValue.textContent = `${dimSlider.value}%`;
+      const cur = _getBgSettings();
+      cur.dim = Number(dimSlider.value);
+      _saveBgSettings(cur);
+      applyBackground(cur.url || null, cur.dim);
+    };
+  }
+
+  let list = [];
+  try { list = await window.eveAPI.listBackgrounds() || []; } catch (_) {}
+  _renderBgGrid(grid, list, saved.url || null);
+
+  if (pickBtn) pickBtn.onclick = async () => {
+    try {
+      const r = await window.eveAPI.pickBackground();
+      if (r && !r.canceled && r.background) {
+        const cur = _getBgSettings();
+        cur.url = r.background.url;
+        _saveBgSettings(cur);
+        applyBackground(cur.url, cur.dim != null ? cur.dim : 35);
+        await populateBackgroundSettings();
+        showToast(`Background set: ${r.background.name}`, 'success');
+      } else if (r && r.error) {
+        showToast(`Couldn't add image: ${r.error}`, 'error');
+      }
+    } catch (e) { showToast(`Couldn't add image: ${e.message}`, 'error'); }
+  };
+
+  if (noneBtn) noneBtn.onclick = () => {
+    const cur = _getBgSettings();
+    cur.url = null;
+    _saveBgSettings(cur);
+    applyBackground(null, cur.dim != null ? cur.dim : 35);
+    _renderBgGrid(grid, list, null);
+  };
 }
 
 function bindUISettings() {

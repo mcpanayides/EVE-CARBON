@@ -132,7 +132,7 @@ async function initSde() {
 }
  
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir;
+let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir;
 // Shared state for ping file watcher — passed into registerPingFileHandlers
 // so the app-quit handler can still close it without knowing the internals.
 const pingWatcherState = { watcher: null, timer: null };
@@ -148,11 +148,70 @@ function initPaths() {
     : path.join(__dirname, 'data');
   userPacksDir  = path.join(userDataPath, 'packs');
   userThemesDir = path.join(userDataPath, 'themes');
+  userBackgroundsDir = path.join(userDataPath, 'backgrounds');
   try { fs.mkdirSync(cacheDir,     { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(appDataDir,   { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userPacksDir, { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userThemesDir,{ recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(userBackgroundsDir, { recursive: true }); } catch (e) { /* ignore */ }
 }
+
+// ─── IPC: Background images ───────────────────────────────────────────────────
+// Lets the user set a wallpaper behind the UI. Images come from two folders:
+//   • bundled presets → assets/backgrounds/ (drop images here to ship them)
+//   • user-added      → userData/backgrounds/ (copied in via the file picker)
+// Both are returned as file:// URLs the renderer can use directly (the window
+// is itself a file:// page, so there's no CSP/security barrier).
+const _BG_IMG_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp']);
+
+function _bundledBackgroundsDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath || __dirname, 'assets', 'backgrounds')
+    : path.join(__dirname, 'assets', 'backgrounds');
+}
+
+function _scanBackgroundDir(dir, source) {
+  const out = [];
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!_BG_IMG_EXT.has(path.extname(f).toLowerCase())) continue;
+      const abs = path.join(dir, f);
+      out.push({ id: `${source}:${f}`, name: path.parse(f).name, source, url: require('url').pathToFileURL(abs).href });
+    }
+  } catch (_) { /* folder may not exist yet */ }
+  return out;
+}
+
+ipcHandle('list-backgrounds', async () => {
+  const all = [
+    ..._scanBackgroundDir(_bundledBackgroundsDir(), 'preset'),
+    ..._scanBackgroundDir(userBackgroundsDir, 'user'),
+  ];
+  // Dedupe by filename so a user copy shadows a preset of the same name.
+  const seen = new Map();
+  for (const b of all) seen.set(b.name.toLowerCase(), b);
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+});
+
+ipcHandle('pick-background', async () => {
+  const { dialog } = require('electron');
+  const result = await dialog.showOpenDialog({
+    title: 'Choose a background image',
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || !result.filePaths.length) return { canceled: true };
+  const src      = result.filePaths[0];
+  const fileName = path.basename(src);
+  try {
+    fs.mkdirSync(userBackgroundsDir, { recursive: true });
+    const dest = path.join(userBackgroundsDir, fileName);
+    fs.copyFileSync(src, dest);
+    return { canceled: false, background: { id: `user:${fileName}`, name: path.parse(fileName).name, source: 'user', url: require('url').pathToFileURL(dest).href } };
+  } catch (e) {
+    return { canceled: false, error: e.message };
+  }
+});
  
 function getCachePath(key) {
   const safe = String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -1572,8 +1631,10 @@ async function resolveNames(ids) {
 }
  
 // ─── SDE update helpers ───────────────────────────────────────────────────────
-const SDE_MD5_URL = 'https://www.fuzzwork.co.uk/dump/sqlite-latest.sqlite.bz2.md5';
-const SDE_BZ2_URL = 'https://www.fuzzwork.co.uk/dump/sqlite-latest.sqlite.bz2';
+// Fuzzwork now ships the SDE as a gzip'd sqlite db and no longer publishes a
+// .md5 sidecar, so the up-to-date check uses the remote Last-Modified header as
+// an opaque version token (stored in sde.md5 for path compatibility).
+const SDE_DUMP_URL = 'https://www.fuzzwork.co.uk/dump/latest-sqlite.db.gz';
 
 function getSdeMd5Path() {
   const devPath  = path.join(__dirname, 'data', 'sde.md5');
@@ -1583,16 +1644,15 @@ function getSdeMd5Path() {
 
 async function fetchRemoteSdeMd5() {
   return new Promise((resolve, reject) => {
-    https.request(SDE_MD5_URL, {
+    https.request(SDE_DUMP_URL, {
+      method: 'HEAD',
       headers: { 'User-Agent': 'EVE-Carbon/1.0' }
     }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
-        // Format: "<hash>  filename" — grab just the hash
-        resolve(data.trim().split(/\s+/)[0]);
-      });
+      res.resume(); // drain
+      if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
+      const token = res.headers['last-modified'] || res.headers['etag'] || null;
+      if (!token) return reject(new Error('no version header'));
+      resolve(token);
     }).on('error', reject).end();
   });
 }
@@ -1609,8 +1669,8 @@ ipcHandle('sde-check-update', async () => {
   }
 });
 
-// sde-download-update — streams the bz2, decompresses, replaces sde.sql, saves md5
-// Sends 'sde-update-progress' push events: { stage, percent }
+// sde-download-update — streams the gzip dump, decompresses, replaces sde.sql,
+// saves the version token. Sends 'sde-update-progress' push events: { stage, percent }
 ipcHandle('sde-download-update', async (event) => {
   const sdePath  = getSdePath();
   const md5Path  = getSdeMd5Path();
@@ -1631,11 +1691,11 @@ ipcHandle('sde-download-update', async (event) => {
 
     // Download + decompress using Node's https (no axios at runtime)
     await new Promise((resolve, reject) => {
-      const bz2 = require('unbzip2-stream');
+      const zlib    = require('zlib');
       const tmpPath = sdePath + '.tmp';
       const writer  = fs.createWriteStream(tmpPath);
 
-      https.request(SDE_BZ2_URL, {
+      https.request(SDE_DUMP_URL, {
         headers: { 'User-Agent': 'EVE-Carbon/1.0' }
       }, (res) => {
         if (res.statusCode >= 400) {
@@ -1655,7 +1715,9 @@ ipcHandle('sde-download-update', async (event) => {
           }
         });
 
-        res.pipe(bz2()).pipe(writer);
+        const gunzip = zlib.createGunzip();
+        gunzip.on('error', (e) => { try { fs.unlinkSync(tmpPath); } catch { /* ignore */ } reject(e); });
+        res.pipe(gunzip).pipe(writer);
 
         writer.on('finish', () => {
           // Atomically replace the live file

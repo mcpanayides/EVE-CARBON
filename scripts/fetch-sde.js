@@ -1,22 +1,23 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const bz2 = require('unbzip2-stream');
+const zlib = require('zlib');
 
-const SDE_URL     = 'https://www.fuzzwork.co.uk/dump/sqlite-latest.sqlite.bz2';
-const SDE_MD5_URL = 'https://www.fuzzwork.co.uk/dump/sqlite-latest.sqlite.bz2.md5';
+const SDE_URL     = 'https://www.fuzzwork.co.uk/dump/latest-sqlite.db.gz';
 const DATA_DIR    = path.join(__dirname, '../data');
 const OUT_FILE    = path.join(DATA_DIR, 'sde.sql');
-const MD5_FILE    = path.join(DATA_DIR, 'sde.md5');
+// Fuzzwork no longer publishes a .md5 sidecar for the gz dump, so we use the
+// remote Last-Modified header as the version token. Kept in sde.md5 for
+// backwards compatibility with the existing path the app reads.
+const VER_FILE    = path.join(DATA_DIR, 'sde.md5');
 
-async function fetchRemoteMd5() {
-    const response = await axios.get(SDE_MD5_URL, { responseType: 'text' });
-    // Fuzzwork md5 files are in the format: "<hash>  filename" — grab just the hash
-    return response.data.trim().split(/\s+/)[0];
+async function fetchRemoteVersion() {
+    const response = await axios.head(SDE_URL);
+    return response.headers['last-modified'] || response.headers['etag'] || null;
 }
 
-function readLocalMd5() {
-    try { return fs.readFileSync(MD5_FILE, 'utf8').trim(); }
+function readLocalVersion() {
+    try { return fs.readFileSync(VER_FILE, 'utf8').trim(); }
     catch { return null; }
 }
 
@@ -27,18 +28,18 @@ async function downloadSDE() {
     }
 
     console.log('Checking remote SDE version...');
-    let remoteMd5;
+    let remoteVer;
     try {
-        remoteMd5 = await fetchRemoteMd5();
-        console.log(`Remote MD5 : ${remoteMd5}`);
+        remoteVer = await fetchRemoteVersion();
+        console.log(`Remote version : ${remoteVer}`);
     } catch (e) {
-        console.warn(`Could not fetch remote MD5 (${e.message}), proceeding with download.`);
+        console.warn(`Could not fetch remote version (${e.message}), proceeding with download.`);
     }
 
-    const localMd5 = readLocalMd5();
-    console.log(`Local MD5  : ${localMd5 || '(none)'}`);
+    const localVer = readLocalVersion();
+    console.log(`Local version  : ${localVer || '(none)'}`);
 
-    if (remoteMd5 && localMd5 === remoteMd5 && fs.existsSync(OUT_FILE)) {
+    if (remoteVer && localVer === remoteVer && fs.existsSync(OUT_FILE)) {
         console.log('SDE is already up to date. Skipping download.');
         return;
     }
@@ -54,20 +55,21 @@ async function downloadSDE() {
 
         const writer = fs.createWriteStream(OUT_FILE);
 
-        // Pipe the download through the bz2 decompressor and into the file
-        response.data.pipe(bz2()).pipe(writer);
+        // Pipe the download through the gzip decompressor and into the file
+        response.data.pipe(zlib.createGunzip()).pipe(writer);
 
         await new Promise((resolve, reject) => {
             writer.on('finish', resolve);
             writer.on('error', reject);
+            response.data.on('error', reject);
         });
 
         console.log('SDE successfully downloaded and uncompressed to /data/sde.sql');
 
-        // Save the MD5 so future runs can skip unnecessary downloads
-        if (remoteMd5) {
-            fs.writeFileSync(MD5_FILE, remoteMd5, 'utf8');
-            console.log(`MD5 saved to ${MD5_FILE}`);
+        // Save the version token so future runs can skip unnecessary downloads
+        if (remoteVer) {
+            fs.writeFileSync(VER_FILE, remoteVer, 'utf8');
+            console.log(`Version saved to ${VER_FILE}`);
         }
 
     } catch (error) {

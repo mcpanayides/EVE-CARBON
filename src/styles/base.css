@@ -208,6 +208,39 @@ body::after {
   border-radius: 50%;
 }
 
+/* ── USER BACKGROUND WALLPAPER ── */
+/* z-index:-1 sits above the body base colour but below the ambient glows and
+   all UI, so the image shows through translucent panels and in the gaps. */
+#appBackground {
+  position: fixed; inset: 0; z-index: -1;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+  pointer-events: none;
+  display: none;            /* shown by JS once an image is chosen */
+}
+#appBackgroundOverlay {
+  position: absolute; inset: 0;
+  background: #000; opacity: 0;   /* opacity driven by the dim slider */
+  pointer-events: none;
+}
+
+/* Background settings — preset thumbnail grid */
+.bg-preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.bg-preset {
+  position: relative; height: 66px; border-radius: 4px;
+  border: 1px solid var(--border-e);
+  background-size: cover; background-position: center;
+  cursor: pointer; overflow: hidden; transition: border-color 0.15s, transform 0.1s;
+}
+.bg-preset:hover  { transform: translateY(-1px); border-color: var(--accent); }
+.bg-preset.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.bg-preset-label {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  font-size: 10px; padding: 3px 5px;
+  background: rgba(0,0,0,0.6); color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bg-preset-empty { font-size: 12px; color: var(--text-3); padding: 8px 0; line-height: 1.5; }
+
 /* ── TOP-LEVEL LAYOUT ── */
 .layout { display: flex; flex: 1; min-height: 0; overflow: hidden; position: relative; z-index: 1; }
 

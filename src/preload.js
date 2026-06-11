@@ -68,6 +68,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
   syncAssets:    (charId) => ipcRenderer.invoke('sync-assets', charId),
   syncAllAssets: ()       => ipcRenderer.invoke('sync-all-assets'),
   repairStructureLocations: () => ipcRenderer.invoke('repair-structure-locations'),
+
+  // Background images
+  listBackgrounds: () => ipcRenderer.invoke('list-backgrounds'),
+  pickBackground:  () => ipcRenderer.invoke('pick-background'),
   getAssets:     (charId) => ipcRenderer.invoke('get-assets', charId),
   getAllAssets:   ()       => ipcRenderer.invoke('get-all-assets'),
 

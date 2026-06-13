@@ -50,19 +50,48 @@ async function downloadSDE() {
         const response = await axios({
             method: 'get',
             url: SDE_URL,
-            responseType: 'stream'
+            responseType: 'stream',
+            timeout: 0,                 // no overall timeout for a large download
         });
 
-        const writer = fs.createWriteStream(OUT_FILE);
+        const total   = parseInt(response.headers['content-length'] || '0', 10);
+        const tmpFile = OUT_FILE + '.tmp';   // write to temp, rename on success
+        const writer  = fs.createWriteStream(tmpFile);
+        const gunzip  = zlib.createGunzip();
 
-        // Pipe the download through the gzip decompressor and into the file
-        response.data.pipe(zlib.createGunzip()).pipe(writer);
-
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-            response.data.on('error', reject);
+        // Live progress so a multi-hundred-MB download doesn't look frozen.
+        let downloaded = 0;
+        let lastLog    = 0;
+        response.data.on('data', chunk => {
+            downloaded += chunk.length;
+            const now = Date.now();
+            if (now - lastLog > 750) {
+                lastLog = now;
+                const mb = (downloaded / 1048576).toFixed(1);
+                const line = total
+                    ? `  Downloaded ${mb} / ${(total / 1048576).toFixed(1)} MB`
+                    : `  Downloaded ${mb} MB (compressed)`;
+                process.stdout.write(`\r${line}      `);
+            }
         });
+
+        // Pipe the download through the gzip decompressor and into the temp file.
+        try {
+            await new Promise((resolve, reject) => {
+                response.data.on('error', reject);
+                gunzip.on('error', reject);
+                writer.on('error', reject);
+                writer.on('finish', resolve);
+                response.data.pipe(gunzip).pipe(writer);
+            });
+        } catch (e) {
+            try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+            throw e;
+        }
+        process.stdout.write('\n');
+
+        // Atomically replace the live file only after a clean, complete download.
+        fs.renameSync(tmpFile, OUT_FILE);
 
         console.log('SDE successfully downloaded and uncompressed to /data/sde.sql');
 

@@ -140,9 +140,6 @@ const PAGE_HTML = {
           <button class="industry-sub-btn" data-industry-tab="shopping-lists">
             <span class="industry-sub-icon">⬡</span>Shopping Lists
           </button>
-          <button class="industry-sub-btn" data-industry-tab="invention">
-            <span class="industry-sub-icon">◆</span>Invention Buddy
-          </button>
           <button class="industry-sub-btn" data-industry-tab="reactions">
             <span class="industry-sub-icon">◈</span>Reactions Profit
           </button>

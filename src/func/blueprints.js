@@ -1032,13 +1032,14 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'shopping-lists') {
     if (typeof renderShoppingLists === 'function') renderShoppingLists(right);
 
+  } else if (tab === 'moon') {
+    renderMoonReformatter(right);
+
   } else {
     const labels = {
       'calculator':     'Blueprint Calculator',
       'shopping-lists': 'Shopping Lists',
-      'invention':      'Invention Buddy',
       'reactions':      'Reactions Profit',
-      'moon':           'Moon Scanning Reformatter',
     };
     right.innerHTML = `
       <div class="empty-state" style="margin-top:80px;">
@@ -1047,6 +1048,120 @@ function navigateIndustryTab(tab) {
         <div class="empty-sub">Coming soon.</div>
       </div>`;
   }
+}
+
+// ─── Moon Scan Reformatter ────────────────────────────────────────────────────
+// Takes EVE's raw moon-scan paste (the "Moon Distribution" copy) and reformats
+// it into readable per-moon ore lists with percentages — same idea as
+// Fuzzwork's ore/reformat tool. Pure client-side text transform; no ESI/SDE.
+//
+// EVE paste format (tab-separated):
+//   Goinard III - Moon 1<tab><tab><tab>
+//   <tab>Pyroxeres<tab>0.19<tab>1224<tab>30002053<tab>40137334<tab>40137335
+//   <tab>Cobaltite<tab>0.30<tab>45495<tab>...
+//   Goinard III - Moon 2<tab>...
+// Ore lines start with a tab (empty first column); a non-empty first column is
+// a moon header.
+function parseMoonScan(text) {
+  const moons = [];
+  let cur = null;
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const cols  = line.split('\t');
+    const first = (cols[0] || '').trim();
+    const frac  = parseFloat(cols[2]);
+    if (!first && cols[1] && cols[1].trim() && !isNaN(frac)) {
+      // ore line — only kept if it belongs to a moon header we've seen
+      if (cur) cur.ores.push({ name: cols[1].trim(), pct: frac * 100, typeId: (cols[3] || '').trim() });
+    } else if (first) {
+      cur = { name: first, ores: [] };
+      moons.push(cur);
+    }
+  }
+  return moons.filter(m => m.ores.length);
+}
+
+function formatMoons(moons, fmt) {
+  if (!moons.length) return '';
+  const pct  = (p) => p.toFixed(1) + '%';
+  // Highest-percentage ore first within each moon.
+  const sorted = moons.map(m => ({ name: m.name, ores: m.ores.slice().sort((a, b) => b.pct - a.pct) }));
+
+  if (fmt === 'oneline') {
+    return sorted.map(m => `${m.name}: ${m.ores.map(o => `${o.name} ${pct(o.pct)}`).join(', ')}`).join('\n');
+  }
+  if (fmt === 'tsv') {
+    const rows = ['Moon\tOre\tPercent'];
+    sorted.forEach(m => m.ores.forEach(o => rows.push(`${m.name}\t${o.name}\t${o.pct.toFixed(1)}`)));
+    return rows.join('\n');
+  }
+  // multiline (default): aligned ore name + right-aligned percentage
+  return sorted.map(m => {
+    const w = Math.max(0, ...m.ores.map(o => o.name.length));
+    const lines = m.ores.map(o => `  ${o.name.padEnd(w)}  ${pct(o.pct).padStart(6)}`);
+    return `${m.name}\n${lines.join('\n')}`;
+  }).join('\n\n');
+}
+
+function renderMoonReformatter(container) {
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+                  padding:12px 18px;border-bottom:1px solid var(--border);
+                  background:var(--bg-card);flex-shrink:0;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">MOON SCAN REFORMATTER</span>
+        <span id="moonStat" style="font-family:var(--mono);font-size:11px;color:var(--text-2);"></span>
+        <div style="display:flex;gap:6px;margin-left:auto;align-items:center;">
+          <label style="font-size:11px;color:var(--text-3);">Format</label>
+          <select id="moonFormat" class="field-input" style="width:170px;padding:4px 8px;font-size:11px;cursor:pointer;">
+            <option value="multiline">Multiline</option>
+            <option value="oneline">One line per moon</option>
+            <option value="tsv">Tab-separated (spreadsheet)</option>
+          </select>
+          <button id="moonCopyBtn"  class="icon-btn" style="padding:4px 12px;font-size:11px;">⧉ COPY</button>
+          <button id="moonClearBtn" class="icon-btn" style="padding:4px 12px;font-size:11px;">✕ CLEAR</button>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;min-height:0;">
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border);">
+          <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);letter-spacing:0.1em;padding:8px 14px;">PASTE MOON SCAN</div>
+          <textarea id="moonInput" spellcheck="false" placeholder="Paste your moon scan from EVE here (Moon Distribution → copy)…"
+            style="flex:1;resize:none;border:none;background:var(--bg-input);color:var(--text-1);font-family:var(--mono);font-size:12px;line-height:1.5;padding:12px 14px;outline:none;min-height:0;"></textarea>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div style="font-size:10px;color:var(--text-3);font-family:var(--mono);letter-spacing:0.1em;padding:8px 14px;">REFORMATTED OUTPUT</div>
+          <textarea id="moonOutput" readonly spellcheck="false" placeholder="Reformatted scan appears here…"
+            style="flex:1;resize:none;border:none;background:var(--bg-deep);color:var(--text-1);font-family:var(--mono);font-size:12px;line-height:1.5;padding:12px 14px;outline:none;min-height:0;"></textarea>
+        </div>
+      </div>
+    </div>`;
+
+  const input  = container.querySelector('#moonInput');
+  const output = container.querySelector('#moonOutput');
+  const fmtSel = container.querySelector('#moonFormat');
+  const stat   = container.querySelector('#moonStat');
+
+  function refresh() {
+    const moons = parseMoonScan(input.value);
+    output.value = formatMoons(moons, fmtSel.value);
+    const ores  = moons.reduce((n, m) => n + m.ores.length, 0);
+    stat.textContent = moons.length
+      ? `${moons.length} moon${moons.length !== 1 ? 's' : ''} · ${ores} ore entries`
+      : (input.value.trim() ? 'No moon scan data found in paste' : '');
+  }
+
+  input.addEventListener('input', refresh);
+  fmtSel.addEventListener('change', refresh);
+  container.querySelector('#moonCopyBtn').addEventListener('click', () => {
+    if (!output.value) return;
+    navigator.clipboard.writeText(output.value)
+      .then(() => { if (typeof showToast === 'function') showToast('Copied reformatted scan.', 'success'); })
+      .catch(() => {});
+  });
+  container.querySelector('#moonClearBtn').addEventListener('click', () => {
+    input.value = ''; refresh(); input.focus();
+  });
+  refresh();
 }
 
 // ─── Active Jobs Page ─────────────────────────────────────────────────────────

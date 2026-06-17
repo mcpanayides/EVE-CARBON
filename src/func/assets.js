@@ -339,11 +339,16 @@ function renderAssetTree() {
   }
 
   // ── Group by location, then by character within each location ──────────────
-  // Location key = location_id so two distinct structures never merge even if
-  // they share a display name. Within a location, assets are split per owner.
+  // Key by the RESOLVED station (name + solar system), not the raw location_id:
+  // items inside ships/containers carry the container's item_id as location_id
+  // but resolve to the same station name, so keying on location_id would split
+  // one station into many groups. The system id keeps same-named structures in
+  // different systems apart. Falls back to location_id when unresolved.
   const locMap = new Map(); // locKey → { meta, charMap: Map(charId → { ... items[] }) }
   for (const asset of source) {
-    const locKey = String(asset.location_id || asset.location_name || 'unknown');
+    const locKey = asset.location_name
+      ? `${asset.location_name}||${asset.solar_system_id || ''}`
+      : String(asset.location_id || 'unknown');
     if (!locMap.has(locKey)) {
       locMap.set(locKey, {
         key:             locKey,

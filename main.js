@@ -32,6 +32,27 @@ const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow;
 
+// ─── Single-instance lock ─────────────────────────────────────────────────────
+// Without this, launching the app a second time (or a leftover process from a
+// previous run) spawns another Electron instance that fights the first over the
+// same Chromium cache folder in userData, producing the
+//   "Unable to move the cache: Access is denied (0x5)"
+//   "Unable to create cache" / "Gpu Cache Creation failed"
+// errors. Holding a single-instance lock means the second launch hands focus to
+// the running window and exits instead of colliding on the cache.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 if (typeof globalThis.crypto !== 'object' || typeof globalThis.crypto.randomUUID !== 'function') {
   globalThis.crypto = globalThis.crypto || {};
   globalThis.crypto.randomUUID = () => {
@@ -298,6 +319,7 @@ ipcMain.handle('open-external-url', (_, url) => {
 ipcMain.handle('get-app-version', () => app.getVersion());
 
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;   // second instance is quitting — don't init/open
   initPaths();
   await initSde();
   try {
@@ -902,6 +924,8 @@ function createWindow() {
     protocol: 'file:',
     slashes: true
   }));
+  mainWindow = win;   // keep a reference so 'second-instance' can focus it
+  win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
   return win;
 }
  

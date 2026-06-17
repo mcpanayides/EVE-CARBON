@@ -150,7 +150,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       db.all(
         `SELECT solarSystemID  AS id,
                 solarSystemName AS name,
-                x, z,
+                x, y, z,
                 security        AS sec,
                 regionID        AS regionId,
                 factionID       AS factionId

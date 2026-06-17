@@ -824,13 +824,22 @@ async function removeCharacterData(characterId) {
 
 async function getCharacterPIColonies(characterId) {
   if (!charDb) return [];
+  const table = `char_${characterId}_pi_colonies`;
   try {
-    return await charDb.all(`
-      SELECT * FROM char_${characterId}_pi_colonies 
-      ORDER BY upgrade_level DESC
-    `);
+    // A character that has never had PI synced has no table yet — that's normal,
+    // so skip the query silently instead of throwing a noisy SQLITE_ERROR.
+    const exists = await charDb.get(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name = ?`, table
+    );
+    if (!exists) return [];
+
+    // SELECT * then sort in JS, so an older table created before the
+    // upgrade_level column can't break the ORDER BY clause.
+    const rows = await charDb.all(`SELECT * FROM ${table}`);
+    rows.sort((a, b) => (b.upgrade_level || 0) - (a.upgrade_level || 0));
+    return rows;
   } catch (e) {
-    console.error(`[CharDB] Failed to fetch PI for ${characterId}:`, e);
+    console.warn(`[CharDB] PI colonies unavailable for ${characterId}: ${e.message}`);
     return [];
   }
 }

@@ -238,6 +238,7 @@ function navigateToPage(page) {
   if (page === 'pi')         loadPlanetaryInteraction();
   if (page === 'jabber')     loadJabberHistory();
   if (page === 'map')        initMapPage();
+  if (page === 'market')     renderMarket();
 }
 
 // ─── Nav Status Lights ────────────────────────────────────────────────────────

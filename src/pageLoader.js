@@ -327,11 +327,39 @@ const PAGE_HTML = {
     <div id="page-market" class="nav-page"
          style="flex-direction:column; height:100%;">
       <div class="page-header">
-        <h2>Market</h2>
+        <div>
+          <h2>Market</h2>
+          <div class="page-description">
+            Active sell orders across all your characters, compared live to Jita 4-4.
+            Green = priced at/above Jita, red = below.
+          </div>
+        </div>
         <button class="close-page-btn" onclick="closePage('market')">✕</button>
       </div>
-      <div class="page-content">
-        <p>Market data and trading tools - coming soon</p>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+                  padding:12px 16px; border-bottom:1px solid var(--border);
+                  background:var(--bg-card); flex-shrink:0;">
+        <span id="marketSummary" class="asset-summary" style="margin-right:auto;">Loading…</span>
+        <button class="icon-btn" onclick="renderMarket()" title="Refresh from ESI"
+                style="padding:7px 14px; font-size:12px;">⟳ REFRESH</button>
+      </div>
+      <div style="flex:1; overflow:auto; min-height:0;">
+        <table class="asset-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+          <thead>
+            <tr>
+              <th style="width:44px;"></th>
+              <th class="th-item">Item</th>
+              <th>Location</th>
+              <th class="th-right">Qty</th>
+              <th class="th-right">Your Price</th>
+              <th class="th-right">Jita 4-4</th>
+              <th class="th-right">vs Jita</th>
+            </tr>
+          </thead>
+          <tbody id="marketOrdersBody">
+            <tr><td colspan="7" class="loading-row">Loading market orders…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>`,
 

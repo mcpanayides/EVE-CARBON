@@ -1518,6 +1518,7 @@ const _AJ_ACT = {
   5: { label: 'BP Copy',       color: '#9b59b6' },
   7: { label: 'Reverse Eng.',  color: '#c0392b' },
   8: { label: 'Invention',     color: '#f39c12' },
+  9: { label: 'Reaction',      color: '#16a085' },
 };
 
 let _ajRefreshTimer = null;

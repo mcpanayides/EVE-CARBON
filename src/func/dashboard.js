@@ -1067,6 +1067,7 @@ const _AJ_ACTIVITY = {
   5: { label: 'BP Copy',       cls: 'aj-act-5' },
   7: { label: 'Reverse Eng.',  cls: 'aj-act-7' },
   8: { label: 'Invention',     cls: 'aj-act-8' },
+  9: { label: 'Reaction',      cls: 'aj-act-9' },
 };
 
 function _fmtTimeLeft(ms) {

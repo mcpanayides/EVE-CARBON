@@ -583,6 +583,7 @@
 .aj-act-5  { color: #9b59b6; background: rgba(155,89,182,0.08);  border-color: rgba(155,89,182,0.3);  } /* Copy         */
 .aj-act-7  { color: #c0392b; background: rgba(192,57,43,0.08);   border-color: rgba(192,57,43,0.3);   } /* Reverse Eng. */
 .aj-act-8  { color: #f39c12; background: rgba(243,156,18,0.08);  border-color: rgba(243,156,18,0.3);  } /* Invention    */
+.aj-act-9  { color: #16a085; background: rgba(22,160,133,0.08);  border-color: rgba(22,160,133,0.3);  } /* Reactions    */
 
 /* Progress bar */
 .aj-progress-wrap {

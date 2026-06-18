@@ -596,7 +596,6 @@ app.whenReady().then(async () => {
 
   // ── Salvage Calculator — all rig blueprints with their salvage material requirements ──
   ipcHandle('salvage-get-rig-data', async () => {
-    const sdeDb = getSdeDb();
     if (!sdeDb) return null;
     try {
       const rows = await sdeDb.all(`

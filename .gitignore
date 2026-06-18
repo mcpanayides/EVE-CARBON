@@ -43,6 +43,7 @@ yarn-error.log*
 *.user
 .venv/
 .claude/
+.vscode/
 
 .DS_Store
 Thumbs.db

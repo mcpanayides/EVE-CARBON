@@ -56,11 +56,12 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.icns"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.png",
+      "category": "Utility"
     },
     "files": [
       "**/*",

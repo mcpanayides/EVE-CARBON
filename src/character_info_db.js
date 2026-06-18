@@ -13,6 +13,36 @@ const { open } = require('sqlite');
 
 let charDb = null;   // shared db handle, opened once
 
+// ── Write serialization ───────────────────────────────────────────────────────
+// Every write transaction shares the single `charDb` connection. Issuing
+// BEGIN/COMMIT from concurrent async callers (e.g. several resolveNames() in
+// flight at startup) collides on one connection with
+//   "cannot start a transaction within a transaction"
+//   "cannot commit - no transaction is active"
+// withTx() serializes transactions through a promise chain so only one is ever
+// open, and guarantees it is always closed (COMMIT on success, ROLLBACK on
+// error) — a failed write can never leave a dangling transaction behind.
+let _txChain = Promise.resolve();
+async function withTx(fn) {
+  const prev = _txChain;
+  let release;
+  _txChain = new Promise((res) => { release = res; });
+  await prev;                       // wait for any in-flight transaction to finish
+  try {
+    await charDb.run('BEGIN');
+    try {
+      const result = await fn();
+      await charDb.run('COMMIT');
+      return result;
+    } catch (e) {
+      try { await charDb.run('ROLLBACK'); } catch (_) { /* nothing to roll back */ }
+      throw e;
+    }
+  } finally {
+    release();                      // let the next queued transaction proceed
+  }
+}
+
 // ── DB init ───────────────────────────────────────────────────────────────────
 async function initCharacterDb(dataDir) {
   if (charDb) return charDb;
@@ -399,8 +429,8 @@ async function replaceAssets(characterId, assets) {
   await db.run(`DROP TABLE IF EXISTS ${tmp}`);
   await db.run(`CREATE TABLE ${tmp} AS SELECT * FROM ${p}_assets WHERE 0`); // same schema, empty
 
-  await db.run('BEGIN');
   try {
+    await withTx(async () => {
     for (const a of assets) {
       await db.run(
         `INSERT OR REPLACE INTO ${tmp}
@@ -425,9 +455,8 @@ async function replaceAssets(characterId, assets) {
     // Atomic swap: drop live table, rename temp into its place
     await db.run(`DROP TABLE ${p}_assets`);
     await db.run(`ALTER TABLE ${tmp} RENAME TO ${p}_assets`);
-    await db.run('COMMIT');
+    });
   } catch (e) {
-    await db.run('ROLLBACK').catch(() => {});
     // Clean up temp table; the original live table is untouched
     await db.run(`DROP TABLE IF EXISTS ${tmp}`).catch(() => {});
     throw e;
@@ -508,8 +537,8 @@ async function replaceBlueprints(characterId, blueprints) {
   const db  = charDb;
   const now = Date.now();
   const p   = `char_${characterId}`;
+  await withTx(async () => {
   await db.run(`DELETE FROM ${p}_blueprints`);
-  await db.run('BEGIN');
   for (const bp of blueprints) {
     await db.run(
       `INSERT OR REPLACE INTO ${p}_blueprints
@@ -524,7 +553,7 @@ async function replaceBlueprints(characterId, blueprints) {
       ]
     );
   }
-  await db.run('COMMIT');
+  });
 }
 
 // ── Read helpers (for IPC get handlers) ──────────────────────────────────────
@@ -679,8 +708,8 @@ async function replaceWalletJournal(characterId, entries) {
   const db  = charDb;
   const now = Date.now();
   const p   = `char_${characterId}`;
+  await withTx(async () => {
   await db.run(`DELETE FROM ${p}_wallet_journal`);
-  await db.run('BEGIN');
   for (const e of entries) {
     await db.run(
       `INSERT OR REPLACE INTO ${p}_wallet_journal
@@ -705,7 +734,7 @@ async function replaceWalletJournal(characterId, entries) {
       ]
     );
   }
-  await db.run('COMMIT');
+  });
 }
 
 async function getWalletJournal(characterId) {
@@ -722,8 +751,8 @@ async function replaceWalletTransactions(characterId, transactions) {
   const db  = charDb;
   const now = Date.now();
   const p   = `char_${characterId}`;
+  await withTx(async () => {
   await db.run(`DELETE FROM ${p}_wallet_transactions`);
-  await db.run('BEGIN');
   for (const t of transactions) {
     await db.run(
       `INSERT OR REPLACE INTO ${p}_wallet_transactions
@@ -747,7 +776,7 @@ async function replaceWalletTransactions(characterId, transactions) {
       ]
     );
   }
-  await db.run('COMMIT');
+  });
 }
 
 async function getWalletTransactions(characterId) {
@@ -764,8 +793,8 @@ async function replaceLoyaltyPoints(characterId, lpRows) {
   const db  = charDb;
   const now = Date.now();
   const p   = `char_${characterId}`;
+  await withTx(async () => {
   await db.run(`DELETE FROM ${p}_loyalty_points`);
-  await db.run('BEGIN');
   for (const row of lpRows) {
     await db.run(
       `INSERT OR REPLACE INTO ${p}_loyalty_points
@@ -779,7 +808,7 @@ async function replaceLoyaltyPoints(characterId, lpRows) {
       ]
     );
   }
-  await db.run('COMMIT');
+  });
 }
 
 async function getLoyaltyPoints(characterId) {
@@ -948,8 +977,7 @@ async function getStationsLastSync(key) {
 async function upsertNpcStations(rows) {
   if (!charDb || !rows.length) return;
   const now = Date.now();
-  await charDb.run('BEGIN');
-  try {
+  await withTx(async () => {
     for (const r of rows) {
       await charDb.run(
         `INSERT INTO npc_stations
@@ -974,20 +1002,15 @@ async function upsertNpcStations(rows) {
       `INSERT INTO station_sync_meta (key, synced_at) VALUES ('npc_stations', ?)
        ON CONFLICT(key) DO UPDATE SET synced_at = excluded.synced_at`, now
     );
-    await charDb.run('COMMIT');
-    console.log(`[CharDB] Upserted ${rows.length} NPC stations.`);
-  } catch (e) {
-    await charDb.run('ROLLBACK');
-    throw e;
-  }
+  });
+  console.log(`[CharDB] Upserted ${rows.length} NPC stations.`);
 }
 
 // Bulk-upsert Upwell structures.
 async function upsertUpwellStructures(rows) {
   if (!charDb || !rows.length) return;
   const now = Date.now();
-  await charDb.run('BEGIN');
-  try {
+  await withTx(async () => {
     for (const r of rows) {
       await charDb.run(
         `INSERT INTO upwell_structures
@@ -1012,12 +1035,8 @@ async function upsertUpwellStructures(rows) {
       `INSERT INTO station_sync_meta (key, synced_at) VALUES ('upwell_structures', ?)
        ON CONFLICT(key) DO UPDATE SET synced_at = excluded.synced_at`, now
     );
-    await charDb.run('COMMIT');
-    console.log(`[CharDB] Upserted ${rows.length} Upwell structures.`);
-  } catch (e) {
-    await charDb.run('ROLLBACK');
-    throw e;
-  }
+  });
+  console.log(`[CharDB] Upserted ${rows.length} Upwell structures.`);
 }
 
 // Look up a single station/structure by ID from either table.
@@ -1114,7 +1133,7 @@ async function putCachedNames(entries) {
   if (!charDb || !entries || !entries.length) return;
   const now = Date.now();
   try {
-    await charDb.run('BEGIN');
+    await withTx(async () => {
     for (const e of entries) {
       if (!e || !e.id || !e.name) continue;
       await charDb.run(
@@ -1127,9 +1146,8 @@ async function putCachedNames(entries) {
         [Number(e.id), String(e.name), e.category || null, now]
       );
     }
-    await charDb.run('COMMIT');
+    });
   } catch (err) {
-    try { await charDb.run('ROLLBACK'); } catch (_) {}
     console.warn('[CharDB] putCachedNames failed:', err.message);
   }
 }

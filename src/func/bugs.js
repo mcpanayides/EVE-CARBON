@@ -5,6 +5,10 @@
 
 (function () {
 
+  // owner/repo used to auto-open a pre-filled GitHub issue on submit, in addition
+  // to the mailto: email. Change this if you fork the project.
+  const GITHUB_REPO = 'niki8885/EVE-CARBON';
+
   // ─── Modal HTML ─────────────────────────────────────────────────────────────
   const BUG_MODAL_HTML = `
 <div id="bugReportBackdrop" class="modal-backdrop bug-backdrop" style="display:none;">
@@ -16,7 +20,7 @@
         <span class="bug-modal-icon">⚠</span>
         <div>
           <div class="bug-modal-title">FILE A BUG REPORT</div>
-          <div class="bug-modal-subtitle">Reports are sent to bugs@vertexstudios.co.za</div>
+          <div class="bug-modal-subtitle">Opens an email draft and a pre-filled GitHub issue</div>
         </div>
       </div>
       <button class="icon-btn bug-close-btn" id="closeBugReportBtn" title="Close">✕</button>
@@ -216,8 +220,8 @@ Example:
     return true;
   }
 
-  // ─── Submit via mailto: ──────────────────────────────────────────────────────
-  function submitBugReport() {
+  // ─── Submit: open an email draft AND a pre-filled GitHub issue ────────────────
+  async function submitBugReport() {
     if (!validateBugReport()) return;
 
     const summary     = document.getElementById('bugSummary').value.trim();
@@ -229,7 +233,12 @@ Example:
     const activeSev   = document.querySelector('.bug-sev-btn.bug-sev-active');
     const severity    = activeSev ? activeSev.dataset.sev : 'Medium';
 
-    const appVersion  = '1.0.0'; // Replace with dynamic version if available
+    let appVersion = 'unknown';
+    try {
+      if (window.eveAPI && window.eveAPI.getAppVersion) {
+        appVersion = await window.eveAPI.getAppVersion();
+      }
+    } catch (_) { /* non-Electron context — leave as 'unknown' */ }
     const timestamp   = new Date().toISOString();
 
     const subject = `[EVE Carbon Bug] [${severity}] [${category}] ${summary}`;
@@ -264,17 +273,49 @@ Example:
       '═══════════════════════════════════════════════',
     ].join('\n');
 
+    // ── 1) Email draft via the OS default mail client ──────────────────────────
     const mailto = `mailto:bugs@vertexstudios.co.za`
       + `?subject=${encodeURIComponent(subject)}`
       + `&body=${encodeURIComponent(body)}`;
-
-    // Open the mailto link
     const a = document.createElement('a');
     a.href = mailto;
     a.click();
 
-    showToast('Bug report opened in your mail client.', 'success');
-    logToConsole('Bug report prepared for bugs@vertexstudios.co.za', 'success');
+    // ── 2) Pre-filled GitHub issue, opened in the default browser ───────────────
+    // Markdown body so it renders cleanly in the issue. Opened via
+    // shell.openExternal (open-external-url already whitelists https://).
+    const issueBody = [
+      `**Severity:** ${severity}`,
+      `**Category:** ${category}`,
+      `**Account:** ${account}`,
+      `**App version:** ${appVersion}`,
+      `**Timestamp:** ${timestamp}`,
+      '',
+      '### Description',
+      description,
+      '',
+      '### Reproduction steps',
+      repro,
+      '',
+      '### Additional notes',
+      notes,
+    ].join('\n');
+
+    const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`
+      + `?title=${encodeURIComponent(subject)}`
+      + `&labels=bug`
+      + `&body=${encodeURIComponent(issueBody)}`;
+
+    try {
+      if (window.eveAPI && window.eveAPI.openExternalUrl) {
+        await window.eveAPI.openExternalUrl(issueUrl);
+      } else {
+        window.open(issueUrl, '_blank');   // plain-browser fallback
+      }
+    } catch (_) { /* ignore — the email draft still opened */ }
+
+    showToast('Opened an email draft and a pre-filled GitHub issue.', 'success');
+    logToConsole(`Bug report: mail client + GitHub issue (${GITHUB_REPO}).`, 'success');
     closeBugReport();
   }
 

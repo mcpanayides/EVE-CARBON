@@ -249,7 +249,16 @@ async function loadAccounts() {
         <div class="character-card-meta">
           <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);">${acc.characterId}</span>
         </div>
+        <div class="character-card-location" style="font-family:var(--mono);font-size:10px;color:var(--text-2);margin-top:2px;"></div>
         ${isActive ? '<div class="character-active-badge">● ACTIVE</div>' : ''}`;
+
+      // Current location from the local DB (no network) — filled per card.
+      window.eveAPI.getCharacterData(acc.characterId).then(d => {
+        const locEl = infoDiv.querySelector('.character-card-location');
+        if (!locEl) return;
+        const sys = d && d.location && d.location.solar_system_name;
+        locEl.textContent = sys ? `⌖ ${sys}` : '';
+      }).catch(() => {});
 
       const rightDiv  = document.createElement('div');
       rightDiv.className = 'character-card-right';
@@ -374,6 +383,21 @@ function selectCharacter(account) {
   const selMeta = document.getElementById('selectedCharMeta');
   if (selMeta) selMeta.textContent = `ID: ${account.characterId}`;
 
+  // Current location (solar system, station if known) — from the last sync.
+  const selLoc = document.getElementById('selectedCharLocation');
+  if (selLoc) {
+    selLoc.textContent = '⌖ Locating…';
+    window.eveAPI.getCharacterData(account.characterId)
+      .then(d => {
+        const sys = d && d.location && d.location.solar_system_name;
+        const st  = d && d.location && d.location.station_name;
+        selLoc.textContent = sys
+          ? `⌖ ${sys}${st ? ' · ' + st : ''}`
+          : '⌖ Location unknown — sync this character';
+      })
+      .catch(() => { selLoc.textContent = ''; });
+  }
+
   document.querySelectorAll('.character-card').forEach(card => {
     const isThis = String(card.dataset.characterId) === String(account.characterId);
     card.classList.toggle('selected', isThis);
@@ -400,6 +424,8 @@ function clearSelectedCharacter() {
   selectedCharacterId = null;
   const section = document.getElementById('selectedCharacterSection');
   if (section) section.style.display = 'none';
+  const selLoc = document.getElementById('selectedCharLocation');
+  if (selLoc) selLoc.textContent = '';
   document.querySelectorAll('.character-card').forEach(card => {
     card.classList.remove('selected');
     const badge    = card.querySelector('.character-active-badge');

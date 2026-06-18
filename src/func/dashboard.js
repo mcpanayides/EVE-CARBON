@@ -299,7 +299,7 @@ async function loadDashboard() {
     // ── Helper: render the banner from DB data ────────────────────────────
     // implants: array of DB rows { implant_id, type_name, slot }
     function renderBanner({ charId, charName, birthday, gender, secStatus, corpId, corpName,
-                             allianceId, allianceName, homeStationName, homeSystemSec,
+                             allianceId, allianceName, homeStationName, homeSystemSec, currentSystem = null,
                              bloodlineName = null, implants = [], currentShipTypeId = null,
                              currentShipTypeName = null,
                              stale = false }) {
@@ -452,6 +452,7 @@ async function loadDashboard() {
                   ${homeSecBreadcrumb}
                 </span>
               </div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${escHtml(currentSystem || '—')}</span></div>
               <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
               <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span style="color:var(--text-3);font-size:11px;">Calculating…</span></span></div>
             </div>
@@ -564,6 +565,7 @@ async function loadDashboard() {
         corpId:    info.corporation_id,    corpName,
         allianceId: info.alliance_id,       allianceName,
         homeStationName, homeSystemSec,
+        currentSystem: loc?.solar_system_name || null,
         bloodlineName,
         implants,
         currentShipTypeId, currentShipTypeName,

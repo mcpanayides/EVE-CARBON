@@ -41,6 +41,8 @@ const PAGE_HTML = {
               </div>
               <div id="selectedCharMeta"
                    style="font-size:10px; color:var(--text-3); font-family:var(--mono);"></div>
+              <div id="selectedCharLocation"
+                   style="font-size:11px; color:var(--text-2); font-family:var(--mono); margin-top:4px;"></div>
             </div>
             <button class="char-action-btn" onclick="clearSelectedCharacter()" title="Clear selection">✕</button>
           </div>

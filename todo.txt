@@ -24,4 +24,9 @@ PI
 
 Pings/jabber 
    Styling so we can see where when how
-   Connect to mumble 
+   Connect to mumble
+
+Add safety test + coverage test
+    sonarcloud.io
+    https://qlty.sh
+    https://app.codecov.io

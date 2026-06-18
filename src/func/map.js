@@ -299,6 +299,10 @@ function _render() {
   // Dot radius scales with zoom so systems stay visible when zoomed out
   const dotR  = Math.max(0.7, Math.min(5, _zoom * _MAP_WORLD / 900));
   const lineW = Math.max(0.08, Math.min(1, _zoom * 2.2));
+  // System names only appear once zoomed in past this dot radius; below it region
+  // names are shown instead. Raised from the old 2.2 so mid-zoom doesn't turn
+  // into an unreadable wall of system labels.
+  const SYS_LABEL_DOTR = 3.2;
 
   // Background
   ctx.fillStyle = '#050810';
@@ -386,8 +390,9 @@ function _render() {
       ctx.stroke();
     }
 
-    // Label (only when zoomed in enough for it to be legible)
-    if (dotR > 2.2 && _zoom > 0.038) {
+    // System name — only once zoomed in past SYS_LABEL_DOTR (region names show
+    // before that), so medium zoom stays readable instead of becoming a mess.
+    if (dotR > SYS_LABEL_DOTR) {
       const fs = Math.max(8, Math.min(14, dotR * 3.2));
       ctx.font      = `${fs}px var(--mono, monospace)`;
       ctx.fillStyle = 'rgba(190,205,225,0.72)';
@@ -395,13 +400,17 @@ function _render() {
     }
   }
 
-  // ── Region sovereignty labels (sovereignty overlay, zoomed out) ─────────────
-  // Show when individual system names are not yet legible (dotR < 2.5).
-  // Displays: region name (italic, dim) + dominant alliance ticker (bold, coloured).
-  if (_overlay === 'sovereignty' && dotR < 2.5) {
-    // Opacity fades in as dotR drops below 2 (smooth transition)
-    const alpha = Math.min(1, (2.5 - dotR) / 1.2);
-    ctx.globalAlpha  = alpha;
+  // ── Region labels (zoomed out, before system names take over) ───────────────
+  // Shown on every overlay so the galaxy stays readable when zoomed out: region
+  // names appear from the initial zoom and fade out right as system names appear
+  // (dotR → SYS_LABEL_DOTR). The sovereignty overlay additionally shows the
+  // dominant alliance ticker and switches earlier (dotR < 2.5).
+  const _isSov          = _overlay === 'sovereignty';
+  const _regionLabelMax = _isSov ? 2.5 : SYS_LABEL_DOTR;
+  if (dotR < _regionLabelMax) {
+    // Fade out smoothly as the system-name threshold approaches.
+    const fadeSpan = _isSov ? 1.2 : 0.9;
+    ctx.globalAlpha  = Math.min(1, (_regionLabelMax - dotR) / fadeSpan);
     ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
 
@@ -411,7 +420,7 @@ function _render() {
       if (lcx < -40 || lcx > W + 40 || lcy < -40 || lcy > H + 40) continue;
 
       const regionName = _regions[regionId] || '';
-      const dom        = _regionDomSov[regionId];
+      const dom        = _isSov ? _regionDomSov[regionId] : null;
 
       // Font size: larger when more zoomed in (within zoomed-out range)
       const rfs  = Math.max(10, Math.min(14, _zoom * _MAP_WORLD / 85));
@@ -425,7 +434,7 @@ function _render() {
       ctx.shadowBlur   = 4;
       ctx.fillText(regionName, lcx, lcy - gap);
 
-      // Dominant sov ticker / name — bold, alliance colour
+      // Dominant sov ticker / name — bold, alliance colour (sovereignty only)
       if (dom && dom.label) {
         ctx.font      = `bold ${lfs}px var(--mono, monospace)`;
         ctx.fillStyle = dom.color;

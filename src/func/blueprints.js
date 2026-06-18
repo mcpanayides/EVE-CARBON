@@ -1035,6 +1035,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'moon') {
     renderMoonReformatter(right);
 
+  } else if (tab === 'planet-size') {
+    renderPlanetSizeMapper(right);
+
   } else {
     const labels = {
       'calculator':     'Blueprint Calculator',
@@ -1162,6 +1165,115 @@ function renderMoonReformatter(container) {
     input.value = ''; refresh(); input.focus();
   });
   refresh();
+}
+
+// ─── Planet Size Mapper ───────────────────────────────────────────────────────
+// Lists every planet in a region with its diameter (km), grouped by
+// constellation, biggest first. Bigger planets give more room to spread PI
+// extractor heads — shorter runs, more nodes. All from the local SDE, no ESI.
+const PLANET_TYPE_COLORS = {
+  Barren: '#b8956a', Temperate: '#4ec9b0', Gas: '#9b8cc4', Ice: '#7fb4d4',
+  Lava: '#e0712d', Oceanic: '#3a8fd0', Plasma: '#d04ec0', Storm: '#c4a23a',
+};
+
+async function renderPlanetSizeMapper(container) {
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+                  padding:12px 18px;border-bottom:1px solid var(--border);
+                  background:var(--bg-card);flex-shrink:0;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">PLANET SIZE MAPPER</span>
+        <span id="psStat" style="font-family:var(--mono);font-size:11px;color:var(--text-2);"></span>
+        <div style="display:flex;gap:8px;margin-left:auto;align-items:center;">
+          <select id="psRegion" class="field-input" style="width:210px;padding:5px 8px;font-size:12px;cursor:pointer;">
+            <option value="">Select region…</option>
+          </select>
+          <select id="psType" class="field-input" style="width:140px;padding:5px 8px;font-size:12px;cursor:pointer;">
+            <option value="">All types</option>
+            ${Object.keys(PLANET_TYPE_COLORS).map(t => `<option value="${t}">${t}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div id="psBody" style="flex:1;overflow-y:auto;min-height:0;">
+        <div class="empty-state" style="margin-top:60px;">
+          <div class="empty-icon">🪐</div>
+          <div class="empty-title">Pick a region</div>
+          <div class="empty-sub">Planet diameters help you spot the best PI worlds — bigger = more room to spread extractor heads.</div>
+        </div>
+      </div>
+    </div>`;
+
+  const regionSel = container.querySelector('#psRegion');
+  const typeSel   = container.querySelector('#psType');
+  const body      = container.querySelector('#psBody');
+  const stat      = container.querySelector('#psStat');
+  let _planets = [];
+
+  try {
+    const regions = await window.eveAPI.sdeGetPlanetRegions();
+    (regions || []).forEach(r => {
+      const o = document.createElement('option'); o.value = r.id; o.textContent = r.name; regionSel.appendChild(o);
+    });
+  } catch (_) {}
+
+  async function loadRegion() {
+    if (!regionSel.value) {
+      body.innerHTML = `<div class="empty-state" style="margin-top:60px;"><div class="empty-icon">🪐</div><div class="empty-title">Pick a region</div></div>`;
+      stat.textContent = ''; return;
+    }
+    body.innerHTML = `<div class="loading-row" style="padding:40px;text-align:center;">Loading planets…</div>`;
+    try { _planets = await window.eveAPI.sdeGetRegionPlanets(Number(regionSel.value)) || []; }
+    catch (_) { _planets = []; }
+    render();
+  }
+
+  function render() {
+    const type    = typeSel.value;
+    const planets = type ? _planets.filter(p => p.type === type) : _planets;
+    if (!planets.length) {
+      body.innerHTML = `<div class="loading-row" style="padding:40px;text-align:center;">No planets match.</div>`;
+      stat.textContent = '0 planets'; return;
+    }
+    // Group by constellation; constellations ordered by their biggest planet,
+    // planets within each ordered by diameter (largest first).
+    const groups = new Map();
+    planets.forEach(p => { (groups.get(p.con) || groups.set(p.con, []).get(p.con)).push(p); });
+    const sections = [...groups.entries()].map(([con, ps]) => {
+      ps.sort((a, b) => b.diameterKm - a.diameterKm);
+      return { con, ps, max: ps[0].diameterKm };
+    }).sort((a, b) => b.max - a.max);
+
+    body.innerHTML = sections.map(sec => `
+      <div class="ps-con">
+        <div class="ps-con-head">
+          <span class="ps-chev">▼</span>
+          <span class="ps-con-name">${escHtml(sec.con)}</span>
+          <span class="ps-con-meta">${sec.ps.length} planet${sec.ps.length !== 1 ? 's' : ''} · biggest Ø ${sec.max.toLocaleString()} km</span>
+        </div>
+        <table class="ps-table"><tbody>
+          ${sec.ps.map(p => `
+            <tr>
+              <td class="ps-pname">${escHtml(p.name)}</td>
+              <td><span class="ps-type" style="color:${PLANET_TYPE_COLORS[p.type] || 'var(--text-2)'};">${escHtml(p.type)}</span></td>
+              <td class="ps-dim">${escHtml(p.sys)}</td>
+              <td class="ps-dim ps-right">${p.sec.toFixed(1)}</td>
+              <td class="ps-diam ps-right">${p.diameterKm.toLocaleString()} km</td>
+            </tr>`).join('')}
+        </tbody></table>
+      </div>`).join('');
+    stat.textContent = `${planets.length} planets · ${sections.length} constellations`;
+
+    body.querySelectorAll('.ps-con-head').forEach(h => h.addEventListener('click', () => {
+      const tbl  = h.nextElementSibling;
+      const chev = h.querySelector('.ps-chev');
+      const hide = tbl.style.display !== 'none';
+      tbl.style.display = hide ? 'none' : '';
+      chev.textContent  = hide ? '▶' : '▼';
+    }));
+  }
+
+  regionSel.addEventListener('change', loadRegion);
+  typeSel.addEventListener('change', render);
 }
 
 // ─── Active Jobs Page ─────────────────────────────────────────────────────────

@@ -155,6 +155,9 @@ const PAGE_HTML = {
           <button class="industry-sub-btn" data-industry-tab="moon">
             <span class="industry-sub-icon">◎</span>Moon Scanning
           </button>
+          <button class="industry-sub-btn" data-industry-tab="planet-size">
+            <span class="industry-sub-icon">🪐</span>Planet Size Mapper
+          </button>
         </div>
         <div id="industryTabContent" class="industry-content">
           <!-- Populated by navigateToPage('industry') → navigateIndustryTab('blueprints') -->

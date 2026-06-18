@@ -440,6 +440,52 @@ function registerEsiHandlers({
     return out;
   });
 
+  // ─── IPC: Planet Size Mapper (SDE, offline) ─────────────────────────────────
+  // Planets are group 7 in mapDenormalize; radius is in metres. Diameter (km)
+  // matters for PI — bigger planets give more room to spread extractor heads.
+  ipcHandle('sde-get-planet-regions', async () => {
+    const db = getSdeDb();
+    if (!db) return [];
+    try {
+      return await db.all(`
+        SELECT r.regionID AS id, r.regionName AS name
+        FROM   mapRegions r
+        WHERE  EXISTS (SELECT 1 FROM mapDenormalize d WHERE d.regionID = r.regionID AND d.groupID = 7)
+        ORDER  BY r.regionName`);
+    } catch (e) { console.warn('[sde] planet regions failed:', e.message); return []; }
+  });
+
+  ipcHandle('sde-get-region-planets', async (_, regionId) => {
+    const db = getSdeDb();
+    if (!db || !regionId) return [];
+    try {
+      const rows = await db.all(`
+        SELECT d.itemID          AS id,
+               d.itemName        AS name,
+               t.typeName        AS ptype,
+               d.radius          AS radius,
+               d.security        AS sec,
+               d.solarSystemID   AS sysId,
+               s.solarSystemName AS sys,
+               d.constellationID AS conId,
+               c.constellationName AS con
+        FROM   mapDenormalize d
+        LEFT JOIN invTypes         t ON t.typeID = d.typeID
+        LEFT JOIN mapSolarSystems  s ON s.solarSystemID = d.solarSystemID
+        LEFT JOIN mapConstellations c ON c.constellationID = d.constellationID
+        WHERE  d.regionID = ? AND d.groupID = 7`, regionId);
+      return rows.map(p => ({
+        id:         p.id,
+        name:       p.name,
+        type:       (p.ptype || '').replace(/^Planet \(/, '').replace(/\)$/, '') || 'Planet',
+        diameterKm: Math.round((p.radius || 0) * 2 / 1000),
+        sec:        typeof p.sec === 'number' ? p.sec : 0,
+        sysId:      p.sysId,  sys: p.sys || '',
+        conId:      p.conId,  con: p.con || '',
+      }));
+    } catch (e) { console.warn('[sde] region planets failed:', e.message); return []; }
+  });
+
   // ─── IPC: SDE solar system name lookup (offline, no ESI needed) ─────────────
   // Accepts solar_system_id values and returns { id: systemName }.
   ipcHandle('sde-get-system-names', async (_, systemIds) => {

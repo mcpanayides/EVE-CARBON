@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getWalletBalance:      (charId)  => ipcRenderer.invoke('get-wallet', charId),
   getJitaPrices:         (typeIds) => ipcRenderer.invoke('get-jita-prices', typeIds),
   getTypeMetadata:       (typeIds) => ipcRenderer.invoke('get-type-metadata', typeIds),
+  sdeGetPlanetRegions:   ()         => ipcRenderer.invoke('sde-get-planet-regions'),
+  sdeGetRegionPlanets:   (regionId) => ipcRenderer.invoke('sde-get-region-planets', regionId),
 
   // Jobs
   getCharacterJobs:       (characterId) => ipcRenderer.invoke('get-character-jobs', characterId),

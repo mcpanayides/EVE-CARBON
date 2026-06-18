@@ -4,7 +4,7 @@ const { app } = require('electron');
 const envPath = app.isPackaged
   ? path.join(process.resourcesPath, '.env')
   : path.join(__dirname, '.env');
-require('dotenv').config({ path: envPath });
+require('dotenv').config({ path: envPath, quiet: true }); // quiet: suppress dotenv's startup tip line
 
 // ── Now safe to require everything else ────────────────────────────────────────
 const { BrowserWindow, ipcMain, shell, screen } = require('electron');
@@ -87,6 +87,18 @@ const SSO_AUTH_URL   = 'https://login.eveonline.com/v2/oauth/authorize/';
 const SSO_TOKEN_URL  = 'https://login.eveonline.com/v2/oauth/token';
 const SSO_VERIFY_URL = 'https://login.eveonline.com/oauth/verify';
 const ESI_BASE       = 'https://esi.evetech.net';
+// Terminal logs are UTF-8; a Windows console in a non-UTF-8 code page renders
+// glyphs like — ✓ ✗ … as mojibake (тАФ / тЬУ …). Strip to ASCII for stdout logs
+// only — the in-app HTML console (renderer process) keeps the real glyphs.
+const _ascii = (s) => String(s)
+  .replace(/—/g, '-').replace(/…/g, '...')
+  .replace(/✓/g, '[ok]').replace(/✗/g, '[x]').replace(/→/g, '->');
+// Wrap console.* once so every main-process log is ASCII-safe regardless of the
+// terminal's code page. Covers all modules (shared console) and future logs.
+for (const _m of ['log', 'warn', 'error', 'info']) {
+  const _orig = console[_m].bind(console);
+  console[_m] = (...args) => _orig(...args.map(a => (typeof a === 'string' ? _ascii(a) : a)));
+}
 const FUZZWORK_BASE  = 'https://www.fuzzwork.co.uk';
 const CALLBACK_PORT  = 12500;
 // Must match EXACTLY what is registered in the EVE developer portal

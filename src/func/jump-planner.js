@@ -463,6 +463,7 @@ function _jpRenderRoute(container, route, opts) {
       ${mode === 'cyno' ? `<div><span class="jp-tot-num">${totalLY.toFixed(1)}</span><span class="jp-tot-lbl">LY total</span></div>
                            <div><span class="jp-tot-num">${totalFuel.toLocaleString()}</span><span class="jp-tot-lbl">isotopes</span></div>` : ''}
     </div>
+    <button id="jpShowMapBtn" class="icon-btn" style="width:100%;margin:4px 0 8px;padding:6px;font-size:12px;cursor:pointer;">🗺 Show route on map</button>
     <table class="jp-route-table">
       <thead><tr><th></th><th>System</th><th>Region</th><th class="jp-right">${mode === 'cyno' ? 'Range' : 'Via'}</th><th class="jp-right">Fuel</th><th>Sov</th></tr></thead>
       <tbody>
@@ -476,6 +477,15 @@ function _jpRenderRoute(container, route, opts) {
         ${rows}
       </tbody>
     </table>`;
+
+  // "Show route on map" — close the planner, open the Map page, draw the route.
+  const mapBtn = container.querySelector('#jpShowMapBtn');
+  if (mapBtn) mapBtn.addEventListener('click', () => {
+    _jpCloseModal();
+    if (typeof navigateToPage === 'function') navigateToPage('map');
+    // Give the map page a moment to mount before drawing the route.
+    setTimeout(() => { if (typeof window.mapShowRoute === 'function') window.mapShowRoute(route.path); }, 220);
+  });
 }
 
 // ── Manual bridge list ────────────────────────────────────────────────────────

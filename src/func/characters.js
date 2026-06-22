@@ -142,6 +142,14 @@ async function _performCharacterSync(id) {
     if (typeof logToConsole === 'function') logToConsole(`✓ Full sync complete for ${result?.characterName || id}`, 'success');
     showToast('✓ Full sync complete!', 'success');
     if (typeof loadBlueprintLibrary === 'function') await loadBlueprintLibrary();
+
+    // New ESI permissions added since this character last logged in → re-authenticate.
+    if (result?.needsReauth) {
+      const scopes = (result.missingScopes || []).join(', ');
+      if (typeof logToConsole === 'function') logToConsole(`New permissions required (${scopes}) — opening EVE re-authentication…`, 'info');
+      showToast('New permissions added — log in again as this character to grant them.', 'info');
+      window.eveAPI.startSSOLogin();
+    }
   } catch (err) {
     ({ card, btn } = _findSyncCard(id));
     if (btn) { btn.textContent = 'FAILED'; btn.classList.remove('success'); btn.classList.add('failure'); }

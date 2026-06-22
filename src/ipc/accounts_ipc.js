@@ -25,6 +25,7 @@ const SCOPES = [
   'esi-planets.manage_planets.v1',
   'esi-characters.read_loyalty.v1',
   'esi-characters.read_standings.v1',
+  'esi-alliances.read_contacts.v1',             // alliance-set standings (blue/red) for jump routing
   'esi-skills.read_skillqueue.v1',
   'esi-fleets.read_fleet.v1',
   'esi-ui.write_waypoint.v1',

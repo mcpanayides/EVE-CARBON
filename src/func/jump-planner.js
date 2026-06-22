@@ -17,6 +17,11 @@
 const JP_LY = 9.4607e15;            // metres per light-year
 const JP_JUMPABLE_MAX_SEC = 0.45;   // can't jump to/from systems that display 0.5+
 
+// Cyno-jammed systems: jump drives and cynosural fields are disabled, so capitals
+// can only transit them via stargates (never cyno in or out). Zarzakh (30100000)
+// is the permanent one.
+const JP_CYNO_JAMMED = new Set([30100000]);
+
 // Ship base jump range (LY, SDE dogma 867) + isotopes/LY (dogma 868).
 // JDC adds +25% range per level; JFC cuts fuel 10% per level.
 const JP_SHIPS = [
@@ -51,6 +56,8 @@ let _jpJumpable    = [];    // system objects with sec < threshold (cyno candida
 let _jpGrid        = new Map(); // spatial buckets of jumpable systems (cyno neighbour search)
 let _jpCell        = 0;     // bucket size in metres
 let _jpAllianceId  = null;
+let _jpStandings   = {};    // contactId → standing, from the main/favourite char's ALLIANCE contacts
+let _jpStandingsError = null; // 'reauth' | message | null — why alliance standings are unavailable
 let _jpRegionalGates = {};  // id → [neighbour ids] reachable via an inter-regional stargate
 let _jpWaypoints   = [];    // ordered [system id, …] forced intermediate stops (manual)
 let _jpLastRoute   = null;  // last plotted route, so Minimize can redraw it on the map
@@ -91,7 +98,9 @@ async function _jpLoadData() {
     _jpById[s.id] = obj;
     _jpNames.push({ id: s.id, name: s.name });
     _jpNameIndex[s.name.toLowerCase()] = s.id;
-    if (obj.sec < JP_JUMPABLE_MAX_SEC) _jpJumpable.push(obj);
+    // Cyno-jammed systems stay out of the jump grid so nothing can cyno INTO them
+    // (they remain in _jpById/_jpRegionalGates so caps can still gate through).
+    if (obj.sec < JP_JUMPABLE_MAX_SEC && !JP_CYNO_JAMMED.has(obj.id)) _jpJumpable.push(obj);
   }
   _jpNames.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -116,19 +125,50 @@ async function _jpLoadData() {
     (_jpGrid.get(k) || _jpGrid.set(k, []).get(k)).push(s);
   }
 
-  // Own alliance from the selected (or first) character.
-  try {
-    const cid = (typeof selectedCharacterId !== 'undefined' && selectedCharacterId)
-      ? selectedCharacterId
-      : (await window.eveAPI.getAccounts().catch(() => []))[0]?.characterId;
-    if (cid) {
-      const data = await window.eveAPI.getCharacterData(cid).catch(() => null);
-      _jpAllianceId = data?.info?.alliance_id || null;
-    }
-  } catch (_) {}
-
   _jpReady = true;
   return true;
+}
+
+// Resolve the main/favourite character and load its ALLIANCE-set standings (blue/red).
+// Run on every planner open (cheap, server-cached) so re-authenticating a character
+// to grant the alliance-contacts scope takes effect without an app restart.
+// Preference order: a favourited character, then the selected one, then the first.
+async function _jpRefreshAllianceStandings() {
+  _jpStandings = {}; _jpStandingsError = null;
+  try {
+    const accounts = (await window.eveAPI.getAccounts().catch(() => [])) || [];
+    let favId = null;
+    try {
+      const favs = JSON.parse(localStorage.getItem('char_favorites') || '[]');
+      favId = (Array.isArray(favs) ? favs : []).map(String)
+        .find(f => accounts.some(a => String(a.characterId) === f));
+    } catch (_) {}
+    const cid = favId
+      || (typeof selectedCharacterId !== 'undefined' && selectedCharacterId ? selectedCharacterId : null)
+      || accounts[0]?.characterId;
+    if (!cid) return;
+    const data = await window.eveAPI.getCharacterData(cid).catch(() => null);
+    _jpAllianceId = data?.info?.alliance_id || null;
+    if (!_jpAllianceId) { _jpStandingsError = 'no-alliance'; return; }
+    const res = await window.eveAPI.getAllianceContacts(cid, _jpAllianceId);
+    if (res && res.ok) _jpStandings = res.standings || {};
+    else _jpStandingsError = res?.needsReauth ? 'reauth' : (res?.error || 'unavailable');
+  } catch (e) { _jpStandingsError = e.message || 'unavailable'; }
+}
+
+// Classify a system's sov holder relative to the main char's alliance standings.
+// Returns { kind, label, color, weight } — weight feeds the Safest routing cost.
+function _jpSovClass(sys) {
+  if (_jpAllianceId && sys.allianceId === _jpAllianceId) {
+    return { kind: 'own', label: 'your sov', color: '#4ecbb0', weight: 1 };
+  }
+  if (sys.allianceId != null) {
+    const st = _jpStandings[sys.allianceId];
+    if (st != null && st >= 5)  return { kind: 'blue', label: `blue +${st}`, color: '#4aa3ff', weight: 2 };
+    if (st != null && st <= -5) return { kind: 'red',  label: `red ${st}`,   color: '#e05252', weight: 14 };
+    return { kind: 'sov', label: 'neutral sov', color: '#c9a14a', weight: 7 };
+  }
+  return { kind: 'none', label: 'neutral', color: '#777', weight: 5 };
 }
 
 function _jpGridKey(x, y, z) {
@@ -159,13 +199,11 @@ function _jpNeighboursInRange(sys, rangeLY) {
 }
 
 // ── Safety weighting (Safest mode) ───────────────────────────────────────────
-// Lower = preferred. Own-alliance space is cheapest; hostile sov / low-sec are
-// heavily penalised (most likely to be tackled).
+// Lower = preferred. Your sov is cheapest; alliance-blue space is cheap; red sov is
+// heavily penalised; low-sec adds gank risk. Weights come from _jpSovClass so the
+// alliance's own standings (blue/red) drive the route, not just "mine vs theirs".
 function _jpSafety(sys) {
-  let w;
-  if (_jpAllianceId && sys.allianceId === _jpAllianceId) w = 1;       // your sov
-  else if (sys.allianceId)                               w = 12;      // someone else's sov
-  else                                                   w = 5;       // neutral / NPC-null / empty
+  let w = _jpSovClass(sys).weight;
   if (sys.sec >= 0.0 && sys.sec < JP_JUMPABLE_MAX_SEC && sys.sec > 0) w *= 1.4; // low-sec gank risk
   return w;
 }
@@ -231,11 +269,15 @@ function _jpRoute(startId, endId, opts) {
     if (mode === 'cyno') {
       // only jumpable systems participate; start may be hi-sec only as origin if reachable — but caps can't, so require jumpable
       if (sys.sec >= JP_JUMPABLE_MAX_SEC && id !== startId) continue;
-      for (const n of _jpNeighboursInRange(sys, rangeLY)) {
-        relax(n.sys.id, n.ly, 'jump');     // cost = light-years
+      // No cyno OUT of a cyno-jammed system (e.g. Zarzakh) — only gate transit.
+      if (!JP_CYNO_JAMMED.has(id)) {
+        for (const n of _jpNeighboursInRange(sys, rangeLY)) {
+          relax(n.sys.id, n.ly, 'jump');     // cost = light-years
+        }
       }
       // Optional: hop across a region boundary via a single regional stargate
       // instead of cyno-jumping it. Cheap fixed cost so it wins for long hauls.
+      // (This is how a cap transits Zarzakh — gate in, gate out.)
       if (useRegionalGates) {
         for (const to of (_jpRegionalGates[id] || [])) relax(to, JP_REGIONAL_GATE_COST, 'rgate');
       }
@@ -287,15 +329,25 @@ async function openJumpPlanner() {
   const status = modal.querySelector('#jpStatus');
   status.textContent = 'Loading galaxy data…';
   const ok = await _jpLoadData();
-  status.textContent = ok
-    ? (_jpAllianceId ? '' : 'No alliance detected — “safest” will just avoid hostile sov & low-sec.')
-    : 'Failed to load galaxy data (check Settings → Database).';
+  await _jpRefreshAllianceStandings();   // refresh blue/red each open (post-reauth aware)
+  if (!ok) {
+    status.textContent = 'Failed to load galaxy data (check Settings → Database).';
+  } else if (!_jpAllianceId) {
+    status.textContent = 'No alliance detected — “safest” will just avoid hostile sov & low-sec.';
+  } else if (_jpStandingsError === 'reauth') {
+    status.textContent = '⚠ Alliance standings need access — re-add this character to grant the alliance-contacts scope.';
+  } else if (Object.keys(_jpStandings).length) {
+    status.textContent = `Blue/red from alliance standings (${Object.keys(_jpStandings).length} contacts).`;
+  } else {
+    status.textContent = '';
+  }
   _jpPopulateDatalist();
   await _jpLoadBridges();   // pull the saved network from the encrypted store
   _jpRenderBridges(modal);
   _jpRenderWaypoints(modal);
   await _jpLoadCharSkills(modal);   // auto-fill JDC/JFC/JF from the selected character
   _jpUpdateRangeNote(modal);
+  _jpApplyPendingEndpoints(modal, true);   // From/To set on the map → fill & auto-plot
 }
 
 // Auto-load the selected character's jump skills into the sliders (no-op if no
@@ -339,8 +391,8 @@ function _jpMinimize() {
   if (_jpLastRoute && _jpLastRoute.path && _jpLastRoute.path.length) {
     if (typeof navigateToPage === 'function') navigateToPage('map');
     setTimeout(() => {
-      if (typeof window.mapShowRoute === 'function') {
-        window.mapShowRoute(_jpLastRoute.path, [...(_jpLastRoute.waypointIds || [])]);
+      if (typeof window.mapShowJumpRoute === 'function') {
+        window.mapShowJumpRoute(_jpLastRoute.path, [...(_jpLastRoute.waypointIds || [])]);
       }
     }, 220);
   }
@@ -376,6 +428,59 @@ function _jpShowRestorePill() {
 // Entry point the map calls when a system is right-clicked. Shows a popup offering
 // to splice the clicked system into the route as a mid, between the nearest pair of
 // consecutive route systems that are both within jump range of it.
+// True when a capital jump route is currently plotted (used by the map's context
+// menu to decide whether to offer the jump-planner waypoint options).
+window.jpHasActiveRoute = function () {
+  return !!(_jpLastRoute && Array.isArray(_jpLastRoute.path) && _jpLastRoute.path.length > 1);
+};
+
+// Receive From/To from the map (right-click set start/destination). Stored as
+// pending and applied — with an auto-plot — when the planner opens (or immediately
+// if it's already open). Lets the same map selection drive both planners.
+let _jpPendingFrom = null, _jpPendingTo = null;
+window.jpSetEndpoints = function (fromId, toId) {
+  _jpPendingFrom = fromId || null;
+  _jpPendingTo   = toId   || null;
+  const m = document.getElementById('jumpPlannerModal');
+  if (m && m.style.display !== 'none' && _jpReady) _jpApplyPendingEndpoints(m, true);
+};
+function _jpApplyPendingEndpoints(m, autoPlot) {
+  if (!m || (!_jpPendingFrom && !_jpPendingTo)) return;
+  const fromSys = _jpPendingFrom != null ? _jpById[_jpPendingFrom] : null;
+  const toSys   = _jpPendingTo   != null ? _jpById[_jpPendingTo]   : null;
+  if (fromSys) m.querySelector('#jpFrom').value = fromSys.name;
+  if (toSys)   m.querySelector('#jpTo').value   = toSys.name;
+  const both = fromSys && toSys;
+  _jpPendingFrom = _jpPendingTo = null;
+  if (autoPlot && both) _jpPlot(m);
+}
+
+// Compute a capital jump route for the given endpoints and draw it on the map
+// (pink arcs) WITHOUT opening the planner — so the jump and stargate plots show
+// together when a route is set from the map. Uses the modal's current ship/skills
+// if it's open, else defaults (Carrier, JDC 5). Skips fitting (the stargate route
+// already centres the view) and bails if a capital couldn't make the trip.
+window.jpPlotToMap = async function (fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+  if (!_jpReady) await _jpLoadData();
+  await _jpRefreshAllianceStandings();
+  const from = _jpById[fromId], to = _jpById[toId];
+  if (!from || !to || to.sec >= JP_JUMPABLE_MAX_SEC) return;   // can't jump INTO high-sec
+  const m = document.getElementById('jumpPlannerModal');
+  const shipId = m ? m.querySelector('#jpShip').value : 'carrier';
+  const jdc    = m ? +m.querySelector('#jpJdc').value : 5;
+  const safest = m ? m.querySelector('#jpSafest').checked : false;
+  const useRG  = m ? m.querySelector('#jpRegional').checked : false;
+  const route  = _jpRouteMulti([from.id, to.id], {
+    mode: 'cyno', safest, rangeLY: _jpRangeFor(shipId, jdc), avoidIncSet: null, useRegionalGates: useRG,
+  });
+  if (route.error) return;
+  _jpLastRoute = route;
+  if (typeof window.mapShowJumpRoute === 'function') {
+    window.mapShowJumpRoute(route.path, [...(route.waypointIds || [])], false);
+  }
+};
+
 window.jpHandleMapRightClick = function (systemId, clientX, clientY) {
   if (!_jpById[systemId]) {
     if (typeof showToast === 'function') showToast('Open the Jump Planner and plot a route first.', 'info');
@@ -521,11 +626,15 @@ function _jpReplot() {
   });
   if (route.error) return false;
   const result = document.querySelector('#jumpPlannerModal #jpResult');
-  if (result) _jpRenderRoute(result, route, { mode: c.mode, safest: c.safest, shipId: c.shipId, jfc: c.jfc, jf: c.jf, useRegionalGates: c.useRegionalGates });
-  else _jpLastRoute = route;
+  if (result) {
+    _jpRenderRoute(result, route, { mode: c.mode, safest: c.safest, shipId: c.shipId, jfc: c.jfc, jf: c.jf, useRegionalGates: c.useRegionalGates });
+    // _jpRenderRoute already synced the map overlay.
+  } else {
+    _jpLastRoute = route;
+    if (typeof window.mapShowJumpRoute === 'function') window.mapShowJumpRoute(route.path, [...(route.waypointIds || [])], false);
+  }
   const m = document.getElementById('jumpPlannerModal');
   if (m) _jpRenderWaypoints(m);
-  if (typeof window.mapShowRoute === 'function') window.mapShowRoute(route.path, [...(route.waypointIds || [])]);
   return true;
 }
 
@@ -750,6 +859,10 @@ function _jpBuildModal() {
   m.querySelector('#jpShip').addEventListener('change', () => _jpUpdateRangeNote(m));
   m.querySelector('#jpMode').addEventListener('change', () => _jpUpdateRangeNote(m));
   m.querySelector('#jpPlotBtn').addEventListener('click', () => _jpPlot(m));
+  // Auto re-plot when any option (ship, mode, skills, toggles, From/To) changes —
+  // only once a route has already been plotted, so we don't error on a blank form.
+  ['#jpShip', '#jpMode', '#jpJdc', '#jpJfc', '#jpJf', '#jpSafest', '#jpAvoidInc', '#jpRegional', '#jpFrom', '#jpTo']
+    .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', () => _jpMaybeReplot(m)); });
   m.querySelector('#jpBridgeAdd').addEventListener('click', () => _jpAddBridge(m));
   m.querySelector('#jpWaypointAdd').addEventListener('click', () => _jpAddWaypoint(m));
   m.querySelector('#jpWaypoint').addEventListener('keydown', (e) => {
@@ -777,6 +890,15 @@ function _jpResolveSystem(text) {
   if (!text) return null;
   const id = _jpNameIndex[text.trim().toLowerCase()];
   return id ? _jpById[id] : null;
+}
+
+// Re-plot when an option changes — but only if a route has already been plotted
+// and both endpoints still resolve, so toggles don't error on an empty form.
+function _jpMaybeReplot(m) {
+  if (!_jpLastRoute) return;
+  const from = _jpResolveSystem(m.querySelector('#jpFrom').value);
+  const to   = _jpResolveSystem(m.querySelector('#jpTo').value);
+  if (from && to && from.id !== to.id) _jpPlot(m);
 }
 
 async function _jpPlot(m) {
@@ -843,6 +965,11 @@ function _jpSecColor(sec) {
 
 function _jpRenderRoute(container, route, opts) {
   _jpLastRoute = route;   // remembered so Minimize can redraw it on the map
+  // Keep the map's pink jump overlay in sync with every (re)plot — no refit so the
+  // view doesn't jump while you tweak options/waypoints.
+  if (typeof window.mapShowJumpRoute === 'function') {
+    window.mapShowJumpRoute(route.path, [...(route.waypointIds || [])], false);
+  }
   const { mode, safest, shipId, jfc, jf, useRegionalGates } = opts;
   const ship = _jpShipById(shipId);
   const isJF = ship.id === 'jf';   // Jump Freighters skill only reduces JF fuel
@@ -851,9 +978,8 @@ function _jpRenderRoute(container, route, opts) {
 
   const rows = route.hops.map((hop, i) => {
     const sys = _jpById[hop.to];
-    const own = _jpAllianceId && sys.allianceId === _jpAllianceId;
-    const sovDot = own ? '#4ecbb0' : (sys.allianceId ? '#e05252' : '#777');
-    const sovTxt = own ? 'your sov' : (sys.allianceId ? 'hostile sov' : 'neutral');
+    const sc = _jpSovClass(sys);
+    const sovDot = sc.color, sovTxt = sc.label;
     let kindCell, fuel = 0;
     if (hop.kind === 'jump') {
       totalLY += hop.ly;
@@ -928,7 +1054,7 @@ function _jpRenderRoute(container, route, opts) {
           <td><span class="jp-secdot" style="background:${_jpSecColor(startSys.sec)}"></span>${escHtml(startSys.name)} <span class="jp-dim">(start)</span></td>
           <td class="jp-dim">${escHtml(startSys.regionName)}</td>
           <td class="jp-right">—</td><td class="jp-right jp-dim">—</td>
-          <td><span class="jp-secdot" style="background:${(_jpAllianceId && startSys.allianceId === _jpAllianceId) ? '#4ecbb0' : (startSys.allianceId ? '#e05252' : '#777')}"></span></td>
+          <td><span class="jp-secdot" style="background:${_jpSovClass(startSys).color}"></span><span class="jp-dim">${_jpSovClass(startSys).label}</span></td>
         </tr>
         ${rows}
       </tbody>
@@ -941,8 +1067,8 @@ function _jpRenderRoute(container, route, opts) {
     if (typeof navigateToPage === 'function') navigateToPage('map');
     // Give the map page a moment to mount before drawing the route.
     setTimeout(() => {
-      if (typeof window.mapShowRoute === 'function') {
-        window.mapShowRoute(route.path, [...(route.waypointIds || [])]);
+      if (typeof window.mapShowJumpRoute === 'function') {
+        window.mapShowJumpRoute(route.path, [...(route.waypointIds || [])]);
       }
     }, 220);
   });

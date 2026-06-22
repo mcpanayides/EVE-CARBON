@@ -55,6 +55,21 @@ let _routeIds        = null;   // ordered [systemId] of a plotted route to highl
 let _pendingRouteIds = null;   // route requested before the galaxy finished loading
 let _routeWaypointIds   = new Set(); // subset of _routeIds flagged as manual waypoints (drawn light blue)
 let _pendingWaypointIds = null;      // waypoints requested before the galaxy finished loading
+// Capital JUMP route — a separate overlay drawn pink with arcs, so it can show at
+// the same time as the (light-blue, straight) stargate route.
+let _jumpRouteIds          = null;
+let _jumpRouteWaypointIds  = new Set();
+let _pendingJumpRouteIds   = null;
+let _pendingJumpWaypointIds = null;
+
+// Stargate travel route (right-click → set start / destination). Safest path by
+// standings, computed over the gate network. Separate from the capital jump planner.
+let _travelStart = null;
+let _travelEnd   = null;
+let _gateAdj     = null;   // id → [neighbour ids], built once from _jumps
+let _bridgeAdj   = null;   // id → [neighbour ids] via saved Ansiblex bridges (rebuilt per route)
+let _sgLastPath  = null;   // last Stargate-planner route (for minimise redraw)
+let _sgNameIndex = null;   // lowercase system name → id (planner autocomplete)
 let _youHereId       = null;   // current character's system id ("you are here")
 
 // ── Official EVE security-status colours ──────────────────────────────────────
@@ -101,6 +116,70 @@ function _sovColor(sysId) {
   if (!s) return '#111827';
   if (s.factionId && _FACTIONS[s.factionId]) return _FACTIONS[s.factionId];
   return _allianceColor(s.allianceId);
+}
+
+// ── Friends & Foes overlay ────────────────────────────────────────────────────
+// Colours sov by the main/favourite character's ALLIANCE standings toward the
+// holder: your sov teal, +10 dark blue, +5 light blue, −5 orange, −10 red, NPC
+// sov grey, other player sov dimmed. Standings loaded lazily via _loadFnfStandings.
+let _fnfStandings  = {};     // contactId → standing (alliance contacts)
+let _fnfAllianceId = null;   // the main/favourite character's alliance
+let _fnfLoaded     = false;
+let _fnfError      = null;   // 'reauth' | 'no-alliance' | 'no-char' | message | null
+
+function _fnfColor(sys) {
+  if (sys.sec > 0.0 && sys.sec < 0.45) return '#e8d44a';     // low-sec → yellow (no sov here)
+  const s = _sovMap[sys.id];
+  if (!s) return '#0f1420';                                  // hi-sec / unclaimed null
+  if (s.factionId && !s.allianceId) return '#5b6472';        // NPC sov → grey
+  if (_fnfAllianceId && s.allianceId === _fnfAllianceId) return '#4ecbb0'; // your sov
+  if (s.allianceId != null || s.corporationId != null) {
+    let st = _fnfStandings[s.allianceId];
+    if (st == null) st = _fnfStandings[s.corporationId];
+    if (st != null) {
+      if (st >= 10) return '#2e6fdb';   // +10 dark blue
+      if (st >= 5)  return '#5a9be8';   // +5  light blue
+      if (st <= -10) return '#d0263d';  // −10 red
+      if (st <= -5)  return '#e67e22';  // −5  orange
+    }
+    return '#cfd3db';                   // other player sov → very light grey
+  }
+  return '#0f1420';
+}
+
+// Resolve the main/favourite character and load its alliance-set standings.
+async function _loadFnfStandings() {
+  _fnfStandings = {}; _fnfAllianceId = null; _fnfError = null;
+  try {
+    const accounts = (await window.eveAPI.getAccounts().catch(() => [])) || [];
+    let favId = null;
+    try {
+      const favs = JSON.parse(localStorage.getItem('char_favorites') || '[]');
+      favId = (Array.isArray(favs) ? favs : []).map(String)
+        .find(f => accounts.some(a => String(a.characterId) === f));
+    } catch (_) {}
+    const cid = favId
+      || (typeof selectedCharacterId !== 'undefined' && selectedCharacterId ? selectedCharacterId : null)
+      || accounts[0]?.characterId;
+    if (!cid) { _fnfError = 'no-char'; return; }
+    const data = await window.eveAPI.getCharacterData(cid).catch(() => null);
+    _fnfAllianceId = data?.info?.alliance_id || null;
+    if (!_fnfAllianceId) { _fnfError = 'no-alliance'; return; }
+    const res = await window.eveAPI.getAllianceContacts(cid, _fnfAllianceId);
+    if (res && res.ok) {
+      _fnfStandings = res.standings || {};
+      // Diagnostic: how many contacts at each standing tier (is there any −10 red?).
+      const vals = Object.values(_fnfStandings);
+      const hist = vals.reduce((m, v) => {
+        const k = v >= 10 ? '+10' : v >= 5 ? '+5' : v <= -10 ? '-10' : v <= -5 ? '-5' : 'mid(0)';
+        m[k] = (m[k] || 0) + 1; return m;
+      }, {});
+      console.log(`[FnF] alliance ${_fnfAllianceId}: ${vals.length} contacts; tiers:`, hist);
+    } else {
+      _fnfError = res?.needsReauth ? 'reauth' : (res?.error || 'unavailable');
+    }
+  } catch (e) { _fnfError = e.message || 'unavailable'; }
+  finally { _fnfLoaded = true; }
 }
 
 // ── Coordinate normalisation ──────────────────────────────────────────────────
@@ -371,7 +450,7 @@ function _render() {
     ctx.lineCap = 'butt';
   }
 
-  // ── Plotted jump route (highlighted over the faint connection mesh) ─────────
+  // ── Stargate route (light blue, straight lines) ─────────────────────────────
   if (_routeIds && _routeIds.length > 1) {
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(96,200,255,0.95)';
@@ -389,6 +468,28 @@ function _render() {
     ctx.lineCap = 'butt';
   }
 
+  // ── Capital jump route (pink, arcs like jump bridges) ───────────────────────
+  if (_jumpRouteIds && _jumpRouteIds.length > 1) {
+    ctx.lineCap   = 'round';
+    ctx.lineWidth = Math.max(1.5, Math.min(4, _zoom * 4));
+    for (let i = 1; i < _jumpRouteIds.length; i++) {
+      const a = _sysById[_jumpRouteIds[i - 1]], b = _sysById[_jumpRouteIds[i]];
+      if (!a || !b) continue;
+      const [ax, ay] = _w2c(a.wx, a.wz);
+      const [bx, by] = _w2c(b.wx, b.wz);
+      const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+      const arcH = Math.min(len * 0.18, 140);
+      const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+      const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.strokeStyle = 'rgba(240,120,200,0.92)';
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  }
+
   // ── System dots ───────────────────────────────────────────────────────────
   for (const s of _systems) {
     const [cx, cy] = _w2c(s.wx, s.wz);
@@ -401,6 +502,7 @@ function _render() {
     switch (_overlay) {
       case 'security':    col = _secColor(s.sec); break;
       case 'sovereignty': col = _sovColor(s.id);  break;
+      case 'fnf':         col = _fnfColor(s);     break;
       case 'incursions':  col = _incSet.has(s.id) ? '#dd44aa' : '#1c1c28'; break;
       default:            col = _secColor(s.sec);
     }
@@ -511,39 +613,22 @@ function _render() {
     ctx.textBaseline = 'alphabetic';
   }
 
-  // ── Route waypoint markers (start/end labelled) ─────────────────────────────
-  if (_routeIds && _routeIds.length) {
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    _routeIds.forEach((id, i) => {
-      const s = _sysById[id]; if (!s) return;
-      const [cx, cy] = _w2c(s.wx, s.wz);
-      if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
-      const isEnd = (i === 0 || i === _routeIds.length - 1);
-      const isWaypoint = !isEnd && _routeWaypointIds.has(id);
-      ctx.beginPath();
-      ctx.arc(cx, cy, isEnd ? 7 : (isWaypoint ? 6 : 4.5), 0, Math.PI * 2);
-      if (isWaypoint) {
-        // Manual waypoints: filled light-blue dot so they stand out from the route.
-        ctx.fillStyle = '#9fd4ff';
-        ctx.fill();
-        ctx.strokeStyle = '#cfeaff';
-      } else {
-        ctx.strokeStyle = '#60c8ff';
-      }
-      ctx.lineWidth   = 2;
-      ctx.stroke();
-      if (isEnd || isWaypoint) {
-        ctx.fillStyle   = isWaypoint ? '#9fd4ff' : '#60c8ff';
-        ctx.font        = 'bold 11px var(--mono, monospace)';
-        ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
-        ctx.fillText(
-          isEnd ? `${s.name} (${i === 0 ? 'start' : 'end'})` : `${s.name} (waypoint)`,
-          cx, cy - 14
-        );
-        ctx.shadowBlur = 0;
-      }
-    });
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  // ── Route node markers (start/end/waypoints) — drawn for both overlays ──────
+  _drawRouteMarkers(ctx, W, H, _routeIds,     _routeWaypointIds,     '#60c8ff', '#9fd4ff', 7, -14); // stargate (blue)
+  _drawRouteMarkers(ctx, W, H, _jumpRouteIds, _jumpRouteWaypointIds, '#f078c8', '#ffb0e0', 9,  18); // jump (pink)
+
+  // ── Pending travel endpoints (set, but route not computed / drawn yet) ───────
+  for (const [pid, label, col] of [[_travelStart, 'start', '#4ee37a'], [_travelEnd, 'destination', '#e3a84d']]) {
+    if (!pid || (_routeIds && _routeIds.includes(pid)) || (_jumpRouteIds && _jumpRouteIds.includes(pid))) continue; // a route already marks it
+    const s = _sysById[pid]; if (!s) continue;
+    const [cx, cy] = _w2c(s.wx, s.wz);
+    if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) continue;
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = col; ctx.font = 'bold 11px var(--mono, monospace)';
+    ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    ctx.fillText(`${s.name} (${label})`, cx, cy - 14);
+    ctx.shadowBlur = 0; ctx.textAlign = 'left';
   }
 
   // ── "You are here" — current character's system ─────────────────────────────
@@ -569,6 +654,37 @@ function _render() {
       ctx.textAlign   = 'left';
     }
   }
+}
+
+// Draw start/end/waypoint markers for a route overlay in the given colours.
+// endR / labelDy let the two overlays nest (pink ring outside blue) and stagger
+// their labels so a shared start/end isn't an unreadable overlap.
+function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy) {
+  if (!ids || !ids.length) return;
+  endR = endR || 7;
+  labelDy = (labelDy == null) ? -14 : labelDy;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ids.forEach((id, i) => {
+    const s = _sysById[id]; if (!s) return;
+    const [cx, cy] = _w2c(s.wx, s.wz);
+    if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
+    const isEnd = (i === 0 || i === ids.length - 1);
+    const isWaypoint = !isEnd && wpSet && wpSet.has(id);
+    ctx.beginPath();
+    ctx.arc(cx, cy, isEnd ? endR : (isWaypoint ? 6 : 4.5), 0, Math.PI * 2);
+    if (isWaypoint) { ctx.fillStyle = wpCol; ctx.fill(); ctx.strokeStyle = wpCol; }
+    else            { ctx.strokeStyle = endCol; }
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (isEnd || isWaypoint) {
+      ctx.fillStyle   = isWaypoint ? wpCol : endCol;
+      ctx.font        = 'bold 11px var(--mono, monospace)';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+      ctx.fillText(isEnd ? `${s.name} (${i === 0 ? 'start' : 'end'})` : `${s.name} (waypoint)`, cx, cy + labelDy);
+      ctx.shadowBlur = 0;
+    }
+  });
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 function _scheduleRender() {
@@ -617,6 +733,23 @@ async function _showInfo(system) {
     }
   }
 
+  // Your alliance's standing toward this system's sov holder (Friends & Foes data).
+  let standingHtml = '<span style="color:var(--text-3);">—</span>';
+  if (sov && (sov.allianceId != null || sov.corporationId != null)) {
+    if (_fnfAllianceId && sov.allianceId === _fnfAllianceId) {
+      standingHtml = '<span style="color:#4ecbb0;">Your alliance</span>';
+    } else {
+      let st = _fnfStandings[sov.allianceId];
+      if (st == null) st = _fnfStandings[sov.corporationId];
+      if (st != null) {
+        const c = st >= 10 ? '#2e6fdb' : st >= 5 ? '#5a9be8' : st <= -10 ? '#d0263d' : st <= -5 ? '#e67e22' : 'var(--text-3)';
+        standingHtml = `<span style="color:${c};">${st > 0 ? '+' : ''}${st}</span>`;
+      } else {
+        standingHtml = `<span style="color:var(--text-3);">${_fnfLoaded ? 'Not set (neutral)' : 'open Friends & Foes to load'}</span>`;
+      }
+    }
+  }
+
   bodyEl.innerHTML = `
     <div class="map-info-row">
       <span class="map-info-label">REGION</span>
@@ -629,6 +762,10 @@ async function _showInfo(system) {
     <div class="map-info-row">
       <span class="map-info-label">SOVEREIGNTY</span>
       <span class="map-info-value">${sovHtml}</span>
+    </div>
+    <div class="map-info-row">
+      <span class="map-info-label">STANDING</span>
+      <span class="map-info-value">${standingHtml}</span>
     </div>
     <div class="map-info-row">
       <span class="map-info-label">INCURSION</span>
@@ -702,6 +839,21 @@ function _updateLegend() {
       <div class="map-legend-title">INCURSIONS</div>
       <div class="map-legend-row">${dot('#dd44aa')} Infested System</div>
       <div class="map-legend-row">${dot('#1c1c28')} Clear</div>`;
+  } else if (_overlay === 'fnf') {
+    const note = _fnfError === 'reauth'
+      ? `<div class="map-legend-row" style="color:#e6a23c;">⚠ Sync &amp; re-auth a char for standings</div>`
+      : (_fnfError === 'no-alliance' ? `<div class="map-legend-row" style="color:var(--text-3);">No alliance on your character</div>` : '');
+    el.innerHTML = `
+      <div class="map-legend-title">FRIENDS &amp; FOES</div>
+      <div class="map-legend-row">${dot('#4ecbb0')} Your sov</div>
+      <div class="map-legend-row">${dot('#2e6fdb')} +10 blue</div>
+      <div class="map-legend-row">${dot('#5a9be8')} +5 blue</div>
+      <div class="map-legend-row">${dot('#e67e22')} −5 orange</div>
+      <div class="map-legend-row">${dot('#d0263d')} −10 red</div>
+      <div class="map-legend-row">${dot('#e8d44a')} Low-sec</div>
+      <div class="map-legend-row">${dot('#5b6472')} NPC sov</div>
+      <div class="map-legend-row">${dot('#cfd3db')} Other sov</div>
+      ${note}`;
   }
 }
 
@@ -772,6 +924,10 @@ function _initToolbar() {
         .forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _overlay = btn.dataset.overlay;
+      // Friends & Foes needs the alliance standings — load them on first use, then redraw.
+      if (_overlay === 'fnf' && !_fnfLoaded) {
+        _loadFnfStandings().then(() => { _updateLegend(); _scheduleRender(); });
+      }
       _updateLegend();
       _scheduleRender();
     });
@@ -801,6 +957,9 @@ function _initToolbar() {
       refreshBtn.disabled  = true;
       refreshBtn.style.opacity = '0.45';
       await _loadLiveData();
+      // Re-pull alliance standings too (e.g. after a re-auth granted the scope).
+      _fnfLoaded = false;
+      if (_overlay === 'fnf') { await _loadFnfStandings(); _updateLegend(); _scheduleRender(); }
       refreshBtn.disabled  = false;
       refreshBtn.style.opacity = '';
     });
@@ -886,16 +1045,14 @@ function _initCanvas() {
     _scheduleRender();
   });
 
-  // Right-click a system → hand it to the Jump Planner, which offers to insert it
-  // as a mid waypoint between the nearest in-range route systems.
+  // Right-click a system → map context menu (set travel start/destination; and,
+  // when a capital jump route is plotted, an entry into the jump-planner options).
   _canvas.addEventListener('contextmenu', e => {
     const rect = _canvas.getBoundingClientRect();
     const sys  = _hitTest(e.clientX - rect.left, e.clientY - rect.top);
     if (!sys) return;                       // empty space → keep the default menu
     e.preventDefault();
-    if (typeof window.jpHandleMapRightClick === 'function') {
-      window.jpHandleMapRightClick(sys.id, e.clientX, e.clientY);
-    }
+    _showMapMenu(sys, e.clientX, e.clientY);
   });
 
   // Zoom (scroll wheel)
@@ -964,6 +1121,410 @@ async function _loadSavedBridges() {
 }
 window.mapReloadBridges = function () { _loadSavedBridges(); };
 
+// ── Stargate travel route (safest by standings) ───────────────────────────────
+// Right-click → "Set as start" / "Set as destination". Computes the safest gate
+// route preferring (cheapest→dearest): your sov / hi-sec, +5/+10 blue, neutral &
+// NPC sov, low-sec, then −5 / −10 red only as a last resort. Works hi↔low↔null.
+function _ensureGateAdj() {
+  if (_gateAdj) return;
+  _gateAdj = new Map();
+  for (const j of _jumps) {
+    if (!_gateAdj.has(j.from)) _gateAdj.set(j.from, []);
+    _gateAdj.get(j.from).push(j.to);
+  }
+}
+
+// Bidirectional adjacency from the saved Ansiblex bridges. Rebuilt per route so it
+// always reflects the current network. A bridge hop is one jump that skips the
+// gate distance — the router takes it whenever it beats burning gates.
+function _buildBridgeAdj() {
+  _bridgeAdj = new Map();
+  for (const pair of _savedBridges) {
+    const a = pair[0], b = pair[1];
+    if (!_bridgeAdj.has(a)) _bridgeAdj.set(a, []);
+    if (!_bridgeAdj.has(b)) _bridgeAdj.set(b, []);
+    _bridgeAdj.get(a).push(b);
+    _bridgeAdj.get(b).push(a);
+  }
+}
+
+// Per-system safety cost (lower = preferred). Uses the Friends & Foes standings.
+function _travelSafetyCost(sys) {
+  const sec = sys.sec;
+  if (sec >= 0.45) return 1;                       // hi-sec — safe to travel
+  const s = _sovMap[sys.id];
+  if (s) {                                         // null-sec sov
+    if (_fnfAllianceId && s.allianceId === _fnfAllianceId) return 1;   // your sov
+    let st = (s.allianceId != null) ? _fnfStandings[s.allianceId] : null;
+    if (st == null && s.corporationId != null) st = _fnfStandings[s.corporationId];
+    if (st != null) {
+      if (st >= 5)   return 2;     // blue (+5 / +10)
+      if (st <= -10) return 100;   // red — last resort
+      if (st <= -5)  return 50;    // orange
+    }
+    return 6;                      // neutral / NPC sov
+  }
+  if (sec > 0.0 && sec < 0.45) return 10;          // low-sec
+  return 6;                                        // unclaimed / NPC null
+}
+
+// Min-heap for Dijkstra.
+function _mapHeap() {
+  const a = [];
+  return {
+    size: () => a.length,
+    push(c, id) { a.push([c, id]); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (a[p][0] <= a[i][0]) break; [a[p], a[i]] = [a[i], a[p]]; i = p; } },
+    pop() { const top = a[0], last = a.pop(); if (a.length) { a[0] = last; let i = 0; for (;;) { let l = 2 * i + 1, r = l + 1, m = i; if (l < a.length && a[l][0] < a[m][0]) m = l; if (r < a.length && a[r][0] < a[m][0]) m = r; if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m; } } return top; },
+  };
+}
+
+// Core gate pathfinder, shared by the right-click route and the Stargate Planner.
+// opts: { mode:'safest'|'shortest', avoidLow, avoidNull, avoidRed }. Returns the
+// ordered system-id path, or null if unreachable. Endpoints are never filtered out.
+function _travelRoutePath(startId, endId, opts = {}) {
+  if (!_sysById[startId] || !_sysById[endId]) return null;
+  _ensureGateAdj();
+  const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, useBridges = false } = opts;
+  if (useBridges) _buildBridgeAdj();
+
+  const dist = new Map(), prev = new Map(), done = new Set();
+  const heap = _mapHeap();
+  dist.set(startId, 0); heap.push(0, startId);
+  while (heap.size()) {
+    const [d, id] = heap.pop();
+    if (done.has(id)) continue;
+    done.add(id);
+    if (id === endId) break;
+    // Gates + (optionally) Ansiblex bridges form one network — the router picks
+    // the cheapest mix, so a bridge replaces a long gate burn when it's listed.
+    const neighbours = useBridges
+      ? (_gateAdj.get(id) || []).concat(_bridgeAdj.get(id) || [])
+      : (_gateAdj.get(id) || []);
+    for (const to of neighbours) {
+      if (done.has(to)) continue;
+      const toSys = _sysById[to];
+      if (!toSys) continue;
+      if (to !== endId) {
+        if (avoidLow  && toSys.sec > 0.0 && toSys.sec < 0.45) continue;
+        if (avoidNull && toSys.sec <= 0.0) continue;
+        if (avoidRed  && _travelSafetyCost(toSys) >= 50) continue;
+      }
+      const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys));
+      if (nd < (dist.has(to) ? dist.get(to) : Infinity)) {
+        dist.set(to, nd); prev.set(to, id); heap.push(nd, to);
+      }
+    }
+  }
+  if (!prev.has(endId) && startId !== endId) return null;
+  const path = [endId];
+  let cur = endId;
+  while (cur !== startId) { const p = prev.get(cur); if (p == null) break; path.unshift(p); cur = p; }
+  return path;
+}
+
+async function _computeTravelRoute() {
+  if (!_travelStart || !_travelEnd) return;
+  if (!_fnfLoaded) await _loadFnfStandings();   // so blue/red weighting applies
+  const path = _travelRoutePath(_travelStart, _travelEnd, { mode: 'safest', useBridges: true });
+  if (!path) {
+    if (typeof showToast === 'function') showToast('No gate route found between those systems.', 'error');
+    return;
+  }
+  if (typeof window.mapShowRoute === 'function') window.mapShowRoute(path);
+  if (typeof showToast === 'function') showToast(`Safest route: ${path.length - 1} jumps.`, 'success');
+}
+
+// Push the map's start/destination into BOTH planners so the same selection drives
+// a capital jump plan and a sub-cap stargate plan (each auto-plots on open).
+function _pushEndpointsToPlanners() {
+  if (typeof window.jpSetEndpoints === 'function') window.jpSetEndpoints(_travelStart, _travelEnd);
+  // Also draw the capital jump route (pink arcs) so both plots show together — no
+  // need to open the Jump Planner first. (Won't fit the view; the stargate route does.)
+  if (_travelStart && _travelEnd && typeof window.jpPlotToMap === 'function') {
+    window.jpPlotToMap(_travelStart, _travelEnd);
+  }
+  const sg = document.getElementById('stargatePlannerModal');
+  if (sg && sg.style.display !== 'none') {
+    if (_travelStart && _sysById[_travelStart]) sg.querySelector('#sgFrom').value = _sysById[_travelStart].name;
+    if (_travelEnd   && _sysById[_travelEnd])   sg.querySelector('#sgTo').value   = _sysById[_travelEnd].name;
+    if (_travelStart && _travelEnd) _sgPlot();
+  }
+}
+
+// Sov / standing label + colour for a system (Stargate Planner route table).
+function _travelSovLabel(s) {
+  if (s.sec >= 0.45) return { color: '#9fd4ff', label: 'hi-sec' };
+  const sv = _sovMap[s.id];
+  if (sv) {
+    if (_fnfAllianceId && sv.allianceId === _fnfAllianceId) return { color: '#4ecbb0', label: 'your sov' };
+    let st = (sv.allianceId != null) ? _fnfStandings[sv.allianceId] : null;
+    if (st == null && sv.corporationId != null) st = _fnfStandings[sv.corporationId];
+    if (st != null) {
+      if (st >= 5)   return { color: st >= 10 ? '#2e6fdb' : '#5a9be8', label: `blue +${st}` };
+      if (st <= -10) return { color: '#d0263d', label: `red ${st}` };
+      if (st <= -5)  return { color: '#e67e22', label: `red ${st}` };
+    }
+    if (sv.factionId && !sv.allianceId) return { color: '#5b6472', label: 'NPC sov' };
+    return { color: '#cfd3db', label: 'neutral sov' };
+  }
+  if (s.sec > 0.0 && s.sec < 0.45) return { color: '#e8d44a', label: 'low-sec' };
+  return { color: '#6b7280', label: 'null' };
+}
+
+// ── Map context menu ──────────────────────────────────────────────────────────
+function _closeMapMenu() { const m = document.getElementById('mapCtxMenu'); if (m) m.remove(); }
+function _mapMenuOutside(e) {
+  const m = document.getElementById('mapCtxMenu');
+  if (!m) return;
+  if (m.contains(e.target)) document.addEventListener('click', _mapMenuOutside, { once: true });
+  else _closeMapMenu();
+}
+
+function _showMapMenu(sys, x, y) {
+  _closeMapMenu();
+  const esc = (typeof escHtml === 'function') ? escHtml : (s => s);
+  const btn = (act, label, color) =>
+    `<button class="map-ctx" data-act="${act}" style="display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);color:${color || 'var(--text-1)'};padding:8px 12px;cursor:pointer;font-family:var(--mono,monospace);font-size:12px;">${label}</button>`;
+
+  let body = `<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-weight:700;font-family:var(--mono,monospace);font-size:12px;color:var(--text-1);">📍 ${esc(sys.name)}</div>`;
+  body += btn('start', '📍 Set as start');
+  body += btn('end',   '🏁 Set as destination');
+  if (_travelStart || _travelEnd || _routeIds || _jumpRouteIds) body += btn('clear', '✕ Clear routes', '#e05252');
+  if (window.jpHasActiveRoute && window.jpHasActiveRoute()) body += btn('jump', '⤓ Jump route options…');
+
+  const menu = document.createElement('div');
+  menu.id = 'mapCtxMenu';
+  menu.style.cssText = 'position:fixed;z-index:10060;min-width:210px;background:var(--bg-card);'
+    + 'border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6);overflow:hidden;';
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+  menu.innerHTML  = body;
+  document.body.appendChild(menu);
+
+  const r = menu.getBoundingClientRect();
+  if (r.right  > window.innerWidth)  menu.style.left = Math.max(8, window.innerWidth  - r.width  - 8) + 'px';
+  if (r.bottom > window.innerHeight) menu.style.top  = Math.max(8, window.innerHeight - r.height - 8) + 'px';
+
+  menu.querySelectorAll('.map-ctx').forEach(b => {
+    b.addEventListener('mouseenter', () => { b.style.background = 'var(--bg-deep)'; });
+    b.addEventListener('mouseleave', () => { b.style.background = 'none'; });
+    b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      _closeMapMenu();
+      if (act === 'start') {
+        _travelStart = sys.id;
+        if (typeof showToast === 'function') showToast(`Start: ${sys.name}`, 'success');
+        _pushEndpointsToPlanners();
+        if (_travelEnd) _computeTravelRoute(); else _scheduleRender();
+      } else if (act === 'end') {
+        _travelEnd = sys.id;
+        if (typeof showToast === 'function') showToast(`Destination: ${sys.name}`, 'success');
+        _pushEndpointsToPlanners();
+        if (_travelStart) _computeTravelRoute(); else _scheduleRender();
+      } else if (act === 'clear') {
+        _travelStart = _travelEnd = null;
+        _routeIds = null; _routeWaypointIds = new Set();
+        _jumpRouteIds = null; _jumpRouteWaypointIds = new Set();
+        _scheduleRender();
+        if (typeof showToast === 'function') showToast('Routes cleared.', 'info');
+      } else if (act === 'jump' && window.jpHandleMapRightClick) {
+        window.jpHandleMapRightClick(sys.id, x, y);
+      }
+    });
+  });
+
+  setTimeout(() => document.addEventListener('click', _mapMenuOutside, { once: true }), 0);
+}
+
+// ── Stargate Route Planner (modal) ────────────────────────────────────────────
+// A From→To planner for regular sub-cap stargate travel, mirroring the Jump
+// Planner. Routes safest-by-standings (or shortest), with avoid toggles, and a
+// "show / centre on map" button.
+function openStargatePlanner() {
+  let modal = document.getElementById('stargatePlannerModal');
+  if (!modal) { modal = _sgBuildModal(); document.body.appendChild(modal); }
+  modal.style.display = 'flex';
+  const pill = document.getElementById('sgRestorePill');
+  if (pill) pill.style.display = 'none';
+  _sgPopulateDatalist();
+  if (!_fnfLoaded) _loadFnfStandings();   // load standings so safest weighting works
+  // Pre-fill From/To from a start/destination set on the map, and auto-plot.
+  const f = document.getElementById('sgFrom'), t = document.getElementById('sgTo');
+  if (_travelStart && _sysById[_travelStart] && f) f.value = _sysById[_travelStart].name;
+  if (_travelEnd   && _sysById[_travelEnd]   && t) t.value = _sysById[_travelEnd].name;
+  if (f && t && f.value && t.value) _sgPlot();
+}
+
+function _sgClose()    { const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'none'; const p = document.getElementById('sgRestorePill'); if (p) p.style.display = 'none'; }
+function _sgMinimize() {
+  const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'none';
+  _sgShowPill();
+  if (_sgLastPath && typeof window.mapShowRoute === 'function') window.mapShowRoute(_sgLastPath);
+}
+function _sgRestore()  { const p = document.getElementById('sgRestorePill'); if (p) p.style.display = 'none'; const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'flex'; }
+function _sgShowPill() {
+  let pill = document.getElementById('sgRestorePill');
+  if (!pill) {
+    pill = document.createElement('button');
+    pill.id = 'sgRestorePill';
+    pill.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:10050;display:flex;align-items:center;gap:8px;'
+      + 'background:var(--bg-card);border:1px solid var(--accent);color:var(--text-1);border-radius:20px;padding:8px 16px;'
+      + 'font-size:12px;font-family:var(--mono,monospace);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.5);';
+    pill.addEventListener('click', _sgRestore);
+    document.body.appendChild(pill);
+  }
+  const jumps = _sgLastPath ? _sgLastPath.length - 1 : 0;
+  pill.innerHTML = `🧭 Stargate Planner${jumps ? ` · ${jumps} jumps` : ''} <span style="opacity:.7;">▢</span>`;
+  pill.style.display = 'flex';
+}
+
+function _sgBuildModal() {
+  const m = document.createElement('div');
+  m.id = 'stargatePlannerModal';
+  m.className = 'jp-modal-backdrop';
+  m.innerHTML = `
+    <div class="jp-modal">
+      <div class="jp-modal-header">
+        <span class="panel-icon">🧭</span><span>Stargate Route Planner</span>
+        <span id="sgStatus" class="jp-status"></span>
+        <button class="icon-btn sg-min" title="Minimise — keep the route and view it on the map" style="margin-left:auto;font-size:16px;line-height:1;">—</button>
+        <button class="icon-btn sg-close" title="Close" style="font-size:16px;">✕</button>
+      </div>
+      <div class="jp-modal-body">
+        <div class="jp-form">
+          <div class="jp-field"><label>From</label>
+            <input id="sgFrom" class="field-input" autocomplete="off" spellcheck="false" placeholder="Start system…" list="sgSysList"></div>
+          <div class="jp-field"><label>To</label>
+            <input id="sgTo" class="field-input" autocomplete="off" spellcheck="false" placeholder="Destination system…" list="sgSysList"></div>
+          <datalist id="sgSysList"></datalist>
+          <div class="jp-field"><label>Mode</label>
+            <select id="sgMode" class="field-input" style="cursor:pointer;">
+              <option value="safest">Safest (alliance standings)</option>
+              <option value="shortest">Shortest (fewest jumps)</option>
+            </select>
+          </div>
+          <div class="jp-toggles">
+            <label class="jp-check"><input type="checkbox" id="sgUseBridges" checked> Use jump bridges (Ansiblex)</label>
+            <label class="jp-check"><input type="checkbox" id="sgAvoidLow"> Avoid low-sec</label>
+            <label class="jp-check"><input type="checkbox" id="sgAvoidNull"> Avoid null-sec</label>
+            <label class="jp-check"><input type="checkbox" id="sgAvoidRed"> Avoid red (−5 / −10)</label>
+          </div>
+          <button id="sgPlotBtn" class="calc-btn" style="width:100%;margin-top:6px;">PLOT ROUTE</button>
+          <div class="jp-range-note" id="sgNote">Safest prefers your sov, blues and hi-sec; drops to neutral, low-sec, then red only if needed.</div>
+        </div>
+        <div class="jp-result" id="sgResult">
+          <div class="jp-empty">Enter a start and destination, then plot a route.</div>
+        </div>
+      </div>
+    </div>`;
+
+  m.addEventListener('click', (e) => { if (e.target === m) _sgClose(); });
+  m.querySelector('.sg-close').addEventListener('click', _sgClose);
+  m.querySelector('.sg-min').addEventListener('click', _sgMinimize);
+  m.querySelector('#sgPlotBtn').addEventListener('click', _sgPlot);
+  m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlot(); } });
+  // Auto re-plot whenever any option (or From/To) changes.
+  ['#sgMode', '#sgUseBridges', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
+    .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', _sgMaybeReplot); });
+  return m;
+}
+
+// Re-plot the stargate route if both endpoints are valid (used by option toggles).
+function _sgMaybeReplot() {
+  const from = _sgResolve(document.getElementById('sgFrom').value);
+  const to   = _sgResolve(document.getElementById('sgTo').value);
+  if (from && to && from.id !== to.id) _sgPlot();
+}
+
+function _sgPopulateDatalist() {
+  const dl = document.getElementById('sgSysList');
+  if (!dl || dl._filled || !_systems.length) return;
+  // All map points (k-space systems) for autocomplete.
+  dl.innerHTML = _systems
+    .filter(s => s.id < 31000000)
+    .map(s => `<option value="${s.name}"></option>`).join('');
+  dl._filled = true;
+  if (!_sgNameIndex) {
+    _sgNameIndex = {};
+    for (const s of _systems) _sgNameIndex[s.name.toLowerCase()] = s.id;
+  }
+}
+
+function _sgResolve(text) {
+  if (!text) return null;
+  if (!_sgNameIndex) _sgPopulateDatalist();
+  const id = _sgNameIndex ? _sgNameIndex[text.trim().toLowerCase()] : null;
+  return id ? _sysById[id] : null;
+}
+
+async function _sgPlot() {
+  const result = document.getElementById('sgResult');
+  const from = _sgResolve(document.getElementById('sgFrom').value);
+  const to   = _sgResolve(document.getElementById('sgTo').value);
+  if (!from || !to) { result.innerHTML = `<div class="jp-empty jp-err">Pick valid start and destination systems.</div>`; return; }
+  if (from.id === to.id) { result.innerHTML = `<div class="jp-empty">Start and destination are the same system.</div>`; return; }
+
+  if (!_fnfLoaded) { result.innerHTML = `<div class="jp-empty">Loading standings…</div>`; await _loadFnfStandings(); }
+  const opts = {
+    mode:       document.getElementById('sgMode').value,
+    avoidLow:   document.getElementById('sgAvoidLow').checked,
+    avoidNull:  document.getElementById('sgAvoidNull').checked,
+    avoidRed:   document.getElementById('sgAvoidRed').checked,
+    useBridges: document.getElementById('sgUseBridges').checked,
+  };
+  const path = _travelRoutePath(from.id, to.id, opts);
+  if (!path) { result.innerHTML = `<div class="jp-empty jp-err">No gate route found with those constraints. Try removing an avoid filter.</div>`; return; }
+  _sgRenderRoute(path, opts);
+}
+
+function _sgRenderRoute(path, opts) {
+  const result = document.getElementById('sgResult');
+  _sgLastPath = path;
+  const jumps = path.length - 1;
+  // A hop whose two systems aren't gate-adjacent was taken via a jump bridge.
+  const isBridgeHop = (a, b) => !((_gateAdj.get(a) || []).includes(b));
+  let red = 0, low = 0, bridges = 0;
+  const rows = path.map((id, i) => {
+    const s = _sysById[id];
+    const region = _regions[s.regionId] || '';
+    if (_travelSafetyCost(s) >= 50) red++;
+    if (s.sec > 0.0 && s.sec < 0.45) low++;
+    const viaBridge = i > 0 && isBridgeHop(path[i - 1], id);
+    if (viaBridge) bridges++;
+    const sov = _travelSovLabel(s);
+    const tag = i === 0 ? ' <span class="jp-dim">(start)</span>' : (i === path.length - 1 ? ' <span class="jp-dim">(end)</span>' : '');
+    const bridgeMark = viaBridge ? '<span style="color:#40dc82;" title="Jump bridge">◈ </span>' : '';
+    return `
+      <tr>
+        <td class="jp-num">${i === 0 ? '●' : i}</td>
+        <td><span class="jp-secdot" style="background:${_secColor(s.sec)}"></span>${bridgeMark}${escHtml(s.name)}${tag}</td>
+        <td class="jp-dim">${escHtml(region)}</td>
+        <td class="jp-right">${s.sec != null ? s.sec.toFixed(1) : '—'}</td>
+        <td><span class="jp-secdot" style="background:${sov.color}"></span><span class="jp-dim">${sov.label}</span></td>
+      </tr>`;
+  }).join('');
+
+  result.innerHTML = `
+    <div class="jp-banner">${opts.mode === 'shortest' ? '↪ Shortest route — fewest jumps (gates + bridges).' : '🛡 Safest route — prefers your sov, blues & hi-sec; red only as a last resort.'}</div>
+    <div class="jp-totals">
+      <div><span class="jp-tot-num">${jumps}</span><span class="jp-tot-lbl">jumps</span></div>
+      ${bridges ? `<div><span class="jp-tot-num" style="color:#40dc82;">${bridges}</span><span class="jp-tot-lbl">bridges</span></div>` : ''}
+      ${low ? `<div><span class="jp-tot-num" style="color:#e8d44a;">${low}</span><span class="jp-tot-lbl">low-sec</span></div>` : ''}
+      ${red ? `<div><span class="jp-tot-num" style="color:#d0263d;">${red}</span><span class="jp-tot-lbl">red</span></div>` : ''}
+    </div>
+    <button id="sgShowMapBtn" class="icon-btn" style="width:100%;margin:4px 0 8px;padding:6px;font-size:12px;cursor:pointer;">🗺 Show / centre on map</button>
+    <table class="jp-route-table">
+      <thead><tr><th></th><th>System</th><th>Region</th><th class="jp-right">Sec</th><th>Sov</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  const btn = document.getElementById('sgShowMapBtn');
+  if (btn) btn.addEventListener('click', () => {
+    // Minimise the planner and draw + centre the route so it's actually visible.
+    _sgMinimize();
+  });
+}
+
 async function initMapPage() {
   _loadSavedBridges();   // refresh saved bridge arcs on every entry to the map
   // If already loaded, just ensure the canvas fills its container and re-render
@@ -1019,6 +1580,12 @@ async function initMapPage() {
       _pendingRouteIds = null;
       _pendingWaypointIds = null;
       _fitToSystems(_routeIds);
+    }
+    if (_pendingJumpRouteIds) {
+      _jumpRouteIds = _pendingJumpRouteIds;
+      _jumpRouteWaypointIds = _pendingJumpWaypointIds || new Set();
+      _pendingJumpRouteIds = null;
+      _pendingJumpWaypointIds = null;
     }
 
     // Mark the selected character's current system.
@@ -1088,17 +1655,34 @@ async function _loadYouAreHere() {
 
 // ── Global bridge — called by the Jump Planner "Show on Map" button ───────────
 // Highlights an ordered list of system IDs as a route and fits the view to it.
-window.mapShowRoute = function (systemIds, waypointIds) {
+// Stargate route overlay (light blue, straight). fit defaults to centring the view.
+window.mapShowRoute = function (systemIds, waypointIds, fit = true) {
   const ids = (systemIds || []).map(Number).filter(Boolean);
   if (!ids.length) return;
   const wps = new Set((waypointIds || []).map(Number).filter(Boolean));
   if (_loaded) {
     _routeIds = ids;
     _routeWaypointIds = wps;
-    _fitToSystems(ids);
+    if (fit) _fitToSystems(ids);
     _scheduleRender();
   } else {
     _pendingRouteIds = ids;
     _pendingWaypointIds = wps;
+  }
+};
+
+// Capital JUMP route overlay (pink, arcs). Coexists with the stargate route.
+window.mapShowJumpRoute = function (systemIds, waypointIds, fit = true) {
+  const ids = (systemIds || []).map(Number).filter(Boolean);
+  if (!ids.length) return;
+  const wps = new Set((waypointIds || []).map(Number).filter(Boolean));
+  if (_loaded) {
+    _jumpRouteIds = ids;
+    _jumpRouteWaypointIds = wps;
+    if (fit) _fitToSystems(ids);
+    _scheduleRender();
+  } else {
+    _pendingJumpRouteIds = ids;
+    _pendingJumpWaypointIds = wps;
   }
 };

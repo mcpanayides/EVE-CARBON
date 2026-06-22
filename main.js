@@ -128,8 +128,9 @@ const SCOPES         = [
   'esi-planets.manage_planets.v1',              // planetary interaction colonies
   'esi-characters.read_loyalty.v1',             // loyalty points per corporation
   'esi-characters.read_standings.v1',           // NPC faction/corp standings (broker-fee reduction in trade calc)
-  'esi-skills.read_skills.v1',                  // total skill points 
-  'esi-skills.read_skillqueue.v1',              // current skill queue (for estimating free time until next SP gain) 
+  'esi-alliances.read_contacts.v1',             // alliance-set standings (blue/red entities) for jump routing
+  'esi-skills.read_skills.v1',                  // total skill points
+  'esi-skills.read_skillqueue.v1',              // current skill queue (for estimating free time until next SP gain)
   'esi-fleets.read_fleet.v1',                    // for fleet role tags in Jabber messages (e.g. FC, squad commander, etc.)
   'esi-ui.write_waypoint.v1',                    // set autopilot destination in active EVE client
 ].join(' ');
@@ -384,6 +385,41 @@ ipcMain.handle('get-trade-profile', async (_, characterId) => {
     };
   } catch (e) {
     return { accounting: null, brokerRelations: null, standings: {} };
+  }
+});
+
+// Alliance contacts — the standings the character's ALLIANCE has set toward other
+// entities (characters/corps/alliances/factions). Used by the jump planner & map to
+// classify blue (+5/+10) vs red (-5/-10). Requires esi-alliances.read_contacts.v1;
+// a token predating that scope returns { ok:false, needsReauth:true }. Cached per
+// alliance for 1 hour. Returns { ok, allianceId, standings:{ contactId: standing } }.
+ipcMain.handle('get-alliance-contacts', async (_, characterId, allianceId) => {
+  if (!characterId || !allianceId) return { ok: false, error: 'no alliance' };
+  const cacheKey = `alliance_contacts_${allianceId}`;
+  const cached = readCache(cacheKey);
+  if (cached) return { ok: true, allianceId, standings: cached };
+  try {
+    const token   = await getValidToken(characterId);
+    const authHdr = { Authorization: `Bearer ${token}` };
+    const standings = {};
+    let page = 1, totalPages = 1;
+    while (true) {
+      const { data, xPages } = await httpGetFull(
+        `${ESI_BASE}/v2/alliances/${allianceId}/contacts/?datasource=tranquility&page=${page}`, authHdr
+      );
+      if (page === 1) totalPages = xPages || 1;
+      if (Array.isArray(data)) for (const c of data) standings[c.contact_id] = c.standing;
+      if (page >= totalPages) break;
+      page++;
+    }
+    writeCache(cacheKey, standings, 1 / 24); // 1 hour
+    return { ok: true, allianceId, standings };
+  } catch (e) {
+    const msg = e.message || '';
+    if (/HTTP 403/.test(msg)) {
+      return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant alliance-contacts access.' };
+    }
+    return { ok: false, error: msg };
   }
 });
 
@@ -1620,19 +1656,46 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
 }
  
 // ─── IPC: Full character sync (manual re-sync button) ─────────────────────────
+// EVE SSO access tokens are JWTs whose payload carries the granted scopes in `scp`.
+// Decoding it (no signature check needed — we already trust our own stored token)
+// lets us tell when the app's required scope list has grown beyond what the
+// character last consented to, so the renderer can prompt a re-auth.
+function decodeTokenScopes(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8'));
+    const scp = payload.scp;
+    return Array.isArray(scp) ? scp : (typeof scp === 'string' ? scp.split(' ') : []);
+  } catch (_) { return null; }
+}
+
+// Scopes the app now requires that this character's token wasn't granted. Empty
+// when up to date (or when the token can't be decoded — we don't nag in that case).
+async function getMissingScopes(characterId) {
+  try {
+    const granted = decodeTokenScopes(await getValidToken(characterId));
+    if (!granted) return [];
+    return SCOPES.split(' ').filter(s => s && !granted.includes(s));
+  } catch (_) { return []; }
+}
+
 ipcHandle('sync-character-full', async (event, characterId) => {
   const db = loadDB();
   const account = db.accounts[characterId];
   if (!account) throw new Error('Account not found');
   const characterName = account.characterName;
   const win = BrowserWindow.fromWebContents(event.sender);
- 
+
   const summary = await fullCharacterSync(characterId, characterName, (step, detail) => {
     console.log(`[CharSync] ${characterName} — ${step}: ${detail}`);
     if (win && !win.isDestroyed()) {
       win.webContents.send('char-sync-progress', { characterId, characterName, step, detail });
     }
   });
+
+  // If the app has gained new ESI scopes since this character last authorised,
+  // flag it so the renderer can redirect the user to re-authenticate.
+  const missingScopes = await getMissingScopes(characterId).catch(() => []);
+  if (missingScopes.length) { summary.needsReauth = true; summary.missingScopes = missingScopes; }
   return summary;
 });
  

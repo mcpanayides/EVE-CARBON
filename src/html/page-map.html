@@ -11,6 +11,7 @@
         <span class="map-group-label">OVERLAY</span>
         <button class="map-overlay-btn active" data-overlay="security">Security</button>
         <button class="map-overlay-btn" data-overlay="sovereignty">Sovereignty</button>
+        <button class="map-overlay-btn" data-overlay="fnf" title="Colour sov by your alliance's standings — blue (+5/+10), orange (−5), red (−10), NPC grey">Friends &amp; Foes</button>
         <button class="map-overlay-btn" data-overlay="incursions">Incursions</button>
       </div>
 
@@ -23,6 +24,12 @@
       <button class="map-toggle-btn" id="mapJumpPlannerBtn" onclick="openJumpPlanner()"
               title="Plan a capital jump route (cyno or beacon network)">
         ⤓ Jump Planner
+      </button>
+
+      <!-- Stargate route planner -->
+      <button class="map-toggle-btn" id="mapStargatePlannerBtn" onclick="openStargatePlanner()"
+              title="Plan a sub-cap stargate route (safest by alliance standings)">
+        🧭 Stargate Planner
       </button>
 
       <!-- System search -->

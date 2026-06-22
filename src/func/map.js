@@ -28,7 +28,7 @@ let _dragPX      = 0, _dragPY  = 0;
 let _hovered     = null;
 let _selected    = null;
 let _overlay     = 'security';
-let _showJb      = false;
+let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + IHUB diamonds) on by default
 let _rafPending  = false;
 let _loaded      = false;
 
@@ -38,6 +38,7 @@ let _jumps       = [];        // [{from, to}]
 let _sovMap      = {};        // {systemId: {allianceId, factionId, corporationId}}
 let _incSet      = new Set();
 let _jbSet           = new Set();
+let _savedBridges    = [];        // user's saved Ansiblex bridges [[idA,idB],…] drawn as green arcs
 let _regions         = {};        // {regionId: name}
 let _sysById         = {};        // {systemId: system}  — O(1) lookup
 
@@ -52,6 +53,8 @@ let _pendingJumpSystemId = null;
 // Jump route overlay (set by window.mapShowRoute) + "you are here" marker.
 let _routeIds        = null;   // ordered [systemId] of a plotted route to highlight
 let _pendingRouteIds = null;   // route requested before the galaxy finished loading
+let _routeWaypointIds   = new Set(); // subset of _routeIds flagged as manual waypoints (drawn light blue)
+let _pendingWaypointIds = null;      // waypoints requested before the galaxy finished loading
 let _youHereId       = null;   // current character's system id ("you are here")
 
 // ── Official EVE security-status colours ──────────────────────────────────────
@@ -332,6 +335,42 @@ function _render() {
   }
   ctx.stroke();
 
+  // ── Saved jump-bridge arcs (your Ansiblex / beacon network) ─────────────────
+  // Drawn as a green arc bulging off the straight line so two bridges between the
+  // same pair (or overlapping gate routes) stay visually distinct. Tied to the
+  // "Jump Bridges" toolbar toggle alongside the IHUB diamonds.
+  if (_showJb && _savedBridges.length) {
+    ctx.lineCap   = 'round';
+    ctx.lineWidth = Math.max(1, Math.min(3, _zoom * 3));
+    for (const [ida, idb] of _savedBridges) {
+      const a = _sysById[ida], b = _sysById[idb];
+      if (!a || !b) continue;
+      const [ax, ay] = _w2c(a.wx, a.wz);
+      const [bx, by] = _w2c(b.wx, b.wz);
+      if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+          (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+      const dx = bx - ax, dy = by - ay;
+      const len = Math.hypot(dx, dy) || 1;
+      const arcH = Math.min(len * 0.18, 140);          // perpendicular bulge, capped
+      const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+      const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.strokeStyle = 'rgba(64,220,130,0.85)';
+      ctx.shadowColor = 'rgba(64,220,130,0.55)';
+      ctx.shadowBlur  = 6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#40dc82';
+      const nub = Math.max(1.5, _zoom * 2.5);
+      for (const [ex, ey] of [[ax, ay], [bx, by]]) {
+        ctx.beginPath(); ctx.arc(ex, ey, nub, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.lineCap = 'butt';
+  }
+
   // ── Plotted jump route (highlighted over the faint connection mesh) ─────────
   if (_routeIds && _routeIds.length > 1) {
     ctx.beginPath();
@@ -480,16 +519,27 @@ function _render() {
       const [cx, cy] = _w2c(s.wx, s.wz);
       if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
       const isEnd = (i === 0 || i === _routeIds.length - 1);
+      const isWaypoint = !isEnd && _routeWaypointIds.has(id);
       ctx.beginPath();
-      ctx.arc(cx, cy, isEnd ? 7 : 4.5, 0, Math.PI * 2);
-      ctx.strokeStyle = '#60c8ff';
+      ctx.arc(cx, cy, isEnd ? 7 : (isWaypoint ? 6 : 4.5), 0, Math.PI * 2);
+      if (isWaypoint) {
+        // Manual waypoints: filled light-blue dot so they stand out from the route.
+        ctx.fillStyle = '#9fd4ff';
+        ctx.fill();
+        ctx.strokeStyle = '#cfeaff';
+      } else {
+        ctx.strokeStyle = '#60c8ff';
+      }
       ctx.lineWidth   = 2;
       ctx.stroke();
-      if (isEnd) {
-        ctx.fillStyle   = '#60c8ff';
+      if (isEnd || isWaypoint) {
+        ctx.fillStyle   = isWaypoint ? '#9fd4ff' : '#60c8ff';
         ctx.font        = 'bold 11px var(--mono, monospace)';
         ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
-        ctx.fillText(`${s.name} (${i === 0 ? 'start' : 'end'})`, cx, cy - 14);
+        ctx.fillText(
+          isEnd ? `${s.name} (${i === 0 ? 'start' : 'end'})` : `${s.name} (waypoint)`,
+          cx, cy - 14
+        );
         ctx.shadowBlur = 0;
       }
     });
@@ -729,8 +779,10 @@ function _initToolbar() {
 
   const jbBtn = document.getElementById('mapJbToggle');
   if (jbBtn) {
+    jbBtn.classList.toggle('active', _showJb);   // reflect the default-on state
     jbBtn.addEventListener('click', () => {
       _showJb = !_showJb;
+      if (_showJb) _loadSavedBridges();   // pick up any newly imported bridges
       jbBtn.classList.toggle('active', _showJb);
       _scheduleRender();
     });
@@ -834,6 +886,18 @@ function _initCanvas() {
     _scheduleRender();
   });
 
+  // Right-click a system → hand it to the Jump Planner, which offers to insert it
+  // as a mid waypoint between the nearest in-range route systems.
+  _canvas.addEventListener('contextmenu', e => {
+    const rect = _canvas.getBoundingClientRect();
+    const sys  = _hitTest(e.clientX - rect.left, e.clientY - rect.top);
+    if (!sys) return;                       // empty space → keep the default menu
+    e.preventDefault();
+    if (typeof window.jpHandleMapRightClick === 'function') {
+      window.jpHandleMapRightClick(sys.id, e.clientX, e.clientY);
+    }
+  });
+
   // Zoom (scroll wheel)
   _canvas.addEventListener('wheel', e => {
     e.preventDefault();
@@ -886,11 +950,27 @@ async function _loadLiveData() {
 // ── Entry point ───────────────────────────────────────────────────────────────
 // Called by app.js / ui.js when the user navigates to the map page.
 // Idempotent — second+ calls just re-render without reloading galaxy data.
+// Read the user's saved Ansiblex bridges (shared localStorage key with the Jump
+// Planner / settings importer). Called on map entry, on toggling the overlay on,
+// and via window.mapReloadBridges() after an import so the arcs update live.
+async function _loadSavedBridges() {
+  try {
+    const b = await window.eveAPI.getJumpBridges() || [];
+    _savedBridges = Array.isArray(b)
+      ? b.filter(p => Array.isArray(p) && p.length === 2).map(p => [Number(p[0]), Number(p[1])])
+      : [];
+  } catch (_) { _savedBridges = []; }
+  if (_loaded) _scheduleRender();
+}
+window.mapReloadBridges = function () { _loadSavedBridges(); };
+
 async function initMapPage() {
+  _loadSavedBridges();   // refresh saved bridge arcs on every entry to the map
   // If already loaded, just ensure the canvas fills its container and re-render
   if (_loaded) {
     _onResize();
     _loadYouAreHere();   // refresh "you are here" (location may have changed)
+    _scheduleRender();
     return;
   }
 
@@ -935,7 +1015,9 @@ async function initMapPage() {
     // Honour a route requested before the galaxy finished loading.
     if (_pendingRouteIds) {
       _routeIds = _pendingRouteIds;
+      _routeWaypointIds = _pendingWaypointIds || new Set();
       _pendingRouteIds = null;
+      _pendingWaypointIds = null;
       _fitToSystems(_routeIds);
     }
 
@@ -1006,14 +1088,17 @@ async function _loadYouAreHere() {
 
 // ── Global bridge — called by the Jump Planner "Show on Map" button ───────────
 // Highlights an ordered list of system IDs as a route and fits the view to it.
-window.mapShowRoute = function (systemIds) {
+window.mapShowRoute = function (systemIds, waypointIds) {
   const ids = (systemIds || []).map(Number).filter(Boolean);
   if (!ids.length) return;
+  const wps = new Set((waypointIds || []).map(Number).filter(Boolean));
   if (_loaded) {
     _routeIds = ids;
+    _routeWaypointIds = wps;
     _fitToSystems(ids);
     _scheduleRender();
   } else {
     _pendingRouteIds = ids;
+    _pendingWaypointIds = wps;
   }
 };

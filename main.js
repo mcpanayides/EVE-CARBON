@@ -7,7 +7,7 @@ const envPath = app.isPackaged
 require('dotenv').config({ path: envPath, quiet: true }); // quiet: suppress dotenv's startup tip line
 
 // ── Now safe to require everything else ────────────────────────────────────────
-const { BrowserWindow, ipcMain, shell, screen } = require('electron');
+const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage } = require('electron');
 const https = require('https');
 const http  = require('http');
 const crypto = require('crypto');
@@ -31,6 +31,12 @@ const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 // Global reference to the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow;
+
+// System-tray icon — only created while the "Minimize to tray" setting is on.
+// minimizeToTrayEnabled mirrors config.app.minimizeToTray so the window's
+// 'minimize' handler can decide synchronously whether to hide to the tray.
+let tray = null;
+let minimizeToTrayEnabled = false;
 
 // ─── Single-instance lock ─────────────────────────────────────────────────────
 // Without this, launching the app a second time (or a leftover process from a
@@ -331,6 +337,38 @@ ipcMain.handle('open-external-url', (_, url) => {
 });
 ipcMain.handle('get-app-version', () => app.getVersion());
 
+// Jump-bridge network — encrypted store (see loadJumpBridges/saveJumpBridges).
+ipcMain.handle('get-jump-bridges',  () => loadJumpBridges());
+ipcMain.handle('save-jump-bridges', (_, arr) => {
+  try { saveJumpBridges(arr); return { ok: true, count: Array.isArray(arr) ? arr.length : 0 }; }
+  catch (e) { console.error('[jump-bridges] save failed:', e.message); return { ok: false, error: e.message }; }
+});
+
+// ── App preferences: "Start with Windows" + "Minimize to tray" (Settings ▸ General) ──
+// launchAtLogin lives in the OS (a per-user Run registry entry on Windows), so
+// app.getLoginItemSettings() is the source of truth. minimizeToTray is ours,
+// persisted in config.json.
+ipcMain.handle('get-app-preferences', () => {
+  let minimizeToTray = false;
+  try { const cfg = loadConfig(); minimizeToTray = !!(cfg.app && cfg.app.minimizeToTray); } catch (_) {}
+  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray };
+});
+
+ipcMain.handle('set-launch-at-login', (_, enabled) => {
+  app.setLoginItemSettings({ openAtLogin: !!enabled });
+  // Read back from the OS so the UI reflects what actually took effect.
+  return app.getLoginItemSettings().openAtLogin;
+});
+
+ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
+  const cfg = loadConfig();
+  cfg.app = cfg.app || {};
+  cfg.app.minimizeToTray = !!enabled;
+  saveConfig(cfg);
+  applyMinimizeToTray(cfg.app.minimizeToTray);
+  return cfg.app.minimizeToTray;
+});
+
 // Trade-fee profile for the Ore/Ice/Gas calculators: Accounting + Broker
 // Relations skill levels and NPC standings (keyed by from_id). Returns nulls if
 // the character hasn't been synced yet so the renderer can fall back to defaults.
@@ -383,6 +421,76 @@ ipcMain.handle('get-moon-reprocessing', async (_, typeIds) => {
     }
   } catch (e) {
     console.log('[moon] reprocessing query failed:', e.message);
+    return {};
+  }
+  return out;
+});
+
+// Reprocessing outputs resolved BY NAME (for the Orehold Minerals calc, which
+// parses a pasted ore-hold). Takes an array of item names (as copied from EVE)
+// and returns, keyed by lower-cased input name, the canonical type plus its
+// per-batch reprocessing materials from the local SDE:
+//   { [lowerName]: { name, typeId, portionSize, volume,
+//                    materials:[{ id, name, quantity }] } }
+// Unresolved names are simply omitted so the renderer can flag them. Empty {}
+// when the SDE isn't available. Handles ore, ice, and moon ore uniformly since
+// invTypeMaterials carries the reprocessing yield for all of them.
+ipcMain.handle('reprocess-from-names', async (_, names) => {
+  const out = {};
+  if (!sdeDb || !Array.isArray(names) || !names.length) return out;
+
+  // De-dupe on the lower-cased name so repeated paste lines hit the DB once.
+  const wanted = [...new Set(names.map(n => String(n || '').trim()).filter(Boolean))];
+  if (!wanted.length) return out;
+
+  // invTypes vs invTypes_en differs between SDE builds — try the plain table
+  // first, fall back to the localized one (mirrors resolveNamesFromSde).
+  async function lookupTypes(lowerNames) {
+    const ph = lowerNames.map(() => '?').join(',');
+    for (const tbl of ['invTypes', 'invTypes_en']) {
+      try {
+        return await sdeDb.all(
+          `SELECT typeID, typeName, volume, portionSize
+             FROM ${tbl} WHERE LOWER(typeName) IN (${ph})`,
+          lowerNames
+        );
+      } catch (_) { /* table absent in this build — try the next */ }
+    }
+    return [];
+  }
+
+  try {
+    const lowerNames = wanted.map(n => n.toLowerCase());
+    const types = await lookupTypes(lowerNames);
+    if (!types.length) return out;
+
+    const byTypeId = new Map();
+    for (const t of types) {
+      const entry = {
+        name:        t.typeName,
+        typeId:      t.typeID,
+        volume:      t.volume,
+        portionSize: t.portionSize || 100,
+        materials:   [],
+      };
+      out[t.typeName.toLowerCase()] = entry;
+      byTypeId.set(t.typeID, entry);
+    }
+
+    const typeIds = [...byTypeId.keys()];
+    const ph = typeIds.map(() => '?').join(',');
+    const mats = await sdeDb.all(
+      `SELECT m.typeID AS oreId, m.materialTypeID AS matId, m.quantity AS qty, mt.typeName AS matName
+         FROM invTypeMaterials m
+         JOIN invTypes mt ON mt.typeID = m.materialTypeID
+        WHERE m.typeID IN (${ph})`, typeIds
+    );
+    for (const m of mats) {
+      const entry = byTypeId.get(m.oreId);
+      if (entry) entry.materials.push({ id: m.matId, name: m.matName, quantity: m.qty });
+    }
+  } catch (e) {
+    console.log('[reprocess-from-names] query failed:', e.message);
     return {};
   }
   return out;
@@ -729,9 +837,15 @@ app.whenReady().then(async () => {
   // channels (app-get-config, jabber-get-messages, etc.) before their handlers
   // existed — resulting in "No handler registered for 'x'" errors.
   createWindow();
+
+  // Restore the saved "Minimize to tray" preference now that the window exists.
+  try {
+    const cfg = loadConfig();
+    applyMinimizeToTray(!!(cfg.app && cfg.app.minimizeToTray));
+  } catch (_) { /* config not readable yet — defaults to off */ }
 });
- 
- 
+
+
 // ─── Simple JSON "database" s
 function loadDB() {
   try { return JSON.parse(fs.readFileSync(dbPath, 'utf8')); } catch { return { accounts: {}, blueprints: {}, assets: {} }; }
@@ -741,6 +855,37 @@ function loadConfig() {
   try { return JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch { return {}; }
 }
 function saveConfig(cfg) { fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2)); }
+
+// ─── Jump-bridge network store (encrypted at rest) ─────────────────────────────
+// The user's Ansiblex / jump-gate network can be sensitive alliance intel, so it
+// is NOT kept in renderer localStorage. It lives in a file under userData,
+// encrypted with the OS keychain via Electron safeStorage when available (falls
+// back to plaintext only on platforms without an OS secret store, e.g. some Linux
+// setups). Shape on disk: { enc:bool, data:base64 }. Decrypted value is [[idA,idB],…].
+function jumpBridgesPath() { return path.join(userDataPath, 'jump_network.dat'); }
+
+function loadJumpBridges() {
+  try {
+    const wrap = JSON.parse(fs.readFileSync(jumpBridgesPath(), 'utf8'));
+    const buf  = Buffer.from(wrap.data, 'base64');
+    const json = (wrap.enc && safeStorage.isEncryptionAvailable())
+      ? safeStorage.decryptString(buf)
+      : buf.toString('utf8');
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { return []; }
+}
+
+function saveJumpBridges(arr) {
+  const json = JSON.stringify(Array.isArray(arr) ? arr : []);
+  let wrap;
+  if (safeStorage.isEncryptionAvailable()) {
+    wrap = { enc: true,  data: safeStorage.encryptString(json).toString('base64') };
+  } else {
+    wrap = { enc: false, data: Buffer.from(json, 'utf8').toString('base64') };
+  }
+  fs.writeFileSync(jumpBridgesPath(), JSON.stringify(wrap), 'utf8');
+}
  
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 function httpGet(url, headers = {}) {
@@ -966,7 +1111,50 @@ function createPingAlertWindow(msg) {
 }
  
 // IPC: renderer close button calls this (ping-alert window closes itself via window.close())
- 
+
+// ─── System tray ───────────────────────────────────────────────────────────────
+// When "Minimize to tray" is on, minimizing the main window hides it to the
+// Windows notification area instead of the taskbar; the tray icon (and its
+// context menu) is the way back. The tray is created/destroyed as the setting
+// is toggled so there's no stray icon when the feature is off.
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createTray() {
+  if (tray) return tray;
+  tray = new Tray(path.join(__dirname, 'assets', 'icon.ico'));
+  tray.setToolTip('EVE Carbon');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show EVE Carbon', click: showMainWindow },
+    { type: 'separator' },
+    { label: 'Quit EVE Carbon', click: () => app.quit() },
+  ]));
+  // Single click is the common Windows idiom for restoring a tray app.
+  tray.on('click', showMainWindow);
+  return tray;
+}
+
+function destroyTray() {
+  if (tray) { tray.destroy(); tray = null; }
+}
+
+// Apply the current minimize-to-tray preference: create the tray when enabled,
+// remove it when disabled — restoring the window first if it's currently hidden
+// so the user can never be stranded with no way to bring it back.
+function applyMinimizeToTray(enabled) {
+  minimizeToTrayEnabled = !!enabled;
+  if (minimizeToTrayEnabled) {
+    createTray();
+  } else {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) showMainWindow();
+    destroyTray();
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1800,
@@ -994,6 +1182,17 @@ function createWindow() {
     slashes: true
   }));
   mainWindow = win;   // keep a reference so 'second-instance' can focus it
+
+  // Minimize to tray: hide the window instead of dropping it to the taskbar.
+  // window-all-closed never fires (the window is hidden, not closed) so the
+  // app keeps running in the tray until explicitly quit.
+  win.on('minimize', (e) => {
+    if (minimizeToTrayEnabled) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
+
   win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
   return win;
 }
@@ -1874,6 +2073,8 @@ app.on('window-all-closed', () => {
   if (callbackServerState.server) callbackServerState.server.close();
   if (process.platform !== 'darwin') app.quit();
 });
+// Remove the tray icon on quit so it doesn't linger in the notification area.
+app.on('before-quit', () => destroyTray());
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

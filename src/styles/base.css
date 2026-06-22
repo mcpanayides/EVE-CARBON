@@ -584,6 +584,22 @@ input[type="range"] { accent-color: var(--accent); }
 .ui-settings-row label        { font-size: 11px; color: var(--text-2); }
 .ui-settings-row input[type="color"] { width: 100%; height: 32px; border: none; border-radius: 4px; padding: 0; cursor: pointer; }
 .ui-settings-row input[type="text"]  { width: 100%; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; color: var(--text-1); padding: 8px; }
+
+/* ── SETTINGS TOGGLE ROWS (General tab) ───────────────────────────────────────── */
+.settings-toggle-row     { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); }
+.settings-toggle-row:first-of-type { border-top: none; }
+.settings-toggle-text    { display: flex; flex-direction: column; gap: 3px; }
+.settings-toggle-label   { font-size: 13px; color: var(--text-1); font-weight: 600; }
+.settings-toggle-desc    { font-size: 11px; color: var(--text-3); line-height: 1.5; max-width: 420px; }
+
+/* Toggle switch */
+.switch                  { position: relative; display: inline-block; width: 42px; height: 24px; flex-shrink: 0; }
+.switch input            { opacity: 0; width: 0; height: 0; }
+.switch-slider           { position: absolute; inset: 0; cursor: pointer; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 24px; transition: background 0.2s ease, border-color 0.2s ease; }
+.switch-slider::before   { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 50%; transform: translateY(-50%); background: var(--text-2); border-radius: 50%; transition: transform 0.2s ease, background 0.2s ease; }
+.switch input:checked + .switch-slider         { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .switch-slider::before  { transform: translate(18px, -50%); background: #fff; }
+.switch input:focus-visible + .switch-slider    { box-shadow: 0 0 0 2px var(--accent); }
 /* ── SETTINGS DRAWER BUTTONS ─────────────────────────────────────────────────── */
 /* Override calc-btn (defined in industry-blueprints.css) inside the settings     */
 /* drawer so the SYNC and SAVE buttons match the dark-grey nav-btn aesthetic.     */

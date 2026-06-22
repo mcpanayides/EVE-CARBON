@@ -9,9 +9,173 @@ function setSettingsTab(tab) {
     const target = `settingsTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`;
     panel.style.display = panel.id === target ? 'block' : 'none';
   });
+  if (tab === 'general')    populateGeneralSettings();
+  if (tab === 'jumpgates')  populateJumpgatesSettings();
   if (tab === 'database')   populateDatabaseSettings();
   if (tab === 'palette')    populatePaletteSettings();
   if (tab === 'background') populateBackgroundSettings();
+}
+
+// ─── General Settings Tab ──────────────────────────────────────────────────────
+// "Start with Windows" and "Minimize to tray". Both apply immediately on toggle
+// (no SAVE needed): launch-at-login is written to the OS, minimize-to-tray is
+// persisted in config and the main process creates/removes the tray icon.
+async function populateGeneralSettings() {
+  const startToggle = document.getElementById('startWithWindowsToggle');
+  const trayToggle  = document.getElementById('minimizeToTrayToggle');
+  if (!startToggle || !trayToggle) return;
+
+  try {
+    const prefs = await window.eveAPI.getAppPreferences();
+    startToggle.checked = !!prefs.launchAtLogin;
+    trayToggle.checked  = !!prefs.minimizeToTray;
+  } catch (_) { /* leave unchecked if prefs can't be read */ }
+
+  startToggle.onchange = async () => {
+    try {
+      const enabled = await window.eveAPI.setLaunchAtLogin(startToggle.checked);
+      startToggle.checked = !!enabled;   // reflect what actually took effect
+      showToast(enabled ? 'EVE Carbon will start with Windows.'
+                        : 'EVE Carbon will no longer start with Windows.', 'success');
+    } catch (e) {
+      startToggle.checked = !startToggle.checked;   // revert on failure
+      showToast(`Couldn't update startup setting: ${e.message}`, 'error');
+    }
+  };
+
+  trayToggle.onchange = async () => {
+    try {
+      const enabled = await window.eveAPI.setMinimizeToTray(trayToggle.checked);
+      trayToggle.checked = !!enabled;
+      showToast(enabled ? 'Minimizing will now hide EVE Carbon to the system tray.'
+                        : 'Minimize to tray disabled.', 'success');
+    } catch (e) {
+      trayToggle.checked = !trayToggle.checked;
+      showToast(`Couldn't update tray setting: ${e.message}`, 'error');
+    }
+  };
+}
+
+// ─── Jump Gates / Beacon Network Import ────────────────────────────────────────
+// Imports a pasted jump-gate list (e.g. a Webway export) into the encrypted
+// main-process bridge store the Jump Planner's Beacon mode reads (stored as
+// [[idA, idB], …]). Not localStorage — the network can be sensitive alliance intel.
+let _navGalaxyIndex = null;   // lowercase system name → solarSystemID
+
+async function _navGetBridges() {
+  try { return await window.eveAPI.getJumpBridges() || []; } catch (_) { return []; }
+}
+async function _navSaveBridges(b) {
+  try { return await window.eveAPI.saveJumpBridges(b); }
+  catch (e) { return { ok: false, error: e.message }; }
+}
+
+// Build a name→id index from the galaxy SDE once, so a whole list resolves locally
+// without a per-name IPC round-trip.
+async function _navLoadGalaxyIndex() {
+  if (_navGalaxyIndex) return _navGalaxyIndex;
+  const galaxy = await window.eveAPI.mapGetGalaxy().catch(() => null);
+  const idx = {};
+  if (galaxy && Array.isArray(galaxy.systems)) {
+    for (const s of galaxy.systems) idx[String(s.name).toLowerCase()] = s.id;
+  }
+  _navGalaxyIndex = idx;
+  return idx;
+}
+
+// A "System / POS" cell can be the bare system, "System @ 1-1" (POS moon notation),
+// or "System - Moon - POS". The system is the leading token. We strip an "@ …"
+// suffix and a " - …" suffix, but NOT bare hyphens — system names contain hyphens
+// (MN-Q26, 1DQ1-A, G-ME2K), so only spaced " - " counts as a POS separator.
+function _navCleanSystemName(cell) {
+  let s = String(cell || '').trim();
+  s = s.split(/\s*@\s*/)[0];     // "MN-Q26 @ 1-1" → "MN-Q26"
+  s = s.split(/\s[-–]\s/)[0];    // "1DQ1-A - Moon 1 - POS" → "1DQ1-A"
+  return s.trim();
+}
+
+function populateJumpgatesSettings() {
+  const importBtn = document.getElementById('beaconImportBtn');
+  const clearBtn  = document.getElementById('beaconClearBtn');
+  if (importBtn && !importBtn._bound) { importBtn._bound = true; importBtn.addEventListener('click', importBeaconNetwork); }
+  if (clearBtn  && !clearBtn._bound)  { clearBtn._bound  = true; clearBtn.addEventListener('click', clearBeaconNetwork); }
+  _navUpdateGateCount();
+}
+
+async function _navUpdateGateCount() {
+  const el = document.getElementById('beaconImportCount');
+  if (el) el.textContent = `${(await _navGetBridges()).length} gates saved`;
+}
+
+async function importBeaconNetwork() {
+  const ta       = document.getElementById('beaconImportInput');
+  const resultEl = document.getElementById('beaconImportResult');
+  const friendlyOnly = document.getElementById('beaconImportFriendlyOnly')?.checked;
+  if (!ta || !ta.value.trim()) { showToast('Paste a gate list first.', 'error'); return; }
+
+  const idx = await _navLoadGalaxyIndex();
+  if (!idx || !Object.keys(idx).length) {
+    showToast('Galaxy data unavailable — update the SDE in Settings → Database.', 'error');
+    return;
+  }
+  const resolve = (cell) => idx[_navCleanSystemName(cell).toLowerCase()] ?? null;
+
+  const existing = await _navGetBridges();
+  const pairKey  = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+  const seen     = new Set(existing.map(([a, b]) => pairKey(a, b)));
+  let added = 0, dup = 0, notFriendly = 0, unresolved = 0;
+  const unresolvedNames = new Set();
+
+  for (const raw of ta.value.split(/\r?\n/)) {
+    if (!raw.includes('\t')) continue;            // title row / blank — needs columns
+    const cols = raw.split('\t');
+    const aRaw = cols[1], bRaw = cols[2];
+    if (!aRaw || !bRaw) continue;
+    if (/^region$/i.test((cols[0] || '').trim()) || /system\s*\/\s*pos/i.test(aRaw)) continue; // header
+
+    if (friendlyOnly) {
+      const fr = (cols[8] || '').trim().toLowerCase();
+      if (fr && !/^(y|yes|true|1|friendly)$/.test(fr)) { notFriendly++; continue; }
+    }
+
+    const a = resolve(aRaw), b = resolve(bRaw);
+    if (!a) unresolvedNames.add(_navCleanSystemName(aRaw));
+    if (!b) unresolvedNames.add(_navCleanSystemName(bRaw));
+    if (!a || !b) { unresolved++; continue; }
+    if (a === b) continue;
+    const k = pairKey(a, b);
+    if (seen.has(k)) { dup++; continue; }
+    seen.add(k);
+    existing.push([a, b]);
+    added++;
+  }
+
+  const saved = await _navSaveBridges(existing);
+  await _navUpdateGateCount();
+  if (typeof window.mapReloadBridges === 'function') window.mapReloadBridges();
+  if (saved && saved.ok === false) {
+    showToast(`Couldn't save the gate network to disk: ${saved.error || 'unknown error'}`, 'error');
+  }
+
+  const parts = [`✓ Imported ${added} gate${added === 1 ? '' : 's'}.`];
+  if (dup)         parts.push(`${dup} already saved.`);
+  if (notFriendly) parts.push(`${notFriendly} skipped (not friendly).`);
+  if (unresolved)  parts.push(`${unresolved} row(s) skipped — system not found.`);
+  if (unresolvedNames.size) {
+    const names = [...unresolvedNames].filter(Boolean).slice(0, 15);
+    parts.push(`Unresolved: ${names.join(', ')}${unresolvedNames.size > 15 ? '…' : ''}`);
+  }
+  if (resultEl) resultEl.textContent = parts.join('\n');
+  showToast(`Imported ${added} gate${added === 1 ? '' : 's'} into the beacon network.`, added ? 'success' : 'info');
+}
+
+async function clearBeaconNetwork() {
+  await _navSaveBridges([]);
+  await _navUpdateGateCount();
+  if (typeof window.mapReloadBridges === 'function') window.mapReloadBridges();
+  const resultEl = document.getElementById('beaconImportResult');
+  if (resultEl) resultEl.textContent = 'Beacon network cleared.';
+  showToast('Beacon network cleared.', 'success');
 }
 
 // ─── Background wallpaper ─────────────────────────────────────────────────────

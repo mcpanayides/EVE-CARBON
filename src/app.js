@@ -13,6 +13,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   const setupScreen = document.querySelector('.setup-container, #setup-screen, .client-id-gate');
   if (setupScreen) setupScreen.style.display = 'none';
 
+  // One-time migration: move any jump bridges out of renderer localStorage into the
+  // encrypted main-process store, then clear localStorage (don't keep the network there).
+  try {
+    const old = JSON.parse(localStorage.getItem('jump_bridges_v1') || '[]');
+    if (Array.isArray(old) && old.length && window.eveAPI?.getJumpBridges) {
+      const cur = await window.eveAPI.getJumpBridges().catch(() => []);
+      if (!cur || !cur.length) await window.eveAPI.saveJumpBridges(old);
+    }
+    localStorage.removeItem('jump_bridges_v1');
+  } catch (_) { /* ignore */ }
+
   await loadAccounts();
   await loadBlueprintLibrary();
   buildCategoryBrowse();

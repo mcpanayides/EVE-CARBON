@@ -136,6 +136,9 @@ const PAGE_HTML = {
           <button class="industry-sub-btn" data-industry-tab="salvage">
             <span class="industry-sub-icon">⚙</span>Salvage Calc
           </button>
+          <button class="industry-sub-btn" data-industry-tab="orehold">
+            <span class="industry-sub-icon">⬡</span>Orehold Minerals Calc
+          </button>
           <button class="industry-sub-btn" data-industry-tab="cost-index">
             <span class="industry-sub-icon">◎</span>Cost Index
           </button>

@@ -228,12 +228,72 @@
     <div class="settings-drawer-inner">
       <div class="settings-menu">
         <div class="settings-menu-title">Settings menu</div>
+        <button class="settings-menu-btn"          data-settings-tab="general">General</button>
+        <button class="settings-menu-btn"          data-settings-tab="jumpgates">Jump Gates</button>
         <button class="settings-menu-btn active"  data-settings-tab="jabber">Jabber</button>
         <button class="settings-menu-btn"          data-settings-tab="forums">Forums</button>
         <button class="settings-menu-btn"          data-settings-tab="fleetCommander">Fleet Commander</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
         <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
         <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
+      </div>
+      <!-- General tab -->
+      <div id="settingsTabGeneral" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">General</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:4px;">
+              How EVE Carbon integrates with your desktop.
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Start with Windows</div>
+                <div class="settings-toggle-desc">Launch EVE Carbon automatically when you sign in to Windows.</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="startWithWindowsToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Minimize to tray</div>
+                <div class="settings-toggle-desc">When minimized, hide EVE Carbon to the system tray instead of the taskbar. Click the tray icon to bring it back.</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="minimizeToTrayToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Jump Gates tab -->
+      <div id="settingsTabJumpgates" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">Jump Gate / Beacon Network Import</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:8px;">
+              Paste a jump-gate list (e.g. a Webway export). Tab-separated columns, header optional:
+              <code style="font-size:11px;">Region · System/POS · System/POS · Status · Owner · Password · Dist (ly) · Route · Friendly</code>.
+              Each row's two System/POS columns become an Ansiblex bridge used by the Jump Planner's Beacon mode.
+            </div>
+            <textarea id="beaconImportInput" spellcheck="false"
+                      placeholder="Paste the gate list here…&#10;The Webway&#10;Region&#9;System / POS&#9;System / POS&#9;Status&#9;Owner&#9;Password&#9;Dist (ly)&#9;Route&#9;Friendly&#10;Delve&#9;1DQ1-A&#9;319-3D&#9;Online&#9;…"
+                      style="width:100%; box-sizing:border-box; min-height:150px; resize:vertical; background:var(--bg-deep); border:1px solid var(--border); border-radius:6px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:10px; line-height:1.5;"></textarea>
+            <label class="jp-check" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; color:var(--text-2); cursor:pointer;">
+              <input type="checkbox" id="beaconImportFriendlyOnly" checked> Only import gates marked Friendly
+            </label>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+              <button id="beaconImportBtn" class="calc-btn">Import gates</button>
+              <button id="beaconClearBtn" class="calc-btn" style="border-color:var(--danger) !important; color:var(--danger) !important;">Clear all</button>
+              <span id="beaconImportCount" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);"></span>
+            </div>
+            <div id="beaconImportResult" style="font-size:12px; color:var(--text-2); margin-top:10px; font-family:var(--mono); white-space:pre-wrap; line-height:1.6;"></div>
+          </div>
+        </div>
       </div>
       <!-- Jabber tab -->
       <div id="settingsTabJabber" class="settings-tab">
@@ -718,6 +778,7 @@
 <script src="./func/jump-math.js"></script>  <!-- pure jump range/fuel math; must precede jump-planner.js -->
 <script src="./func/jump-planner.js"></script>
 <script src="./func/salvage.js"></script>
+<script src="./func/orehold-reprocess.js"></script>
 <script src="./func/shopping-lists.js"></script>
 <script src="./func/market.js"></script>
 <script src="./pageLoader.js"></script>  <!-- injects pages/*.html → #navPagesContainer -->

@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getHubMeta:            ()       => ipcRenderer.invoke('get-hub-meta'),
   getTradeProfile:       (charId) => ipcRenderer.invoke('get-trade-profile', charId),
   getMoonReprocessing:   (typeIds) => ipcRenderer.invoke('get-moon-reprocessing', typeIds),
+  reprocessFromNames:    (names)   => ipcRenderer.invoke('reprocess-from-names', names),
   getSkillLevels:        (charId, typeIds) => ipcRenderer.invoke('get-skill-levels', charId, typeIds),
   getTypeMetadata:       (typeIds) => ipcRenderer.invoke('get-type-metadata', typeIds),
   sdeGetPlanetRegions:   ()         => ipcRenderer.invoke('sde-get-planet-regions'),
@@ -109,6 +110,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAppConfig:  ()       => ipcRenderer.invoke('app-get-config'),
   saveAppConfig: (config) => ipcRenderer.invoke('app-save-config', config),
 
+  // App preferences (General tab): start-with-Windows + minimize-to-tray
+  getAppPreferences: ()        => ipcRenderer.invoke('get-app-preferences'),
+  setLaunchAtLogin:  (enabled) => ipcRenderer.invoke('set-launch-at-login', enabled),
+  setMinimizeToTray: (enabled) => ipcRenderer.invoke('set-minimize-to-tray', enabled),
+
   // Ping file watcher
   watchPingFile:   (path) => ipcRenderer.invoke('watch-ping-file', path),
   unwatchPingFile: ()     => ipcRenderer.invoke('unwatch-ping-file'),
@@ -139,6 +145,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // App metadata
   getAppVersion:       ()       => ipcRenderer.invoke('get-app-version'),
+
+  // Jump-bridge network (encrypted store in userData — not localStorage)
+  getJumpBridges:      ()       => ipcRenderer.invoke('get-jump-bridges'),
+  saveJumpBridges:     (arr)    => ipcRenderer.invoke('save-jump-bridges', arr),
 
   // Theme / palette
   themeGetAll:         ()       => ipcRenderer.invoke('theme-get-all'),

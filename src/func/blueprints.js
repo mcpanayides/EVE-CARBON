@@ -1029,6 +1029,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'salvage') {
     if (typeof renderSalvageCalculator === 'function') renderSalvageCalculator(right);
 
+  } else if (tab === 'orehold') {
+    if (typeof renderOreholdCalc === 'function') renderOreholdCalc(right);
+
   } else if (tab === 'active-jobs') {
     renderActiveJobsPage(right);
 
@@ -1941,7 +1944,7 @@ const ORE_DATA = [
   },
   {
     name:'Scordite',    typeId:1228,  group:'Highsec',  volume:0.15, batchSize:100,
-    minerals:{ Tritanium:150, Pyerite:90 }
+    minerals:{ Tritanium:150, Pyerite:110 }
   },
   {
     name:'Pyroxeres',   typeId:1224,  group:'Highsec',  volume:0.3,  batchSize:100,
@@ -1966,7 +1969,7 @@ const ORE_DATA = [
     minerals:{ Mexallon:150, Nocxium:50 }
   },
   {
-    name:'Hemorphite',  typeId:1229,  group:'Nullsec',  volume:3,    batchSize:100,
+    name:'Hemorphite',  typeId:1231,  group:'Nullsec',  volume:3,    batchSize:100,
     minerals:{ Isogen:240, Nocxium:90 }
   },
   {
@@ -1977,9 +1980,8 @@ const ORE_DATA = [
     name:'Gneiss',      typeId:1229,  group:'Nullsec',  volume:5,    batchSize:100,
     minerals:{ Pyerite:2000, Mexallon:1500, Isogen:800 }
   },
-  // NOTE: Gneiss typeId in SDE is 1229 — same number is used for Hemorphite above.
-  // If prices appear wrong for Gneiss, override ORE_SELL_IDS['Gneiss'] to the correct
-  // compressed variant ID once confirmed from your local SDE copy.
+  // Verified against the local SDE: Gneiss = 1229, Hemorphite = 1231 (these used to
+  // collide on 1229). All base-ore yields above match the SDE / ore.cerlestes.de.
   {
     name:'Dark Ochre',  typeId:1232,  group:'Nullsec',  volume:8,    batchSize:100,
     minerals:{ Mexallon:1360, Isogen:1200, Nocxium:320 }
@@ -2143,15 +2145,13 @@ const MINERAL_IDS = {
   Morphite:  11399,
 };
 
-// Ore raw sell type IDs so we can show "sell raw" price too
-// Most ores share the compressed variant IDs but we just need the base ore for now
-// ⚠ Gneiss and Hemorphite both resolve to 1229 in the user's data — this is a known
-//   collision. The EVE SDE base typeId for Gneiss is 1229 (Hemorphite) vs 1229.
-//   TODO: verify from your local SDE and replace Gneiss:1229 with the correct ID.
+// Ore raw sell type IDs so we can show "sell raw" price too.
+// Verified against the local SDE: Gneiss = 1229 and Hemorphite = 1231 (these two
+// previously collided on 1229). All IDs below are the base-ore typeIDs.
 const ORE_SELL_IDS = {
   Veldspar:1230, Scordite:1228, Pyroxeres:1224, Plagioclase:18,
-  Omber:1227, Kernite:20, Jaspet:1226, Hemorphite:1229,
-  Hedbergite:21, Gneiss:1229 /* ⚠ verify ID */, 'Dark Ochre':1232, Crokite:1225,
+  Omber:1227, Kernite:20, Jaspet:1226, Hemorphite:1231,
+  Hedbergite:21, Gneiss:1229, 'Dark Ochre':1232, Crokite:1225,
   Spodumain:19, Bistot:1223, Arkonor:22, Mercoxit:11396,
 };
 

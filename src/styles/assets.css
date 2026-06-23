@@ -4,8 +4,11 @@
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── PAGE SHELL ──────────────────────────────────────────────────────────────── */
+/* NOTE: do NOT set `display` here. Page visibility is owned by .nav-page /
+   .nav-page.active (in pages-characters.css). An `#page-assets { display: … }`
+   rule is an ID selector that outranks those, which pins the Assets page visible
+   on top of every other page. Only set layout props that apply once it's shown. */
 #page-assets {
-  display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
@@ -145,9 +148,20 @@
 .asset-table thead th.th-right { text-align: right; }
 
 /* ── SORTABLE HEADERS ────────────────────────────────────────────────────── */
-/* NOTE: the sortable-header rules live in base.css, not here — this file
-   (assets.css) is NOT linked in index.html, so any rule added here has no
-   effect. If this stylesheet ever gets wired up, move those rules back. */
+/* A neutral ↕ hint marks every column as sortable; the active sort column shows
+   an accent ▲ / ▼ for the direction. A symbol font is forced because the UI font
+   has no arrow glyphs (without it the glyph renders as nothing); unicode escapes
+   avoid any file-encoding surprises. */
+.asset-table thead th[data-col-key]:not(.th-icon):hover { color: var(--text-1); }
+.asset-table thead th[data-col-key]:not(.th-icon)::after {
+  content: ' \2195';   /* ↕ */
+  font-family: 'Segoe UI Symbol', 'Segoe UI', 'Arial Unicode MS', sans-serif;
+  font-size: 10px;
+  color: var(--text-2);
+  opacity: 0.55;
+}
+.asset-table thead th[data-col-key]:not(.th-icon).sort-asc::after  { content: ' \25B2'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▲ */
+.asset-table thead th[data-col-key]:not(.th-icon).sort-desc::after { content: ' \25BC'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▼ */
 
 /* ── GROUP HEADER ROW ────────────────────────────────────────────────────────── */
 .asset-group-header {

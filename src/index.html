@@ -804,17 +804,44 @@
     if (label) { label.textContent = s.text; label.style.color = s.color; }
   }
 
-  // Run the check shortly after startup so it doesn't block rendering
+  // Run the check shortly after startup so it doesn't block rendering. If the SDE
+  // is out of date, auto-download the new copy in the background (applies on the
+  // next launch — we don't force a restart so the user isn't interrupted).
   setTimeout(async () => {
     setSdeLight('checking');
     try {
       const result = await window.eveAPI.sdeCheckUpdate();
       if (result.error) { setSdeLight('error'); return; }
-      setSdeLight(result.upToDate ? 'ok' : 'outdated');
-      // Also populate the settings panel label when it opens
       updateSdeSettingsLabel(result);
+      if (result.upToDate) { setSdeLight('ok'); }
+      else { autoUpdateSde(); }
     } catch { setSdeLight('error'); }
   }, 2000);
+
+  // Background SDE auto-update — downloads the new static data and reports via the
+  // SDE badge + a toast. The new file is picked up on the next app launch.
+  async function autoUpdateSde() {
+    setSdeLight('downloading');
+    if (typeof showToast === 'function') showToast('Star map (SDE) out of date — downloading update in the background…', 'info');
+    const onProgress = () => setSdeLight('downloading');
+    window.eveAPI.on('sde-update-progress', onProgress);
+    try {
+      const res = await window.eveAPI.sdeDownloadUpdate();
+      if (res && res.success) {
+        setSdeLight('ok');
+        if (typeof showToast === 'function') showToast('✓ Star map database updated — restart EVE Carbon to apply.', 'success');
+        try { updateSdeSettingsLabel(await window.eveAPI.sdeCheckUpdate()); } catch (_) {}
+      } else {
+        setSdeLight('error');
+        if (typeof showToast === 'function') showToast('Star map update failed' + (res && res.error ? `: ${res.error}` : '') + '.', 'error');
+      }
+    } catch (e) {
+      setSdeLight('error');
+      if (typeof showToast === 'function') showToast(`Star map update failed: ${e.message}`, 'error');
+    } finally {
+      window.eveAPI.off('sde-update-progress', onProgress);
+    }
+  }
 
   // ── Settings panel helpers ─────────────────────────────────────────────────
   let _lastSdeResult = null;

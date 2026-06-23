@@ -29,6 +29,8 @@ let _hovered     = null;
 let _selected    = null;
 let _overlay     = 'security';
 let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + IHUB diamonds) on by default
+let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
+let _whArcEdges  = null;   // deduped [[idA,idB],…] of every WH connection to draw as arcs
 let _rafPending  = false;
 let _loaded      = false;
 
@@ -71,6 +73,7 @@ let _bridgeAdj   = null;   // id → [neighbour ids] via saved Ansiblex bridges 
 let _whAdj       = null;   // id → [neighbour ids] via EvE-Scout wormhole connections
 let _whConns     = null;   // raw EvE-Scout connection list (metadata for the route table)
 let _whLoaded    = false;
+let _pochvenRegionId;      // region id for Pochven (Triglavian) — drawn as triangles
 let _sgLastPath  = null;   // last Stargate-planner route (for minimise redraw)
 let _sgNameIndex = null;   // lowercase system name → id (planner autocomplete)
 let _youHereId       = null;   // current character's system id ("you are here")
@@ -190,12 +193,20 @@ async function _loadFnfStandings() {
 // K-space (id < 31 000 000) sets the bounding box; wormhole systems may fall
 // outside [0, _MAP_WORLD] and appear off-screen at the default zoom — that is
 // intentional so the main galaxy always fills the viewport.
-function _normalise(raw) {
-  const ks = raw.filter(s => s.id < 31000000);
-  if (!ks.length) return raw.map(s => ({ ...s, wx: 0, wz: 0 }));
+// Thera-region scenery systems to hide (keep Thera itself, 31000005).
+const _HIDDEN_SYS = new Set([31000001, 31000002, 31000003, 31000004, 31000006]);
 
-  const xs   = ks.map(s => s.x);
-  const zs   = ks.map(s => s.z);
+function _normalise(raw) {
+  // Drop test / abyssal / proving regions (regionId >= 12000000: ADRxx, VR-xx,
+  // GPMRxx) and the Thera-region scenery systems — they're not real travel space
+  // and just float around the map.
+  const visible = raw.filter(s => (s.regionId || 0) < 12000000 && !_HIDDEN_SYS.has(s.id));
+
+  const ks = visible.filter(s => s.id < 31000000);    // real k-space → main map
+  const wh = visible.filter(s => s.id >= 31000000);   // wormhole (Thera + J######) → side block
+  if (!ks.length) return visible.map(s => ({ ...s, wx: 0, wz: 0 }));
+
+  const xs = ks.map(s => s.x), zs = ks.map(s => s.z);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minZ = Math.min(...zs), maxZ = Math.max(...zs);
   const range = Math.max(maxX - minX, maxZ - minZ) || 1;
@@ -203,31 +214,179 @@ function _normalise(raw) {
   const ox    = (_MAP_WORLD - (maxX - minX) * scale) / 2;
   const oz    = (_MAP_WORLD - (maxZ - minZ) * scale) / 2;
 
-  // z is negated so that high-z (EVE "north", e.g. Tenal) maps to the top of
-  // the canvas and low-z (EVE "south", e.g. Period Basis) maps to the bottom.
-  const flat = raw.map(s => ({
-    ...s,
-    wx: ox + (s.x - minX) * scale,
-    wz: oz + (maxZ - s.z) * scale,
-  }));
+  // Rotate 20° CCW so Tenal sits ~12 o'clock, Period Basis ~7–8. (z negated so
+  // EVE "north" maps to the top.)
+  const angle = 20 * Math.PI / 180, cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const cx = _MAP_WORLD / 2, cz = _MAP_WORLD / 2;
 
-  // Rotate 20° counter-clockwise around the galaxy centre so the map sits
-  // like a clock face with Tenal at ~12 and Period Basis at ~7–8.
-  const angle = 20 * Math.PI / 180;
-  const cosA  = Math.cos(angle);
-  const sinA  = Math.sin(angle);
-  const cx    = _MAP_WORLD / 2;
-  const cz    = _MAP_WORLD / 2;
-
-  return flat.map(s => {
-    const dx = s.wx - cx;
-    const dz = s.wz - cz;
-    return {
-      ...s,
-      wx: cx + dx * cosA + dz * sinA,
-      wz: cz - dx * sinA + dz * cosA,
-    };
+  const ksOut = ks.map(s => {
+    const fx = ox + (s.x - minX) * scale;
+    const fz = oz + (maxZ - s.z) * scale;
+    const dx = fx - cx, dz = fz - cz;
+    return { ...s, wx: cx + dx * cosA + dz * sinA, wz: cz - dx * sinA + dz * cosA };
   });
+
+  // Wormhole systems get placeholder positions; _layoutWormholeBlock() arranges
+  // them as a grid to the right once the k-space layout is finalised.
+  const whOut = wh.map(s => ({ ...s, wx: 0, wz: 0 }));
+  return [...ksOut, ...whOut];
+}
+
+const _THERA_ID = 31000005, _TURNUR_ID = 30002086;
+
+// Lay out wormhole space. Thera is pinned right next to its sister EvE-Scout hub
+// Turnur (most connections bridge Thera↔Turnur and the surrounding low-sec, so
+// keeping them adjacent avoids arcs crossing the whole map). The remaining J######
+// systems form a static grid to the RIGHT — their connections shift constantly and
+// can't be mapped, so it's just a tidy reference block. Run AFTER declutter so both
+// sit clear of the galaxy.
+function _layoutWormholeBlock() {
+  // Pin Thera in the open space up-and-right of Turnur's final (decluttered)
+  // position — about midway toward the Avesber cluster so it doesn't overlap it.
+  const turnur = _sysById[_TURNUR_ID], thera = _sysById[_THERA_ID];
+  if (thera && turnur) { thera.wx = turnur.wx + 60; thera.wz = turnur.wz - 18; }
+
+  const wh = _systems.filter(s => s.id >= 31000000 && s.id !== _THERA_ID);
+  if (!wh.length) return;
+  let maxX = -Infinity, minZ = Infinity;
+  for (const s of _systems) {
+    if (s.id >= 31000000) continue;
+    if (s.wx > maxX) maxX = s.wx;
+    if (s.wz < minZ) minZ = s.wz;
+  }
+  if (!isFinite(maxX)) { maxX = _MAP_WORLD; minZ = 0; }
+  const cols = Math.max(1, Math.ceil(Math.sqrt(wh.length)));
+  const cellSize = (_MAP_WORLD * 0.6) / cols;
+  const blockX = maxX + _MAP_WORLD * 0.07;   // small gap to the right of the galaxy
+  wh.forEach((s, i) => {
+    s.wx = blockX + (i % cols) * cellSize;
+    s.wz = minZ + (Math.floor(i / cols) + 0.5) * cellSize;
+  });
+}
+
+// ── Special-region graph relayout ─────────────────────────────────────────────
+// A few regions (Pochven, Exordium) are tightly packed in real 3-D space, so the
+// raw projection overlaps them into a blob. The in-game new map lays these out
+// from their gate graph instead. We approximate that with a force-directed pass,
+// applied ONLY to these regions so the rest of the galaxy keeps its real shape.
+const _SPECIAL_LAYOUT_REGIONS = ['Pochven', 'Exordium'];
+
+// Fruchterman-Reingold-style spring layout in a unit-ish space. nodes:[{x,y}],
+// edges:[[i,j]]. Returns relaxed [{x,y}]. Repulsion spreads, springs pull links.
+function _forceLayout(nodes, edges, iterations) {
+  const n = nodes.length;
+  if (!n) return nodes;
+  const k = Math.sqrt(1 / n);                 // ideal edge length
+  const pos = nodes.map(nd => ({ x: nd.x, y: nd.y }));
+  let temp = 0.15;
+  for (let it = 0; it < iterations; it++) {
+    const disp = pos.map(() => ({ x: 0, y: 0 }));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y;
+        const d = Math.hypot(dx, dy) || 1e-4;
+        const rep = (k * k) / d, ux = dx / d, uy = dy / d;
+        disp[i].x += ux * rep; disp[i].y += uy * rep;
+        disp[j].x -= ux * rep; disp[j].y -= uy * rep;
+      }
+    }
+    for (const [a, b] of edges) {
+      let dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y;
+      const d = Math.hypot(dx, dy) || 1e-4;
+      const att = (d * d) / k, ux = dx / d, uy = dy / d;
+      disp[a].x -= ux * att; disp[a].y -= uy * att;
+      disp[b].x += ux * att; disp[b].y += uy * att;
+    }
+    for (let i = 0; i < n; i++) {
+      const d = Math.hypot(disp[i].x, disp[i].y) || 1e-4;
+      const lim = Math.min(d, temp);
+      pos[i].x += (disp[i].x / d) * lim;
+      pos[i].y += (disp[i].y / d) * lim;
+    }
+    temp *= 0.985;
+  }
+  return pos;
+}
+
+// ── Global declutter (overlap removal) ────────────────────────────────────────
+// Pushes k-space systems that are closer than _DECLUTTER_MIN_DIST apart so dense
+// regions stop piling up. Grid-accelerated repulsion (no springs → the overall
+// galaxy shape is preserved, just spread out). Higher MIN_DIST = more spacing.
+const _DECLUTTER_MIN_DIST = 60;   // world units (map space is _MAP_WORLD = 10000)
+const _DECLUTTER_ITERS    = 20;
+
+function _declutterAll() {
+  const ks = _systems.filter(s => s.id < 31000000);
+  if (ks.length < 2) return;
+  const minDist = _DECLUTTER_MIN_DIST;
+  const cell    = minDist;
+  const key = (gx, gz) => gx + '|' + gz;
+  for (let it = 0; it < _DECLUTTER_ITERS; it++) {
+    const grid = new Map();
+    for (const s of ks) {
+      const k = key(Math.floor(s.wx / cell), Math.floor(s.wz / cell));
+      (grid.get(k) || grid.set(k, []).get(k)).push(s);
+    }
+    for (const s of ks) { s._dx = 0; s._dz = 0; }
+    for (const s of ks) {
+      const gx = Math.floor(s.wx / cell), gz = Math.floor(s.wz / cell);
+      for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) {
+        const bucket = grid.get(key(gx + ix, gz + iz));
+        if (!bucket) continue;
+        for (const o of bucket) {
+          if (o === s) continue;
+          let dx = s.wx - o.wx, dz = s.wz - o.wz;
+          let d = Math.hypot(dx, dz);
+          if (d < 1e-3) { dx = Math.sin(s.id) || 1; dz = Math.cos(s.id) || 1; d = Math.hypot(dx, dz) || 1e-3; }
+          if (d < minDist) {
+            const push = (minDist - d) * 0.5;
+            s._dx += (dx / d) * push;
+            s._dz += (dz / d) * push;
+          }
+        }
+      }
+    }
+    for (const s of ks) { s.wx += s._dx; s.wz += s._dz; }
+  }
+  for (const s of ks) { delete s._dx; delete s._dz; }
+}
+
+function _relayoutSpecialRegions() {
+  for (const rname of _SPECIAL_LAYOUT_REGIONS) {
+    const entry = Object.entries(_regions).find(([, n]) => n === rname);
+    if (!entry) continue;
+    const rid = Number(entry[0]);
+    const sys = _systems.filter(s => s.regionId === rid);
+    if (sys.length < 6) continue;
+
+    const idx = new Map(sys.map((s, i) => [s.id, i]));
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const s of sys) { minX = Math.min(minX, s.wx); maxX = Math.max(maxX, s.wx); minZ = Math.min(minZ, s.wz); maxZ = Math.max(maxZ, s.wz); }
+    const span = Math.max(maxX - minX, maxZ - minZ, 1);
+    const cx0 = (minX + maxX) / 2, cz0 = (minZ + maxZ) / 2;
+
+    // Init from current positions (+ tiny deterministic jitter to break overlaps).
+    const nodes = sys.map((s, i) => ({
+      x: (s.wx - cx0) / span + (Math.sin(i * 12.9898) % 1) * 0.02,
+      y: (s.wz - cz0) / span + (Math.cos(i * 78.233) % 1) * 0.02,
+    }));
+    const edges = [];
+    for (const j of _jumps) { const a = idx.get(j.from), b = idx.get(j.to); if (a != null && b != null && a < b) edges.push([a, b]); }
+
+    const pos = _forceLayout(nodes, edges, 500);
+
+    // Rescale the relaxed graph back into the region's spot, with extra breathing
+    // room so it reads cleanly instead of staying packed.
+    let nx0 = Infinity, nx1 = -Infinity, nz0 = Infinity, nz1 = -Infinity;
+    for (const p of pos) { nx0 = Math.min(nx0, p.x); nx1 = Math.max(nx1, p.x); nz0 = Math.min(nz0, p.y); nz1 = Math.max(nz1, p.y); }
+    const nspan = Math.max(nx1 - nx0, nz1 - nz0, 1e-6);
+    const target = span * 1.5;
+    const ncx = (nx0 + nx1) / 2, ncz = (nz0 + nz1) / 2;
+    for (let i = 0; i < sys.length; i++) {
+      sys[i].wx = cx0 + (pos[i].x - ncx) / nspan * target;
+      sys[i].wz = cz0 + (pos[i].y - ncz) / nspan * target;
+    }
+  }
 }
 
 // ── View helpers ──────────────────────────────────────────────────────────────
@@ -241,14 +400,21 @@ function _c2w(cx, cy) {
 
 function _fitGalaxy() {
   if (!_canvas) return;
+  // Fit the actual content bounds (galaxy + wormhole side block) rather than the
+  // fixed _MAP_WORLD box, so the J-space block is visible next to the galaxy and a
+  // decluttered (expanded) galaxy isn't clipped.
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const s of (_systems || [])) {
+    if (s.wx < minX) minX = s.wx; if (s.wx > maxX) maxX = s.wx;
+    if (s.wz < minZ) minZ = s.wz; if (s.wz > maxZ) maxZ = s.wz;
+  }
+  if (!isFinite(minX)) { minX = 0; maxX = _MAP_WORLD; minZ = 0; maxZ = _MAP_WORLD; }
+  const w = (maxX - minX) || _MAP_WORLD, h = (maxZ - minZ) || _MAP_WORLD;
   const pad  = 30;
-  const fitZ = Math.min(
-    (_canvas.width  - pad * 2) / _MAP_WORLD,
-    (_canvas.height - pad * 2) / _MAP_WORLD
-  );
+  const fitZ = Math.min((_canvas.width - pad * 2) / w, (_canvas.height - pad * 2) / h);
   _zoom = fitZ;
-  _panX = (_canvas.width  - _MAP_WORLD * fitZ) / 2;
-  _panY = (_canvas.height - _MAP_WORLD * fitZ) / 2;
+  _panX = (_canvas.width  - w * fitZ) / 2 - minX * fitZ;
+  _panY = (_canvas.height - h * fitZ) / 2 - minZ * fitZ;
 }
 
 function _adjustZoom(factor, cx, cy) {
@@ -378,6 +544,19 @@ async function _fetchDomTickers() {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
+// EvE-Scout hub systems drawn as pentagons: Thera (31000005) and Turnur (30002086).
+const _PENTAGON_SYS = new Set([31000005, 30002086]);
+
+// Trace a regular N-gon (point up) into the current path — used for node glyphs.
+function _regularPolyPath(ctx, cx, cy, r, sides) {
+  for (let k = 0; k < sides; k++) {
+    const ang = -Math.PI / 2 + k * (2 * Math.PI / sides);
+    const px = cx + Math.cos(ang) * r, py = cy + Math.sin(ang) * r;
+    if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
 function _render() {
   _rafPending = false;
   if (!_canvas || !_ctx || !_systems.length) return;
@@ -394,28 +573,77 @@ function _render() {
   // into an unreadable wall of system labels.
   const SYS_LABEL_DOTR = 3.2;
 
-  // Background
-  ctx.fillStyle = '#050810';
+  // Background — pure black to match the in-game star map.
+  ctx.fillStyle = '#000000';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Jump connections ───────────────────────────────────────────────────────
+  // ── Jump connections ────────────────────────────────────────────────────────
+  // Two passes: ordinary intra-region gates as faint grey dashed lines, and
+  // regional (cross-region) "smuggler" gates as solid dark maroon so they stand out.
+  const _offscreen = (ax, ay, bx, by) =>
+    (ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+    (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50);
+
+  // 1. Normal gates — faint grey dashed.
   ctx.beginPath();
-  ctx.strokeStyle = 'rgba(38,52,76,0.9)';
+  ctx.strokeStyle = 'rgba(150,160,180,0.18)';
   ctx.lineWidth   = lineW;
+  ctx.setLineDash([3.5, 4.5]);
   for (const j of _jumps) {
     const a = _sysById[j.from], b = _sysById[j.to];
-    if (!a || !b) continue;
+    if (!a || !b || a.regionId !== b.regionId) continue;   // cross-region drawn below
     const [ax, ay] = _w2c(a.wx, a.wz);
     const [bx, by] = _w2c(b.wx, b.wz);
-    // Skip connection if both endpoints are off-screen
-    if (ax < -50 && bx < -50) continue;
-    if (ax > W+50 && bx > W+50) continue;
-    if (ay < -50 && by < -50) continue;
-    if (ay > H+50 && by > H+50) continue;
+    if (_offscreen(ax, ay, bx, by)) continue;
     ctx.moveTo(ax, ay);
     ctx.lineTo(bx, by);
   }
   ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 2. Regional smuggler gates (cross-region) — solid dark purple.
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(58, 10, 44, 0.78)';
+  ctx.lineWidth   = Math.max(lineW * 1.3, 0.75);
+  for (const j of _jumps) {
+    const a = _sysById[j.from], b = _sysById[j.to];
+    if (!a || !b || a.regionId === b.regionId) continue;   // only cross-region
+    const [ax, ay] = _w2c(a.wx, a.wz);
+    const [bx, by] = _w2c(b.wx, b.wz);
+    if (_offscreen(ax, ay, bx, by)) continue;
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+  }
+  ctx.stroke();
+
+  // ── Wormhole connection arcs (EvE-Scout public API) ─────────────────────────
+  // Every Thera/Turnur/J-space connection drawn as a dark-purple arc, exactly like
+  // the jump-bridge arcs. Tied to the "Wormholes" toolbar toggle.
+  if (_showWh && _whArcEdges && _whArcEdges.length) {
+    ctx.lineCap   = 'round';
+    ctx.lineWidth = Math.max(0.8, Math.min(2.4, _zoom * 2.4));
+    ctx.strokeStyle = 'rgba(138,43,196,0.7)';
+    ctx.shadowColor = 'rgba(138,43,196,0.45)';
+    ctx.shadowBlur  = 4;
+    for (const [ida, idb] of _whArcEdges) {
+      const a = _sysById[ida], b = _sysById[idb];
+      if (!a || !b) continue;
+      const [ax, ay] = _w2c(a.wx, a.wz);
+      const [bx, by] = _w2c(b.wx, b.wz);
+      if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+          (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+      const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+      const arcH = Math.min(len * 0.16, 120);
+      const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+      const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.lineCap = 'butt';
+  }
 
   // ── Saved jump-bridge arcs (your Ansiblex / beacon network) ─────────────────
   // Drawn as a green arc bulging off the straight line so two bridges between the
@@ -462,9 +690,10 @@ function _render() {
     for (let i = 1; i < _routeIds.length; i++) {
       const a = _sysById[_routeIds[i - 1]], b = _sysById[_routeIds[i]];
       if (!a || !b) continue;
-      // A wormhole hop jumps to/from a w-space system (Thera, J-space) that sits
-      // far off the k-space map — leave a gap rather than shooting a line off-screen.
-      if (a.id >= 31000000 || b.id >= 31000000) continue;
+      // A hop into the J-space grid sits far off the k-space map — leave a gap
+      // rather than shooting a line off-screen. Thera is pinned by Turnur, so it
+      // draws normally.
+      if ((a.id >= 31000000 && a.id !== _THERA_ID) || (b.id >= 31000000 && b.id !== _THERA_ID)) continue;
       const [ax, ay] = _w2c(a.wx, a.wz);
       const [bx, by] = _w2c(b.wx, b.wz);
       ctx.moveTo(ax, ay);
@@ -496,7 +725,15 @@ function _render() {
     ctx.lineCap = 'butt';
   }
 
-  // ── System dots ───────────────────────────────────────────────────────────
+  // Identify Pochven (Triglavian) once so those systems can render as triangles.
+  if (_pochvenRegionId === undefined) {
+    _pochvenRegionId = null;
+    for (const [rid, name] of Object.entries(_regions)) {
+      if (name === 'Pochven') { _pochvenRegionId = Number(rid); break; }
+    }
+  }
+
+  // ── System glyphs ──────────────────────────────────────────────────────────
   for (const s of _systems) {
     const [cx, cy] = _w2c(s.wx, s.wz);
     const margin = dotR * 4;
@@ -513,9 +750,14 @@ function _render() {
       default:            col = _secColor(s.sec);
     }
 
-    // Core dot
+    // Node glyph: a dot by default; special systems get distinct polygons —
+    //   Pochven (Triglavian) → triangle, Thera/Turnur → pentagon, Zarzakh → hexagon.
     ctx.beginPath();
-    ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+    const r = dotR * 1.7;
+    if      (s.id === 30100000)               _regularPolyPath(ctx, cx, cy, r, 6); // Zarzakh
+    else if (_PENTAGON_SYS.has(s.id))         _regularPolyPath(ctx, cx, cy, r, 5); // Thera / Turnur
+    else if (s.regionId === _pochvenRegionId) _regularPolyPath(ctx, cx, cy, r, 3); // Pochven
+    else                                      ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
 
@@ -560,13 +802,21 @@ function _render() {
       ctx.stroke();
     }
 
-    // System name — only once zoomed in past SYS_LABEL_DOTR (region names show
-    // before that), so medium zoom stays readable instead of becoming a mess.
+    // System name + security — only once zoomed in past SYS_LABEL_DOTR. Name in
+    // pale mono, then the sec value in its sec colour (the in-game label style).
     if (dotR > SYS_LABEL_DOTR) {
       const fs = Math.max(8, Math.min(14, dotR * 3.2));
-      ctx.font      = `${fs}px var(--mono, monospace)`;
-      ctx.fillStyle = 'rgba(190,205,225,0.72)';
-      ctx.fillText(s.name, cx + dotR + 2, cy + dotR);
+      ctx.font         = `${fs}px var(--mono, monospace)`;
+      ctx.shadowColor  = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;
+      const lx = cx + dotR * 1.9 + 2, ly = cy + dotR * 0.5;
+      ctx.fillStyle = 'rgba(205,215,235,0.8)';
+      ctx.fillText(s.name, lx, ly);
+      if (s.sec != null) {
+        const nameW = ctx.measureText(s.name + ' ').width;
+        ctx.fillStyle = _secColor(s.sec);
+        ctx.fillText(s.sec.toFixed(1), lx + nameW, ly);
+      }
+      ctx.shadowBlur = 0;
     }
   }
 
@@ -597,12 +847,14 @@ function _render() {
       const lfs  = Math.max(11, Math.min(18, _zoom * _MAP_WORLD / 72));
       const gap  = dom ? rfs * 0.7 : 0;
 
-      // Region name — italic, pale
-      ctx.font         = `italic ${rfs}px var(--font, sans-serif)`;
-      ctx.fillStyle    = 'rgba(170,185,215,0.55)';
-      ctx.shadowColor  = 'rgba(0,0,0,0.9)';
-      ctx.shadowBlur   = 4;
-      ctx.fillText(regionName, lcx, lcy - gap);
+      // Region name — uppercase, letter-spaced mono (new in-game map style)
+      ctx.font          = `${rfs}px var(--mono, monospace)`;
+      ctx.letterSpacing = `${Math.max(1, rfs * 0.2)}px`;
+      ctx.fillStyle     = 'rgba(205,215,235,0.62)';
+      ctx.shadowColor   = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur    = 4;
+      ctx.fillText(regionName.toUpperCase(), lcx, lcy - gap);
+      ctx.letterSpacing = '0px';
 
       // Dominant sov ticker / name — bold, alliance colour (sovereignty only)
       if (dom && dom.label) {
@@ -950,6 +1202,17 @@ function _initToolbar() {
     });
   }
 
+  const whBtn = document.getElementById('mapWhToggle');
+  if (whBtn) {
+    whBtn.classList.toggle('active', _showWh);   // default-on
+    whBtn.addEventListener('click', async () => {
+      _showWh = !_showWh;
+      whBtn.classList.toggle('active', _showWh);
+      if (_showWh) await _ensureWhArcs();        // lazy-load the connections on first enable
+      _scheduleRender();
+    });
+  }
+
   const zoomIn  = document.getElementById('mapZoomIn');
   const zoomOut = document.getElementById('mapZoomOut');
   const zoomFit = document.getElementById('mapZoomFit');
@@ -966,8 +1229,11 @@ function _initToolbar() {
       // Re-pull alliance standings too (e.g. after a re-auth granted the scope).
       _fnfLoaded = false;
       if (_overlay === 'fnf') { await _loadFnfStandings(); _updateLegend(); _scheduleRender(); }
-      // Refresh EvE-Scout wormhole connections (they spawn/die constantly).
-      if (_whLoaded) { _whLoaded = false; await _loadWormholes(); }
+      // Refresh wormhole connections (holes spawn/die constantly).
+      if (_showWh || _whLoaded) {
+        _whLoaded = false;
+        await _ensureWhArcs();
+      }
       refreshBtn.disabled  = false;
       refreshBtn.style.opacity = '';
     });
@@ -1171,8 +1437,32 @@ async function _loadWormholes() {
     _whAdj.get(c.outId).push(c.inId);
   }
   _whLoaded = true;
+  _rebuildWhArcs();
 }
 window.mapReloadWormholes = function () { _whLoaded = false; return _loadWormholes(); };
+
+// Build the deduped edge list of EvE-Scout API connections for the dark-purple map
+// arcs (drawn like jump bridges).
+function _rebuildWhArcs() {
+  const seen = new Set();
+  _whArcEdges = [];
+  const add = (a, b) => {
+    if (a == null || b == null || a === b || !_sysById[a] || !_sysById[b]) return;
+    const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    _whArcEdges.push([a, b]);
+  };
+  for (const c of (_whConns || [])) add(c.inId, c.outId);
+}
+
+// Load the EvE-Scout connections (once per session), build the arc set + redraw.
+// The toolbar ⟳ forces a refresh (holes spawn/die constantly).
+async function _ensureWhArcs() {
+  if (!_whLoaded) await _loadWormholes();
+  _rebuildWhArcs();
+  _scheduleRender();
+}
 
 // Per-system safety cost (lower = preferred). Uses the Friends & Foes standings.
 function _travelSafetyCost(sys) {
@@ -1448,8 +1738,8 @@ function _sgBuildModal() {
   m.addEventListener('click', (e) => { if (e.target === m) _sgClose(); });
   m.querySelector('.sg-close').addEventListener('click', _sgClose);
   m.querySelector('.sg-min').addEventListener('click', _sgMinimize);
-  m.querySelector('#sgPlotBtn').addEventListener('click', _sgPlot);
-  m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlot(); } });
+  m.querySelector('#sgPlotBtn').addEventListener('click', _sgPlotAndShow);
+  m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlotAndShow(); } });
   // Auto re-plot whenever any option (or From/To) changes.
   ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
     .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', _sgMaybeReplot); });
@@ -1488,8 +1778,8 @@ async function _sgPlot() {
   const result = document.getElementById('sgResult');
   const from = _sgResolve(document.getElementById('sgFrom').value);
   const to   = _sgResolve(document.getElementById('sgTo').value);
-  if (!from || !to) { result.innerHTML = `<div class="jp-empty jp-err">Pick valid start and destination systems.</div>`; return; }
-  if (from.id === to.id) { result.innerHTML = `<div class="jp-empty">Start and destination are the same system.</div>`; return; }
+  if (!from || !to) { result.innerHTML = `<div class="jp-empty jp-err">Pick valid start and destination systems.</div>`; return null; }
+  if (from.id === to.id) { result.innerHTML = `<div class="jp-empty">Start and destination are the same system.</div>`; return null; }
 
   if (!_fnfLoaded) { result.innerHTML = `<div class="jp-empty">Loading standings…</div>`; await _loadFnfStandings(); }
   const useWh = document.getElementById('sgUseWh').checked;
@@ -1503,8 +1793,17 @@ async function _sgPlot() {
     useWormholes: useWh,
   };
   const path = _travelRoutePath(from.id, to.id, opts);
-  if (!path) { result.innerHTML = `<div class="jp-empty jp-err">No gate route found with those constraints. Try removing an avoid filter.</div>`; return; }
+  if (!path) { result.innerHTML = `<div class="jp-empty jp-err">No gate route found with those constraints. Try removing an avoid filter.</div>`; return null; }
   _sgRenderRoute(path, opts);
+  return path;
+}
+
+// PLOT ROUTE / Enter: plot, then minimise the planner and centre the route on the
+// map so it's immediately visible. (Auto-replot from typing/toggling keeps the
+// planner open — only an explicit plot collapses to the map.)
+async function _sgPlotAndShow() {
+  const path = await _sgPlot();
+  if (path && path.length > 1) _sgMinimize();
 }
 
 function _sgRenderRoute(path, opts) {
@@ -1514,7 +1813,7 @@ function _sgRenderRoute(path, opts) {
   // Classify each hop: gate (default), Ansiblex bridge, or EvE-Scout wormhole.
   const isGate   = (a, b) => (_gateAdj.get(a)   || []).includes(b);
   const isBridge = (a, b) => _bridgeAdj && (_bridgeAdj.get(a) || []).includes(b);
-  const isWh     = (a, b) => _whAdj     && (_whAdj.get(a)     || []).includes(b);
+  const isWh     = (a, b) => opts.useWormholes && _whAdj && (_whAdj.get(a) || []).includes(b);
   const whInfo   = (a, b) => (_whConns || []).find(c =>
     (c.inId === a && c.outId === b) || (c.inId === b && c.outId === a));
   let red = 0, low = 0, bridges = 0, wormholes = 0;
@@ -1574,6 +1873,7 @@ async function initMapPage() {
   if (_loaded) {
     _onResize();
     _loadYouAreHere();   // refresh "you are here" (location may have changed)
+    if (_showWh && (!_whArcEdges || !_whArcEdges.length)) _ensureWhArcs();
     _scheduleRender();
     return;
   }
@@ -1599,6 +1899,9 @@ async function initMapPage() {
     _sysById  = {};
     for (const s of _systems) _sysById[s.id] = s;
 
+    _declutterAll();           // collision pass — push overlapping systems apart
+    _relayoutSpecialRegions(); // declutter Pochven/Exordium via a gate-graph layout
+    _layoutWormholeBlock();     // J-space grid to the right of the (final) galaxy
     _computeRegionCentroids(); // must come after normalisation & _regions are set
 
     _loaded = true;
@@ -1636,6 +1939,9 @@ async function initMapPage() {
 
     // Kick off live overlay fetches in the background (non-blocking)
     _loadLiveData();
+
+    // Load + draw the EvE-Scout wormhole connection arcs too.
+    if (_showWh) _ensureWhArcs();
 
   } catch (err) {
     const txt = loadingEl && loadingEl.querySelector('.map-loading-text');

@@ -423,6 +423,32 @@ ipcMain.handle('get-alliance-contacts', async (_, characterId, allianceId) => {
   }
 });
 
+// EvE-Scout public wormhole map (Thera + Turnur connections). No auth needed.
+// Returns [{ inId, inName, inClass, outId, outName, inSig, outSig, whType, maxShip,
+// remainingHours }]. Cached ~10 min since holes spawn/die constantly.
+ipcMain.handle('get-eve-scout-connections', async () => {
+  const cacheKey = 'eve_scout_connections';
+  const cached = readCache(cacheKey);
+  if (cached) return cached;
+  try {
+    const data = await httpGet('https://api.eve-scout.com/v2/public/signatures');
+    const conns = (Array.isArray(data) ? data : [])
+      .filter(s => s && s.signature_type === 'wormhole' && s.in_system_id && s.out_system_id)
+      .map(s => ({
+        inId:  s.in_system_id,  inName:  s.in_system_name,  inClass: s.in_system_class || null,
+        outId: s.out_system_id, outName: s.out_system_name,
+        inSig: s.in_signature || null, outSig: s.out_signature || null,
+        whType: s.wh_type || null, maxShip: s.max_ship_size || null,
+        remainingHours: (s.remaining_hours != null) ? s.remaining_hours : null,
+      }));
+    writeCache(cacheKey, conns, 1 / 144); // ~10 minutes
+    return conns;
+  } catch (e) {
+    console.warn('[eve-scout] fetch failed:', e.message);
+    return [];
+  }
+});
+
 // Skill levels for a character (e.g. the jump planner reads JDC/JFC/Jump
 // Freighters). Returns { skillTypeId: level }; empty if the character isn't synced.
 ipcMain.handle('get-skill-levels', async (_, characterId, typeIds) => {

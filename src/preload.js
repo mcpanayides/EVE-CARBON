@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getHubMeta:            ()       => ipcRenderer.invoke('get-hub-meta'),
   getTradeProfile:       (charId) => ipcRenderer.invoke('get-trade-profile', charId),
   getAllianceContacts:   (charId, allianceId) => ipcRenderer.invoke('get-alliance-contacts', charId, allianceId),
+  getEveScoutConnections: ()      => ipcRenderer.invoke('get-eve-scout-connections'),
   getMoonReprocessing:   (typeIds) => ipcRenderer.invoke('get-moon-reprocessing', typeIds),
   reprocessFromNames:    (names)   => ipcRenderer.invoke('reprocess-from-names', names),
   getSkillLevels:        (charId, typeIds) => ipcRenderer.invoke('get-skill-levels', charId, typeIds),

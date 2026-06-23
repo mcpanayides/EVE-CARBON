@@ -68,6 +68,9 @@ let _travelStart = null;
 let _travelEnd   = null;
 let _gateAdj     = null;   // id → [neighbour ids], built once from _jumps
 let _bridgeAdj   = null;   // id → [neighbour ids] via saved Ansiblex bridges (rebuilt per route)
+let _whAdj       = null;   // id → [neighbour ids] via EvE-Scout wormhole connections
+let _whConns     = null;   // raw EvE-Scout connection list (metadata for the route table)
+let _whLoaded    = false;
 let _sgLastPath  = null;   // last Stargate-planner route (for minimise redraw)
 let _sgNameIndex = null;   // lowercase system name → id (planner autocomplete)
 let _youHereId       = null;   // current character's system id ("you are here")
@@ -459,6 +462,9 @@ function _render() {
     for (let i = 1; i < _routeIds.length; i++) {
       const a = _sysById[_routeIds[i - 1]], b = _sysById[_routeIds[i]];
       if (!a || !b) continue;
+      // A wormhole hop jumps to/from a w-space system (Thera, J-space) that sits
+      // far off the k-space map — leave a gap rather than shooting a line off-screen.
+      if (a.id >= 31000000 || b.id >= 31000000) continue;
       const [ax, ay] = _w2c(a.wx, a.wz);
       const [bx, by] = _w2c(b.wx, b.wz);
       ctx.moveTo(ax, ay);
@@ -960,6 +966,8 @@ function _initToolbar() {
       // Re-pull alliance standings too (e.g. after a re-auth granted the scope).
       _fnfLoaded = false;
       if (_overlay === 'fnf') { await _loadFnfStandings(); _updateLegend(); _scheduleRender(); }
+      // Refresh EvE-Scout wormhole connections (they spawn/die constantly).
+      if (_whLoaded) { _whLoaded = false; await _loadWormholes(); }
       refreshBtn.disabled  = false;
       refreshBtn.style.opacity = '';
     });
@@ -1148,6 +1156,24 @@ function _buildBridgeAdj() {
   }
 }
 
+// EvE-Scout wormhole connections (Thera/Turnur) as bidirectional 1-jump edges.
+// Loaded once per session; reload via window.mapReloadWormholes() to refresh.
+async function _loadWormholes() {
+  if (_whLoaded) return;
+  try { _whConns = await window.eveAPI.getEveScoutConnections() || []; }
+  catch (_) { _whConns = []; }
+  _whAdj = new Map();
+  for (const c of _whConns) {
+    if (!_sysById[c.inId] || !_sysById[c.outId]) continue;
+    if (!_whAdj.has(c.inId))  _whAdj.set(c.inId, []);
+    if (!_whAdj.has(c.outId)) _whAdj.set(c.outId, []);
+    _whAdj.get(c.inId).push(c.outId);
+    _whAdj.get(c.outId).push(c.inId);
+  }
+  _whLoaded = true;
+}
+window.mapReloadWormholes = function () { _whLoaded = false; return _loadWormholes(); };
+
 // Per-system safety cost (lower = preferred). Uses the Friends & Foes standings.
 function _travelSafetyCost(sys) {
   const sec = sys.sec;
@@ -1184,7 +1210,7 @@ function _mapHeap() {
 function _travelRoutePath(startId, endId, opts = {}) {
   if (!_sysById[startId] || !_sysById[endId]) return null;
   _ensureGateAdj();
-  const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, useBridges = false } = opts;
+  const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, useBridges = false, useWormholes = false } = opts;
   if (useBridges) _buildBridgeAdj();
 
   const dist = new Map(), prev = new Map(), done = new Set();
@@ -1197,9 +1223,9 @@ function _travelRoutePath(startId, endId, opts = {}) {
     if (id === endId) break;
     // Gates + (optionally) Ansiblex bridges form one network — the router picks
     // the cheapest mix, so a bridge replaces a long gate burn when it's listed.
-    const neighbours = useBridges
-      ? (_gateAdj.get(id) || []).concat(_bridgeAdj.get(id) || [])
-      : (_gateAdj.get(id) || []);
+    const neighbours = (_gateAdj.get(id) || [])
+      .concat(useBridges   && _bridgeAdj ? (_bridgeAdj.get(id) || []) : [])
+      .concat(useWormholes && _whAdj     ? (_whAdj.get(id)     || []) : []);
     for (const to of neighbours) {
       if (done.has(to)) continue;
       const toSys = _sysById[to];
@@ -1405,6 +1431,7 @@ function _sgBuildModal() {
           </div>
           <div class="jp-toggles">
             <label class="jp-check"><input type="checkbox" id="sgUseBridges" checked> Use jump bridges (Ansiblex)</label>
+            <label class="jp-check"><input type="checkbox" id="sgUseWh"> Use EvE-Scout connections (Thera/Turnur)</label>
             <label class="jp-check"><input type="checkbox" id="sgAvoidLow"> Avoid low-sec</label>
             <label class="jp-check"><input type="checkbox" id="sgAvoidNull"> Avoid null-sec</label>
             <label class="jp-check"><input type="checkbox" id="sgAvoidRed"> Avoid red (−5 / −10)</label>
@@ -1424,7 +1451,7 @@ function _sgBuildModal() {
   m.querySelector('#sgPlotBtn').addEventListener('click', _sgPlot);
   m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlot(); } });
   // Auto re-plot whenever any option (or From/To) changes.
-  ['#sgMode', '#sgUseBridges', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
+  ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
     .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', _sgMaybeReplot); });
   return m;
 }
@@ -1465,12 +1492,15 @@ async function _sgPlot() {
   if (from.id === to.id) { result.innerHTML = `<div class="jp-empty">Start and destination are the same system.</div>`; return; }
 
   if (!_fnfLoaded) { result.innerHTML = `<div class="jp-empty">Loading standings…</div>`; await _loadFnfStandings(); }
+  const useWh = document.getElementById('sgUseWh').checked;
+  if (useWh && !_whLoaded) { result.innerHTML = `<div class="jp-empty">Loading EvE-Scout connections…</div>`; await _loadWormholes(); }
   const opts = {
-    mode:       document.getElementById('sgMode').value,
-    avoidLow:   document.getElementById('sgAvoidLow').checked,
-    avoidNull:  document.getElementById('sgAvoidNull').checked,
-    avoidRed:   document.getElementById('sgAvoidRed').checked,
-    useBridges: document.getElementById('sgUseBridges').checked,
+    mode:         document.getElementById('sgMode').value,
+    avoidLow:     document.getElementById('sgAvoidLow').checked,
+    avoidNull:    document.getElementById('sgAvoidNull').checked,
+    avoidRed:     document.getElementById('sgAvoidRed').checked,
+    useBridges:   document.getElementById('sgUseBridges').checked,
+    useWormholes: useWh,
   };
   const path = _travelRoutePath(from.id, to.id, opts);
   if (!path) { result.innerHTML = `<div class="jp-empty jp-err">No gate route found with those constraints. Try removing an avoid filter.</div>`; return; }
@@ -1481,19 +1511,31 @@ function _sgRenderRoute(path, opts) {
   const result = document.getElementById('sgResult');
   _sgLastPath = path;
   const jumps = path.length - 1;
-  // A hop whose two systems aren't gate-adjacent was taken via a jump bridge.
-  const isBridgeHop = (a, b) => !((_gateAdj.get(a) || []).includes(b));
-  let red = 0, low = 0, bridges = 0;
+  // Classify each hop: gate (default), Ansiblex bridge, or EvE-Scout wormhole.
+  const isGate   = (a, b) => (_gateAdj.get(a)   || []).includes(b);
+  const isBridge = (a, b) => _bridgeAdj && (_bridgeAdj.get(a) || []).includes(b);
+  const isWh     = (a, b) => _whAdj     && (_whAdj.get(a)     || []).includes(b);
+  const whInfo   = (a, b) => (_whConns || []).find(c =>
+    (c.inId === a && c.outId === b) || (c.inId === b && c.outId === a));
+  let red = 0, low = 0, bridges = 0, wormholes = 0;
   const rows = path.map((id, i) => {
     const s = _sysById[id];
     const region = _regions[s.regionId] || '';
     if (_travelSafetyCost(s) >= 50) red++;
     if (s.sec > 0.0 && s.sec < 0.45) low++;
-    const viaBridge = i > 0 && isBridgeHop(path[i - 1], id);
-    if (viaBridge) bridges++;
+    let hopMark = '';
+    if (i > 0 && !isGate(path[i - 1], id)) {
+      if (isBridge(path[i - 1], id)) { bridges++; hopMark = '<span style="color:#40dc82;" title="Jump bridge">◈ </span>'; }
+      else if (isWh(path[i - 1], id)) {
+        wormholes++;
+        const c = whInfo(path[i - 1], id);
+        const t = c ? `EvE-Scout wormhole ${c.whType || ''} · ${c.maxShip || ''}${c.remainingHours != null ? ` · ${c.remainingHours}h left` : ''}` : 'EvE-Scout wormhole';
+        hopMark = `<span style="color:#b07cff;" title="${t.trim()}">🌀 </span>`;
+      }
+    }
     const sov = _travelSovLabel(s);
     const tag = i === 0 ? ' <span class="jp-dim">(start)</span>' : (i === path.length - 1 ? ' <span class="jp-dim">(end)</span>' : '');
-    const bridgeMark = viaBridge ? '<span style="color:#40dc82;" title="Jump bridge">◈ </span>' : '';
+    const bridgeMark = hopMark;
     return `
       <tr>
         <td class="jp-num">${i === 0 ? '●' : i}</td>
@@ -1509,6 +1551,7 @@ function _sgRenderRoute(path, opts) {
     <div class="jp-totals">
       <div><span class="jp-tot-num">${jumps}</span><span class="jp-tot-lbl">jumps</span></div>
       ${bridges ? `<div><span class="jp-tot-num" style="color:#40dc82;">${bridges}</span><span class="jp-tot-lbl">bridges</span></div>` : ''}
+      ${wormholes ? `<div><span class="jp-tot-num" style="color:#b07cff;">${wormholes}</span><span class="jp-tot-lbl">wormholes</span></div>` : ''}
       ${low ? `<div><span class="jp-tot-num" style="color:#e8d44a;">${low}</span><span class="jp-tot-lbl">low-sec</span></div>` : ''}
       ${red ? `<div><span class="jp-tot-num" style="color:#d0263d;">${red}</span><span class="jp-tot-lbl">red</span></div>` : ''}
     </div>

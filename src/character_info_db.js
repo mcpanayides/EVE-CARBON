@@ -812,6 +812,48 @@ async function getAssetSyncedAt(characterId) {
   } catch (e) { return 0; }
 }
 
+// ── Wipe every character's assets ─────────────────────────────────────────────
+// Empties ALL char_*_assets tables — including orphaned ones for characters no
+// longer in the account list, and any half-written char_*_assets_new swap tables
+// left by an interrupted replaceAssets. This is the Settings ▸ Database "Wipe
+// Assets" action: it clears stale/broken remnants so the next sync rebuilds the
+// asset list cleanly from ESI. Leaves the structure/station name caches intact
+// (those are expensive to rebuild and unaffected by bad asset rows).
+// Returns { tables, rows } describing what was cleared.
+async function wipeAllAssets() {
+  if (!charDb) return { tables: 0, rows: 0 };
+  let tables = 0, rows = 0;
+
+  // Discover every per-character assets table by name so we catch rows that
+  // belong to characters that are no longer in db.accounts.
+  const assetTables = await charDb.all(
+    `SELECT name FROM sqlite_master
+       WHERE type='table' AND name LIKE 'char\\_%\\_assets' ESCAPE '\\'`
+  ).catch(() => []);
+
+  if (assetTables.length) {
+    await withTx(async () => {
+      for (const { name } of assetTables) {
+        const r = await charDb.run(`DELETE FROM "${name}"`);
+        rows += r?.changes || 0;
+        tables++;
+      }
+    });
+  }
+
+  // Drop any leftover swap tables from an interrupted replaceAssets.
+  const tmpTables = await charDb.all(
+    `SELECT name FROM sqlite_master
+       WHERE type='table' AND name LIKE 'char\\_%\\_assets\\_new' ESCAPE '\\'`
+  ).catch(() => []);
+  for (const { name } of tmpTables) {
+    await charDb.run(`DROP TABLE IF EXISTS "${name}"`).catch(() => {});
+  }
+
+  console.log(`[CharDB] Wiped assets: ${rows} row(s) across ${tables} table(s).`);
+  return { tables, rows };
+}
+
 async function getCharacterBlueprints(characterId) {
   if (!charDb) return [];
   try {
@@ -1138,6 +1180,7 @@ module.exports = {
   getCharacterData,
   getCharacterAssets,
   getAssetSyncedAt,
+  wipeAllAssets,
   getCharacterBlueprints,
   getAllBlueprints,
   removeCharacterData,

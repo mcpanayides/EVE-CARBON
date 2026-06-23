@@ -478,8 +478,8 @@ function updateNavCharacterBtn(account) {
     btn.title = `Active: ${account.characterName}`;
   } else {
     const icon = document.createElement('span');
-    icon.className = 'nav-icon';
-    icon.textContent = '⚔';
+    icon.className = 'nav-icon material-symbols-outlined';
+    icon.textContent = 'person';
     const label = document.createElement('span');
     label.className = 'nav-label';
     label.textContent = 'Characters';
@@ -637,6 +637,47 @@ async function autoSeedNpcStations() {
     console.warn('[AutoSeed] autoSeedNpcStations error:', e.message);
   }
 }
+// ── Wipe the local assets database (Settings ▸ Database) ──────────────────────
+// Clears every stored asset row for all characters so stale/broken remnants are
+// removed. Assets re-sync from ESI in the background afterwards, so this is
+// destructive but not permanent. Confirms first, then refreshes the Assets page.
+async function wipeAssetsDatabase() {
+  const btn    = document.getElementById('wipeAssetsBtn');
+  const status = document.getElementById('assetWipeStatus');
+  if (!btn || btn.disabled) return;
+
+  if (!confirm('Delete ALL stored assets for every character from the local database?\n\n'
+             + 'This clears stale or broken remnants. Your assets reload automatically '
+             + 'from ESI on the next sync.')) return;
+
+  const orig = btn.textContent;
+  btn.disabled      = true;
+  btn.style.opacity = '0.6';
+  btn.style.cursor  = 'not-allowed';
+  btn.textContent   = '⏳ WIPING…';
+  if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Clearing asset tables…'; }
+
+  try {
+    const r    = await window.eveAPI.wipeAssets();
+    const rows = r?.rows || 0;
+    if (status) {
+      status.style.color = 'var(--accent)';
+      status.textContent = `✓ Wiped ${rows.toLocaleString()} asset row(s). They will re-sync from ESI in the background.`;
+    }
+    showToast(`Assets database wiped — ${rows.toLocaleString()} row(s) cleared.`, 'success');
+    // Refresh the (now-empty) Assets page if it's open.
+    if (typeof loadAssets === 'function') { try { await loadAssets(); } catch (_) {} }
+  } catch (e) {
+    if (status) { status.style.color = 'var(--danger)'; status.textContent = `Wipe failed: ${e.message}`; }
+    showToast(`Asset wipe failed: ${e.message}`, 'error');
+  } finally {
+    btn.disabled      = false;
+    btn.style.opacity = '';
+    btn.style.cursor  = '';
+    btn.textContent   = orig;
+  }
+}
+
 async function triggerStationSync() {
   const btn      = document.getElementById('dbSyncStationsBtn');
   const icon     = document.getElementById('dbSyncBtnIcon');

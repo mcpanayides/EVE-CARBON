@@ -336,6 +336,120 @@ function filterAssets() {
 // Not used in tree mode but kept so scroll-listener wiring doesn't break
 function assetTableScrollHandler() {}
 
+// ── Column sorting ────────────────────────────────────────────────────────────
+// Click any column header to sort. The tree structure is always preserved:
+// locations stay grouped, characters stay grouped within each location, and the
+// chosen column sorts the items inside each character group. Sorting by Name
+// also orders the location and character groups themselves (station → character
+// → item), as the EVE client does.
+//
+//   _assetSort.col  — column key ('name','qty','group',…) or null for default
+//   _assetSort.dir  —  1 = ascending (A→Z / low→high), -1 = descending
+// Text columns open ascending (A→Z); numeric columns open descending (largest
+// first), matching how people expect "biggest value" columns to behave.
+if (typeof window._assetSort === 'undefined') window._assetSort = { col: null, dir: 1 };
+
+const _ASSET_COL_TYPE = {
+  name: 'text', qty: 'num', group: 'text', category: 'text',
+  slot: 'text', vol: 'num', meta: 'num', tech: 'num', price: 'num',
+};
+
+// Value a given asset contributes to a given sort column. Numeric columns return
+// numbers; text columns return lower-cased strings. Missing meta/tech sort last.
+function _assetSortValue(asset, col) {
+  const md  = typeMetaCache[asset.type_id] || {};
+  const qty = asset.quantity || 1;
+  switch (col) {
+    case 'qty':      return qty;
+    case 'group':    return (md.group    || '').toLowerCase();
+    case 'category': return (md.category || '').toLowerCase();
+    case 'slot':     return (md.slot     || '').toLowerCase();
+    case 'vol':      return Number(asset.volume) || 0;
+    case 'meta':     return md.metaLevel != null ? Number(md.metaLevel) : -1;
+    case 'tech':     return md.techLevel != null ? Number(md.techLevel) : -1;
+    case 'price':    return assetUnitPrice(asset.type_id, asset.is_bpc) * qty;
+    case 'name':
+    default:         return (asset.name || asset.type_name || '').toLowerCase();
+  }
+}
+
+// Compare two item rows under the active sort. Ties always fall back to item
+// name ascending so the order is stable and predictable.
+function _compareAssetItems(a, b) {
+  const col = window._assetSort.col;
+  const nameA = (a.name || a.type_name || '');
+  const nameB = (b.name || b.type_name || '');
+  if (!col) return nameA.localeCompare(nameB);
+
+  const type = _ASSET_COL_TYPE[col] || 'text';
+  const av = _assetSortValue(a, col);
+  const bv = _assetSortValue(b, col);
+  let cmp = type === 'num' ? (av - bv) : String(av).localeCompare(String(bv));
+  if (cmp === 0) return nameA.localeCompare(nameB); // stable tiebreak, always A→Z
+  return cmp * window._assetSort.dir;
+}
+
+// Toggle/set the active sort column and re-render. Same column flips direction.
+function setAssetSort(col) {
+  if (!col || col === 'icon') return;
+  const s = window._assetSort;
+  if (s.col === col) {
+    s.dir *= -1;
+  } else {
+    s.col = col;
+    s.dir = (_ASSET_COL_TYPE[col] === 'num') ? -1 : 1; // num → largest first
+  }
+  _updateAssetSortIndicators();
+  renderAssetTree();
+}
+
+// Paint the ▲/▼ caret on the active column header.
+function _updateAssetSortIndicators() {
+  const thead = document.querySelector('#assetTable thead');
+  if (!thead) return;
+  thead.querySelectorAll('th[data-col-key]').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.colKey === window._assetSort.col) {
+      th.classList.add(window._assetSort.dir === 1 ? 'sort-asc' : 'sort-desc');
+    }
+  });
+}
+
+// Delegated header sorting (bound once on the thead, so it survives the reorder/
+// resize systems moving the th nodes around).
+//
+// We can't use a plain 'click' listener: the headers are draggable="true" for
+// column reordering, and Chromium suppresses the click whenever the pointer
+// moves even a pixel between press and release (it treats it as an aborted
+// drag) — which is why clicking/double-clicking did nothing. Instead we watch
+// mousedown→mouseup and treat a near-stationary press/release on the same header
+// as a sort. A real drag-reorder moves further (and fires dragend, not mouseup),
+// so the two never collide.
+function _bindAssetSort() {
+  const thead = document.querySelector('#assetTable thead');
+  if (!thead || thead._sortBound) return;
+  thead._sortBound = true;
+
+  let downTh = null, downX = 0, downY = 0;
+
+  thead.addEventListener('mousedown', (e) => {
+    downTh = null;
+    if (e.button !== 0) return;                                    // left button only
+    if (e.target.classList.contains('col-resize-handle')) return; // resize grip, not a sort
+    const th = e.target.closest('th[data-col-key]');
+    if (!th || th.dataset.colKey === 'icon') return;              // icon column isn't sortable
+    downTh = th; downX = e.clientX; downY = e.clientY;
+  });
+
+  thead.addEventListener('mouseup', (e) => {
+    if (!downTh) return;
+    const th    = e.target.closest('th[data-col-key]');
+    const moved = Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY);
+    if (th === downTh && moved < 5) setAssetSort(th.dataset.colKey);
+    downTh = null;
+  });
+}
+
 // ── Build and render the full location-grouped tree ───────────────────────────
 function renderAssetTree() {
   const tbody = document.querySelector('#assetTable tbody');
@@ -389,8 +503,14 @@ function renderAssetTree() {
     loc.count++;
   }
 
-  // ── Sort locations: region → solar system → location name ──────────────────
+  // ── Sort locations ─────────────────────────────────────────────────────────
+  // Sorting by Name orders the station headers themselves (with direction);
+  // every other column keeps the default region → system → name grouping so the
+  // tree stays readable while the items inside each group get sorted.
   const locations = [...locMap.values()].sort((a, b) => {
+    if (window._assetSort.col === 'name') {
+      return a.locationName.localeCompare(b.locationName) * window._assetSort.dir;
+    }
     const ra = a.regionName.localeCompare(b.regionName);
     if (ra !== 0) return ra;
     const sa = a.solarSystemName.localeCompare(b.solarSystemName);
@@ -401,14 +521,27 @@ function renderAssetTree() {
   // ── Background data: Jita prices, CCP adjusted prices, SDE metadata ─────────
   const sourceTypeIds = [...new Set(source.map(a => a.type_id).filter(Boolean))];
   const priceTypeIds  = sourceTypeIds.filter(t => !priceCache[t]);
+  // Capture readiness BEFORE kicking off loads. If the active sort depends on
+  // data that only just arrived, we re-sort once; if the data was already
+  // present, we only patch the cells (re-rendering then would loop).
+  const marketWasReady  = marketPriceCache != null;
+  const metaWasComplete = sourceTypeIds.every(t => typeMetaCache[t]);
+  const sortNeeds = (cols) => cols.includes(window._assetSort.col);
+
   if (priceTypeIds.length) {
     window.eveAPI.getJitaPrices(priceTypeIds).then(priceMap => {
       Object.assign(priceCache, priceMap || {});
-      _updateAssetPriceCells();
+      if (sortNeeds(['price'])) renderAssetTree(); else _updateAssetPriceCells();
     }).catch(() => {});
   }
-  _ensureMarketPrices().then(() => _updateAssetPriceCells());
-  _ensureTypeMeta(sourceTypeIds).then(() => _updateAssetMetaCells());
+  _ensureMarketPrices().then(() => {
+    if (!marketWasReady && sortNeeds(['price'])) renderAssetTree();
+    else _updateAssetPriceCells();
+  });
+  _ensureTypeMeta(sourceTypeIds).then(() => {
+    if (!metaWasComplete && sortNeeds(['group', 'category', 'slot', 'meta', 'tech'])) renderAssetTree();
+    else _updateAssetMetaCells();
+  });
 
   if (typeof window._assetCharState === 'undefined') window._assetCharState = {};
 
@@ -445,9 +578,11 @@ function renderAssetTree() {
       </td>`;
     frag.appendChild(locTr);
 
-    // ── Character sub-groups, sorted by name ───────────────────────────────
-    const chars = [...loc.charMap.values()].sort((a, b) =>
-      a.characterName.localeCompare(b.characterName));
+    // ── Character sub-groups, sorted by name (direction follows a Name sort) ──
+    const chars = [...loc.charMap.values()].sort((a, b) => {
+      const cmp = a.characterName.localeCompare(b.characterName);
+      return window._assetSort.col === 'name' ? cmp * window._assetSort.dir : cmp;
+    });
 
     chars.forEach((ch, ci) => {
       const charKey = `${loc.key}|${ch.characterId}`;
@@ -471,9 +606,8 @@ function renderAssetTree() {
         </td>`;
       frag.appendChild(charTr);
 
-      // ── Item rows ──────────────────────────────────────────────────────
-      const sorted = [...ch.items].sort((a, b) =>
-        (a.name || a.type_name || '').localeCompare(b.name || b.type_name || ''));
+      // ── Item rows (sorted by the active column within this character) ──
+      const sorted = [...ch.items].sort(_compareAssetItems);
 
       for (const asset of sorted) {
         const qty      = asset.quantity || 1;
@@ -526,9 +660,11 @@ function renderAssetTree() {
 
   tbody.appendChild(frag);
   _bindAssetCollapse();
+  _bindAssetSort();
   _applyAssetVisibility();
   _updateAssetPriceCells();
   _updateAssetMetaCells();
+  _updateAssetSortIndicators();
   initAssetColResize();
 }
 

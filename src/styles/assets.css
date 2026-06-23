@@ -144,6 +144,11 @@
 
 .asset-table thead th.th-right { text-align: right; }
 
+/* ── SORTABLE HEADERS ────────────────────────────────────────────────────── */
+/* NOTE: the sortable-header rules live in base.css, not here — this file
+   (assets.css) is NOT linked in index.html, so any rule added here has no
+   effect. If this stylesheet ever gets wired up, move those rules back. */
+
 /* ── GROUP HEADER ROW ────────────────────────────────────────────────────────── */
 .asset-group-header {
   cursor: pointer;

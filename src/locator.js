@@ -199,6 +199,7 @@ function fetchJsonInsecure(url, timeoutMs = 12000) {
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 module.exports = function createLocator({ httpGet, readCache, writeCache, getValidToken,
+                                          getAllCharacterIds,
                                           getStationById, upsertNpcStations, upsertUpwellStructures,
                                           resolveNamesFromSde, getCachedNames, putCachedNames }) {
 
@@ -343,26 +344,105 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     return esiNamesPost(systemIds);
   }
 
-  // ── _esiStructureGeo ─────────────────────────────────────────────────────────
-  // Fetches { solar_system_id, owner_id } from ESI for a player structure.
-  // Tries authenticated first, then public (unauthed). Returns {} on failure.
-  async function _esiStructureGeo(id, characterId) {
-    await _waitForEsiCooldown();
-    // Authenticated
-    if (characterId) {
+  // ── _structureLookupCandidates ───────────────────────────────────────────────
+  // Character ids to try for an authenticated structure read, owning character
+  // first (most likely to hold docking rights), then every other known
+  // character. Structure names are global, so ANY character with docking ACL +
+  // the esi-universe.read_structures.v1 scope can name a structure another
+  // character merely owns assets in — this is what lets us resolve a Keepstar
+  // for character A using character B's access.
+  function _structureLookupCandidates(primaryCharacterId) {
+    const ids = [];
+    if (primaryCharacterId) ids.push(String(primaryCharacterId));
+    if (typeof getAllCharacterIds === 'function') {
       try {
-        const token = await getValidToken(characterId);
+        for (const cid of (getAllCharacterIds() || [])) {
+          const s = String(cid);
+          if (s && !ids.includes(s)) ids.push(s);
+        }
+      } catch (_) { /* fall back to the owning character only */ }
+    }
+    return ids;
+  }
+
+  // ── _authStructureRead ───────────────────────────────────────────────────────
+  // Authenticated ESI structure read, trying each candidate character's token
+  // until one is permitted (has docking ACL + the read_structures scope).
+  // Returns the raw ESI body (name + solar_system_id + owner_id) or null.
+  // crossChar=false restricts the attempt to the owning character only, to keep
+  // the ESI error budget low on secondary (geo-only) lookups and repeat syncs.
+  async function _authStructureRead(id, primaryCharacterId, crossChar = true) {
+    await _waitForEsiCooldown();
+    const candidates = crossChar
+      ? _structureLookupCandidates(primaryCharacterId)
+      : (primaryCharacterId ? [String(primaryCharacterId)] : []);
+    for (const cid of candidates) {
+      try {
+        const token = await getValidToken(cid);
         const data  = await httpGet(
           `${ESI_BASE}/v2/universe/structures/${id}/?datasource=tranquility`,
           { Authorization: `Bearer ${token}` }
         );
-        if (data && data.solar_system_id) {
-          return {
-            solar_system_id: data.solar_system_id || null,
+        if (data && (data.name || data.solar_system_id)) return data;
+      } catch (e) {
+        // 403 = this character has no docking access to this structure (or its
+        // token predates the read_structures scope) — silently try the next.
+      }
+    }
+    return null;
+  }
+
+  // ── _maybeRefreshStructureName ───────────────────────────────────────────────
+  // Passive, NON-BLOCKING freshness check for a name served from the local DB.
+  // Players can rename their structures, so a name persisted long ago can drift.
+  // Rather than make every lookup wait on the network (or expire the DB row and
+  // re-run the slow chain), we hand back the cached name instantly and, only if
+  // that row is old, re-read it from ESI in the background and quietly update the
+  // DB if it changed. The user always sees most-correct info immediately; the
+  // name self-heals on the next sync. Throttled to ~once/day per structure so a
+  // structure we've lost access to isn't re-probed on every sync.
+  const STRUCTURE_REVERIFY_MS = 14 * 24 * 60 * 60 * 1000; // re-check names older than 14 days
+
+  function _maybeRefreshStructureName(id, characterId, dbRow) {
+    const age = Date.now() - (dbRow.synced_at || 0);
+    if (age < STRUCTURE_REVERIFY_MS) return;          // still fresh — nothing to do
+    const throttleKey = `struct_reverify_${id}`;
+    if (readCache(throttleKey)) return;               // re-checked recently — skip
+    writeCache(throttleKey, 1, 1);                     // throttle to ~once per day
+    // Fire-and-forget: never awaited by the caller.
+    (async () => {
+      try {
+        // Owning character only — a cheap confirmation, not a cross-character sweep.
+        const data = await _authStructureRead(id, characterId, false);
+        if (data && data.name) {
+          const fresh = {
+            name:            data.name,
+            solar_system_id: data.solar_system_id || dbRow.solar_system_id || null,
             owner_id:        data.owner_id         || null,
           };
+          if (data.name !== dbRow.name) {
+            console.log(`[locator] Structure ${id} renamed: "${dbRow.name}" → "${data.name}" — updating DB.`);
+            writeCache(`struct_name_${id}`, fresh, 7);
+          }
+          // Re-persist either way so synced_at advances and we don't re-check
+          // this structure again until it next goes stale.
+          _persistToStationDb(id, fresh).catch(() => {});
         }
-      } catch { /* fall through to public */ }
+      } catch (_) { /* keep the existing name; try again after the throttle expires */ }
+    })();
+  }
+
+  // ── _esiStructureGeo ─────────────────────────────────────────────────────────
+  // Fetches { solar_system_id, owner_id } from ESI for a player structure.
+  // Tries authenticated (owning character only) first, then public (unauthed).
+  // Returns {} on failure.
+  async function _esiStructureGeo(id, characterId) {
+    const authData = await _authStructureRead(id, characterId, false);
+    if (authData && authData.solar_system_id) {
+      return {
+        solar_system_id: authData.solar_system_id || null,
+        owner_id:        authData.owner_id         || null,
+      };
     }
     // Public (works for structures with an open market or service)
     try {
@@ -410,6 +490,9 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
           };
           writeCache(cacheKey, result, 7);
           console.log(`[locator] Local DB hit for ${id}: "${dbRow.name}"`);
+          // Player structures can be renamed — confirm an old name in the
+          // background without making the caller wait (NPC stations never change).
+          if (id >= PLAYER_STRUCTURE_MIN_ID) _maybeRefreshStructureName(id, characterId, dbRow);
           return result;
         }
       } catch (e) {
@@ -417,28 +500,31 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       }
     }
 
-    // ── Step 1: Authenticated ESI ────────────────────────────────────────────
-    await _waitForEsiCooldown();
-    if (characterId) {
-      try {
-        const token = await getValidToken(characterId);
-        const data  = await httpGet(
-          `${ESI_BASE}/v2/universe/structures/${id}/?datasource=tranquility`,
-          { Authorization: `Bearer ${token}` }
-        );
-        if (data && data.name) {
-          const result = {
-            name:            data.name,
-            solar_system_id: data.solar_system_id || null,
-            owner_id:        data.owner_id         || null,
-          };
-          writeCache(cacheKey, result, 7);
-          return result;
-        }
-      } catch (e) {
-        console.log(`[locator] ESI auth lookup failed for ${id}: ${e.message}`);
-      }
+    // ── Step 1: Authenticated ESI (try every character with possible access) ──
+    // The owning character is tried first; if it lacks docking ACL (or its token
+    // predates the read_structures scope) we fall back to every other character.
+    // The cross-character sweep is the expensive part (one 403 per character
+    // without access), so once it has run and failed we remember that and skip
+    // straight to the owning character on later syncs — a forced repair, or the
+    // 7-day marker expiry, re-runs the full sweep in case access was granted.
+    const crossKey       = `struct_xchar_${id}`;
+    const allowCrossChar = force || !readCache(crossKey);
+    const authData = await _authStructureRead(id, characterId, allowCrossChar);
+    if (authData && authData.name) {
+      const result = {
+        name:            authData.name,
+        solar_system_id: authData.solar_system_id || null,
+        owner_id:        authData.owner_id         || null,
+      };
+      writeCache(cacheKey, result, 7);
+      // Persist to the shared local DB so every future lookup — for this and any
+      // OTHER character — skips the network entirely (Step 0 fast-path).
+      _persistToStationDb(id, result).catch(() => {});
+      return result;
     }
+    // The cross-character sweep ran and still found nothing — record it so the
+    // next sync doesn't re-try every character again until the marker expires.
+    if (allowCrossChar) writeCache(crossKey, 1, 7);
 
     // ── Step 2: Public ESI (unauthed) ────────────────────────────────────────
     // Many structures with public market/services respond to unauthed requests.
@@ -453,6 +539,8 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
           owner_id:        data.owner_id         || null,
         };
         writeCache(cacheKey, result, 7);
+        // Persist so future lookups (incl. other characters) skip the network.
+        _persistToStationDb(id, result).catch(() => {});
         return result;
       }
     } catch { /* fall through */ }

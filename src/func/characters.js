@@ -290,9 +290,16 @@ async function loadAccounts() {
       removeBtn.title = 'Remove Account';
       removeBtn.textContent = '✕';
 
+      // Sync spinner sits directly above the remove (✕) button, vertically stacked.
+      // The slot reserves the spinner's space so the ✕ never jumps when sync starts.
+      const removeStack = document.createElement('div');
+      removeStack.className = 'character-card-remove-stack';
+      removeStack.innerHTML = '<span class="char-sync-slot"><span class="char-sync-spinner sync-spinner spin" style="width:14px;height:14px;display:none;"></span></span>';
+      removeStack.appendChild(removeBtn);
+
       rightDiv.appendChild(favBtn);
       rightDiv.appendChild(syncBtn);
-      rightDiv.appendChild(removeBtn);
+      rightDiv.appendChild(removeStack);
       item.appendChild(portrait);
       item.appendChild(infoDiv);
       item.appendChild(rightDiv);

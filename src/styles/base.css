@@ -655,6 +655,22 @@ input[type="range"] { accent-color: var(--accent); }
 /* ── ASSET TABLE ─────────────────────────────────────────────────────────────── */
 .asset-table                { width: 100%; border-collapse: collapse; font-size: 12px; }
 .asset-table thead th       { padding: 6px 10px; text-align: left; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+
+/* Sortable headers — a neutral ↕ hint on every column, replaced by an accent
+   ▲ / ▼ on the active sort column. Lives here (not assets.css) because assets.css
+   is not linked in index.html. A symbol font is forced because the UI font has
+   no arrow glyphs; unicode escapes avoid any file-encoding surprises. */
+.asset-table thead th[data-col-key]:not(.th-icon)        { cursor: pointer; }
+.asset-table thead th[data-col-key]:not(.th-icon):hover  { color: var(--text-1); }
+.asset-table thead th[data-col-key]:not(.th-icon)::after {
+  content: ' \2195';   /* ↕ */
+  font-family: 'Segoe UI Symbol', 'Segoe UI', 'Arial Unicode MS', sans-serif;
+  font-size: 10px;
+  color: var(--text-2);
+  opacity: 0.55;
+}
+.asset-table thead th[data-col-key]:not(.th-icon).sort-asc::after  { content: ' \25B2'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▲ */
+.asset-table thead th[data-col-key]:not(.th-icon).sort-desc::after { content: ' \25BC'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▼ */
 .asset-table tbody tr       { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
 .asset-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .asset-table tbody td       { padding: 4px 10px; vertical-align: middle; color: var(--text-1); font-size: 12px; }

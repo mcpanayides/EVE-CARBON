@@ -306,6 +306,30 @@ function registerAssetHandlers({
     return { purged, attempted, resolved };
   });
 
+  // ─── IPC: Wipe ALL assets from the local database ─────────────────────────
+  // Settings ▸ Database "Wipe Assets" action. Clears every character's SQLite
+  // assets table (incl. orphaned remnants) AND the legacy blueprints.json asset
+  // cache, so a stale/broken asset list can be rebuilt cleanly on the next sync.
+  // Deliberately leaves the structure/station name caches untouched — those are
+  // expensive to re-resolve and unaffected by bad asset rows.
+  ipcHandle('wipe-assets', async () => {
+    const result = await charInfoDb.wipeAllAssets();
+
+    // Also clear the legacy JSON asset cache (get-all-assets / dashboard fallback).
+    try {
+      const db = loadDB();
+      if (db.assets) { db.assets = {}; saveDB(db); }
+    } catch (e) {
+      console.warn('[Assets] Failed to clear legacy JSON asset cache:', e.message);
+    }
+
+    // Drop the 6-hour "synced all assets" gate so a fresh sync isn't skipped.
+    try { writeCache('sync_all_assets', { updatedAt: 0, result: null }, 0.0001); } catch (e) {}
+
+    console.log(`[Assets] Wipe complete — ${result.rows} row(s) across ${result.tables} table(s).`);
+    return result;
+  });
+
   // ─── IPC: Get saved assets for a single character (from JSON DB) ──────────
   ipcHandle('get-assets', (_, characterId) => {
     const db = loadDB();

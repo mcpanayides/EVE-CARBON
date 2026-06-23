@@ -125,6 +125,7 @@ const SCOPES         = [
   'esi-contracts.read_character_contracts.v1',  // contracts (escrow)
   'esi-location.read_location.v1',              // current solar system / station
   'esi-location.read_ship_type.v1',             // current ship type
+  'esi-universe.read_structures.v1',            // resolve player-owned structure (Citadel/Keepstar) names where the char has docking access
   'esi-planets.manage_planets.v1',              // planetary interaction colonies
   'esi-characters.read_loyalty.v1',             // loyalty points per corporation
   'esi-characters.read_standings.v1',           // NPC faction/corp standings (broker-fee reduction in trade calc)
@@ -296,6 +297,11 @@ let locator = null;
 function getLocator() {
   if (!locator) locator = createLocator({
     httpGet, readCache, writeCache, getValidToken,
+    // Every known character id. The locator falls back to OTHER characters'
+    // tokens when the owning character can't read a structure's name — any
+    // character with docking ACL (and the read_structures scope) can resolve
+    // a structure another character merely owns assets in.
+    getAllCharacterIds:     () => Object.keys(loadDB().accounts || {}),
     // Pass the shared station DB helpers so the locator checks local tables
     // before hitting any external network source (Step 0 fast-path).
     getStationById:         (...a) => charInfoDb.getStationById(...a),

@@ -22,6 +22,7 @@ const SCOPES = [
   'esi-contracts.read_character_contracts.v1',
   'esi-location.read_location.v1',
   'esi-location.read_ship_type.v1',
+  'esi-universe.read_structures.v1',            // resolve player-owned structure (Citadel/Keepstar) names where the char has docking access
   'esi-planets.manage_planets.v1',
   'esi-characters.read_loyalty.v1',
   'esi-characters.read_standings.v1',

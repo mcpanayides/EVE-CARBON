@@ -560,6 +560,32 @@
               NPC stations seed automatically on first launch. Both lists refresh every 24 hours;
               use the buttons above to force an immediate update.
             </div>
+
+            <!-- ── Asset database — wipe ───────────────────────────────────── -->
+            <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+              <div style="font-size:11px; color:var(--text-3); letter-spacing:0.1em;
+                          font-family:var(--mono); margin-bottom:8px;">ASSET DATABASE</div>
+              <div style="display:flex; align-items:flex-start; justify-content:space-between;
+                          gap:12px; flex-wrap:wrap;">
+                <div style="max-width:560px;">
+                  <div style="font-size:12px; color:var(--text-2); line-height:1.6;">
+                    Deletes every stored asset for all characters from the local database.
+                    Use this to clear stale or broken remnants — items that were moved or no
+                    longer exist but are still stuck in the list. Your assets reload
+                    automatically from ESI on the next background sync. This does not touch
+                    resolved station or structure names.
+                  </div>
+                  <div id="assetWipeStatus" style="font-size:12px; font-family:var(--mono);
+                       color:var(--text-3); margin-top:8px;"></div>
+                </div>
+                <button id="wipeAssetsBtn" class="calc-btn"
+                        style="border-color:var(--danger) !important; color:var(--danger) !important;
+                               white-space:nowrap;"
+                        onclick="wipeAssetsDatabase()">
+                  ⚠ WIPE ASSETS DATABASE
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

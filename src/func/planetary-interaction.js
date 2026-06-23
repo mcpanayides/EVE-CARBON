@@ -21,31 +21,27 @@ let _piOriginSysId   = null;
 let _piOriginSysName = '';
 const _piPinsMap     = new Map();  // planet_id → raw ESI pins[]
 
-// ─── Sync all characters' PI data then reload ────────────────────────────────
-async function syncAllPI() {
-  const btn = document.getElementById('piSyncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
-
-  if (typeof window.eveAPI.syncPI !== 'function') {
-    console.error('[PI] syncPI missing from window.eveAPI — restart the app to load the updated preload.');
-    if (btn) { btn.disabled = false; btn.textContent = '↻ Restart Required'; }
-    return;
-  }
-
-  const accounts = await window.eveAPI.getAccounts().catch(() => []);
-  const results  = await Promise.allSettled(
-    accounts.map(acc => {
+// ─── Auto-sync all characters' PI data, then re-render ───────────────────────
+// Fired on entry to the PI page (see navigateToPage). Staleness-gated to 15 min so
+// flipping back and forth doesn't re-hit ESI; no manual "Sync" button needed.
+let _piLastSync = 0;
+let _piSyncing  = false;
+async function _autoSyncPIIfStale() {
+  if (_piSyncing) return;
+  const now = Date.now();
+  if (now - _piLastSync < 15 * 60 * 1000) return;          // recently synced — skip
+  if (typeof window.eveAPI.syncPI !== 'function') return;  // preload too old
+  _piLastSync = now;
+  _piSyncing  = true;
+  try {
+    const accounts = await window.eveAPI.getAccounts().catch(() => []);
+    await Promise.allSettled((accounts || []).map(acc => {
       const charId = acc.characterId ?? acc.character_id ?? acc.id;
-      return window.eveAPI.syncPI(charId)
-        .then(count => console.log(`[PI] synced ${charId}: ${count} colonies`))
-        .catch(err  => console.warn('[PI] sync failed for', charId, err));
-    })
-  );
-
-  const failed = results.filter(r => r.status === 'rejected').length;
-  console.log(`[PI] sync complete — ${results.length} chars, ${failed} failed`);
-
-  await loadPlanetaryInteraction();
+      return window.eveAPI.syncPI(charId).catch(err => console.warn('[PI] sync failed for', charId, err));
+    }));
+  } finally { _piSyncing = false; }
+  // Re-render if the user is still on the PI page.
+  if (typeof currentPage === 'undefined' || currentPage === 'pi') loadPlanetaryInteraction();
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -206,7 +202,6 @@ function renderPIShell(container) {
         <span class="panel-count" id="piColonyCount">
           ${totalColonies} Colon${totalColonies !== 1 ? 'ies' : 'y'} &mdash; ${allChars.length} Character${allChars.length !== 1 ? 's' : ''}
         </span>
-        <button class="pi-sync-btn" id="piSyncBtn" onclick="syncAllPI()">↻ Sync</button>
       </div>
 
       <!-- Horizontal filter bar -->

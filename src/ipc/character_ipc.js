@@ -137,6 +137,37 @@ function registerCharacterHandlers({
     return { success: true };
   });
 
+  // ─── IPC: Set a multi-stop autopilot ROUTE in the active EVE client ──────────
+  // Sets each system in `systemIds` as an ordered waypoint (first one clears any
+  // existing route, the rest append). The in-game autopilot routes gate segments
+  // between them; wormhole/bridge hops aren't gate-connected, so the player flies
+  // those manually. Requires esi-ui.write_waypoint.v1 + the character logged into a
+  // running client. Returns { success, count }.
+  ipcHandle('set-autopilot-route', async (_, { characterId, systemIds }) => {
+    if (!Array.isArray(systemIds) || !systemIds.length) throw new Error('No route to send.');
+    const token   = await getValidToken(characterId);
+    const headers = { Authorization: `Bearer ${token}` };
+    const sleep   = ms => new Promise(r => setTimeout(r, ms));
+    let first = true, count = 0;
+    for (const systemId of systemIds) {
+      const url = `${ESI_BASE}/v2/ui/autopilot/waypoint/?add_to_beginning=false`
+                + `&clear_other_waypoints=${first}&destination_id=${systemId}&datasource=tranquility`;
+      const res = await fetch(url, { method: 'POST', headers });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        if (res.status === 401 || /Client could not be found|not valid for|Unauthorized/.test(body)) {
+          throw new Error(first
+            ? 'Open EVE and log in this character first (and re-auth it if waypoints were never granted).'
+            : `Set ${count} waypoint(s), then ESI errored: ${body}`);
+        }
+        throw new Error(`ESI waypoint ${res.status}: ${body}`);
+      }
+      first = false; count++;
+      await sleep(150);   // be gentle on the UI endpoint
+    }
+    return { success: true, count };
+  });
+
   // ─── IPC: Active industry jobs (ESI, no ?status=completed) ──────────────────
   // Returns jobs with status active | ready | paused — never delivered.
   // Short cache (5 min) so the progress bars stay reasonably accurate.

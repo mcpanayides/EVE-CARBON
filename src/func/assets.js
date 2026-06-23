@@ -122,9 +122,9 @@ async function loadAssets() {
 
     if (!allAssets.length) {
       if (assetTableBody) {
-        assetTableBody.innerHTML = '<tr><td colspan="10" class="loading-row">No assets found — sync a character on the Characters page first.</td></tr>';
+        assetTableBody.innerHTML = '<tr><td colspan="10" class="loading-row">No assets yet — add a character on the Characters page; data syncs automatically.</td></tr>';
       }
-      if (assetSummary) assetSummary.textContent = 'No assets synced yet — use SYNC on the Characters page.';
+      if (assetSummary) assetSummary.textContent = 'No assets yet — add a character; data syncs automatically.';
       return;
     }
 

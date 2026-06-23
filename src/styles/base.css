@@ -496,9 +496,29 @@ input[type="range"] { accent-color: var(--accent); }
 .nav-header { position: relative; flex-shrink: 0; }
 .nav-title  { font-size: 10px; letter-spacing: 0.15em; color: var(--text-2); }
 
-.nav-toggle-btn       { position: absolute; right: 0; top: 0; background: none; border: none; color: var(--text-2); cursor: pointer; font-size: 12px; padding: 2px 4px; transition: transform 0.3s ease, color 0.2s ease; }
+.nav-toggle-btn       { position: absolute; right: 0; top: 0; background: none; border: none; color: var(--text-2); cursor: pointer; font-size: 20px; padding: 2px 4px; transition: color 0.2s ease; }
 .nav-toggle-btn:hover { color: var(--accent); }
-.nav-toggle-btn.collapsed { transform: rotate(-90deg); }
+
+/* ── Material Symbols (Google icon font) ──────────────────────────────────────
+   Loaded via the Google Fonts <link> in index.html. Use:
+   <span class="material-symbols-outlined">icon_name</span> */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+.nav-icon.material-symbols-outlined { font-size: 20px; }
 
 .sidebar-nav           { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .sidebar-nav::-webkit-scrollbar       { width: 2px; }

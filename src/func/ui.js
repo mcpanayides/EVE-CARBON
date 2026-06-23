@@ -334,6 +334,9 @@ function bindNavigation() {
   const toggleBtn = document.getElementById('navToggleBtn');
   if (toggleBtn) toggleBtn.addEventListener('click', toggleNavigation);
 
+  // Reopen the sidebar in whatever state it was left in last session.
+  restoreNavCollapsed();
+
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => navigateToPage(btn.dataset.page));
   });
@@ -357,24 +360,41 @@ function bindNavigation() {
   }
 }
 
-function toggleNavigation() {
-  navCollapsed = !navCollapsed;
+const NAV_COLLAPSED_KEY = 'nav_collapsed';
+
+// Apply the collapsed/expanded state to the DOM. Shared by the toggle and the
+// startup restore so both stay in sync.
+function _applyNavCollapsed(collapsed) {
+  navCollapsed = collapsed;
   const nav       = document.getElementById('sidebarNav');
   const toggleBtn = document.getElementById('navToggleBtn');
   const sidebar   = document.querySelector('.sidebar');
-  if (navCollapsed) {
-    nav.classList.add('nav-collapsed');
+  if (collapsed) {
+    nav?.classList.add('nav-collapsed');
     // Collapse the whole column, not just the nav list, so the sidebar
     // actually narrows to icon width and the main content reflows wider.
     sidebar?.classList.add('nav-collapsed');
-    toggleBtn.classList.add('collapsed');
-    toggleBtn.textContent = '◀';
+    toggleBtn?.classList.add('collapsed');
+    if (toggleBtn) toggleBtn.textContent = 'chevron_right';   // click to expand
   } else {
-    nav.classList.remove('nav-collapsed');
+    nav?.classList.remove('nav-collapsed');
     sidebar?.classList.remove('nav-collapsed');
-    toggleBtn.classList.remove('collapsed');
-    toggleBtn.textContent = '▶';
+    toggleBtn?.classList.remove('collapsed');
+    if (toggleBtn) toggleBtn.textContent = 'chevron_left';    // click to collapse
   }
+}
+
+function toggleNavigation() {
+  _applyNavCollapsed(!navCollapsed);
+  // Remember the choice so the sidebar opens the same way next launch.
+  try { localStorage.setItem(NAV_COLLAPSED_KEY, navCollapsed ? '1' : '0'); } catch (_) {}
+}
+
+// Restore the saved collapsed/expanded state on startup (called from bindNavigation).
+function restoreNavCollapsed() {
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(NAV_COLLAPSED_KEY) === '1'; } catch (_) {}
+  if (collapsed) _applyNavCollapsed(true);
 }
 
 function navigateToPage(page) {
@@ -394,15 +414,25 @@ function navigateToPage(page) {
 
   currentPage = page;
 
+  // Keep character data fresh automatically — no manual "sync" button needed.
+  if (typeof autoSyncOnNavigate === 'function') autoSyncOnNavigate();
+
   if (page === 'characters') loadAccounts();
   if (page === 'dashboard')  loadDashboard();
   if (page === 'assets')     loadAssets();
   if (page === 'wallets')    renderWallets();
   if (page === 'industry')   initIndustryPage();
-  if (page === 'pi')         loadPlanetaryInteraction();
+  if (page === 'pi')       { loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); }
   if (page === 'jabber')     loadJabberHistory();
   if (page === 'map')        initMapPage();
   if (page === 'market')     renderMarket();
+}
+
+// Re-render the open data page after a background sync so new data shows without a
+// manual reload. Read-only renders — these must not re-trigger a sync.
+function refreshCurrentDataView() {
+  if (currentPage === 'assets'  && typeof loadAssets     === 'function') loadAssets();
+  else if (currentPage === 'wallets' && typeof renderWallets === 'function') renderWallets();
 }
 
 // ─── Nav Status Lights ────────────────────────────────────────────────────────

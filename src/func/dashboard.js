@@ -79,9 +79,27 @@ async function autoRefreshStaleCharacters(accounts) {
     // Reload dashboard data after background refreshes are done
     logToConsole('Auto-refresh complete.', 'success');
 
+    // Re-render whatever data page is open so freshly-synced data appears without
+    // any manual reload (assets/wallets read straight from the just-updated CharDB).
+    if (typeof refreshCurrentDataView === 'function') refreshCurrentDataView();
+
   } finally {
     _autoRefreshRunning = false;
   }
+}
+
+// Throttled entry point fired on every page navigation (see navigateToPage). Keeps
+// character data fresh in the background with no manual "sync" button — the per-
+// character 30-min staleness gate (and 6-h assets gate inside the sync) mean this
+// rarely actually hits ESI.
+let _lastAutoSyncScan = 0;
+function autoSyncOnNavigate() {
+  const now = Date.now();
+  if (now - _lastAutoSyncScan < 60 * 1000) return;   // scan at most once a minute
+  _lastAutoSyncScan = now;
+  window.eveAPI.getAccounts()
+    .then(accounts => { if (accounts && accounts.length) return autoRefreshStaleCharacters(accounts); })
+    .catch(() => {});
 }
 
 function renderDashboardPing(ping) {

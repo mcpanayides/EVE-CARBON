@@ -75,6 +75,7 @@ let _whConns     = null;   // raw EvE-Scout connection list (metadata for the ro
 let _whLoaded    = false;
 let _pochvenRegionId;      // region id for Pochven (Triglavian) — drawn as triangles
 let _sgLastPath  = null;   // last Stargate-planner route (for minimise redraw)
+let _sgAltRoutes = null;   // last computed alternative routes [{path,cost},…]
 let _sgNameIndex = null;   // lowercase system name → id (planner autocomplete)
 let _youHereId       = null;   // current character's system id ("you are here")
 
@@ -1495,9 +1496,11 @@ function _mapHeap() {
 }
 
 // Core gate pathfinder, shared by the right-click route and the Stargate Planner.
-// opts: { mode:'safest'|'shortest', avoidLow, avoidNull, avoidRed }. Returns the
-// ordered system-id path, or null if unreachable. Endpoints are never filtered out.
-function _travelRoutePath(startId, endId, opts = {}) {
+// opts: { mode:'safest'|'shortest', avoidLow, avoidNull, avoidRed, useBridges,
+// useWormholes }. removedNodes / removedEdges (Sets; edges keyed "from>to") let
+// Yen's k-shortest carve out alternatives. Returns { path, cost } or null.
+// Endpoints are never filtered out.
+function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedEdges = null) {
   if (!_sysById[startId] || !_sysById[endId]) return null;
   _ensureGateAdj();
   const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, useBridges = false, useWormholes = false } = opts;
@@ -1511,13 +1514,15 @@ function _travelRoutePath(startId, endId, opts = {}) {
     if (done.has(id)) continue;
     done.add(id);
     if (id === endId) break;
-    // Gates + (optionally) Ansiblex bridges form one network — the router picks
-    // the cheapest mix, so a bridge replaces a long gate burn when it's listed.
+    // Gates + (optionally) Ansiblex bridges + wormholes form one network — the
+    // router picks the cheapest mix.
     const neighbours = (_gateAdj.get(id) || [])
       .concat(useBridges   && _bridgeAdj ? (_bridgeAdj.get(id) || []) : [])
       .concat(useWormholes && _whAdj     ? (_whAdj.get(id)     || []) : []);
     for (const to of neighbours) {
       if (done.has(to)) continue;
+      if (removedNodes && removedNodes.has(to)) continue;
+      if (removedEdges && removedEdges.has(id + '>' + to)) continue;
       const toSys = _sysById[to];
       if (!toSys) continue;
       if (to !== endId) {
@@ -1535,7 +1540,60 @@ function _travelRoutePath(startId, endId, opts = {}) {
   const path = [endId];
   let cur = endId;
   while (cur !== startId) { const p = prev.get(cur); if (p == null) break; path.unshift(p); cur = p; }
-  return path;
+  if (path[0] !== startId) return null;
+  return { path, cost: dist.get(endId) || 0 };
+}
+
+function _travelRoutePath(startId, endId, opts = {}) {
+  const r = _routeDijkstra(startId, endId, opts);
+  return r ? r.path : null;
+}
+
+// Total routing cost of an explicit path (matches _routeDijkstra's edge weights).
+function _pathCost(path, opts) {
+  if ((opts.mode || 'safest') === 'shortest') return path.length - 1;
+  let c = 0;
+  for (let i = 1; i < path.length; i++) { const s = _sysById[path[i]]; c += s ? _travelSafetyCost(s) : 1; }
+  return c;
+}
+
+// Up to K shortest loopless routes (Yen's algorithm) for the Stargate Planner's
+// "alternative routes". Returns [{ path, cost }, …] best-first.
+function _kShortestRoutes(startId, endId, opts = {}, K = 3) {
+  const first = _routeDijkstra(startId, endId, opts);
+  if (!first) return [];
+  const A = [first], B = [];
+  const keyOf = p => p.join(',');
+  const seen = new Set([keyOf(first.path)]);
+
+  for (let k = 1; k < K; k++) {
+    const prevPath = A[k - 1].path;
+    for (let i = 0; i < prevPath.length - 1; i++) {
+      const spurNode = prevPath[i];
+      const rootPath = prevPath.slice(0, i + 1);
+      const removedEdges = new Set(), removedNodes = new Set();
+      // Block the edge each accepted path takes after this shared root, so the spur
+      // diverges; drop the root's earlier nodes to keep the result loopless.
+      for (const p of A) {
+        const pp = p.path;
+        if (pp.length > i + 1 && rootPath.every((n, idx) => pp[idx] === n)) {
+          removedEdges.add(pp[i] + '>' + pp[i + 1]);
+        }
+      }
+      for (let j = 0; j < rootPath.length - 1; j++) removedNodes.add(rootPath[j]);
+
+      const spur = _routeDijkstra(spurNode, endId, opts, removedNodes, removedEdges);
+      if (spur) {
+        const total = rootPath.slice(0, -1).concat(spur.path);
+        const kk = keyOf(total);
+        if (!seen.has(kk)) { B.push({ path: total, cost: _pathCost(total, opts) }); seen.add(kk); }
+      }
+    }
+    if (!B.length) break;
+    B.sort((a, b) => a.cost - b.cost || a.path.length - b.path.length);
+    A.push(B.shift());
+  }
+  return A;
 }
 
 async function _computeTravelRoute() {
@@ -1727,6 +1785,10 @@ function _sgBuildModal() {
             <label class="jp-check"><input type="checkbox" id="sgAvoidRed"> Avoid red (−5 / −10)</label>
           </div>
           <button id="sgPlotBtn" class="calc-btn" style="width:100%;margin-top:6px;">PLOT ROUTE</button>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button id="sgSendGameBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Set this route as autopilot waypoints in your running EVE client">📡 Send to game</button>
+            <button id="sgAltBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Show up to 3 alternative routes">⎇ Alternatives</button>
+          </div>
           <div class="jp-range-note" id="sgNote">Safest prefers your sov, blues and hi-sec; drops to neutral, low-sec, then red only if needed.</div>
         </div>
         <div class="jp-result" id="sgResult">
@@ -1739,6 +1801,8 @@ function _sgBuildModal() {
   m.querySelector('.sg-close').addEventListener('click', _sgClose);
   m.querySelector('.sg-min').addEventListener('click', _sgMinimize);
   m.querySelector('#sgPlotBtn').addEventListener('click', _sgPlotAndShow);
+  m.querySelector('#sgSendGameBtn').addEventListener('click', _sgSendToGame);
+  m.querySelector('#sgAltBtn').addEventListener('click', _sgShowAlternatives);
   m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlotAndShow(); } });
   // Auto re-plot whenever any option (or From/To) changes.
   ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
@@ -1804,6 +1868,95 @@ async function _sgPlot() {
 async function _sgPlotAndShow() {
   const path = await _sgPlot();
   if (path && path.length > 1) _sgMinimize();
+}
+
+// Resolve the in-game character (selected → favourite → first).
+async function _sgPickChar() {
+  const accounts = (await window.eveAPI.getAccounts().catch(() => [])) || [];
+  if (typeof selectedCharacterId !== 'undefined' && selectedCharacterId &&
+      accounts.some(a => String(a.characterId) === String(selectedCharacterId))) return selectedCharacterId;
+  try {
+    const favs = JSON.parse(localStorage.getItem('char_favorites') || '[]');
+    const fav = (Array.isArray(favs) ? favs : []).map(String)
+      .find(f => accounts.some(a => String(a.characterId) === f));
+    if (fav) return fav;
+  } catch (_) {}
+  return accounts[0]?.characterId || null;
+}
+
+// "📡 Send to game": push the plotted route into the running EVE client as ordered
+// autopilot waypoints (k-space systems only — the client can't route to w-space).
+async function _sgSendToGame() {
+  if (!_sgLastPath || _sgLastPath.length < 2) { if (typeof showToast === 'function') showToast('Plot a route first.', 'error'); return; }
+  const ids = _sgLastPath.filter(id => id < 31000000);   // skip Thera / J-space
+  if (!ids.length) { if (typeof showToast === 'function') showToast('No k-space systems to set as waypoints.', 'error'); return; }
+  const cid = await _sgPickChar();
+  if (!cid) { if (typeof showToast === 'function') showToast('No character — add one on the Characters page.', 'error'); return; }
+
+  const btn = document.getElementById('sgSendGameBtn');
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = `Sending ${ids.length}…`; }
+  try {
+    const res = await window.eveAPI.setAutopilotRoute(cid, ids);
+    if (typeof showToast === 'function') {
+      _ensureGateAdj();
+      const hadWh = _sgLastPath.some((id, i) => i > 0 && !((_gateAdj.get(_sgLastPath[i - 1]) || []).includes(id)));
+      showToast(`Sent ${res.count} waypoints to EVE.${hadWh ? ' Wormhole/bridge hops aren’t auto-flown — jump those manually.' : ''}`, 'success');
+    }
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.message || 'Could not set waypoints.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+
+// "⎇ Alternatives": compute up to 3 shortest distinct routes (Yen's) and show them
+// as selectable chips above the route table.
+async function _sgShowAlternatives() {
+  const result = document.getElementById('sgResult');
+  const from = _sgResolve(document.getElementById('sgFrom').value);
+  const to   = _sgResolve(document.getElementById('sgTo').value);
+  if (!from || !to || from.id === to.id) { if (typeof showToast === 'function') showToast('Pick a valid start and destination first.', 'error'); return; }
+
+  if (!_fnfLoaded) await _loadFnfStandings();
+  const useWh = document.getElementById('sgUseWh').checked;
+  if (useWh && !_whLoaded) await _loadWormholes();
+  const opts = {
+    mode:         document.getElementById('sgMode').value,
+    avoidLow:     document.getElementById('sgAvoidLow').checked,
+    avoidNull:    document.getElementById('sgAvoidNull').checked,
+    avoidRed:     document.getElementById('sgAvoidRed').checked,
+    useBridges:   document.getElementById('sgUseBridges').checked,
+    useWormholes: useWh,
+  };
+  if (result) result.innerHTML = `<div class="jp-empty">Finding alternative routes…</div>`;
+  await new Promise(r => setTimeout(r, 20));   // let the message paint
+  const routes = _kShortestRoutes(from.id, to.id, opts, 3);
+  if (!routes.length) { if (result) result.innerHTML = `<div class="jp-empty jp-err">No route found.</div>`; return; }
+  _sgAltRoutes = routes;
+  _sgRenderAlternatives(opts, 0);
+}
+
+// Render the selected alternative (table + map) with a chip selector on top.
+function _sgRenderAlternatives(opts, idx) {
+  if (!_sgAltRoutes || !_sgAltRoutes[idx]) return;
+  _sgRenderRoute(_sgAltRoutes[idx].path, opts);
+  const result = document.getElementById('sgResult');
+  if (!result) return;
+  const chips = document.createElement('div');
+  chips.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;';
+  chips.innerHTML = _sgAltRoutes.map((r, i) => {
+    const sel = i === idx;
+    return `<button data-alt="${i}" style="flex:1;min-width:84px;padding:6px;font-size:11px;cursor:pointer;border-radius:6px;`
+      + `border:1px solid ${sel ? 'var(--accent,#60c8ff)' : 'var(--border,#2a3450)'};`
+      + `background:${sel ? 'rgba(96,200,255,0.15)' : 'transparent'};color:var(--text-1,#cdd6e6);">`
+      + `Route ${i + 1}<br><span style="opacity:.7;">${r.path.length - 1} jumps</span></button>`;
+  }).join('');
+  result.prepend(chips);
+  chips.querySelectorAll('[data-alt]').forEach(b =>
+    b.addEventListener('click', () => _sgRenderAlternatives(opts, Number(b.dataset.alt))));
+  // Reflect the selected alternative on the map (don't re-fit while comparing).
+  if (typeof window.mapShowRoute === 'function') window.mapShowRoute(_sgAltRoutes[idx].path, [], false);
 }
 
 function _sgRenderRoute(path, opts) {

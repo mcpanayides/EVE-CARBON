@@ -7,8 +7,8 @@
     <div>
       <h2>Assets</h2>
       <div class="page-description">
-        Loaded instantly from your local database — no ESI call.
-        Sync characters on the Characters page to refresh.
+        Loaded instantly from your local database and kept up to date automatically
+        in the background.
       </div>
     </div>
     <button class="close-page-btn" onclick="closePage('assets')">✕</button>
@@ -50,11 +50,6 @@
               title="Re-resolve structures showing as 'No structure found' or 'Structure {id}'"
               style="padding:7px 14px; font-size:12px;">
         ⚲ RESOLVE NAMES
-      </button>
-
-      <button class="icon-btn" onclick="loadAssets()"
-              title="Reload from local DB" style="padding:7px 14px; font-size:12px;">
-        ⟳ RELOAD
       </button>
     </div>
 
@@ -98,7 +93,7 @@
         <tbody>
           <tr>
             <td colspan="10" class="loading-row">
-              No assets loaded yet — sync a character on the Characters page first.
+              No assets loaded yet — add a character on the Characters page; data syncs automatically.
             </td>
           </tr>
         </tbody>

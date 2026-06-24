@@ -337,7 +337,12 @@ function bindNavigation() {
   // Reopen the sidebar in whatever state it was left in last session.
   restoreNavCollapsed();
 
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  // Only the buttons that map to a page get the navigation handler. The bottom
+  // action buttons (Bug Report, Settings, Donate, About) are also .nav-btn but
+  // have no data-page — binding navigateToPage to them would call it with
+  // undefined, which blanks the page and (because their data-page is undefined)
+  // marks every one of them .active (red). They keep their own onclick handlers.
+  document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
     btn.addEventListener('click', () => navigateToPage(btn.dataset.page));
   });
 
@@ -398,6 +403,11 @@ function restoreNavCollapsed() {
 }
 
 function navigateToPage(page) {
+  // Guard against being called with no target (e.g. a .nav-btn without a
+  // data-page). Bailing here keeps a real page selected instead of blanking the
+  // view and lighting up every page-less button as .active.
+  if (!page) return;
+
   const mainLibrary = document.getElementById('mainLibraryView');
   if (mainLibrary) mainLibrary.style.display = 'none';
 

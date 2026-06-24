@@ -559,6 +559,10 @@ input[type="range"] { accent-color: var(--accent); }
 /* ── COLLAPSED SIDEBAR MODE ── */
 .sidebar-nav.nav-collapsed .nav-label          { display: none; }
 .sidebar-nav.nav-collapsed .nav-status         { display: none; }
+/* Forums puts its status dot directly on the button (not wrapped in .nav-status
+   like Jabber), so hide it too when collapsed — otherwise it offsets the icon
+   to the left of centre. */
+.sidebar-nav.nav-collapsed .nav-btn > .status-light { display: none; }
 .sidebar-nav.nav-collapsed .nav-active-char-name { display: none; } /* hide name, keep portrait */
 .sidebar-nav.nav-collapsed .nav-btn            { justify-content: center; padding: 8px 6px; }
 .sidebar-nav.nav-collapsed .nav-icon           { min-width: auto; }

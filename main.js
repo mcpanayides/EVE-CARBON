@@ -622,6 +622,7 @@ app.whenReady().then(async () => {
     getValidToken,
     httpGet,
     httpGetFull,
+    httpPost,
     resolveNames,
     getLocator,
     loadDB,

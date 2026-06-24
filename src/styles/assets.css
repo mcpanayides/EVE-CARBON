@@ -359,6 +359,31 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
   text-overflow: ellipsis;
 }
 
+/* Ship/container disclosure triangle for fitted/contained items */
+.asset-ship-chevron {
+  display: inline-block;
+  width: 12px;
+  margin-right: 4px;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 9px;
+  user-select: none;
+}
+.asset-ship-chevron:hover { color: var(--accent); }
+
+/* "⊞ N" badge on a ship/container showing how many items it holds */
+.asset-fit-badge {
+  color: var(--text-3);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+
+/* Dimmed type name shown after a custom item name, e.g. "Snowbird (Gnosis)" */
+.asset-typename-dim {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
 /* Quantity cell */
 .asset-item-qty-cell {
   padding: 5px 10px !important;

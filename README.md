@@ -69,10 +69,11 @@ For developers who want to build or contribute:
 
 
 🤝 Special Thanks
-   - 🤝Fuzzworks for without Steve none of this would be possible
-   - 🤝Adam4EVE  - Station Name resolutions
-   - 🤝EVE Rift for making an incredible app, and giving me many ideas and tonnes of inspiration 
-   - 🤝EVE Online [Fenris Creations] for making an incredible game, and giving the power to the people to build all the amazing tools
-   - 🩷Built with blood sweat tears 😭😭, and lots of Claude code...
+   🤝 Fuzzworks for without Steve none of this would be possible
+   🤝 Adam4EVE  - Station Name resolutions
+   🤝 EVE Rift for making an incredible app, and giving me many ideas and tonnes of inspiration 
+   🤝 EVE Online [Fenris Creations] for making an incredible game, and giving the power to the people to build all the amazing tools
+   🤝 Nikita Manaenkov - Serveral tweaks and security updates.
+   🩷 Built with blood sweat tears 😭😭, and lots of Claude code...
 
 

@@ -165,6 +165,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Salvage Calculator
   salvageGetRigData:   ()       => ipcRenderer.invoke('salvage-get-rig-data'),
 
+  // Reactions Profit — all reaction formulas + materials from the SDE
+  reactionsList:       ()       => ipcRenderer.invoke('reactions-list'),
+
   // Updater
   updaterCheck:               ()    => ipcRenderer.invoke('updater-check'),
   updaterOpenDownload:        (url) => ipcRenderer.invoke('updater-open-download', url),

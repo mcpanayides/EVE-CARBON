@@ -27,6 +27,7 @@ function registerAssetHandlers({
   getValidToken,
   httpGet,
   httpGetFull,
+  httpPost,
   resolveNames,
   getLocator,
   loadDB,
@@ -104,6 +105,39 @@ function registerAssetHandlers({
     // the 12-hour stale sync keeps the DB current, not just blueprints.json.
     await charInfoDb.ensureCharacterTables(characterId);
     await charInfoDb.replaceAssets(characterId, assets);
+
+    // ── Custom item names (ships, named containers, asset-safety wraps) ───────
+    // ESI POST /assets/names/ returns the character's own custom item names.
+    // Stored in a side table and joined back by getCharacterAssets() to label
+    // ships ("Snowbird") and unresolved container locations ("BOVRIL- DO NOT
+    // USE"). Only nameable items (singletons: assembled ships/containers) are
+    // sent; un-named items come back as "None" and are dropped.
+    try {
+      const nameable = [...new Set(allAssets.filter(a => a.is_singleton).map(a => a.item_id))];
+      const customNames = [];
+      for (let i = 0; i < nameable.length; i += 1000) {
+        const chunk = nameable.slice(i, i + 1000);
+        try {
+          const res = await httpPost(
+            `${ESI_BASE}/v1/characters/${characterId}/assets/names/?datasource=tranquility`,
+            chunk, authHdr
+          );
+          if (Array.isArray(res)) {
+            for (const r of res) {
+              if (r && r.item_id && r.name && r.name !== 'None') {
+                customNames.push({ item_id: r.item_id, name: r.name });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[AssetSync] assets/names chunk failed: ${e.message}`);
+        }
+      }
+      await charInfoDb.replaceAssetNames(characterId, customNames);
+      console.log(`[AssetSync] Stored ${customNames.length} custom item name(s) for ${characterId}.`);
+    } catch (e) {
+      console.warn(`[AssetSync] custom-name fetch failed: ${e.message}`);
+    }
 
     // ── Re-resolve any locations that came back null ───────────────────────────
     // Some Upwell structures fail on first pass (401, Hammertime miss, etc.).

@@ -32,12 +32,33 @@ async function _ensureMarketPrices() {
 function assetUnitPrice(typeId, isBpc) {
   const bp = String(isBpc); // normalise 1/'1', 0/'0', null/''/undefined
   if (bp === '1') return 0.01;
+  // Capital hulls with no real open market (supers/titans, faction dreads) use an
+  // authoritative default that overrides any stray/lowball market order.
+  const def = assetDefaultValue(typeId);
+  if (def > 0) return def;
   if (bp === '0') {
     const m = (marketPriceCache && marketPriceCache[typeId]) || {};
     return m.adjusted || m.average || 0;
   }
   const e = priceCache[typeId] || {};
   return e.sell || e.buy || 0;
+}
+
+// Capital hulls that can't be sold on the open market show 0 ISK from every
+// price source, so we substitute a sensible default by hull group. Pirate-
+// faction variants (metaGroup 4 in the SDE) are valued higher than standard.
+// Standard dreadnoughts DO have a market price, so only faction dreads default.
+const ASSET_DEFAULT_VALUE = {
+  Titan:        { standard: 165e9, faction: 300e9 },
+  Supercarrier: { standard:  50e9, faction: 150e9 },
+  Dreadnought:  { standard:     0, faction:  30e9 },
+};
+function assetDefaultValue(typeId) {
+  const md = typeMetaCache[typeId];
+  if (!md) return 0;                       // metadata not loaded yet
+  const tier = ASSET_DEFAULT_VALUE[md.group];
+  if (!tier) return 0;
+  return md.metaGroup === 4 ? tier.faction : tier.standard;
 }
 
 // Format an ISK total: whole numbers for ≥1, two decimals for sub-1 values so a
@@ -308,13 +329,14 @@ function filterAssets() {
     if (corpVal && (asset.owner_name || '') !== corpVal) return false;
     if (searchVal) {
       const name     = (asset.name     || asset.type_name || '').toLowerCase();
+      const custom   = (asset.custom_name  || '').toLowerCase();
       const location = (asset.location_name || '').toLowerCase();
       const corp     = (asset.owner_name    || '').toLowerCase();
       const region   = (asset.region_name   || '').toLowerCase();
       const sys      = (asset.solar_system_name || '').toLowerCase();
-      if (!name.includes(searchVal) && !location.includes(searchVal) &&
-          !corp.includes(searchVal) && !region.includes(searchVal) &&
-          !sys.includes(searchVal)) return false;
+      if (!name.includes(searchVal) && !custom.includes(searchVal) &&
+          !location.includes(searchVal) && !corp.includes(searchVal) &&
+          !region.includes(searchVal) && !sys.includes(searchVal)) return false;
     }
     return true;
   });
@@ -487,6 +509,7 @@ function renderAssetTree() {
       locMap.set(locKey, {
         key:             locKey,
         locationName:    label,
+        unresolved:      !named,   // no real station/structure name resolved
         solarSystemName: sysName,
         regionName:      asset.region_name       || '',
         secStatus:       asset.security_status,
@@ -539,13 +562,39 @@ function renderAssetTree() {
     else _updateAssetPriceCells();
   });
   _ensureTypeMeta(sourceTypeIds).then(() => {
-    if (!metaWasComplete && sortNeeds(['group', 'category', 'slot', 'meta', 'tech'])) renderAssetTree();
-    else _updateAssetMetaCells();
+    // Re-render if a sort column needs the freshly-loaded metadata, OR if any
+    // unresolved location's Customs-Office/Skyhook label depends on the now-
+    // available item categories. metaWasComplete guards against a render loop.
+    // 'price' is included because capital default values key off the hull group.
+    const needReRender = !metaWasComplete &&
+      (sortNeeds(['group', 'category', 'slot', 'meta', 'tech', 'price']) || locations.some(l => l.unresolved));
+    if (needReRender) renderAssetTree();
+    else { _updateAssetMetaCells(); _updateAssetPriceCells(); }
   });
 
   if (typeof window._assetCharState === 'undefined') window._assetCharState = {};
 
   const frag = document.createDocumentFragment();
+
+  // Customs Office / Skyhook detection: a location we couldn't name whose
+  // contents are (mostly) Planetary Commodities/Resources is almost certainly a
+  // POCO or an Orbital Skyhook — the only things that hold PI out in space. We
+  // can't pin its exact celestial without the corp customs-offices scope, but we
+  // can at least say WHAT it is instead of a raw "Location {id}". Junk-loot
+  // structures (non-PI contents) don't match, so they're never mislabelled.
+  // Needs typeMetaCache; on first paint it may be empty — the metadata-load
+  // handler above re-renders once it arrives.
+  const _isPiLocation = (loc) => {
+    let total = 0, pi = 0;
+    for (const ch of loc.charMap.values()) {
+      for (const it of ch.items) {
+        total++;
+        const cat = typeMetaCache[it.type_id]?.category;
+        if (cat && cat.startsWith('Planetary')) pi++;
+      }
+    }
+    return total > 0 && (pi / total) >= 0.6;
+  };
 
   locations.forEach((loc, li) => {
     // Sec status badge
@@ -560,6 +609,15 @@ function renderAssetTree() {
     }
     const subtitle = [loc.solarSystemName, loc.regionName].filter(Boolean).join(' · ');
 
+    // Relabel unresolved PI-bearing locations (POCOs / Skyhooks). The system, if
+    // we have one, still rides along in the subtitle below.
+    let displayName = loc.locationName;
+    if (loc.unresolved && _isPiLocation(loc)) {
+      displayName = loc.solarSystemName
+        ? 'Customs Office / Skyhook'
+        : 'Customs Office / Skyhook — system unknown';
+    }
+
     // ── Location header row ────────────────────────────────────────────────
     const locTr = document.createElement('tr');
     locTr.className = 'asset-group-header asset-loc-header';
@@ -569,7 +627,7 @@ function renderAssetTree() {
         <div class="asset-group-inner">
           <span class="asset-group-chevron"></span>
           ${secStr ? `<span class="asset-group-sec" style="color:${secColor}">${secStr}</span>` : ''}
-          <span class="asset-group-location">${escHtml(loc.locationName)}</span>
+          <span class="asset-group-location">${escHtml(displayName)}</span>
           ${subtitle ? `<span class="asset-group-subtitle">· ${escHtml(subtitle)}</span>` : ''}
           <span class="asset-group-spacer"></span>
           <span class="asset-group-count">${loc.count.toLocaleString()} item${loc.count !== 1 ? 's' : ''}</span>
@@ -606,12 +664,29 @@ function renderAssetTree() {
         </td>`;
       frag.appendChild(charTr);
 
-      // ── Item rows (sorted by the active column within this character) ──
-      const sorted = [...ch.items].sort(_compareAssetItems);
+      // ── Item rows: nest fitted/contained items under their ship/container ───
+      // ESI gives a flat list; an item's location_id points at its immediate
+      // parent. Within a character, items whose parent is ANOTHER of their own
+      // items (a ship or container) are nested under it — so a fighter support
+      // unit shows under the Nyx it's fitted to, not loose in the hangar.
+      const itemById   = new Map(ch.items.map(it => [it.item_id, it]));
+      const childrenOf = new Map();
+      const roots      = [];
+      for (const it of ch.items) {
+        const parent = it.location_id != null ? itemById.get(it.location_id) : null;
+        if (parent && parent !== it) {
+          if (!childrenOf.has(it.location_id)) childrenOf.set(it.location_id, []);
+          childrenOf.get(it.location_id).push(it);
+        } else {
+          roots.push(it);
+        }
+      }
 
-      for (const asset of sorted) {
+      const buildItemRow = (asset, depth, shipKey, toggleKey, childCount) => {
         const qty      = asset.quantity || 1;
         const itemName = asset.name || asset.type_name || `Type ${asset.type_id}`;
+        // Custom ship/container name (e.g. "Snowbird") shown ahead of the type.
+        const customName = asset.custom_name && asset.custom_name !== itemName ? asset.custom_name : '';
         const vol      = asset.volume != null ? Number(asset.volume).toFixed(2) : '—';
 
         const iconHtml = asset.type_id
@@ -621,7 +696,7 @@ function renderAssetTree() {
         const md         = typeMetaCache[asset.type_id];
         const grp        = md ? (md.group || '')    : '';
         const cat        = md ? (md.category || '') : '';
-        const slot       = md ? (md.slot || '')     : '';
+        const slotTxt    = md ? (md.slot || '')     : '';
         const metaTxt    = md ? (md.metaLevel != null ? String(md.metaLevel) : 'None') : '';
         const techTxt    = md ? (md.techLevel != null ? String(md.techLevel) : 'None') : '';
 
@@ -637,14 +712,27 @@ function renderAssetTree() {
         itemTr.dataset.typeId   = asset.type_id  || '';
         itemTr.dataset.quantity = qty;
         itemTr.dataset.isBpc    = asset.is_bpc != null ? String(asset.is_bpc) : '';
+        if (shipKey)   itemTr.dataset.shipKey    = shipKey;    // nested → hides with its ship
+        if (toggleKey) itemTr.dataset.shipToggle = toggleKey;  // this row IS a ship/container header
+
+        const indent  = 24 + depth * 18;  // 24px matches the cell's default left pad
+        const chevron = toggleKey
+          ? `<span class="asset-ship-chevron" title="Show/hide contents">▶</span>`
+          : '';
+        const contains = childCount > 0
+          ? ` <span class="asset-fit-badge" title="${childCount} fitted / contained item${childCount !== 1 ? 's' : ''}">⊞ ${childCount}</span>`
+          : '';
+        const nameInner = customName
+          ? `${escHtml(customName)} <span class="asset-typename-dim">(${escHtml(itemName)})</span>`
+          : escHtml(itemName);
 
         itemTr.innerHTML = `
           <td class="asset-item-icon-cell"     data-col-key="icon">${iconHtml}</td>
-          <td class="asset-item-name-cell"     data-col-key="name">${escHtml(itemName)}</td>
+          <td class="asset-item-name-cell"     data-col-key="name" style="padding-left:${indent}px !important;">${chevron}${nameInner}${contains}</td>
           <td class="asset-item-qty-cell"      data-col-key="qty">${qty > 1 ? qty.toLocaleString() : ''}</td>
           <td class="asset-item-group-cell"    data-col-key="group">${escHtml(grp)}</td>
           <td class="asset-item-category-cell" data-col-key="category">${escHtml(cat)}</td>
-          <td class="asset-item-slot-cell"     data-col-key="slot">${escHtml(slot)}</td>
+          <td class="asset-item-slot-cell"     data-col-key="slot">${escHtml(slotTxt)}</td>
           <td class="asset-item-vol-cell"      data-col-key="vol">${vol}</td>
           <td class="asset-item-meta-cell"     data-col-key="meta">${escHtml(metaTxt)}</td>
           <td class="asset-item-tech-cell"     data-col-key="tech">${escHtml(techTxt)}</td>
@@ -652,9 +740,27 @@ function renderAssetTree() {
               data-type-id="${asset.type_id || ''}"
               data-quantity="${qty}"
               data-is-bpc="${asset.is_bpc != null ? asset.is_bpc : ''}">${priceText}</td>`;
-
         frag.appendChild(itemTr);
-      }
+      };
+
+      // DFS — every descendant of a top-level ship/container shares that ship's
+      // collapse key so the whole fit toggles as one unit. Guards against cycles.
+      const seen = new Set();
+      const emit = (asset, depth, topKey) => {
+        if (seen.has(asset.item_id)) return;
+        seen.add(asset.item_id);
+        const kids = (childrenOf.get(asset.item_id) || []).sort(_compareAssetItems);
+        let myShipKey = topKey;
+        let toggleKey = null;
+        if (depth === 0 && kids.length) {
+          toggleKey = `${charKey}|ship|${asset.item_id}`;
+          myShipKey = null;       // a top-level container header isn't hidden by itself
+          topKey    = toggleKey;  // its descendants collapse under this key
+        }
+        buildItemRow(asset, depth, myShipKey, toggleKey, kids.length);
+        for (const kid of kids) emit(kid, depth + 1, topKey);
+      };
+      for (const root of roots.sort(_compareAssetItems)) emit(root, 0, null);
     });
   });
 
@@ -677,6 +783,7 @@ function renderAssetTree() {
 // nesting can't desync the way a sibling-walk would.
 if (typeof window._assetGroupState === 'undefined') window._assetGroupState = {};
 if (typeof window._assetCharState  === 'undefined') window._assetCharState  = {};
+if (typeof window._assetShipState  === 'undefined') window._assetShipState  = {};
 
 function _applyAssetVisibility() {
   const tbody = document.querySelector('#assetTable tbody');
@@ -684,6 +791,7 @@ function _applyAssetVisibility() {
 
   const locOpen  = (k) => window._assetGroupState[k] === true; // default closed
   const charOpen = (k) => window._assetCharState[k]  === true; // default closed
+  const shipOpen = (k) => window._assetShipState[k]  === true; // default closed (fits hidden)
 
   // Set display inline with !important rather than via a CSS class — inline
   // !important sits at the top of the cascade, so nothing (theme rules, the
@@ -703,7 +811,13 @@ function _applyAssetVisibility() {
     if (chev) chev.textContent = charOpen(h.dataset.charKey) ? '▼' : '▶';
   });
   tbody.querySelectorAll('tr.asset-item-row').forEach(r => {
-    show(r, locOpen(r.dataset.locKey) && charOpen(r.dataset.charKey));
+    let visible = locOpen(r.dataset.locKey) && charOpen(r.dataset.charKey);
+    if (r.dataset.shipKey) visible = visible && shipOpen(r.dataset.shipKey); // hide fits of a collapsed ship
+    show(r, visible);
+    if (r.dataset.shipToggle) {
+      const chev = r.querySelector('.asset-ship-chevron');
+      if (chev) chev.textContent = shipOpen(r.dataset.shipToggle) ? '▼' : '▶';
+    }
   });
 }
 
@@ -716,6 +830,17 @@ function _bindAssetCollapse() {
   if (!tbody || tbody._collapseBound) return;
   tbody._collapseBound = true;
   tbody.addEventListener('click', (e) => {
+    // Ship/container disclosure: toggle just this fit, not the whole character.
+    const shipChev = e.target.closest('.asset-ship-chevron');
+    if (shipChev) {
+      const row = shipChev.closest('tr.asset-item-row');
+      const k   = row && row.dataset.shipToggle;
+      if (k) {
+        window._assetShipState[k] = !(window._assetShipState[k] === true);
+        _applyAssetVisibility();
+      }
+      return;
+    }
     const charH = e.target.closest('tr.asset-char-header');
     if (charH) {
       const k = charH.dataset.charKey;

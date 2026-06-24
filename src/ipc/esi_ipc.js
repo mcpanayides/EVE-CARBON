@@ -267,6 +267,88 @@ function registerEsiHandlers({
     }
   });
 
+  // ─── IPC: Reaction formulas list (SDE) ───────────────────────────────────
+  // Returns every reaction formula (activityID 11) with its product and the
+  // full input-material list, volumes included — everything the Reactions
+  // Profit calculator needs in a single round-trip. Result is cached in-memory
+  // (bpCache) since the SDE only changes on update.
+  //
+  // Shape: [{
+  //   formulaTypeId, formulaName,
+  //   productTypeId, productName, productQty, productVolume, groupName,
+  //   materials: [{ typeId, name, quantity, volume }]
+  // }]
+  ipcHandle('reactions-list', async () => {
+    if (bpCache.__reactionsList) return bpCache.__reactionsList;
+
+    const sdeDb = getSdeDb();
+    if (!sdeDb) return [];
+
+    // 1. All reaction formulas + their products
+    let formulaRows = [];
+    try {
+      formulaRows = await sdeDb.all(
+        `SELECT iap.typeID        AS formulaTypeId,
+                iap.productTypeID AS productTypeId,
+                iap.quantity      AS productQty,
+                bt.typeName       AS formulaName,
+                pt.typeName       AS productName,
+                pt.volume         AS productVolume,
+                g.groupName       AS groupName
+           FROM industryActivityProducts iap
+           JOIN invTypes  bt ON bt.typeID  = iap.typeID
+           JOIN invTypes  pt ON pt.typeID  = iap.productTypeID
+           LEFT JOIN invGroups g ON g.groupID = pt.groupID
+          WHERE iap.activityID = 11
+            AND bt.published = 1
+          ORDER BY bt.typeName`
+      );
+    } catch (e) {
+      console.warn('[reactions-list] formula query failed:', e.message);
+      return [];
+    }
+    if (!formulaRows.length) return [];
+
+    // 2. All reaction input materials in one query, grouped by formula
+    const matsByFormula = {};
+    try {
+      const matRows = await sdeDb.all(
+        `SELECT m.typeID         AS formulaTypeId,
+                m.materialTypeID AS typeId,
+                m.quantity       AS quantity,
+                t.typeName       AS name,
+                t.volume         AS volume
+           FROM industryActivityMaterials m
+           LEFT JOIN invTypes t ON t.typeID = m.materialTypeID
+          WHERE m.activityID = 11`
+      );
+      for (const r of matRows) {
+        (matsByFormula[r.formulaTypeId] ||= []).push({
+          typeId:   r.typeId,
+          name:     r.name || `Type ${r.typeId}`,
+          quantity: r.quantity,
+          volume:   r.volume || 0,
+        });
+      }
+    } catch (e) {
+      console.warn('[reactions-list] materials query failed:', e.message);
+    }
+
+    const result = formulaRows.map(f => ({
+      formulaTypeId: f.formulaTypeId,
+      formulaName:   f.formulaName,
+      productTypeId: f.productTypeId,
+      productName:   f.productName || `Type ${f.productTypeId}`,
+      productQty:    f.productQty || 1,
+      productVolume: f.productVolume || 0,
+      groupName:     f.groupName || 'Other',
+      materials:     matsByFormula[f.formulaTypeId] || [],
+    }));
+
+    bpCache.__reactionsList = result;
+    return result;
+  });
+
   // ─── IPC: SDE blueprint materials with ME bonus applied ──────────────────
   // Queries the local SDE sqlite for the manufacturing activity of
   // blueprintTypeId, then applies the ME reduction formula:
@@ -408,7 +490,7 @@ function registerEsiHandlers({
     if (!sdeDb || !Array.isArray(typeIds) || !typeIds.length) return {};
     const ids = [...new Set(typeIds.map(Number).filter(Boolean))];
     const out = {};
-    ids.forEach(id => { out[id] = { group: null, category: null, slot: null, metaLevel: null, techLevel: null }; });
+    ids.forEach(id => { out[id] = { group: null, category: null, slot: null, metaLevel: null, techLevel: null, metaGroup: null }; });
 
     // Dogma effect IDs → fitting slot.
     const SLOT_BY_EFFECT = { 12: 'High', 13: 'Medium', 11: 'Low', 2663: 'Rig' };
@@ -439,6 +521,15 @@ function registerEsiHandlers({
           if (r.attr === 633) out[r.id].metaLevel = r.val != null ? Math.round(r.val) : null;
           if (r.attr === 422) out[r.id].techLevel = r.val != null ? Math.round(r.val) : null;
         });
+      } catch (_) {}
+
+      // Meta group (invMetaTypes): 1 Tech I · 2 Tech II · 4 Faction · 5 Officer …
+      // Used to value pirate-faction supercapitals higher than their standard
+      // hulls (none of which have a market price).
+      try {
+        const rows = await sdeDb.all(
+          `SELECT typeID AS id, metaGroupID AS mg FROM invMetaTypes WHERE typeID IN (${ph})`, chunk);
+        rows.forEach(r => { if (out[r.id]) out[r.id].metaGroup = r.mg != null ? r.mg : null; });
       } catch (_) {}
 
       // Fitting slot (dogma effects)

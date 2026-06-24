@@ -672,11 +672,18 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     }
 
     // ── Step 6: Give up gracefully — but still try to get geo data ───────────
-    console.warn(`[locator] All name-resolution attempts failed for structure ${id}`);
+    // A give-up that happens while the ESI error budget is exhausted (HTTP 420)
+    // is TRANSIENT: the structure may be perfectly resolvable — we just couldn't
+    // reach ESI this pass. resolveLocation() uses this to keep a rate-limit storm
+    // from counting toward the permanent backoff streak (which would wrongly bury
+    // a structure the character actually has access to). Skip the extra geo probe
+    // while rate-limited so we don't block on the cooldown for a doomed call.
+    const transient = _esiErrorLimitUntil > Date.now();
+    console.warn(`[locator] All name-resolution attempts failed for structure ${id}${transient ? ' (ESI rate-limited — transient)' : ''}`);
     const hamGeo   = _nameCache[`__ham_geo_${id}`] || {};
-    const geo      = (hamGeo.solar_system_id) ? hamGeo : await _esiStructureGeo(id, characterId);
-    const fallback = { name: `Structure ${id}`, solar_system_id: geo.solar_system_id || null, owner_id: geo.owner_id || null };
-    writeCache(cacheKey, fallback, 1); // short TTL so we retry tomorrow
+    const geo      = (hamGeo.solar_system_id || transient) ? hamGeo : await _esiStructureGeo(id, characterId);
+    const fallback = { name: `Structure ${id}`, solar_system_id: geo.solar_system_id || null, owner_id: geo.owner_id || null, transient };
+    writeCache(cacheKey, fallback, transient ? 0.02 : 1); // retry soon if it was just a rate-limit
     return fallback;
   }
 
@@ -701,6 +708,20 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     const failCount   = force ? 0 : Number(readCache(failKey) || 0);
     const skipScrapes = force ? false : (failCount >= 3);
 
+    // ── Hard backoff for repeat offenders ────────────────────────────────────
+    // A player structure that has already failed the full resolution chain ≥3
+    // times won't resolve for us: no character holds docking access, and the
+    // public scrape sources (Hammertime / zKillboard / adam4eve) don't index it.
+    // Re-running the authenticated cross-character sweep + public ESI read on
+    // every sync just burns the ESI error budget (the 403s trip HTTP 420, which
+    // then stalls *legitimate* lookups behind a 46 s cooldown). Serve the last
+    // cached outcome (it still carries any solar-system geo we managed to find)
+    // and skip the network entirely. A forced repair, or the cached entry's
+    // 7-day TTL expiring, gives the structure another chance later.
+    if (!force && id >= PLAYER_STRUCTURE_MIN_ID && failCount >= 3 && cached) {
+      return cached;
+    }
+
     const result = {
       name:               null,
       solar_system_id:    null,
@@ -714,6 +735,10 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       owner_name:         null,
     };
 
+    // True when a structure give-up was caused by an ESI rate-limit storm rather
+    // than a genuine "no access / not found" — see the failure-streak logic below.
+    let transient = false;
+
     try {
       if (id >= PLAYER_STRUCTURE_MIN_ID) {
         // ── Player-owned structure ──────────────────────────────────────────
@@ -721,6 +746,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
         result.name            = info.name;
         result.solar_system_id = info.solar_system_id;
         result.owner_id        = info.owner_id || null;
+        transient              = !!info.transient;
 
       } else if (id >= 60_000_000 && id < 64_000_000) {
         // ── NPC station ────────────────────────────────────────────────────
@@ -815,7 +841,12 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     // Cache the outcome, tracking a failure streak so persistently-unresolvable
     // structures back off instead of re-running the full chain every few hours.
     const failed = result.name.startsWith('Location ') || result.name.startsWith('Structure ');
-    if (failed) {
+    if (failed && transient) {
+      // Rate-limited this pass (ESI 420), not a genuine dead end. DON'T touch the
+      // failure streak — otherwise a temporary 420 storm buries structures the
+      // character actually has access to. Cache briefly and retry soon.
+      writeCache(cacheKey, result, 0.02);
+    } else if (failed) {
       const nextCount = failCount + 1;
       writeCache(failKey, nextCount, 30); // remember the streak for 30 days
       // First couple of misses may be transient (ESI 420, structure just went

@@ -1029,6 +1029,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'salvage') {
     if (typeof renderSalvageCalculator === 'function') renderSalvageCalculator(right);
 
+  } else if (tab === 'reactions') {
+    if (typeof renderReactionsCalculator === 'function') renderReactionsCalculator(right);
+
   } else if (tab === 'orehold') {
     if (typeof renderOreholdCalc === 'function') renderOreholdCalc(right);
 
@@ -1048,7 +1051,6 @@ function navigateIndustryTab(tab) {
     const labels = {
       'calculator':     'Blueprint Calculator',
       'shopping-lists': 'Shopping Lists',
-      'reactions':      'Reactions Profit',
     };
     right.innerHTML = `
       <div class="empty-state" style="margin-top:80px;">

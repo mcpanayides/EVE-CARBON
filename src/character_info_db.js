@@ -10,6 +10,7 @@ const path    = require('path');
 const fs      = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
+const { resolveAssetLocationChain } = require('./asset-location-walk');
 
 let charDb = null;   // shared db handle, opened once
 
@@ -195,6 +196,16 @@ async function ensureCharacterTables(characterId) {
       owner_id           INTEGER,
       owner_name         TEXT,
       synced_at          INTEGER
+    );
+
+    -- Custom item names (assembled ships & named containers, incl. asset-safety
+    -- wraps) from ESI POST /characters/{id}/assets/names/. Kept in a side table
+    -- so the main assets table never needs a schema migration. Joined back in by
+    -- getCharacterAssets() to label ships ("Snowbird") and container locations
+    -- ("BOVRIL- DO NOT USE").
+    CREATE TABLE IF NOT EXISTS ${p}_asset_names (
+      item_id  INTEGER PRIMARY KEY,
+      name     TEXT
     );
 
     -- Blueprints
@@ -488,6 +499,27 @@ async function replaceAssets(characterId, assets) {
   }
 }
 
+// ── Custom item names ─────────────────────────────────────────────────────────
+// Replaces the ${p}_asset_names table with the custom names resolved from ESI
+// (assembled ships, named containers, asset-safety wraps). `rows` is
+// [{ item_id, name }]; rows with an empty / "None" name are dropped by the caller.
+async function replaceAssetNames(characterId, rows) {
+  const db = charDb;
+  if (!db) return;
+  const p = `char_${characterId}`;
+  await ensureCharacterTables(characterId);
+  await withTx(async () => {
+    await db.run(`DELETE FROM ${p}_asset_names`);
+    for (const r of rows) {
+      if (!r || !r.item_id || !r.name) continue;
+      await db.run(
+        `INSERT OR REPLACE INTO ${p}_asset_names (item_id, name) VALUES (?, ?)`,
+        [r.item_id, String(r.name).slice(0, 200)]
+      );
+    }
+  });
+}
+
 // ── Asset location patch ──────────────────────────────────────────────────────
 // Called after resolveLocation() resolves a location_id so we can permanently
 // store the geo data in the row instead of relying on the cache every read.
@@ -604,6 +636,11 @@ async function getCharacterAssets(characterId) {
   if (!charDb) return [];
   const p = `char_${characterId}`;
   try {
+    // Custom-names side table may not exist yet for a character synced before this
+    // feature shipped — create it so the LEFT JOINs below never hit a missing
+    // table (which would otherwise drop the whole asset list until a re-sync).
+    await charDb.run(`CREATE TABLE IF NOT EXISTS ${p}_asset_names (item_id INTEGER PRIMARY KEY, name TEXT)`);
+
     // ── How assets are placed ────────────────────────────────────────────────
     //
     // ESI returns assets as a FLAT list. A row's location_id points at its
@@ -631,8 +668,13 @@ async function getCharacterAssets(characterId) {
 
     // 1. Index every raw row by item_id so we can test membership and climb.
     //    Only the fields needed to walk + the location bundle are loaded.
+    //    custom_name comes along so a named container (asset-safety wrap) can
+    //    label the items inside it when no structure name resolves.
     const rawRows = await charDb.all(
-      `SELECT item_id, location_id, ${LOC_FIELDS.join(', ')} FROM ${p}_assets`
+      `SELECT a.item_id, a.location_id, ${LOC_FIELDS.map(f => 'a.' + f).join(', ')},
+              n.name AS custom_name
+         FROM ${p}_assets a
+         LEFT JOIN ${p}_asset_names n ON n.item_id = a.item_id`
     );
     const byItemId = new Map();
     for (const r of rawRows) byItemId.set(r.item_id, r);
@@ -685,33 +727,18 @@ async function getCharacterAssets(characterId) {
     const hasLoc = (row) =>
       row && (!isPlaceholder(row.location_name) || row.solar_system_name != null);
 
-    // resolveBundle(row) — return the location bundle for a row, climbing the
-    // parent chain when the row itself is unresolved. When the climb dead-ends
-    // at a terminus the character doesn't own, fall back to the global caches.
-    // Memoised; depth-capped at 10 against cycles/corruption (~4-5 in practice).
+    // Memoised wrapper over the pure resolveAssetLocationChain walk. Returns
+    // { bundle, terminusId }; depth-capped at 10 against cycles/corruption.
+    const walkCtx = { byItemId, globalLoc, isPlaceholder, locFields: LOC_FIELDS };
     const memo = new Map();
-    const resolveBundle = (row) => {
-      if (!row) return null;
+    const walkChain = (row) => {
+      if (!row) return { bundle: null, terminusId: null };
       if (memo.has(row.item_id)) return memo.get(row.item_id);
-      // Tentatively memoise null to break cycles mid-walk.
-      memo.set(row.item_id, null);
-
-      let cur = row;
-      let terminusId = row.location_id; // last id whose owner we looked for
-      for (let depth = 0; depth < 10; depth++) {
-        if (hasLoc(cur)) break;            // found the resolved ancestor
-        terminusId = cur.location_id;
-        const parent = byItemId.get(cur.location_id);
-        if (!parent) { cur = null; break; } // location_id isn't ours → terminus
-        if (parent === cur) { cur = null; break; } // self-loop guard
-        cur = parent;
-      }
-
-      const bundle = hasLoc(cur)
-        ? Object.fromEntries(LOC_FIELDS.map((f) => [f, cur[f]]))
-        : (globalLoc.get(terminusId) || null); // unowned terminus → global cache
-      memo.set(row.item_id, bundle);
-      return bundle;
+      // Tentatively memoise a cycle-safe result so a mid-walk revisit terminates.
+      memo.set(row.item_id, { bundle: null, terminusId: row.location_id });
+      const out = resolveAssetLocationChain(row, walkCtx);
+      memo.set(row.item_id, out);
+      return out;
     };
 
     // 2. Stack/group rows the same way the old query did. We GROUP in SQL (the
@@ -738,6 +765,10 @@ async function getCharacterAssets(characterId) {
         SUM(COALESCE(a.volume, 0) * a.quantity)   AS volume,
         MAX(a.is_singleton)                       AS is_singleton,
 
+        -- Custom name (assembled ships / named containers). Singletons each get
+        -- their own group now, so MAX picks the single row's name.
+        MAX(nm.name)                              AS custom_name,
+
         -- Blueprint copy/original flag (1 = copy/BPC, 0 = original/BPO,
         -- NULL = not a blueprint). Lets valuation price copies at 0.01.
         MAX(bpc.is_bpc)                           AS is_bpc,
@@ -746,16 +777,23 @@ async function getCharacterAssets(characterId) {
 
       FROM ${p}_assets a
       LEFT JOIN ${p}_blueprints bpc ON bpc.item_id = a.item_id
+      LEFT JOIN ${p}_asset_names nm ON nm.item_id = a.item_id
 
       -- Stack non-singleton items of the same type in the same slot/flag.
-      -- Singletons (assembled ships, fitted modules) always get their own row.
+      -- Singletons (assembled ships, fitted modules) must each get their OWN row:
+      -- two assembled ships of the same type in one location (e.g. several ships
+      -- consolidated into one station by Asset Safety) share type+location+flag,
+      -- so without keying singletons on item_id the GROUP BY silently merges them
+      -- and the extras disappear from the list. The CASE adds item_id to the key
+      -- for singletons only, leaving non-singletons to stack as before.
       -- is_bpc is in the GROUP BY so a BPO and a BPC never merge (mis-priced).
       GROUP BY
         a.type_id,
         a.location_id,
         a.location_flag,
         a.is_singleton,
-        bpc.is_bpc
+        bpc.is_bpc,
+        CASE WHEN a.is_singleton = 1 THEN a.item_id ELSE NULL END
 
       ORDER BY a.type_name ASC
     `);
@@ -771,12 +809,43 @@ async function getCharacterAssets(characterId) {
       const haveSystem = g.solar_system_name != null;
       if (haveName && haveSystem) continue;
 
-      const bundle =
-        resolveBundle(byItemId.get(g.location_id)) ||
-        resolveBundle(byItemId.get(g.item_id)) ||
-        globalLoc.get(g.location_id) ||
-        null;
-      if (!bundle) continue;
+      // Walk up from the group's immediate parent, then from its own
+      // representative item as a fallback. Capture the terminus id either way.
+      let { bundle, terminusId } = walkChain(byItemId.get(g.location_id));
+      if (!bundle) {
+        const alt = walkChain(byItemId.get(g.item_id));
+        bundle = alt.bundle;
+        if (alt.terminusId != null) terminusId = alt.terminusId;
+      }
+      if (!bundle) bundle = globalLoc.get(g.location_id) || null;
+
+      if (!bundle) {
+        // Prefer a named owned container as the place. An asset-safety wrap or a
+        // named container/ship that holds these items ("BOVRIL- DO NOT USE") is
+        // far more useful than a raw structure id; keep any geo we found for the
+        // subtitle.
+        const parent = byItemId.get(g.location_id);
+        if (parent && parent.custom_name && !isPlaceholder(parent.custom_name)) {
+          g.location_name = parent.custom_name;
+          if (terminusId != null) {
+            const geo = globalLoc.get(terminusId);
+            if (geo) for (const f of LOC_FIELDS) {
+              if (f !== 'location_name' && g[f] == null && geo[f] != null) g[f] = geo[f];
+            }
+          }
+          continue;
+        }
+        // Otherwise collapse deeply-nested orphans under their TRUE root: when the
+        // group's immediate location_id is a container we OWN but the chain dead-
+        // ends at an (unresolvable) structure, repoint the group at that structure
+        // id so a ship and the loose items inside it land in one
+        // "Location {structureId}" group instead of fragmenting across several
+        // "Location {containerId}" headers.
+        if (terminusId != null && terminusId !== g.location_id && byItemId.has(g.location_id)) {
+          g.location_id = terminusId;
+        }
+        continue;
+      }
 
       // Replace a placeholder name with the bundle's REAL name, or NULL it so
       // the UI falls back to the solar system instead of showing "Structure {id}".
@@ -1166,6 +1235,7 @@ module.exports = {
   replaceJumpClones,
   replacePiColonies,
   replaceAssets,
+  replaceAssetNames,
   updateAssetLocation,
   getUnresolvedAssetLocations,
   replaceBlueprints,
@@ -1179,6 +1249,7 @@ module.exports = {
   getImplantsSyncedAt,
   getCharacterData,
   getCharacterAssets,
+  resolveAssetLocationChain,   // pure helper — exported for unit tests
   getAssetSyncedAt,
   wipeAllAssets,
   getCharacterBlueprints,

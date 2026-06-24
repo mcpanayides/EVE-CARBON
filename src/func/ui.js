@@ -304,6 +304,7 @@ function bindUISettings() {
   document.querySelectorAll('.settings-menu-btn').forEach(btn => {
     btn.addEventListener('click', () => { if (btn.dataset.settingsTab) setSettingsTab(btn.dataset.settingsTab); });
   });
+  if (typeof bindIndustrySettings === 'function') bindIndustrySettings();
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       await saveAllSettings();
@@ -317,6 +318,7 @@ async function populateSettingsInputs() {
   await populateJabberSettings();
   if (currentSettingsTab === 'database') await populateDatabaseSettings();
   if (currentSettingsTab === 'palette')  await populatePaletteSettings();
+  if (typeof populateIndustrySettings === 'function') populateIndustrySettings();
 }
 
 async function saveAllSettings() {

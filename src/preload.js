@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Dashboard data
   esiFetch:              (url)                      => ipcRenderer.invoke('esi-fetch', url),
+  httpGetText:           (url)                      => ipcRenderer.invoke('http-get-text', url),
   getCharacterInfo:      (characterId)              => ipcRenderer.invoke('get-character-info', characterId),
   getClones:             (characterId)              => ipcRenderer.invoke('get-clones', characterId),
   getMarketPrices:       ()                         => ipcRenderer.invoke('get-market-prices'),

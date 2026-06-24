@@ -236,6 +236,7 @@
         <button class="settings-menu-btn active"  data-settings-tab="jabber">Jabber</button>
         <button class="settings-menu-btn"          data-settings-tab="forums">Forums</button>
         <button class="settings-menu-btn"          data-settings-tab="fleetCommander">Fleet Commander</button>
+        <button class="settings-menu-btn"          data-settings-tab="industry">GEZ Tracker</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
         <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
         <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
@@ -371,6 +372,33 @@
           <div class="settings-panel-block">
             <div class="settings-panel-title">Fleet Commander Settings</div>
             <div style="font-size:13px; color:var(--text-2);">Fleet Commander settings are coming soon.</div>
+          </div>
+        </div>
+      </div>
+      <!-- Industry tab -->
+      <div id="settingsTabIndustry" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">GEZ Tracker</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
+              Paste the link to your GEZ tracker Google Sheet. EVE Carbon reads the
+              <b>“GEZ Rig List”</b> tab (columns <code style="font-size:11px;">System · Structure · Name · Rig Slot 1–3</code>)
+              and turns each structure into a build location in the Blueprints calculator's
+              <b>My Structures</b> dropdown — mapping the Upwell structure to its facility/size
+              and reading the fitted manufacturing rigs for the ME/TE tier. The sheet only needs
+              link-sharing (<i>“Anyone with the link · Viewer”</i>); nothing from it is stored beyond
+              this session's structure list.
+            </div>
+            <div class="ui-settings-grid">
+              <div class="ui-settings-row">
+                <label>GEZ sheet link</label>
+                <input id="industrySheetUrl" class="field-input" type="text" placeholder="https://docs.google.com/spreadsheets/d/…/edit?usp=sharing" />
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+              <button id="industrySheetSyncBtn" class="calc-btn" style="font-size:12px;">Sync structures</button>
+              <span id="industrySheetStatus" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -796,6 +824,7 @@
 <script src="./func/characters.js"></script>
 <script src="./func/assets.js"></script>
 <script src="./func/trade-math.js"></script>  <!-- pure tax/price math; must precede blueprints.js -->
+<script src="./func/industry-math.js"></script>  <!-- pure EVE industry math; must precede blueprints.js -->
 <script src="./func/blueprints.js"></script>
 <script src="./func/cost-index.js"></script>
 <script src="./func/materials.js"></script>

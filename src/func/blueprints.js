@@ -58,32 +58,32 @@ function _renderBpLibLoadingState(isError = false) {
     return;
   }
 
-  // Build shimmer skeleton cards that match the real bp-lib-item shape
+  // Build shimmer skeleton cards that match the real vertical .bp-card shape
   const card = () => `
-    <div class="bp-skel-card">
-      <!-- thumb -->
-      <div class="bp-skel-block" style="width:48px;height:48px;border-radius:14px;flex-shrink:0;"></div>
-      <!-- content -->
-      <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;">
-        <div class="bp-skel-block" style="height:14px;width:65%;"></div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <div class="bp-skel-block" style="width:32px;height:8px;"></div>
-            <div class="bp-skel-block" style="flex:1;height:5px;border-radius:3px;"></div>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <div class="bp-skel-block" style="width:32px;height:8px;"></div>
-            <div class="bp-skel-block" style="flex:1;height:5px;border-radius:3px;"></div>
-          </div>
+    <div class="bp-skel-card" style="flex-direction:column;align-items:stretch;gap:12px;">
+      <!-- pill row -->
+      <div style="display:flex;gap:6px;">
+        <div class="bp-skel-block" style="width:60px;height:16px;border-radius:999px;"></div>
+        <div class="bp-skel-block" style="width:48px;height:16px;border-radius:999px;"></div>
+      </div>
+      <!-- head: thumb + title -->
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="bp-skel-block" style="width:46px;height:46px;border-radius:14px;flex-shrink:0;"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;">
+          <div class="bp-skel-block" style="height:13px;width:75%;"></div>
+          <div class="bp-skel-block" style="height:9px;width:45%;"></div>
         </div>
       </div>
-      <!-- right: portrait + badge + button -->
-      <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-        <div class="bp-skel-block" style="width:36px;height:36px;border-radius:4px;"></div>
-        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-          <div class="bp-skel-block" style="width:56px;height:18px;border-radius:3px;"></div>
-          <div class="bp-skel-block" style="width:48px;height:22px;border-radius:4px;"></div>
-        </div>
+      <!-- ME / TE bars -->
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        <div class="bp-skel-block" style="height:10px;width:100%;border-radius:999px;"></div>
+        <div class="bp-skel-block" style="height:10px;width:100%;border-radius:999px;"></div>
+      </div>
+      <!-- footer -->
+      <div style="display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);padding-top:11px;">
+        <div class="bp-skel-block" style="width:26px;height:26px;border-radius:50%;"></div>
+        <div class="bp-skel-block" style="height:10px;width:30%;"></div>
+        <div class="bp-skel-block" style="width:64px;height:30px;border-radius:999px;margin-left:auto;"></div>
       </div>
     </div>`;
 
@@ -91,7 +91,12 @@ function _renderBpLibLoadingState(isError = false) {
   listDiv.innerHTML = Array.from({ length: 16 }, card).join('');
 }
 
-function handleLibraryFilter() {
+// Sort modes that need the (lazily computed) build-cost / product / category data
+// for the *whole* filtered list before we can order it.
+const _BP_ECON_SORTS = ['profit', 'margin', 'output', 'group'];
+
+async function handleLibraryFilter() {
+  const gen        = ++_bpFilterGen;
   const query      = (document.getElementById('bpLibSearch')?.value   || '').toLowerCase();
   const filterMode = document.getElementById('bpLibFilter')?.value    || 'all';
   const sortBy     = document.getElementById('bpLibSort')?.value      || 'name';
@@ -111,6 +116,17 @@ function handleLibraryFilter() {
     return matchesName && matchesType && matchesME && matchesTE && matchesRuns && matchesPerfect;
   });
 
+  // Profit / margin / output / group need build-cost + category for everything.
+  // Compute (batched + cached) before sorting; show the shimmer while we work.
+  if (_BP_ECON_SORTS.includes(sortBy) && filtered.length) {
+    const allCached = filtered.every(bp => _bpEconCache.has(_bpEconKey(bp.type_id, bp.me)));
+    if (!allCached) {
+      _renderBpLibLoadingState();
+      await _bpEnsureEconForSort(filtered);
+      if (gen !== _bpFilterGen) return;   // a newer filter superseded us
+    }
+  }
+
   renderBlueprintList(sortBlueprints(filtered, sortBy));
 }
 
@@ -120,22 +136,463 @@ function togglePerfectFilter(value) {
   handleLibraryFilter();
 }
 
+// me10 & te20 → 2 · one of them perfect → 1 · neither → 0
+function _bpPerfectRank(bp) {
+  return (bp.me === 10 ? 1 : 0) + (bp.te === 20 ? 1 : 0);
+}
+
 function sortBlueprints(bps, criteria) {
+  const econ     = bp => _bpEconCache.get(_bpEconKey(bp.type_id, bp.me)) || {};
+  const profitOf = bp => { const e = econ(bp); return (e.hasPrices && e.productValue > 0) ? (e.productValue - e.buildCost) : -Infinity; };
+  const byName   = (a, b) => a.name.localeCompare(b.name);
+
   return [...bps].sort((a, b) => {
-    if (criteria === 'me')   return b.me - a.me;
-    if (criteria === 'te')   return b.te - a.te;
-    if (criteria === 'runs') return (b.runs || 0) - (a.runs || 0);
-    return a.name.localeCompare(b.name);
+    switch (criteria) {
+      case 'me':          return (b.me - a.me)                         || byName(a, b);
+      case 'te':          return (b.te - a.te)                         || byName(a, b);
+      case 'runs':        return ((b.runs || 0) - (a.runs || 0))       || byName(a, b);
+      case 'perfect':     return (_bpPerfectRank(b) - _bpPerfectRank(a)) || byName(a, b);
+      case 'me-perfect':  return ((b.me === 10) - (a.me === 10)) || (b.me - a.me) || byName(a, b);
+      case 'te-perfect':  return ((b.te === 20) - (a.te === 20)) || (b.te - a.te) || byName(a, b);
+      case 'profit':      return (profitOf(b) - profitOf(a))          || byName(a, b);
+      case 'margin':      return ((econ(b).margin ?? -Infinity) - (econ(a).margin ?? -Infinity)) || byName(a, b);
+      case 'output':      return ((econ(b).productValue || 0) - (econ(a).productValue || 0))      || byName(a, b);
+      case 'group':       return (econ(a).category || '~').localeCompare(econ(b).category || '~')
+                              || (econ(a).group    || '~').localeCompare(econ(b).group    || '~')
+                              || byName(a, b);
+      default:            return byName(a, b);
+    }
   });
 }
 
 // ─── Render card list ─────────────────────────────────────────────────────────
+
+// Module-level caches + observer for the lazy build-cost / category enrichment.
+// Keyed by `${typeId}:${me}` so re-filters and re-renders reuse prior results
+// instead of re-hitting the SDE and ESI markets.
+const _bpEconCache    = new Map();   // key → computed econ result
+const _bpMatCache     = new Map();   // key → { materials, productTypeId, productQty, baseTime } | null
+let   _bpEconObserver = null;
+let   _bpFilterGen    = 0;           // bumped each filter so stale async sorts bail out
+
+// ═══ Industry calculator: facility / structure / character settings ═══════════
+// These globally configure how build cost, time and ISK/hour are computed (the
+// detail panel and the card grid both read them). Pure EVE math lives in
+// window.IndustryMath (industry-math.js). Persisted to localStorage.
+const IND_SETTINGS_KEY   = 'eve-carbon-industry-settings';
+const IND_STRUCTURES_KEY = 'eve-carbon-industry-structures';
+const IND_SHEET_URL_KEY  = 'eve-carbon-industry-sheet-url';
+
+function _indDefaults() {
+  return {
+    facility: 'ec', secStatus: 'null', structureSize: 'L',
+    matRig: 't2', timeRig: 't2', taxRate: 0,
+    systemName: 'Jita', systemId: 30000142, buildCharId: null,
+  };
+}
+function _indLoadSettings() {
+  try { return Object.assign(_indDefaults(), JSON.parse(localStorage.getItem(IND_SETTINGS_KEY) || '{}')); }
+  catch (_) { return _indDefaults(); }
+}
+function _indLoadStructures() {
+  try { const a = JSON.parse(localStorage.getItem(IND_STRUCTURES_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch (_) { return []; }
+}
+
+let _indSettings      = _indLoadSettings();
+let _indStructures    = _indLoadStructures();
+let _indSkills        = { industry: 5, advIndustry: 5 };  // for _indSettings.buildCharId
+let _indSkillsCharId  = null;
+let _indAdjustedPrices = null;                 // { typeId: adjustedPrice }
+const _indCostIndexMap = new Map();            // systemId → manufacturing cost index
+
+function _indSaveSettings()   { try { localStorage.setItem(IND_SETTINGS_KEY, JSON.stringify(_indSettings)); } catch (_) {} }
+function _indSaveStructures() { try { localStorage.setItem(IND_STRUCTURES_KEY, JSON.stringify(_indStructures)); } catch (_) {} }
+
+// Signature of everything that changes a computed cost/time, so the econ cache
+// invalidates when the user changes facility / character / system.
+function _indSig() {
+  const s = _indSettings;
+  return [s.facility, s.secStatus, s.structureSize, s.matRig, s.timeRig, s.taxRate,
+          s.systemId, s.buildCharId, _indSkills.industry, _indSkills.advIndustry].join('|');
+}
+function _bpEconKey(typeId, me) { return `${typeId}:${me}:${_indSig()}`; }
+
+// Build the IndustryMath modifier-params object for a blueprint's ME/TE.
+function _indParams(me, te) {
+  const s = _indSettings;
+  return { me, te, facility: s.facility, secStatus: s.secStatus,
+           structureSize: s.structureSize, matRig: s.matRig, timeRig: s.timeRig };
+}
+
+// Load the selected build character's industry skills (cached per char).
+async function _indLoadSkills(charId) {
+  if (!charId) { _indSkills = { industry: 5, advIndustry: 5 }; _indSkillsCharId = null; return _indSkills; }
+  if (_indSkillsCharId === charId) return _indSkills;
+  try {
+    const lv = await window.eveAPI.getSkillLevels(charId,
+      [window.IndustryMath.SKILL_INDUSTRY, window.IndustryMath.SKILL_ADV_INDUSTRY]);
+    _indSkills = {
+      industry:    lv?.[window.IndustryMath.SKILL_INDUSTRY]     ?? 5,
+      advIndustry: lv?.[window.IndustryMath.SKILL_ADV_INDUSTRY] ?? 5,
+    };
+  } catch (_) { _indSkills = { industry: 5, advIndustry: 5 }; }
+  _indSkillsCharId = charId;
+  return _indSkills;
+}
+
+// ESI adjusted prices (for EIV / job-install fee). Fetched once, cached.
+async function _indGetAdjustedPrices() {
+  if (_indAdjustedPrices) return _indAdjustedPrices;
+  try {
+    const mp = await window.eveAPI.getMarketPrices();
+    const out = {};
+    if (mp) for (const [id, v] of Object.entries(mp)) out[id] = (v && v.adjusted) || 0;
+    _indAdjustedPrices = out;
+  } catch (_) { _indAdjustedPrices = {}; }
+  return _indAdjustedPrices;
+}
+
+// Manufacturing cost index for a system (from the same ESI feed the Cost Index
+// tool uses; reuses _ciAllSystems if that tab has already loaded it).
+async function _indGetCostIndex(systemId) {
+  if (!systemId) return 0;
+  if (_indCostIndexMap.has(systemId)) return _indCostIndexMap.get(systemId);
+  try {
+    let systems = (typeof _ciAllSystems !== 'undefined' && _ciAllSystems) ? _ciAllSystems : null;
+    if (!systems) {
+      systems = await window.eveAPI.esiFetch('https://esi.evetech.net/latest/industry/systems/?datasource=tranquility');
+    }
+    (Array.isArray(systems) ? systems : []).forEach(s => {
+      const mfg = (s.cost_indices || []).find(c => c.activity === 'manufacturing' || c.activity === 1);
+      _indCostIndexMap.set(s.solar_system_id, mfg ? mfg.cost_index : 0);
+    });
+  } catch (_) {}
+  return _indCostIndexMap.get(systemId) || 0;
+}
+
+// Resolve a typed system name → id + sec, reusing the Cost Index module's system
+// map (populated when that tab loads; we kick a background load on first mount).
+function _indResolveSystem(name) {
+  if (typeof findCISystemByName === 'function') {
+    const hit = findCISystemByName(name);
+    if (hit && hit.id) {
+      _indSettings.systemName = hit.name || name;
+      _indSettings.systemId   = hit.id;
+      if (hit.secStatus != null) _indSettings.secStatus = _indSecKeyFromStatus(hit.secStatus);
+      return true;
+    }
+  }
+  return false;
+}
+function _indSecKeyFromStatus(sec) {
+  if (sec == null) return _indSettings.secStatus;
+  if (sec >= 0.45) return 'high';
+  if (sec > 0.0)   return 'low';
+  return 'null';
+}
+let _indCiKicked = false;
+function _indEnsureSystemData() {
+  if (_indCiKicked) return;
+  _indCiKicked = true;
+  try { if (typeof loadCIData === 'function') loadCIData(false); } catch (_) {}
+}
+
+// ── Option label maps for the Facility controls ───────────────────────────────
+const IND_FACILITY_OPTS = [['station', 'Station / Assembly Array'], ['ec', 'Engineering Complex'], ['other', 'Other Structure']];
+const IND_SEC_OPTS       = [['high', 'High Sec'], ['low', 'Low Sec'], ['null', 'Null Sec'], ['wormhole', 'Wormhole']];
+const IND_SIZE_OPTS      = [['M', 'Medium'], ['L', 'Large'], ['XL', 'Extra Large']];
+const IND_RIG_OPTS       = [['none', 'No Rig'], ['t1', 'T1 Rig'], ['t2', 'T2 Rig']];
+
+function _indOpt(value, label, sel) {
+  return `<option value="${value}"${value === sel ? ' selected' : ''}>${escHtml(label)}</option>`;
+}
+function _indOpts(pairs, sel) { return pairs.map(([v, l]) => _indOpt(v, l, sel)).join(''); }
+
+// Build the Facility/character controls HTML. The sheet sync lives in app
+// Settings (set-once); here we only show the parsed "My Structures" presets.
+function _indControlsHtml() {
+  const s = _indSettings;
+  const rigsOff = s.facility === 'station';
+  const presetOpts = `<option value="">— My Structures —</option>` +
+    _indStructures.map((st, i) => `<option value="${i}">${escHtml(st.name)}${st.systemName ? ' — ' + escHtml(st.systemName) : ''}</option>`).join('');
+  return `
+    <div class="bp-facility">
+      <div class="bp-facility-row">
+        <span class="bp-facility-label">FACILITY</span>
+        <select class="field-input bp-facility-sel" data-ind="facility">${_indOpts(IND_FACILITY_OPTS, s.facility)}</select>
+        <select class="field-input bp-facility-sel" data-ind="secStatus">${_indOpts(IND_SEC_OPTS, s.secStatus)}</select>
+        <select class="field-input bp-facility-sel" data-ind="structureSize" ${rigsOff ? 'disabled' : ''}>${_indOpts(IND_SIZE_OPTS, s.structureSize)}</select>
+        <label class="bp-facility-inline">Mat<select class="field-input bp-facility-sel" data-ind="matRig" ${rigsOff ? 'disabled' : ''}>${_indOpts(IND_RIG_OPTS, s.matRig)}</select></label>
+        <label class="bp-facility-inline">Time<select class="field-input bp-facility-sel" data-ind="timeRig" ${rigsOff ? 'disabled' : ''}>${_indOpts(IND_RIG_OPTS, s.timeRig)}</select></label>
+        <label class="bp-facility-inline">Tax%<input class="field-input bp-facility-num" type="number" min="0" step="0.1" data-ind="taxRate" value="${s.taxRate}"></label>
+        <label class="bp-facility-inline">System<input class="field-input bp-facility-sys" type="text" data-ind="systemName" value="${escHtml(s.systemName)}" title="Manufacturing cost index source"></label>
+      </div>
+      <div class="bp-facility-row">
+        <span class="bp-facility-label">BUILD AS</span>
+        <select class="field-input bp-facility-sel bp-facility-char" data-ind="buildCharId"><option value="">— Character —</option></select>
+        <select class="field-input bp-facility-sel bp-facility-preset" data-ind="structurePreset" title="Apply one of your structures">${presetOpts}</select>
+        <span class="bp-facility-hint" data-ind="skillInfo"></span>
+      </div>
+    </div>`;
+}
+
+// Mount the controls into `mountEl` and wire change handlers. `onChange` runs
+// after any setting changes (already persisted). Populates char list + skills async.
+async function _indRenderControls(mountEl, onChange) {
+  if (!mountEl) return;
+  mountEl.innerHTML = _indControlsHtml();
+
+  const fire = () => { _indSaveSettings(); if (onChange) onChange(); };
+
+  // Plain settings selects/inputs
+  mountEl.querySelectorAll('[data-ind]').forEach(el => {
+    const field = el.dataset.ind;
+    if (['facility', 'secStatus', 'structureSize', 'matRig', 'timeRig'].includes(field)) {
+      el.addEventListener('change', () => {
+        _indSettings[field] = el.value;
+        if (field === 'facility') _indRenderControls(mountEl, onChange);  // re-render to toggle rig enable
+        fire();
+      });
+    } else if (field === 'taxRate') {
+      el.addEventListener('change', () => { _indSettings.taxRate = parseFloat(el.value) || 0; fire(); });
+    } else if (field === 'systemName') {
+      // System name → id resolution needs the Cost Index system map; load it
+      // lazily the first time the user focuses the field (it's heavy).
+      el.addEventListener('focus', _indEnsureSystemData);
+      el.addEventListener('change', () => {
+        _indSettings.systemName = el.value.trim();
+        if (!_indResolveSystem(el.value.trim())) { _indSettings.systemId = _indSettings.systemId || 30000142; }
+        fire();
+      });
+    }
+  });
+
+  // Build-character picker
+  const charSel = mountEl.querySelector('[data-ind="buildCharId"]');
+  if (charSel) {
+    try {
+      const accounts = await window.eveAPI.getAccounts() || {};
+      const list = Object.entries(accounts).map(([id, a]) => ({ id, name: a.characterName || `Char ${id}` }));
+      // Default to favourite/main if nothing chosen yet
+      if (!_indSettings.buildCharId && list.length) {
+        let favId = null;
+        try { favId = (JSON.parse(localStorage.getItem('char_favorites') || '[]') || [])[0]; } catch (_) {}
+        _indSettings.buildCharId = String(favId || list[0].id);
+        _indSaveSettings();
+      }
+      charSel.innerHTML = `<option value="">— Character —</option>` +
+        list.map(c => _indOpt(String(c.id), c.name, String(_indSettings.buildCharId))).join('');
+    } catch (_) {}
+    charSel.addEventListener('change', async () => {
+      _indSettings.buildCharId = charSel.value || null;
+      _indSaveSettings();
+      await _indLoadSkills(_indSettings.buildCharId);
+      _indUpdateSkillHint(mountEl);
+      if (onChange) onChange();
+    });
+  }
+
+  // Structures preset picker
+  const presetSel = mountEl.querySelector('[data-ind="structurePreset"]');
+  if (presetSel) presetSel.addEventListener('change', () => {
+    const idx = parseInt(presetSel.value);
+    if (!isNaN(idx) && _indStructures[idx]) {
+      const p = _indStructures[idx];
+      Object.assign(_indSettings, {
+        facility: p.facility, secStatus: p.secStatus, structureSize: p.structureSize,
+        matRig: p.matRig, timeRig: p.timeRig, taxRate: p.taxRate,
+        systemName: p.systemName, systemId: p.systemId || _indSettings.systemId,
+      });
+      _indRenderControls(mountEl, onChange);
+      fire();
+    }
+  });
+
+  // Load skills for the current character + show the hint
+  await _indLoadSkills(_indSettings.buildCharId);
+  _indUpdateSkillHint(mountEl);
+}
+
+// Re-render the toolbar facility-controls bar (if mounted) so the "My Structures"
+// dropdown reflects a fresh sheet sync performed from Settings.
+function _indRefreshMountedControls() {
+  const bar = document.getElementById('bpFacilityBar');
+  if (bar) _indRenderControls(bar, () => { _bpEconCache.clear(); handleLibraryFilter(); });
+}
+
+function _indUpdateSkillHint(mountEl) {
+  const hint = mountEl?.querySelector('[data-ind="skillInfo"]');
+  if (!hint) return;
+  hint.textContent = `Industry ${_indSkills.industry} · Adv Industry ${_indSkills.advIndustry}`
+    + (_indSkillsCharId ? '' : ' (defaults)');
+}
+
+// Pull the structures CSV from a Google Sheet link, parse, resolve system ids,
+// and store. Returns the parsed structure count (throws on fetch/parse failure).
+async function _indSyncStructuresFromUrl(rawUrl) {
+  const raw = (rawUrl || '').trim();
+  if (!raw) throw new Error('No sheet link provided');
+
+  // GEZ tracker: read the "GEZ Rig List" tab via gviz (works on link-shared
+  // sheets, no "Publish to web" needed, and always targets the right tab).
+  const url = window.IndustryMath.toSheetTabCsvUrl(raw, 'GEZ Rig List');
+  localStorage.setItem(IND_SHEET_URL_KEY, raw);
+
+  const csv  = await window.eveAPI.httpGetText(url);
+  const rows = window.IndustryMath.parseStructuresCsv(csv);
+  _indEnsureSystemData();
+  rows.forEach(st => {
+    if (st.systemName && typeof findCISystemByName === 'function') {
+      const hit = findCISystemByName(st.systemName);
+      if (hit && hit.id) { st.systemId = hit.id; if (hit.secStatus != null) st.secStatus = _indSecKeyFromStatus(hit.secStatus); }
+    }
+  });
+  _indStructures = rows;
+  _indSaveStructures();
+  _indRefreshMountedControls();
+  return rows.length;
+}
+
+// Wire the Industry settings panel (sheet URL + Sync). Called once from ui.js.
+function bindIndustrySettings() {
+  const input  = document.getElementById('industrySheetUrl');
+  const syncBtn = document.getElementById('industrySheetSyncBtn');
+  const status = document.getElementById('industrySheetStatus');
+  if (!syncBtn || syncBtn.dataset.wired === '1') return;
+  syncBtn.dataset.wired = '1';
+
+  const refreshStatus = () => {
+    if (status) status.textContent = _indStructures.length
+      ? `${_indStructures.length} structure${_indStructures.length === 1 ? '' : 's'} loaded.`
+      : 'No structures loaded yet.';
+  };
+  refreshStatus();
+
+  syncBtn.addEventListener('click', async () => {
+    const raw = (input?.value || '').trim();
+    if (!raw) { showToast('Paste a published Google Sheet CSV link first.', 'info'); return; }
+    syncBtn.disabled = true; syncBtn.textContent = 'Syncing…';
+    try {
+      const n = await _indSyncStructuresFromUrl(raw);
+      refreshStatus();
+      showToast(`Loaded ${n} structure${n === 1 ? '' : 's'} from sheet.`, 'success');
+    } catch (e) {
+      console.error('[industry] sheet sync failed:', e);
+      showToast('Sheet sync failed — check the link is published to the web as CSV.', 'error');
+    } finally {
+      syncBtn.disabled = false; syncBtn.textContent = 'Sync';
+    }
+  });
+}
+
+// Fill the Industry settings input from the saved sheet URL (called on drawer open).
+function populateIndustrySettings() {
+  const input = document.getElementById('industrySheetUrl');
+  if (input) input.value = localStorage.getItem(IND_SHEET_URL_KEY) || '';
+  const status = document.getElementById('industrySheetStatus');
+  if (status) status.textContent = _indStructures.length
+    ? `${_indStructures.length} structure${_indStructures.length === 1 ? '' : 's'} loaded.`
+    : 'No structures loaded yet.';
+}
+
+// Format seconds → "2d 4h 11m" style duration.
+function _indFmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec || 0));
+  const d = Math.floor(sec / 86400); sec -= d * 86400;
+  const h = Math.floor(sec / 3600);  sec -= h * 3600;
+  const m = Math.floor(sec / 60);    const s = sec - m * 60;
+  const parts = [];
+  if (d) parts.push(d + 'd');
+  if (h) parts.push(h + 'h');
+  if (m) parts.push(m + 'm');
+  if (!d && !h) parts.push(s + 's');
+  return parts.join(' ') || '0s';
+}
+
+// Build the detail-panel materials table + cost/time/profit summary HTML from
+// already-computed values (o). Pure string builder.
+function _bpDetailBreakdownHtml(o) {
+  const matRows = o.rows.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px;">
+      <img src="${ESI_IMAGE}/${r.mat.typeId}/icon?size=32" onerror="this.src='${ESI_IMAGE}/0/icon?size=32';"
+           style="width:28px;height:28px;border-radius:3px;flex-shrink:0;">
+      <span style="flex:1;color:var(--text-1);font-size:13px;">${escHtml(r.mat.name || ('Type ' + r.mat.typeId))}</span>
+      <span style="font-family:var(--mono);color:var(--text-1);font-size:12px;font-weight:600;min-width:80px;text-align:right;">×${r.qty.toLocaleString()}</span>
+      <span style="font-family:var(--mono);color:var(--text-3);font-size:11px;min-width:100px;text-align:right;">${r.unit > 0 ? formatNumber(r.unit) + ' ISK' : '—'}</span>
+      <span style="font-family:var(--mono);font-size:11px;font-weight:600;min-width:110px;text-align:right;color:${r.total > 0 ? 'var(--text-1)' : 'var(--text-3)'};">${r.total > 0 ? formatNumber(r.total) : '—'}</span>
+    </div>`).join('');
+
+  const sumRow = (k, v, opts = {}) => `
+    <div class="bp-sum-row"${opts.top ? ' style="border-top:1px solid var(--border);padding-top:10px;margin-top:2px;"' : ''}>
+      <span class="bp-sum-k"${opts.big ? ' style="color:var(--text-2);font-size:13px;"' : ''}>${k}</span>
+      <span class="bp-sum-v"${opts.color ? ` style="color:${opts.color};${opts.big ? 'font-size:18px;font-weight:700;' : ''}"` : (opts.big ? ' style="font-size:18px;font-weight:700;"' : '')}>${v}</span>
+    </div>`;
+
+  const profitColor = o.profit == null ? 'var(--text-3)' : o.profit >= 0 ? 'var(--success)' : 'var(--danger)';
+  const profitText  = o.profit == null ? 'No market data'
+                    : (o.profit >= 0 ? '+' : '') + formatNumber(o.profit) + ' ISK';
+  const marginText  = o.margin == null ? '—' : `${o.margin >= 0 ? '+' : ''}${o.margin.toFixed(1)}%`;
+  const iskHrText   = o.iskHr == null ? '—'
+                    : (o.iskHr >= 0 ? '+' : '') + formatNumber(o.iskHr) + ' ISK/hr';
+
+  return `
+    <div style="margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;margin-bottom:8px;">PRODUCES</div>
+      <div style="display:flex;align-items:center;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;gap:8px;">
+        ${o.productImg}
+        <span style="color:var(--text-1);font-size:13px;">${escHtml(o.productName || 'Unknown Product')}</span>
+        <span style="font-family:var(--mono);color:var(--text-2);margin-left:auto;">×${(o.productQty * o.runs).toLocaleString()}</span>
+      </div>
+    </div>
+
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;margin-bottom:6px;">
+      MATERIALS — ${o.runs} RUN${o.runs === 1 ? '' : 'S'} · ME${o.me}
+      <span style="font-size:9px;margin-left:8px;">(facility &amp; rig adjusted, rounded per EVE rules)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:3px 10px;font-family:var(--mono);font-size:9px;color:var(--text-3);letter-spacing:0.08em;margin-bottom:2px;">
+      <span style="width:28px;flex-shrink:0;"></span>
+      <span style="flex:1;">MATERIAL</span>
+      <span style="min-width:80px;text-align:right;">QTY</span>
+      <span style="min-width:100px;text-align:right;">JITA SELL/UNIT</span>
+      <span style="min-width:110px;text-align:right;">TOTAL COST</span>
+    </div>
+    <div>${matRows}</div>
+
+    <div class="bp-detail-summary">
+      ${sumRow('Materials (Jita sell)', formatNumber(o.matCost) + ' ISK')}
+      ${sumRow(`Job install fee (index ${(o.costIndex * 100).toFixed(2)}% + tax ${o.taxRate}% + SCC 4%)`, formatNumber(o.jobFee) + ' ISK')}
+      ${sumRow('Total build cost', formatNumber(o.totalCost) + ' ISK', { top: true, big: true, color: 'var(--accent)' })}
+      ${sumRow('Build time', _indFmtDuration(o.buildTime))}
+      ${sumRow(`Product value (${(o.productQty * o.runs).toLocaleString()}× ${escHtml(o.productName || '')})`, o.productValue > 0 ? formatNumber(o.productValue) + ' ISK' : '—')}
+      ${sumRow('Profit', profitText, { top: true, big: true, color: profitColor })}
+      ${sumRow('Margin', marginText, { color: o.margin == null ? 'var(--text-3)' : o.margin >= 0 ? 'var(--success)' : 'var(--danger)' })}
+      ${sumRow('Profit / hour', iskHrText, { color: o.iskHr == null ? 'var(--text-3)' : o.iskHr >= 0 ? 'var(--success)' : 'var(--danger)' })}
+    </div>`;
+}
+
+// Colour for the category pill + the card's left border, by SDE category name.
+function _bpCategoryColor(cat) {
+  const c = (cat || '').toLowerCase();
+  if (c.includes('ship'))      return '#5b9bd5'; // blue
+  if (c.includes('drone'))     return '#e3a84d'; // amber
+  if (c.includes('charge'))    return '#c05c7e'; // pink
+  if (c.includes('module'))    return '#4ecbb0'; // teal
+  if (c.includes('structure')) return '#7d8fa3'; // grey-blue
+  if (c.includes('component')) return '#ab7ab8'; // purple
+  if (c.includes('commodity')) return '#ab7ab8'; // purple (build components)
+  if (c.includes('material'))  return '#9b8e76'; // tan
+  return '#7d8fa3';                               // grey fallback
+}
 
 function renderBlueprintList(bps) {
   const listDiv   = document.getElementById('bpLibList');
   const countSpan = document.getElementById('bpLibCount');
   if (!listDiv) return;
   if (countSpan) countSpan.textContent = bps.length;
+
+  // Tear down any observer from a previous render before we replace the cards.
+  if (_bpEconObserver) { _bpEconObserver.disconnect(); _bpEconObserver = null; }
   listDiv.innerHTML = '';
 
   if (bps.length === 0) {
@@ -149,74 +606,332 @@ function renderBlueprintList(bps) {
   }
 
   bps.forEach(bp => {
-    const item = document.createElement('div');
-    item.className = 'bp-lib-item';
+    const card = document.createElement('div');
+    card.className = 'bp-card';
+    card.dataset.typeId = bp.type_id;
+    card.dataset.me     = bp.me;
+    card.dataset.te     = bp.te;
 
     const mePct = Math.min(100, Math.max(0, (bp.me / 10) * 100));
     const tePct = Math.min(100, Math.max(0, (bp.te / 20) * 100));
 
+    const isPerfect = bp.me === 10 && bp.te === 20;
     const isTech2   = /\b(?:tech\s*ii|tech\s*2|t2|mk\s*ii|mark\s*ii|\bII\b)\b/i.test(bp.name);
     const isFaction = /\b(?:faction|navy|pirate|guristas|serpentis|angel cartel|blood raiders|sansha|angel|mordu|sisters|drifter|triglavian)\b/i.test(bp.name);
 
-    const dots = [];
-    if (bp.me === 10 && bp.te === 20) dots.push('<span class="card-perfect-dot" title="Perfect BP"></span>');
-    if (isTech2)   dots.push('<span class="card-tier-dot tech2"   title="Tech II Blueprint"></span>');
-    if (isFaction) dots.push('<span class="card-tier-dot faction" title="Faction Blueprint"></span>');
+    // ── Status / category pills ──────────────────────────────────────────────
+    const pills = [];
+    if (isPerfect) {
+      pills.push(`<span class="bp-pill perfect" title="Perfect blueprint (ME 10 / TE 20) — click to filter">PERFECT</span>`);
+    } else {
+      if (bp.me === 10) pills.push(`<span class="bp-pill me" title="Perfect material efficiency">ME 10</span>`);
+      if (bp.te === 20) pills.push(`<span class="bp-pill te" title="Perfect time efficiency">TE 20</span>`);
+    }
+    if (isTech2)   pills.push(`<span class="bp-pill tech2"   title="Tech II blueprint">TECH II</span>`);
+    if (isFaction) pills.push(`<span class="bp-pill faction" title="Faction blueprint">FACTION</span>`);
+    // Category pill — hidden until the lazy enrichment resolves the SDE category.
+    pills.push(`<span class="bp-pill cat no-dot bp-cat-pill" style="display:none;"></span>`);
 
-    const badgeStyle = 'display:inline-block;min-width:65px;text-align:center;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold;flex-shrink:0;';
-    const typeBadge  = bp.isBPC
-      ? `<span style="${badgeStyle}background:#1b2a40;color:#4ada8a;">${bp.runs > 0 ? bp.runs : '∞'} RUNS</span>`
-      : `<span style="${badgeStyle}background:#1b2a40;color:#ab7ab8;">BPO</span>`;
+    // Left-border accent: perfect → purple, else tier, else neutral (category fills in later).
+    const accent = isPerfect ? '#ab7ab8' : isTech2 ? '#ffcc00' : isFaction ? '#4ada8a' : 'var(--border-b)';
+    card.style.borderLeftColor = accent;
+    if (isPerfect) card.dataset.perfect = '1';
 
-    // characterId may be stored as a number in the DB row
+    const subType = bp.isBPC ? `BPC · ${bp.runs > 0 ? bp.runs + ' runs' : '∞ runs'}` : 'BPO';
+
     const charId   = bp.characterId   || bp.character_id   || '';
     const charName = bp.characterName || bp.character_name || 'Unknown';
 
-    item.innerHTML = `
-      <img class="bp-lib-thumb"
-           src="${ESI_IMAGE}/${bp.type_id}/bp?size=32"
-           onerror="this.onerror=null;this.src='${ESI_IMAGE}/${bp.type_id}/icon?size=32';"
-           alt="bp-icon">
-      <div class="bp-lib-content">
-        <div class="bp-lib-title">${escHtml(bp.name)}</div>
-        <div class="bp-stats-vert">
-          <div class="bp-stat">
-            <div class="bp-stat-label">ME ${bp.me}</div>
-            <div class="bp-stat-track"><div class="bp-stat-fill me" style="width:${mePct}%"></div></div>
-          </div>
-          <div class="bp-stat">
-            <div class="bp-stat-label">TE ${bp.te}</div>
-            <div class="bp-stat-track"><div class="bp-stat-fill te" style="width:${tePct}%"></div></div>
-          </div>
+    card.innerHTML = `
+      <div class="bp-pill-row">${pills.join('')}</div>
+      <div class="bp-card-head">
+        <img class="bp-card-thumb"
+             src="${ESI_IMAGE}/${bp.type_id}/bp?size=64"
+             onerror="this.onerror=null;this.src='${ESI_IMAGE}/${bp.type_id}/icon?size=64';"
+             alt="bp-icon">
+        <div class="bp-card-titlewrap">
+          <div class="bp-card-title">${escHtml(bp.name)}</div>
+          <div class="bp-card-sub"><span class="bp-sub-type">${subType}</span></div>
         </div>
       </div>
-      <div class="bp-lib-right">
-        ${charId
-          ? `<img class="bp-lib-portrait"
-                  src="https://images.evetech.net/characters/${charId}/portrait?size=64"
-                  loading="lazy" title="Owned by ${escHtml(charName)}" alt="owner portrait">`
-          : `<div class="bp-lib-portrait" style="background:var(--bg-card);border:1px solid var(--border);
-                    display:flex;align-items:center;justify-content:center;color:var(--text-3);
-                    font-size:18px;">⬡</div>`
-        }
-        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-          ${typeBadge}
-          <button class="bp-view-btn" type="button">View</button>
+      <div class="bp-card-bars">
+        <div class="bp-stat">
+          <div class="bp-stat-label">ME ${bp.me}</div>
+          <div class="bp-stat-track"><div class="bp-stat-fill me" style="width:${mePct}%"></div></div>
+        </div>
+        <div class="bp-stat">
+          <div class="bp-stat-label">TE ${bp.te}</div>
+          <div class="bp-stat-track"><div class="bp-stat-fill te" style="width:${tePct}%"></div></div>
         </div>
       </div>
-      <div class="card-indicator-row">${dots.join('')}</div>`;
+      <div class="bp-card-econ">
+        <div>
+          <div class="bp-econ-label">BUILD COST · JITA</div>
+          <div class="bp-econ-cost muted">…</div>
+        </div>
+        <div>
+          <div class="bp-econ-profit na"></div>
+          <div class="bp-econ-margin"></div>
+        </div>
+      </div>
+      <div class="bp-card-foot">
+        <div class="bp-card-owner">
+          ${charId
+            ? `<img class="bp-lib-portrait" src="https://images.evetech.net/characters/${charId}/portrait?size=64"
+                    loading="lazy" title="Owned by ${escHtml(charName)}" alt="owner portrait">`
+            : `<div class="bp-lib-portrait" style="display:flex;align-items:center;justify-content:center;color:var(--text-3);font-size:13px;">⬡</div>`}
+          <span class="bp-card-owner-name">${escHtml(charName)}</span>
+        </div>
+        <button class="bp-view-btn" type="button">View</button>
+      </div>`;
 
-    // ── View button: open SDE-accurate detail panel ──────────────────────────
-    item.querySelector('.bp-view-btn').addEventListener('click', async (event) => {
+    // View button → SDE-accurate detail panel.
+    card.querySelector('.bp-view-btn').addEventListener('click', async (event) => {
       event.stopPropagation();
       await openBlueprintDetail(bp);
     });
+    // Clicking the card body (not the button) also opens the detail.
+    card.addEventListener('click', () => openBlueprintDetail(bp));
 
-    const cardDot = item.querySelector('.card-perfect-dot');
-    if (cardDot) cardDot.addEventListener('click', (ev) => { ev.stopPropagation(); togglePerfectFilter(); });
+    const perfectPill = card.querySelector('.bp-pill.perfect');
+    if (perfectPill) perfectPill.addEventListener('click', (ev) => { ev.stopPropagation(); togglePerfectFilter(); });
 
-    listDiv.appendChild(item);
+    listDiv.appendChild(card);
   });
+
+  _bpObserveCards(listDiv);
+}
+
+// Lazily compute build cost / margin / category for each card as it scrolls into
+// view. fetchHubPrices does one ESI request per uncached type, so we only ever
+// price the blueprints the user actually looks at, and cache every result.
+function _bpObserveCards(listDiv) {
+  const cards = listDiv.querySelectorAll('.bp-card');
+  if (!cards.length) return;
+
+  if (!('IntersectionObserver' in window)) {
+    cards.forEach(c => _bpEnrichCard(c));   // no observer support → just do them all
+    return;
+  }
+
+  _bpEconObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      obs.unobserve(entry.target);
+      _bpEnrichCard(entry.target);
+    });
+  }, { root: listDiv, rootMargin: '200px' });
+
+  cards.forEach(c => _bpEconObserver.observe(c));
+}
+
+// Fetch (and cache) a blueprint's manufacturing materials + product from the SDE,
+// falling back to Fuzzwork. Returns null when there's no manufacturing data.
+async function _bpGetMaterials(typeId, me) {
+  const key = `${typeId}:${me}`;
+  if (_bpMatCache.has(key)) return _bpMatCache.get(key);
+
+  let sde = null;
+  try { sde = await window.eveAPI.sdeBlueprintMaterials(typeId, me); } catch (_) {}
+  if (!sde || !sde.materials || !sde.materials.length) {
+    sde = await fetchFuzzworkMaterials(typeId, me).catch(() => null);
+  }
+  const val = (sde && sde.materials && sde.materials.length)
+    ? { materials: sde.materials, productTypeId: sde.productTypeId || null,
+        productQty: sde.productQty || 1, baseTime: sde.baseTime || 0 }
+    : null;
+  _bpMatCache.set(key, val);
+  return val;
+}
+
+// Pure-ish: turn materials + price map + product metadata into the econ result,
+// applying the active facility/structure/skill settings (material reduction, job
+// install fee, build time, ISK/hour). ctx = { me, te, adjustedPrices, costIndex }.
+// All figures are for ONE run.
+function _bpEconFromData(mat, prices, productMeta, ctx) {
+  const result = {
+    materialsCost: 0, jobFee: 0, buildCost: 0, productValue: 0,
+    margin: null, profit: null, buildTime: 0, iskPerHour: null,
+    hasPrices: false, category: null, group: null, noData: false,
+  };
+  if (!mat) { result.noData = true; return result; }
+
+  const M  = window.IndustryMath;
+  const me = (ctx && ctx.me) || 0;
+  const te = (ctx && ctx.te) || 0;
+  const adj = (ctx && ctx.adjustedPrices) || {};
+  const matMod = M.matModifier(_indParams(me, te));
+
+  let cost = 0, anyPriced = false, eivSum = 0;
+  for (const m of mat.materials) {
+    const baseQty = m.baseQty != null ? m.baseQty : (m.quantity || 0);
+    const qty = M.adjustedQty(baseQty, 1, matMod);
+    const p = prices[m.typeId];
+    const unit = p?.sell > 0 ? p.sell : (p?.buy || 0);
+    if (unit > 0) anyPriced = true;
+    cost   += unit * qty;
+    eivSum += (adj[m.typeId] || 0) * baseQty;
+  }
+  result.materialsCost = cost;
+  result.jobFee   = M.jobFee(eivSum, 1, (ctx && ctx.costIndex) || 0, (_indSettings.taxRate || 0) / 100);
+  result.buildCost = result.materialsCost + result.jobFee;
+
+  if (mat.productTypeId) {
+    const pp = prices[mat.productTypeId];
+    const outUnit = pp?.sell > 0 ? pp.sell : (pp?.buy || 0);
+    result.productValue = outUnit * (mat.productQty || 1);
+  }
+  result.hasPrices = anyPriced && result.materialsCost > 0;
+  if (result.hasPrices && result.productValue > 0) {
+    result.profit = result.productValue - result.buildCost;
+    result.margin = (result.profit / result.buildCost) * 100;
+  }
+
+  result.buildTime = M.totalTime(mat.baseTime || 0, 1, M.timeModifier(_indParams(me, te), _indSkills));
+  if (result.profit != null && result.buildTime > 0) {
+    result.iskPerHour = result.profit / (result.buildTime / 3600);
+  }
+
+  if (productMeta) { result.category = productMeta.category || null; result.group = productMeta.group || null; }
+  return result;
+}
+
+// Compute (and cache) econ for one blueprint — its own price + metadata fetch.
+async function _bpComputeEcon(typeId, me, te) {
+  const key = _bpEconKey(typeId, me);
+  if (_bpEconCache.has(key)) return _bpEconCache.get(key);
+
+  const mat = await _bpGetMaterials(typeId, me);
+  if (!mat) { const r = _bpEconFromData(null); _bpEconCache.set(key, r); return r; }
+
+  const ids = mat.materials.map(m => m.typeId);
+  if (mat.productTypeId) ids.push(mat.productTypeId);
+
+  let prices = {};
+  try { prices = await window.eveAPI.getJitaPrices([...new Set(ids)]) || {}; } catch (_) {}
+
+  let productMeta = null;
+  if (mat.productTypeId) {
+    try { const meta = await window.eveAPI.getTypeMetadata([mat.productTypeId]); productMeta = meta?.[mat.productTypeId] || null; } catch (_) {}
+  }
+
+  const adjustedPrices = await _indGetAdjustedPrices();
+  const costIndex      = await _indGetCostIndex(_indSettings.systemId);
+
+  const result = _bpEconFromData(mat, prices, productMeta, { me, te, adjustedPrices, costIndex });
+  _bpEconCache.set(key, result);
+  return result;
+}
+
+// Simple bounded-concurrency runner.
+async function _bpRunPool(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; await fn(items[idx]); }
+  });
+  await Promise.all(workers);
+}
+
+// Ensure every blueprint in `bps` has an econ result cached — batched so we make
+// ONE price call and ONE metadata call for the whole union of types, instead of
+// per-card fetches. Used before profit/margin/output/group sorts.
+async function _bpEnsureEconForSort(bps) {
+  const todo = bps.filter(bp => !_bpEconCache.has(_bpEconKey(bp.type_id, bp.me)));
+  if (!todo.length) return;
+
+  // 1. Materials for all (local SDE queries), bounded concurrency.
+  await _bpRunPool(todo, 10, bp => _bpGetMaterials(bp.type_id, bp.me));
+
+  // 2. Union of every type we need a price / category for.
+  const priceIds = new Set(), productIds = new Set();
+  for (const bp of todo) {
+    const mat = _bpMatCache.get(`${bp.type_id}:${bp.me}`);
+    if (!mat) continue;
+    mat.materials.forEach(m => priceIds.add(m.typeId));
+    if (mat.productTypeId) { priceIds.add(mat.productTypeId); productIds.add(mat.productTypeId); }
+  }
+
+  // 3. One batched price call + one batched metadata call + shared cost inputs.
+  let prices = {}, meta = {};
+  if (priceIds.size)   { try { prices = await window.eveAPI.getJitaPrices([...priceIds])   || {}; } catch (_) {} }
+  if (productIds.size) { try { meta   = await window.eveAPI.getTypeMetadata([...productIds]) || {}; } catch (_) {} }
+  const adjustedPrices = await _indGetAdjustedPrices();
+  const costIndex      = await _indGetCostIndex(_indSettings.systemId);
+
+  // 4. Compute + cache each from the shared maps.
+  for (const bp of todo) {
+    const key = _bpEconKey(bp.type_id, bp.me);
+    if (_bpEconCache.has(key)) continue;
+    const mat = _bpMatCache.get(`${bp.type_id}:${bp.me}`);
+    _bpEconCache.set(key, _bpEconFromData(mat, prices, mat?.productTypeId ? meta[mat.productTypeId] : null,
+      { me: bp.me, te: bp.te, adjustedPrices, costIndex }));
+  }
+}
+
+async function _bpEnrichCard(card) {
+  const typeId = Number(card.dataset.typeId);
+  const me     = Number(card.dataset.me) || 0;
+  const te     = Number(card.dataset.te) || 0;
+  const key    = _bpEconKey(typeId, me);
+
+  if (_bpEconCache.has(key)) { _bpApplyEnrichment(card, _bpEconCache.get(key)); return; }
+  if (card.dataset.enriching === '1') return;
+  card.dataset.enriching = '1';
+
+  const result = await _bpComputeEcon(typeId, me, te);
+  _bpApplyEnrichment(card, result);
+  delete card.dataset.enriching;
+}
+
+function _bpApplyEnrichment(card, data) {
+  const costEl   = card.querySelector('.bp-econ-cost');
+  const profitEl = card.querySelector('.bp-econ-profit');
+  const marginEl = card.querySelector('.bp-econ-margin');
+  const catPill  = card.querySelector('.bp-cat-pill');
+  const subType  = card.querySelector('.bp-sub-type');
+
+  // Build cost
+  if (costEl) {
+    if (data.noData) {
+      costEl.textContent = 'No build data';
+      costEl.classList.add('muted');
+    } else if (data.buildCost > 0) {
+      costEl.textContent = formatNumber(data.buildCost) + ' ISK';
+      costEl.classList.remove('muted');
+    } else {
+      costEl.textContent = 'No market';
+      costEl.classList.add('muted');
+    }
+  }
+
+  // Profit (product sell − build cost) + margin
+  if (profitEl) {
+    if (data.hasPrices && data.productValue > 0 && data.margin != null) {
+      const profit = data.productValue - data.buildCost;
+      profitEl.textContent = (profit >= 0 ? '+' : '') + formatNumber(profit);
+      profitEl.className = 'bp-econ-profit ' + (profit >= 0 ? 'pos' : 'neg');
+      if (marginEl) {
+        marginEl.textContent = `${data.margin >= 0 ? '+' : ''}${data.margin.toFixed(1)}% margin`;
+        marginEl.style.color = data.margin >= 0 ? 'var(--success)' : 'var(--danger)';
+      }
+    } else {
+      profitEl.textContent = '';
+      profitEl.className = 'bp-econ-profit na';
+      if (marginEl) marginEl.textContent = '';
+    }
+  }
+
+  // Category pill + sub label + left border
+  if (data.category && catPill) {
+    const color = _bpCategoryColor(data.category);
+    catPill.textContent = data.category.toUpperCase();
+    catPill.style.color = color;
+    catPill.style.background = color + '24';
+    catPill.style.display = '';
+    if (subType && data.group) subType.textContent = `${subType.textContent} · ${data.group}`;
+    // Keep the purple accent on perfect blueprints; otherwise colour by category.
+    if (card.dataset.perfect !== '1') card.style.borderLeftColor = color;
+  }
 }
 
 function bindLibraryEvents() {
@@ -307,6 +1022,12 @@ async function openBlueprintDetail(bp) {
     resultsDiv.style.display   = 'none';
     resultsDiv.innerHTML       = '';
     if (listSection) listSection.style.display = 'flex';
+    // Settings may have changed in the detail view — resync the toolbar controls
+    // and re-cost the grid so the cards reflect the current facility/character.
+    const bar = document.getElementById('bpFacilityBar');
+    if (bar) _indRenderControls(bar, () => { _bpEconCache.clear(); handleLibraryFilter(); });
+    _bpEconCache.clear();
+    handleLibraryFilter();
   });
 
   // ── Fetch SDE materials ──────────────────────────────────────────────────────
@@ -338,102 +1059,87 @@ async function openBlueprintDetail(bp) {
     return;
   }
 
-  // ── Fetch Jita prices for materials ─────────────────────────────────────────
-  const { materials, productTypeId, productName, productQty, runs } = sdeResult;
-  const matTypeIds = materials.map(m => m.typeId);
+  // ── Fetch Jita prices (materials + product) + adjusted prices (for EIV) ──────
+  const { materials, productTypeId, productName, productQty } = sdeResult;
+  const baseTime = sdeResult.baseTime || 0;
+  const priceIds = materials.map(m => m.typeId);
+  if (productTypeId) priceIds.push(productTypeId);
   let prices = {};
-  try { prices = await window.eveAPI.getJitaPrices(matTypeIds) || {}; } catch (_) {}
+  try { prices = await window.eveAPI.getJitaPrices([...new Set(priceIds)]) || {}; } catch (_) {}
+  const adjustedPrices = await _indGetAdjustedPrices();
 
-  // ── Render materials table ───────────────────────────────────────────────────
   const productImg = productTypeId
     ? `<img src="${ESI_IMAGE}/${productTypeId}/icon?size=32"
             onerror="this.src='${ESI_IMAGE}/0/icon?size=32';"
             style="width:24px;height:24px;vertical-align:middle;margin-right:6px;border-radius:2px;">`
     : '';
 
-  // Calculate total build cost
-  let totalCost = 0;
-  materials.forEach(mat => {
-    const p = prices[mat.typeId];
-    const unit = p?.sell > 0 ? p.sell : (p?.buy || 0);
-    totalCost += unit * mat.adjustedQty;
-  });
+  const defaultRuns = (bp.isBPC && bp.runs > 0) ? bp.runs : 1;
 
+  // Shell: facility controls + runs + recomputable breakdown + static buttons.
   detailBody.innerHTML = `
-    <div style="margin-bottom:16px;">
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;margin-bottom:8px;">PRODUCES</div>
-      <div style="display:flex;align-items:center;padding:8px 12px;background:var(--bg-card);
-                  border:1px solid var(--border);border-radius:4px;gap:8px;">
-        ${productImg}
-        <span style="color:var(--text-1);font-size:13px;">${escHtml(productName || 'Unknown Product')}</span>
-        ${productQty > 1
-          ? `<span style="font-family:var(--mono);color:var(--text-2);margin-left:auto;">×${productQty.toLocaleString()}</span>`
-          : ''}
-      </div>
+    <div id="bpDetailFacility" class="bp-facility-mount"></div>
+    <div class="bp-runs-row">
+      <span class="bp-facility-label">RUNS</span>
+      <input id="bpDetailRuns" class="field-input bp-facility-num" type="number" min="1" value="${defaultRuns}">
     </div>
-
-    <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);letter-spacing:0.1em;margin-bottom:6px;">
-      MATERIALS — 1 RUN · ME${bp.me}
-      <span style="font-size:9px;margin-left:8px;">(quantities rounded up per EVE rules)</span>
-    </div>
-
-    <!-- Column headers -->
-    <div style="display:flex;align-items:center;gap:10px;padding:3px 10px;
-                font-family:var(--mono);font-size:9px;color:var(--text-3);letter-spacing:0.08em;
-                margin-bottom:2px;">
-      <span style="width:28px;flex-shrink:0;"></span>
-      <span style="flex:1;">MATERIAL</span>
-      <span style="min-width:70px;text-align:right;">QTY</span>
-      <span style="min-width:100px;text-align:right;">JITA SELL/UNIT</span>
-      <span style="min-width:110px;text-align:right;">TOTAL COST</span>
-    </div>
-
-    <div id="bpMatTable" style="display:flex;flex-direction:column;gap:3px;">
-      ${materials.map(mat => renderMaterialRow(mat, prices)).join('')}
-    </div>
-
-    ${totalCost > 0 ? `
-    <div style="margin-top:14px;padding:12px 16px;background:var(--bg-card);
-                border:1px solid var(--border);border-radius:6px;
-                display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;">
-      <div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
-                    letter-spacing:0.12em;margin-bottom:4px;">
-          ESTIMATED BUILD COST · 1 RUN · ME${bp.me} · JITA SELL
-        </div>
-        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent);">
-          ${formatNumber(totalCost)} ISK
-        </div>
-      </div>
-      <div style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--text-3);">
-        Based on Jita 4-4 sell orders
-      </div>
-    </div>` : ''}
-
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);
-                display:flex;gap:8px;flex-wrap:wrap;">
-      <button id="bpCalcBtn" class="bp-view-btn" type="button"
-              style="padding:6px 16px;font-size:11px;">
-        ◈ OPEN FULL CALCULATOR
-      </button>
-      <button id="bpTreeBtn" class="bp-view-btn" type="button"
-              style="padding:6px 16px;font-size:11px;background:var(--bg-hover);">
+    <div id="bpBreakdown"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+      <button id="bpTreeBtn" class="bp-view-btn" type="button" style="padding:6px 16px;font-size:11px;background:var(--bg-hover);">
         ⬡ SHOW COMPONENT TREE
       </button>
-      <button id="bpAddToListBtn" class="bp-view-btn" type="button"
-              style="padding:6px 16px;font-size:11px;background:var(--bg-hover);margin-left:auto;">
+      <button id="bpAddToListBtn" class="bp-view-btn" type="button" style="padding:6px 16px;font-size:11px;background:var(--bg-hover);margin-left:auto;">
         ➕ ADD TO SHOPPING LIST
       </button>
     </div>
     <div id="bpComponentTree" style="display:none;margin-top:16px;"></div>`;
 
-  // Full calculator button
-  document.getElementById('bpCalcBtn')?.addEventListener('click', () => {
-    if (typeof selectedBpTypeId !== 'undefined') selectedBpTypeId = bp.type_id;
-    if (typeof selectedME      !== 'undefined') selectedME       = bp.me;
-    if (typeof selectedTE      !== 'undefined') selectedTE       = bp.te;
-    navigateIndustryTab('calculator');
-  });
+  // Recompute the breakdown from the live facility settings + runs.
+  async function recompute() {
+    const breakdown = document.getElementById('bpBreakdown');
+    if (!breakdown) return;
+    const runs = Math.max(1, parseInt(document.getElementById('bpDetailRuns')?.value) || 1);
+    const M = window.IndustryMath;
+    const matMod    = M.matModifier(_indParams(bp.me, bp.te));
+    const costIndex = await _indGetCostIndex(_indSettings.systemId);
+
+    let matCost = 0, eiv = 0;
+    const rows = materials.map(mat => {
+      const baseQty = mat.baseQty != null ? mat.baseQty : (mat.quantity || 0);
+      const qty  = M.adjustedQty(baseQty, runs, matMod);
+      const p    = prices[mat.typeId];
+      const unit = p?.sell > 0 ? p.sell : (p?.buy || 0);
+      const total = unit * qty;
+      matCost += total;
+      eiv     += (adjustedPrices[mat.typeId] || 0) * baseQty;
+      return { mat, qty, unit, total };
+    });
+    const jobFee    = M.jobFee(eiv, runs, costIndex, (_indSettings.taxRate || 0) / 100);
+    const totalCost = matCost + jobFee;
+
+    let productValue = 0;
+    if (productTypeId) {
+      const pp = prices[productTypeId];
+      const u  = pp?.sell > 0 ? pp.sell : (pp?.buy || 0);
+      productValue = u * (productQty || 1) * runs;
+    }
+    const profit = productValue > 0 ? productValue - totalCost : null;
+    const margin = (profit != null && totalCost > 0) ? (profit / totalCost) * 100 : null;
+    const buildTime = M.totalTime(baseTime, runs, M.timeModifier(_indParams(bp.me, bp.te), _indSkills));
+    const iskHr = (profit != null && buildTime > 0) ? profit / (buildTime / 3600) : null;
+
+    breakdown.innerHTML = _bpDetailBreakdownHtml({
+      productImg, productName, productQty, runs, me: bp.me, rows,
+      matCost, eiv, jobFee, costIndex, taxRate: _indSettings.taxRate || 0,
+      totalCost, productValue, profit, margin, buildTime, iskHr,
+    });
+  }
+
+  _indRenderControls(document.getElementById('bpDetailFacility'), () => recompute());
+  document.getElementById('bpDetailRuns')?.addEventListener('change', () => recompute());
+  // Load the build character's skills up front so the first time/ISK-hour is correct.
+  await _indLoadSkills(_indSettings.buildCharId);
+  await recompute();
 
   // Add to Shopping List
   document.getElementById('bpAddToListBtn')?.addEventListener('click', () => {
@@ -482,7 +1188,11 @@ async function buildTreeFromSdeMaterials(sdeMaterials, maxDepth, includeReaction
           isReaction  = actId === REACTION_ACTIVITY;
           if (!isReaction || includeReactions) {
             const subBpId = entry.blueprintDetails.blueprintTypeID;
-            subTree = await buildRecursiveMaterialTree(subBpId, mat.adjustedQty, 0, maxDepth - 1, includeReactions);
+            // Convert "units of this material needed" into "runs of its blueprint",
+            // since one run yields productQty units (reactions yield large batches).
+            const outPerRun = entry.blueprintDetails.productQty || 1;
+            const subRuns   = Math.max(1, Math.ceil(mat.adjustedQty / outPerRun));
+            subTree = await buildRecursiveMaterialTree(subBpId, subRuns, 0, maxDepth - 1, includeReactions);
           }
         }
       } catch (_) {}
@@ -719,8 +1429,12 @@ async function buildRecursiveMaterialTree(
           // Recurse if: it's a manufacturing BP, or reactions are included
           if (!isReaction || includeReactions) {
             const nextBpId = entry.blueprintDetails.blueprintTypeID;
+            // totalQty is units of `mat` needed; convert to runs of its blueprint
+            // (one run yields productQty units) before recursing.
+            const outPerRun = entry.blueprintDetails.productQty || 1;
+            const subRuns   = Math.max(1, Math.ceil(totalQty / outPerRun));
             subTree = await buildRecursiveMaterialTree(
-              nextBpId, totalQty, depth + 1, maxDepth, includeReactions
+              nextBpId, subRuns, depth + 1, maxDepth, includeReactions
             );
           }
         }
@@ -949,8 +1663,15 @@ function navigateIndustryTab(tab) {
             <option value="bpo">BPO Only</option>
             <option value="bpc">BPC Only</option>
           </select>
-          <select id="bpLibSort" class="field-input" style="width:130px;">
-            <option value="name">Name</option>
+          <select id="bpLibSort" class="field-input" style="width:155px;">
+            <option value="name">Name (A–Z)</option>
+            <option value="profit">Profit High-Low</option>
+            <option value="margin">Margin High-Low</option>
+            <option value="output">Output Value</option>
+            <option value="group">Group</option>
+            <option value="perfect">Perfect First</option>
+            <option value="me-perfect">ME Perfect First</option>
+            <option value="te-perfect">TE Perfect First</option>
             <option value="me">ME High-Low</option>
             <option value="te">TE High-Low</option>
             <option value="runs">Runs</option>
@@ -962,11 +1683,16 @@ function navigateIndustryTab(tab) {
             <span id="bpLibCount">0</span> blueprints
           </span>
         </div>
-        <div id="bpLibList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
-             gap:12px;padding:16px;overflow-y:auto;flex:1;"></div>
+        <div id="bpFacilityBar" class="bp-facility-mount"></div>
+        <div id="bpLibList" class="bp-grid"></div>
       </div>
       <div id="results" style="display:none;height:100%;overflow-y:auto;"></div>`;
     bindLibraryEvents();
+    // Facility / build-character controls — changing them re-costs the whole grid.
+    _indRenderControls(document.getElementById('bpFacilityBar'), () => {
+      _bpEconCache.clear();
+      handleLibraryFilter();
+    });
     // Always render shimmer skeleton first so the user sees something immediately.
     // If data is already loaded, defer the real render to the next event-loop tick
     // so the browser has a chance to paint the skeleton before the heavy DOM work.

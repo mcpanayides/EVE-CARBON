@@ -33,6 +33,35 @@ function registerEsiHandlers({
     return httpGet(url);
   });
 
+  // ─── IPC: Raw-text HTTP GET (follows redirects) ──────────────────────────
+  // Used to pull a published Google Sheet as CSV — renderer fetch() is blocked
+  // by Google's missing CORS headers, and httpGet() JSON-parses. Only https.
+  ipcHandle('http-get-text', async (_, url) => {
+    const https = require('https');
+    const fetchText = (u, redirects = 0) => new Promise((resolve, reject) => {
+      if (redirects > 5) return reject(new Error('Too many redirects'));
+      if (!/^https:\/\//i.test(u)) return reject(new Error('Only https URLs are allowed'));
+      const req = https.request(u, {
+        headers: { 'User-Agent': 'EVE-Carbon/1.0', 'Accept': 'text/csv,text/plain,*/*' }
+      }, (res) => {
+        // Follow 3xx redirects (Google export → googleusercontent)
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          const next = new URL(res.headers.location, u).toString();
+          return resolve(fetchText(next, redirects + 1));
+        }
+        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      });
+      req.on('error', reject);
+      req.setTimeout(20000, () => { req.destroy(); reject(new Error('Timeout')); });
+      req.end();
+    });
+    return fetchText(url);
+  });
+
   // ─── IPC: ESI type search ─────────────────────────────────────────────────
   ipcHandle('esi-search', async (_, query) => {
     return httpGet(
@@ -209,9 +238,12 @@ function registerEsiHandlers({
     const sdeDb = getSdeDb();
     if (sdeDb) {
       try {
-        // Prefer manufacturing (1) over reactions (11) over anything else
+        // Prefer manufacturing (1) over reactions (11) over anything else.
+        // `quantity` is the number of product units produced PER RUN — needed so
+        // callers can convert "units required" into "runs required" (reactions
+        // and ammo/charges produce large batches per run).
         const row = await sdeDb.get(
-          `SELECT typeID AS blueprintTypeID, activityID
+          `SELECT typeID AS blueprintTypeID, activityID, quantity AS productQty
              FROM industryActivityProducts
             WHERE productTypeID = ?
             ORDER BY CASE WHEN activityID = 1 THEN 0
@@ -226,6 +258,7 @@ function registerEsiHandlers({
               blueprintDetails: {
                 blueprintTypeID:    row.blueprintTypeID,
                 activityID:         row.activityID,
+                productQty:         row.productQty > 0 ? row.productQty : 1,
                 maxProductionLimit: 1,
               }
             }
@@ -478,7 +511,19 @@ function registerEsiHandlers({
       console.warn('[sde-blueprint-materials] product lookup failed:', e.message);
     }
 
-    return { materials, productTypeId, productName, productQty };
+    // ── 6. Base manufacturing time (seconds per run, before TE/rigs/skills) ──
+    let baseTime = 0;
+    try {
+      const timeRow = await getSdeDb().get(
+        `SELECT time FROM industryActivity WHERE typeID = ? AND activityID = ? LIMIT 1`,
+        blueprintTypeId, MANUFACTURING
+      );
+      if (timeRow && timeRow.time != null) baseTime = timeRow.time;
+    } catch (e) {
+      console.warn('[sde-blueprint-materials] base time lookup failed:', e.message);
+    }
+
+    return { materials, productTypeId, productName, productQty, baseTime };
   });
 
   // ─── IPC: SDE type metadata (group / category / slot / meta / tech) ─────────

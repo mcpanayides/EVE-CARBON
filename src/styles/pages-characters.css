@@ -36,8 +36,101 @@
 .add-character-btn       { background: var(--accent-15); border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); cursor: pointer; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; transition: all 0.2s ease; white-space: nowrap; }
 .add-character-btn:hover { background: var(--accent-20); border-color: var(--accent); }
 
+.resync-all-btn       { background: var(--bg-deep); border: 1px solid var(--border-b); border-radius: 4px; color: var(--text-2); cursor: pointer; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; transition: all 0.2s ease; white-space: nowrap; }
+.resync-all-btn:hover { background: var(--accent-08); border-color: var(--accent-40); color: var(--accent); }
+
 /* ── CHARACTER GRID ── */
-.accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; padding: 16px; overflow-y: auto; width: 100%; min-width: 0; align-items: stretch; box-sizing: border-box; }
+/* flex:1 + min-height:0 make the grid the scroll container (it's a flex child of
+   .nav-page, which is overflow:hidden) so the LIST scrolls instead of the cards
+   getting clipped at the page edge. grid-auto-rows:max-content sizes every row
+   to its tallest card's full content height, so nothing is ever cut off.
+   align-items:stretch then makes every card in a row share that uniform height. */
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-auto-rows: max-content;
+  gap: 20px; padding: 20px;
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  width: 100%; min-width: 0;
+  align-items: stretch; align-content: start;
+  box-sizing: border-box;
+}
+
+/* ── CHARACTER ID CARD (vertical, ID-card style) ── */
+/* Two-class selector so these layout overrides beat the base .character-card
+   rules regardless of source order. */
+.character-card.character-id-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-radius: 10px;
+  /* No overflow:hidden — it makes the card contribute ~0 height to the grid's
+     row sizing, so the row stays short and clips the content. Letting content
+     flow drives the row height correctly. Hero corners are rounded below. */
+}
+.character-id-card .character-fav-btn {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; line-height: 1; padding: 2px 5px;
+  color: var(--text-3); transition: color 0.15s ease, transform 0.15s ease;
+}
+.character-id-card .character-fav-btn:hover    { transform: scale(1.18); color: #e3c14d; }
+.character-id-card .character-fav-btn.is-fav    { color: #e3c14d; text-shadow: 0 0 8px rgba(227,193,77,0.45); }
+
+.character-card-actions {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+}
+.character-id-card .character-sync-btn { min-width: 0; padding: 5px 12px; font-size: 11px; }
+
+/* Hero block: portrait + name + corp/alliance */
+.character-card-hero {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 30px 16px 16px;
+  background: linear-gradient(180deg, var(--accent-08), transparent);
+  border-bottom: 1px solid var(--border-e);
+  border-radius: 10px 10px 0 0;
+}
+.character-id-card .character-card-portrait {
+  width: 96px; height: 96px; border-radius: 14px; border: 1px solid var(--border-e);
+}
+.character-id-card .character-card-name {
+  font-size: 17px; font-weight: 700; text-align: center; white-space: normal;
+  line-height: 1.25; overflow: visible;
+}
+.character-card-affil {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  flex-wrap: wrap; font-size: 11px; color: var(--text-2); font-family: var(--mono);
+  min-height: 16px; text-align: center;
+}
+.char-cc-corp-logo, .char-cc-ally-logo { width: 16px; height: 16px; border-radius: 2px; flex-shrink: 0; }
+.char-cc-affil-sep  { color: var(--text-4); }
+.char-cc-ally       { color: var(--text-3); }
+
+/* Body: stats + sections */
+.character-id-card .character-card-content {
+  display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 16px; flex: none;
+}
+.char-cc-stats { display: flex; flex-direction: column; }
+.char-cc-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  padding: 5px 0; border-bottom: 1px solid var(--border-e);
+}
+.char-cc-row:last-child { border-bottom: none; }
+.char-cc-k { color: var(--text-3); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; flex-shrink: 0; }
+.char-cc-v { color: var(--text-1); font-family: var(--mono); font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.char-cc-section { display: flex; flex-direction: column; gap: 7px; }
+.char-cc-section-label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-4); font-family: var(--mono); }
+.char-cc-implants { display: flex; flex-wrap: wrap; gap: 5px; min-height: 28px; }
+.char-cc-implant  { width: 28px; height: 28px; border-radius: 5px; border: 1px solid var(--border-e); background: var(--bg-deep); }
+.char-cc-ship       { display: flex; align-items: center; gap: 8px; }
+.char-cc-ship-icon  { width: 30px; height: 30px; border-radius: 5px; border: 1px solid var(--border-e); background: var(--bg-deep); flex-shrink: 0; }
+.char-cc-ship-name  { font-size: 13px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.character-id-card .character-active-badge { align-self: flex-start; }
 
 /* ── CHARACTER CARD ── */
 .character-card {

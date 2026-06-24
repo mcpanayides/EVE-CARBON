@@ -135,6 +135,12 @@ function bindEvents() {
   const addBtn = document.getElementById('addCharacterNavBtn');
   if (addBtn) addBtn.addEventListener('click', () => window.eveAPI.startSSOLogin());
 
+  // Re-sync all characters — routes every character through the serialised queue
+  const resyncAllBtn = document.getElementById('resyncAllNavBtn');
+  if (resyncAllBtn) resyncAllBtn.addEventListener('click', () => {
+    if (typeof resyncAllCharacters === 'function') resyncAllCharacters();
+  });
+
   // Close dropdown on outside click
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.search-wrap')) {

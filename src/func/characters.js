@@ -48,14 +48,18 @@ function _applyManualSyncStateIfActive(id, card) {
 }
 
 // Public entry point wired to every SYNC button. Decides whether to enqueue.
-function requestCharacterSync(id) {
+// `silent` suppresses the cooldown toast — used by Resync All so a batch of
+// recently-synced characters doesn't fire a toast per character.
+function requestCharacterSync(id, silent = false) {
   id = String(id);
 
   // Cooldown gate — collapses post-sync re-clicks into a no-op for 60 s.
   const until = _syncCooldownUntil[id] || 0;
   if (Date.now() < until) {
-    const secs = Math.ceil((until - Date.now()) / 1000);
-    showToast(`Synced recently — try again in ${secs}s.`, 'info');
+    if (!silent) {
+      const secs = Math.ceil((until - Date.now()) / 1000);
+      showToast(`Synced recently — try again in ${secs}s.`, 'info');
+    }
     return;
   }
 
@@ -194,6 +198,130 @@ function toggleFavorite(id) {
   return favs.has(id);
 }
 
+// ─── Resync all ───────────────────────────────────────────────────────────────
+// Enqueues every saved character into the serialised sync queue. The queue's
+// dedupe + cooldown guards make duplicates / recently-synced characters no-ops.
+async function resyncAllCharacters() {
+  let accounts = [];
+  try { accounts = await window.eveAPI.getAccounts(); } catch (_) {}
+  if (!accounts || !accounts.length) { showToast('No characters to sync.', 'info'); return; }
+  showToast(`Queued ${accounts.length} character${accounts.length !== 1 ? 's' : ''} for re-sync.`, 'info');
+  accounts.forEach(acc => requestCharacterSync(acc.characterId, true));
+}
+
+// Bloodline id → name (static EVE data). Used on the character ID cards.
+const CHAR_BLOODLINE_NAMES = {
+  1:'Deteis', 2:'Civire', 3:'Achura', 4:'Gallente', 5:'Intaki', 6:'Jin-Mei',
+  7:'Amarr', 8:'Ni-Kunni', 9:'Khanid', 11:'Vherokior', 12:'Brutor', 13:'Sebiestor',
+  14:'Minmatar', 15:'Nefantar', 16:'Starkmanir', 17:'Thukker',
+};
+
+// A location name that's really a placeholder, not a real place.
+function _charBadLocName(s) {
+  return !s || /^(structure|location)\s/i.test(s) || /no structure found|not found|forbidden|error/i.test(s);
+}
+
+// Fill the async fields of a character ID card from the local DB + the shared
+// net-worth cache. Never throws — leaves placeholders on failure.
+async function _populateCharCard(card, acc, nwCache) {
+  const id = acc.characterId;
+  const set = (field, html) => {
+    const el = card.querySelector(`[data-cc-field="${field}"]`);
+    if (el) el.innerHTML = html;
+  };
+
+  let d = null;
+  try { d = await window.eveAPI.getCharacterData(id); } catch (_) {}
+  const info   = (d && d.info)   || {};
+  const loc    = (d && d.location) || {};
+  const ship   = (d && d.ship)   || {};
+  const wallet = (d && d.wallet && d.wallet.balance) || 0;
+
+  if (!d || !d.info) {
+    ['born','sec','bloodline','home','location','gender','networth']
+      .forEach(f => set(f, '<span style="color:var(--text-3);">—</span>'));
+    set('implants', '<span style="color:var(--text-3);font-size:11px;">Sync to populate</span>');
+    set('ship',     '<span style="color:var(--text-3);font-size:11px;">Sync this character</span>');
+    return;
+  }
+
+  // Born
+  let born = '—';
+  if (info.birthday) { try { born = new Date(info.birthday).toISOString().slice(0,10).replace(/-/g,'.'); } catch (_) {} }
+  set('born', escHtml(born));
+
+  // Security status (coloured)
+  if (typeof info.security_status === 'number') {
+    const s   = info.security_status;
+    const col = s > 0 ? 'var(--success)' : s < 0 ? 'var(--danger)' : 'var(--text-2)';
+    set('sec', `<span style="color:${col};font-weight:700;">${s.toFixed(1)}</span>`);
+  } else set('sec', '—');
+
+  // Home station + current system
+  const home = (!_charBadLocName(loc.station_name) && loc.station_name) || loc.solar_system_name || '—';
+  set('home',     escHtml(home));
+  set('location', escHtml(loc.solar_system_name || '—'));
+
+  // Gender + bloodline
+  set('gender', escHtml(info.gender ? info.gender.charAt(0).toUpperCase() + info.gender.slice(1) : '—'));
+  set('bloodline', escHtml(info.bloodline_id ? (CHAR_BLOODLINE_NAMES[info.bloodline_id] || `ID ${info.bloodline_id}`) : '—'));
+
+  // Net worth = cached asset value + market escrow + liquid wallet
+  const nw       = nwCache && nwCache.perChar && nwCache.perChar[String(id)];
+  const netWorth = (nw && nw.assetValue || 0) + (nw && nw.escrow || 0) + wallet;
+  set('networth', netWorth > 0
+    ? `<span style="color:var(--liquidisk);">${formatISK(netWorth)}</span>`
+    : (wallet > 0 ? formatISK(wallet) : '<span style="color:var(--text-3);">—</span>'));
+
+  // Corp + alliance logos
+  const corpLogo = card.querySelector('[data-cc-field="corp-logo"]');
+  const allyLogo = card.querySelector('[data-cc-field="ally-logo"]');
+  const allySep  = card.querySelector('[data-cc-field="ally-sep"]');
+  if (corpLogo && info.corporation_id) {
+    corpLogo.src = `https://images.evetech.net/corporations/${info.corporation_id}/logo?size=32`;
+    corpLogo.style.display = '';
+  }
+  if (allyLogo && info.alliance_id) {
+    allyLogo.src = `https://images.evetech.net/alliances/${info.alliance_id}/logo?size=32`;
+    allyLogo.style.display = '';
+    if (allySep) allySep.textContent = '·';
+  }
+
+  // Corp + alliance names (bulk name resolver returns [{id,name}] → map it)
+  if (info.corporation_id || info.alliance_id) {
+    try {
+      const ids = [info.corporation_id, info.alliance_id].filter(Boolean);
+      const arr = await window.eveAPI.getNames(ids);
+      const nm  = {};
+      if (Array.isArray(arr)) arr.forEach(r => { if (r && !/^Type\s/.test(r.name)) nm[r.id] = r.name; });
+      const corpEl = card.querySelector('[data-cc-field="corp-name"]');
+      const allyEl = card.querySelector('[data-cc-field="ally-name"]');
+      if (corpEl && nm[info.corporation_id]) corpEl.textContent = nm[info.corporation_id];
+      if (allyEl && info.alliance_id) allyEl.textContent = nm[info.alliance_id] || '';
+    } catch (_) {}
+  }
+
+  // Implants (slot icons)
+  const raw = (d.implants || d.implantsList || d.character_implants || info.implants || []);
+  const implants = (Array.isArray(raw) ? raw : [])
+    .map(r => ({ id: r.implant_id || r.type_id || r.id, name: r.type_name || r.name || '' }))
+    .filter(r => r.id);
+  set('implants', implants.length
+    ? implants.map(im =>
+        `<img class="char-cc-implant" src="${ESI_IMAGE}/${im.id}/icon?size=32"
+              title="${escHtml(im.name || `Implant ${im.id}`)}" alt="" loading="lazy"
+              onerror="this.style.display='none'">`).join('')
+    : '<span style="color:var(--text-3);font-size:11px;">No implants</span>');
+
+  // Current ship
+  const shipId = ship.ship_type_id, shipName = ship.ship_type_name;
+  set('ship', shipId
+    ? `<img class="char-cc-ship-icon" src="${ESI_IMAGE}/${shipId}/icon?size=32" alt="" loading="lazy"
+            onerror="this.style.display='none'">
+       <span class="char-cc-ship-name">${escHtml(ship.ship_name || shipName || `Type ${shipId}`)}</span>`
+    : '<span style="color:var(--text-3);font-size:11px;">Unknown — sync this character</span>');
+}
+
 async function loadAccounts() {
   try {
     const accounts = await window.eveAPI.getAccounts();
@@ -225,88 +353,74 @@ async function loadAccounts() {
       return (orderMap[String(a.characterId)] ?? 999) - (orderMap[String(b.characterId)] ?? 999);
     });
 
+    // Shared net-worth cache (asset value + escrow per character), computed by
+    // the dashboard. Read once; each card adds its own liquid wallet on top.
+    const nwCache = await window.eveAPI.cacheGet('dashboard_asset_value').catch(() => null);
+
     orderedAccounts.forEach(acc => {
-      const isActive = String(acc.characterId) === String(selectedCharacterId);
+      const id       = acc.characterId;
+      const isActive = String(id) === String(selectedCharacterId);
+      const isFav    = favs.has(String(id));
       const item     = document.createElement('div');
-      item.className = 'character-card' + (isActive ? ' selected' : '');
-      item.dataset.characterId = acc.characterId;
+      item.className = 'character-card character-id-card' + (isActive ? ' selected' : '');
+      item.dataset.characterId = id;
       item.draggable = true;
 
-      const portrait = document.createElement('img');
-      portrait.className = 'character-card-portrait';
-      portrait.alt     = acc.characterName;
-      portrait.loading = 'lazy';
-      portrait.title   = acc.characterName;
-      portrait.onerror = function () {
-        this.onerror = null;
-        const tried = this.dataset.tried || '';
-        if (!tried.includes('128')) {
-          this.dataset.tried = tried + ' 128';
-          this.src = `https://images.evetech.net/characters/${acc.characterId}/portrait?size=128`;
-        } else if (!tried.includes('64')) {
-          this.dataset.tried = tried + ' 64';
-          this.src = `https://images.evetech.net/characters/${acc.characterId}/portrait?size=64`;
-        }
-      };
-      portrait.src = `https://images.evetech.net/characters/${acc.characterId}/portrait?size=128`;
+      item.innerHTML = `
+        <button class="character-fav-btn${isFav ? ' is-fav' : ''}" data-id="${id}"
+                title="${isFav ? 'Unfavorite' : 'Favorite — pin to top'}">${isFav ? '◆' : '◇'}</button>
 
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'character-card-content';
-      infoDiv.innerHTML = `
-        <div class="character-card-name">${escHtml(acc.characterName)}</div>
-        <div class="character-card-meta">
-          <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);">${acc.characterId}</span>
+        <div class="character-card-actions">
+          <button class="character-sync-btn sync-btn bp-view-btn" data-id="${id}">SYNC</button>
+          <span class="char-sync-spinner sync-spinner spin" style="width:14px;height:14px;display:none;"></span>
+          <button class="character-remove-btn remove-btn" data-id="${id}" title="Remove Account">✕</button>
         </div>
-        <div class="character-card-location" style="font-family:var(--mono);font-size:10px;color:var(--text-2);margin-top:2px;"></div>
-        ${isActive ? '<div class="character-active-badge">● ACTIVE</div>' : ''}`;
 
-      // Current location from the local DB (no network) — filled per card.
-      window.eveAPI.getCharacterData(acc.characterId).then(d => {
-        const locEl = infoDiv.querySelector('.character-card-location');
-        if (!locEl) return;
-        const sys = d && d.location && d.location.solar_system_name;
-        locEl.textContent = sys ? `⌖ ${sys}` : '';
-      }).catch(() => {});
+        <div class="character-card-hero">
+          <img class="character-card-portrait" alt="${escHtml(acc.characterName)}" title="${escHtml(acc.characterName)}"
+               loading="lazy"
+               src="https://images.evetech.net/characters/${id}/portrait?size=256"
+               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${id}/portrait?size=128';">
+          <div class="character-card-name">${escHtml(acc.characterName)}</div>
+          <div class="character-card-affil">
+            <img class="char-cc-corp-logo" data-cc-field="corp-logo" alt="" style="display:none;"
+                 onerror="this.style.display='none'">
+            <span class="char-cc-affil-name" data-cc-field="corp-name"></span>
+            <span class="char-cc-affil-sep" data-cc-field="ally-sep"></span>
+            <img class="char-cc-ally-logo" data-cc-field="ally-logo" alt="" style="display:none;"
+                 onerror="this.style.display='none'">
+            <span class="char-cc-affil-name char-cc-ally" data-cc-field="ally-name"></span>
+          </div>
+        </div>
 
-      const rightDiv  = document.createElement('div');
-      rightDiv.className = 'character-card-right';
+        <div class="character-card-content">
+          <div class="char-cc-stats">
+            <div class="char-cc-row"><span class="char-cc-k">Born</span><span class="char-cc-v" data-cc-field="born">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Sec Status</span><span class="char-cc-v" data-cc-field="sec">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Bloodline</span><span class="char-cc-v" data-cc-field="bloodline">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Home</span><span class="char-cc-v" data-cc-field="home">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Location</span><span class="char-cc-v" data-cc-field="location">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Gender</span><span class="char-cc-v" data-cc-field="gender">…</span></div>
+            <div class="char-cc-row"><span class="char-cc-k">Net Worth</span><span class="char-cc-v" data-cc-field="networth">…</span></div>
+          </div>
+          <div class="char-cc-section">
+            <div class="char-cc-section-label">Active Implants</div>
+            <div class="char-cc-implants" data-cc-field="implants">…</div>
+          </div>
+          <div class="char-cc-section">
+            <div class="char-cc-section-label">Current Ship</div>
+            <div class="char-cc-ship" data-cc-field="ship">…</div>
+          </div>
+          ${isActive ? '<div class="character-active-badge">● ACTIVE</div>' : ''}
+        </div>`;
 
-      const isFav = favs.has(String(acc.characterId));
-      const favBtn = document.createElement('button');
-      favBtn.className = 'character-fav-btn';
-      favBtn.dataset.id = acc.characterId;
-      favBtn.textContent = isFav ? '★' : '☆';
-      favBtn.title = isFav ? 'Unfavorite' : 'Favorite — pin to top';
-      favBtn.style.cssText = `background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;flex-shrink:0;color:${isFav ? '#e3c14d' : 'var(--text-3)'};`;
+      // Fill the async fields (DB + net-worth cache + corp/alliance names).
+      _populateCharCard(item, acc, nwCache);
 
-      const syncBtn = document.createElement('button');
-      syncBtn.className = 'character-sync-btn sync-btn bp-view-btn';
-      syncBtn.dataset.id = acc.characterId;
-      syncBtn.textContent = 'SYNC';
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'character-remove-btn remove-btn';
-      removeBtn.dataset.id = acc.characterId;
-      removeBtn.title = 'Remove Account';
-      removeBtn.textContent = '✕';
-
-      // Sync spinner sits directly above the remove (✕) button, vertically stacked.
-      // The slot reserves the spinner's space so the ✕ never jumps when sync starts.
-      const removeStack = document.createElement('div');
-      removeStack.className = 'character-card-remove-stack';
-      removeStack.innerHTML = '<span class="char-sync-slot"><span class="char-sync-spinner sync-spinner spin" style="width:14px;height:14px;display:none;"></span></span>';
-      removeStack.appendChild(removeBtn);
-
-      rightDiv.appendChild(favBtn);
-      rightDiv.appendChild(syncBtn);
-      rightDiv.appendChild(removeStack);
-      item.appendChild(portrait);
-      item.appendChild(infoDiv);
-      item.appendChild(rightDiv);
-
-      // Click to select
+      // Click to select (ignore the action/fav controls).
       item.addEventListener('click', (e) => {
-        if (!e.target.closest('.character-card-right')) selectCharacter(acc);
+        if (e.target.closest('.character-card-actions') || e.target.closest('.character-fav-btn')) return;
+        selectCharacter(acc);
       });
 
       // Drag to reorder

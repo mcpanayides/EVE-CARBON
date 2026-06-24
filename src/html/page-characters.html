@@ -40,8 +40,11 @@
        style="padding:15px; border-bottom:1px solid var(--border); display:flex;
               flex-wrap:wrap; gap:15px; background:var(--bg-card); align-items:center;">
     <input type="text" id="charSearch" class="field-input"
-           style="flex:1; min-width:200px; font-size:14px; padding:10px;"
+           style="flex:1; min-width:160px; max-width:380px; font-size:14px; padding:10px;"
            placeholder="Search characters..." />
+    <button class="resync-all-btn" id="resyncAllNavBtn" title="Re-sync every character (serialised)">
+      ⟳ RESYNC ALL
+    </button>
     <button class="add-character-btn" id="addCharacterNavBtn" title="Add character">
       + ADD CHARACTER
     </button>

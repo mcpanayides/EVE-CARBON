@@ -155,7 +155,22 @@
 .industry-sub-btn    { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 12px; background: none; border: none; border-left: 2px solid transparent; color: var(--text-2); font-family: var(--mono); font-size: 11px; cursor: pointer; text-align: left; }
 .industry-sub-btn:hover  { background: var(--bg-hover); color: var(--text-1); }
 .industry-sub-btn.active { background: var(--bg-hover); color: var(--accent); border-left-color: var(--accent); }
-.industry-sub-icon   { font-size: 13px; width: 14px; flex-shrink: 0; }
+.industry-sub-icon   { font-size: 18px; width: 20px; text-align: center; flex-shrink: 0; font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+/* Per-tool icon glyphs — Material Symbols ligatures, one unique icon per tab. */
+.industry-sub-btn[data-industry-tab="blueprints"]    .industry-sub-icon::before { content: "architecture"; }
+.industry-sub-btn[data-industry-tab="search"]        .industry-sub-icon::before { content: "manage_search"; }
+.industry-sub-btn[data-industry-tab="active-jobs"]   .industry-sub-icon::before { content: "factory"; }
+.industry-sub-btn[data-industry-tab="salvage"]       .industry-sub-icon::before { content: "handyman"; }
+.industry-sub-btn[data-industry-tab="orehold"]       .industry-sub-icon::before { content: "diamond"; }
+.industry-sub-btn[data-industry-tab="cost-index"]    .industry-sub-icon::before { content: "trending_up"; }
+.industry-sub-btn[data-industry-tab="shopping-lists"] .industry-sub-icon::before { content: "shopping_cart"; }
+.industry-sub-btn[data-industry-tab="reactions"]     .industry-sub-icon::before { content: "science"; }
+.industry-sub-btn[data-industry-tab="ore"]           .industry-sub-icon::before { content: "grain"; }
+.industry-sub-btn[data-industry-tab="ice"]           .industry-sub-icon::before { content: "ac_unit"; }
+.industry-sub-btn[data-industry-tab="gas"]           .industry-sub-icon::before { content: "cloud"; }
+.industry-sub-btn[data-industry-tab="moon-calc"]     .industry-sub-icon::before { content: "dark_mode"; }
+.industry-sub-btn[data-industry-tab="moon"]          .industry-sub-icon::before { content: "radar"; }
+.industry-sub-btn[data-industry-tab="planet-size"]   .industry-sub-icon::before { content: "public"; }
 .industry-content    { flex: 1; overflow-y: auto; background: var(--bg-deep); min-width: 0; }
 
 /* ── WALLETS PAGE ── */

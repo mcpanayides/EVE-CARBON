@@ -127,47 +127,48 @@ const PAGE_HTML = {
       <div class="industry-layout">
         <div class="industry-subnav">
           <div class="industry-subnav-label">TOOLS</div>
+          <!-- Icon glyphs are set per-tab via CSS (.industry-sub-icon::before in industry-blueprints.css) -->
           <button class="industry-sub-btn active" data-industry-tab="blueprints">
-            <span class="industry-sub-icon">⬡</span>My Blueprints
+            <span class="industry-sub-icon material-symbols-outlined"></span>My Blueprints
           </button>
           <button class="industry-sub-btn" data-industry-tab="search">
-            <span class="industry-sub-icon">◑</span>BP Search
+            <span class="industry-sub-icon material-symbols-outlined"></span>BP Search
           </button>
           <button class="industry-sub-btn" data-industry-tab="active-jobs">
-            <span class="industry-sub-icon">◈</span>Active Jobs
+            <span class="industry-sub-icon material-symbols-outlined"></span>Active Jobs
           </button>
           <button class="industry-sub-btn" data-industry-tab="salvage">
-            <span class="industry-sub-icon">⚙</span>Salvage Calc
+            <span class="industry-sub-icon material-symbols-outlined"></span>Salvage Calc
           </button>
           <button class="industry-sub-btn" data-industry-tab="orehold">
-            <span class="industry-sub-icon">⬡</span>Orehold Minerals Calc
+            <span class="industry-sub-icon material-symbols-outlined"></span>Orehold Minerals Calc
           </button>
           <button class="industry-sub-btn" data-industry-tab="cost-index">
-            <span class="industry-sub-icon">◎</span>Cost Index
+            <span class="industry-sub-icon material-symbols-outlined"></span>Cost Index
           </button>
           <button class="industry-sub-btn" data-industry-tab="shopping-lists">
-            <span class="industry-sub-icon">⬡</span>Shopping Lists
+            <span class="industry-sub-icon material-symbols-outlined"></span>Shopping Lists
           </button>
           <button class="industry-sub-btn" data-industry-tab="reactions">
-            <span class="industry-sub-icon">◈</span>Reactions Profit
+            <span class="industry-sub-icon material-symbols-outlined"></span>Reactions Profit
           </button>
           <button class="industry-sub-btn" data-industry-tab="ore">
-            <span class="industry-sub-icon">⬡</span>Ore Calculator
+            <span class="industry-sub-icon material-symbols-outlined"></span>Ore Calculator
           </button>
           <button class="industry-sub-btn" data-industry-tab="ice">
-            <span class="industry-sub-icon">⬡</span>Ice Calculator
+            <span class="industry-sub-icon material-symbols-outlined"></span>Ice Calculator
           </button>
           <button class="industry-sub-btn" data-industry-tab="gas">
-            <span class="industry-sub-icon">⬡</span>Gas Calculator
+            <span class="industry-sub-icon material-symbols-outlined"></span>Gas Calculator
           </button>
           <button class="industry-sub-btn" data-industry-tab="moon-calc">
-            <span class="industry-sub-icon">⬡</span>Moon Calculator
+            <span class="industry-sub-icon material-symbols-outlined"></span>Moon Calculator
           </button>
           <button class="industry-sub-btn" data-industry-tab="moon">
-            <span class="industry-sub-icon">◎</span>Moon Scanning
+            <span class="industry-sub-icon material-symbols-outlined"></span>Moon Scanning
           </button>
           <button class="industry-sub-btn" data-industry-tab="planet-size">
-            <span class="industry-sub-icon">🪐</span>Planet Size Mapper
+            <span class="industry-sub-icon material-symbols-outlined"></span>Planet Size Mapper
           </button>
         </div>
         <div id="industryTabContent" class="industry-content">

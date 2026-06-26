@@ -469,6 +469,9 @@ async function loadAccounts() {
         const id = e.currentTarget.getAttribute('data-id');
         await window.eveAPI.removeAccount(id);
         showToast('Account removed.', 'info');
+        // Roster changed — drop session page memory so pages rebuild without
+        // the removed character next time they're opened.
+        if (typeof _pageInitialized !== 'undefined') _pageInitialized.clear();
         loadAccounts();
         loadBlueprintLibrary();
       });

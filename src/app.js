@@ -76,6 +76,12 @@ function bindIndustrySubNav() {
 // Called by the ✕ close buttons on each page (inline onclick in HTML).
 function closePage(page) {
   currentPage = null;
+  // The ✕ means "close": forget this page's session state so it re-renders fresh
+  // next time it's opened (unlike just navigating away, which preserves it).
+  if (page) {
+    if (typeof _pageInitialized !== 'undefined') _pageInitialized.delete(page);
+    if (page === 'fc' && typeof _fcOnPageHidden === 'function') _fcOnPageHidden();
+  }
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
 
   // Navigate somewhere sensible instead of revealing raw library.
@@ -151,6 +157,9 @@ function bindEvents() {
 
   // account-added event from main process
   window.eveAPI.on('account-added', () => {
+    // The character roster changed — drop session page memory so every page
+    // rebuilds with the new character set the next time it's opened.
+    if (typeof _pageInitialized !== 'undefined') _pageInitialized.clear();
     loadAccounts();
     loadBlueprintLibrary();
   });

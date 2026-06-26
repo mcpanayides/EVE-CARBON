@@ -225,6 +225,20 @@ function _fcStopTracking() {
   _fcSetStatus('Stopped.', '');
 }
 
+// Page-visibility hooks (called from navigateToPage). Leaving the fleet page
+// PAUSES the poll loop but keeps _fcTracking + all your selections, so you don't
+// spam ESI while away. Returning resumes the loop and immediately re-checks that
+// the fleet is still up — your setup is exactly as you left it.
+function _fcOnPageHidden() {
+  if (_fcPollTimer) { clearInterval(_fcPollTimer); _fcPollTimer = null; }
+}
+function _fcOnPageShown() {
+  if (_fcTracking && !_fcPollTimer) {
+    _fcPoll();                                     // re-check the fleet right away
+    _fcPollTimer = setInterval(_fcPoll, FC_POLL_MS);
+  }
+}
+
 // Invite every other character on the account into the current fleet. Sends ESI
 // invites the alts must accept in-game (it never force-joins them). Needs an
 // active fleet (start tracking first) and the boss to hold write_fleet scope.

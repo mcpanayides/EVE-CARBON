@@ -410,11 +410,33 @@ function restoreNavCollapsed() {
   if (collapsed) _applyNavCollapsed(true);
 }
 
+// Session page memory — a page renders its heavy content only on its FIRST visit
+// this session. Returning to a page keeps its DOM exactly as you left it (inputs,
+// sub-tab, scroll, in-progress calculators). closePage() (the ✕) evicts a page so
+// it re-renders fresh next time it's opened. Cleared only on app restart.
+let _pageInitialized = new Set();
+
+function _initPageForFirstVisit(page) {
+  if (page === 'characters')      loadAccounts();
+  else if (page === 'dashboard')  loadDashboard();
+  else if (page === 'assets')     loadAssets();
+  else if (page === 'wallets')    renderWallets();
+  else if (page === 'industry')   initIndustryPage();
+  else if (page === 'pi')       { loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); }
+  else if (page === 'jabber')     loadJabberHistory();
+  else if (page === 'map')        initMapPage();
+  else if (page === 'market')     renderMarket();
+  else if (page === 'calendar')   renderCalendar();
+  else if (page === 'fc')         initFcPage();
+}
+
 function navigateToPage(page) {
   // Guard against being called with no target (e.g. a .nav-btn without a
   // data-page). Bailing here keeps a real page selected instead of blanking the
   // view and lighting up every page-less button as .active.
   if (!page) return;
+
+  const prevPage = currentPage;
 
   const mainLibrary = document.getElementById('mainLibraryView');
   if (mainLibrary) mainLibrary.style.display = 'none';
@@ -432,20 +454,22 @@ function navigateToPage(page) {
 
   currentPage = page;
 
+  // Leaving the fleet page pauses its poll loop — the tracking setup is kept so
+  // returning resumes exactly where you were (see _fcOnPageHidden/_fcOnPageShown).
+  if (prevPage === 'fc' && page !== 'fc' && typeof _fcOnPageHidden === 'function') _fcOnPageHidden();
+
   // Keep character data fresh automatically — no manual "sync" button needed.
+  // (Background sync only; it updates the local DB without resetting page UI.)
   if (typeof autoSyncOnNavigate === 'function') autoSyncOnNavigate();
 
-  if (page === 'characters') loadAccounts();
-  if (page === 'dashboard')  loadDashboard();
-  if (page === 'assets')     loadAssets();
-  if (page === 'wallets')    renderWallets();
-  if (page === 'industry')   initIndustryPage();
-  if (page === 'pi')       { loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); }
-  if (page === 'jabber')     loadJabberHistory();
-  if (page === 'map')        initMapPage();
-  if (page === 'market')     renderMarket();
-  if (page === 'calendar')   renderCalendar();
-  if (page === 'fc')         initFcPage();
+  if (!_pageInitialized.has(page)) {
+    // First visit this session — build the page.
+    _pageInitialized.add(page);
+    _initPageForFirstVisit(page);
+  } else if (page === 'fc' && typeof _fcOnPageShown === 'function') {
+    // Returning to an already-set-up fleet page: keep the setup, re-check the fleet.
+    _fcOnPageShown();
+  }
 }
 
 // Re-render the open data page after a background sync so new data shows without a

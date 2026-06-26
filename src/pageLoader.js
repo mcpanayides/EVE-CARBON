@@ -378,6 +378,22 @@ const PAGE_HTML = {
       </div>
     </div>`,
 
+  // ── Calendar ──────────────────────────────────────────────────────────────────
+  calendar: `
+    <div id="page-calendar" class="nav-page"
+         style="flex-direction:column; height:100%; overflow:hidden;">
+      <div class="page-header">
+        <div>
+          <h2>Calendar</h2>
+          <div class="page-description">
+            Alliance &amp; imported events — forum calendar plus any iCal feeds. Times shown in EVE (UTC) and local.
+          </div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('calendar')">✕</button>
+      </div>
+      <div id="calendarBody"></div>
+    </div>`,
+
 };
 
 // ─── Inject all pages into #navPagesContainer ─────────────────────────────────

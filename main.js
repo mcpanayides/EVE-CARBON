@@ -27,6 +27,7 @@ const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
 const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
+const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
 
 // Global reference to the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -362,7 +363,17 @@ ipcMain.handle('get-app-preferences', () => {
 });
 
 ipcMain.handle('set-launch-at-login', (_, enabled) => {
-  app.setLoginItemSettings({ openAtLogin: !!enabled });
+  const opts = { openAtLogin: !!enabled };
+  // In a packaged build process.execPath is EVE-Carbon.exe, so the default
+  // registration launches the real app. In development it's the bare
+  // node_modules electron.exe; registering that WITHOUT the app path makes
+  // Windows launch Electron's built-in "welcome" window at login instead of
+  // our app. Point it back at this project so the dev login item still works.
+  if (!app.isPackaged) {
+    opts.path = process.execPath;
+    opts.args = [path.resolve(process.argv[1] || __dirname)];
+  }
+  app.setLoginItemSettings(opts);
   // Read back from the OS so the UI reflects what actually took effect.
   return app.getLoginItemSettings().openAtLogin;
 });
@@ -666,6 +677,7 @@ app.whenReady().then(async () => {
   });
   registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig });
   registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThemesDir });
+  registerForumHandlers({ ipcHandle });
   // Jabber must register AFTER initPaths() so configPath is set, and AFTER
   // registerConfigHandlers() so app-get-config is available when jabber_ipc
   // reads saved credentials on startup.

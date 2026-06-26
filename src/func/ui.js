@@ -305,6 +305,7 @@ function bindUISettings() {
     btn.addEventListener('click', () => { if (btn.dataset.settingsTab) setSettingsTab(btn.dataset.settingsTab); });
   });
   if (typeof bindIndustrySettings === 'function') bindIndustrySettings();
+  if (typeof bindCalendarSettings === 'function') bindCalendarSettings();
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       await saveAllSettings();
@@ -319,11 +320,16 @@ async function populateSettingsInputs() {
   if (currentSettingsTab === 'database') await populateDatabaseSettings();
   if (currentSettingsTab === 'palette')  await populatePaletteSettings();
   if (typeof populateIndustrySettings === 'function') populateIndustrySettings();
+  if (typeof populateCalendarSettings === 'function') populateCalendarSettings();
 }
 
 async function saveAllSettings() {
   const jabber = gatherJabberSettings();
   await window.eveAPI.saveAppConfig({ jabber });
+  // Calendar feeds (merged into config under its own key, won't clobber jabber).
+  if (typeof gatherCalendarSettings === 'function') {
+    await window.eveAPI.saveAppConfig({ calendar: gatherCalendarSettings() });
+  }
   // Reload SIG/comms data whenever settings are saved so a pack change takes
   // effect immediately without requiring an app restart.
   if (typeof loadJabberSigsMap === 'function')     loadJabberSigsMap();
@@ -438,6 +444,7 @@ function navigateToPage(page) {
   if (page === 'jabber')     loadJabberHistory();
   if (page === 'map')        initMapPage();
   if (page === 'market')     renderMarket();
+  if (page === 'calendar')   renderCalendar();
 }
 
 // Re-render the open data page after a background sync so new data shows without a

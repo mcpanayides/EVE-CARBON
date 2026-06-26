@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="./styles/map.css"/>
   <link rel="stylesheet" href="./styles/jabber.css"/>
   <link rel="stylesheet" href="./styles/assets.css"/>
+  <link rel="stylesheet" href="./styles/calendar.css"/>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 
@@ -152,6 +153,10 @@
           <span class="nav-icon material-symbols-outlined">candlestick_chart</span>
           <span class="nav-label">Market</span>
         </button>
+        <button class="nav-btn nav-btn-calendar" data-page="calendar" title="Calendar">
+          <span class="nav-icon material-symbols-outlined">calendar_month</span>
+          <span class="nav-label">Calendar</span>
+        </button>
         <div class="nav-divider"></div>
         <button id="openBugReportBtn" class="nav-btn" title="File a Bug Report" onclick="openBugReport()">
           <span class="nav-icon material-symbols-outlined">bug_report</span>
@@ -237,6 +242,7 @@
         <button class="settings-menu-btn"          data-settings-tab="forums">Forums</button>
         <button class="settings-menu-btn"          data-settings-tab="fleetCommander">Fleet Commander</button>
         <button class="settings-menu-btn"          data-settings-tab="industry">GEZ Tracker</button>
+        <button class="settings-menu-btn"          data-settings-tab="calendar">Calendar</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
         <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
         <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
@@ -398,6 +404,51 @@
             <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
               <button id="industrySheetSyncBtn" class="calc-btn" style="font-size:12px;">Sync structures</button>
               <span id="industrySheetStatus" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Calendar tab -->
+      <div id="settingsTabCalendar" class="settings-tab" style="display:none;">
+        <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <div class="settings-panel-block">
+            <div class="settings-panel-title">Forum Calendar (IP.Board)</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
+              Pull events from your alliance IP.Board forum calendar. The easiest way is the
+              calendar's <b>iCal/subscribe link</b> (a personal feed link embeds your member key,
+              so member-only calendars work without logging in). For member-only feeds without a
+              key, use <b>Log in to forum</b> and tick “fetch via my login session”. Times appear
+              in EVE (UTC) and local on the Calendar page.
+            </div>
+            <div class="ui-settings-grid">
+              <div class="ui-settings-row">
+                <label>Forum base URL</label>
+                <input id="calForumUrl" class="field-input" type="text" placeholder="https://forum.example.com" />
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <label style="display:block; font-size:11px; color:var(--text-2); margin-bottom:4px;">Forum iCal feed URL(s) — one per line</label>
+              <textarea id="calForumFeeds" spellcheck="false" placeholder="https://forum.example.com/calendar/1-events/?do=download&key=…"
+                        style="width:100%; box-sizing:border-box; min-height:60px; resize:vertical; background:var(--bg-deep); border:1px solid var(--border); border-radius:6px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:8px; line-height:1.5;"></textarea>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+              <button id="calForumLoginBtn" class="calc-btn" style="font-size:12px;">Log in to forum</button>
+              <label class="checkbox-label" style="font-size:12px;">
+                <input type="checkbox" id="calUseSession"> Fetch forum feeds via my login session
+              </label>
+              <span id="calForumLoginStatus" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);">Not logged in</span>
+            </div>
+          </div>
+
+          <div class="settings-panel-block" style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+            <div class="settings-panel-title">Other iCal Feeds</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:8px;">
+              Any other public iCalendar feed URLs (e.g. a Google Calendar <code style="font-size:11px;">basic.ics</code> link), one per line.
+            </div>
+            <textarea id="calExtraFeeds" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/public/basic.ics"
+                      style="width:100%; box-sizing:border-box; min-height:60px; resize:vertical; background:var(--bg-deep); border:1px solid var(--border); border-radius:6px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:8px; line-height:1.5;"></textarea>
+            <div style="font-size:11px; color:var(--text-3); margin-top:8px;">
+              You can also import a one-off <code>.ics</code> file directly from the Calendar page. Click <b>SAVE</b> to store feeds.
             </div>
           </div>
         </div>
@@ -840,6 +891,8 @@
 <script src="./func/orehold-reprocess.js"></script>
 <script src="./func/shopping-lists.js"></script>
 <script src="./func/market.js"></script>
+<script src="./func/ics-parse.js"></script>  <!-- pure iCalendar parser; must precede calendar.js -->
+<script src="./func/calendar.js"></script>
 <script src="./pageLoader.js"></script>  <!-- injects pages/*.html → #navPagesContainer -->
 <script src="./app.js"></script>         <!-- must be last -->
 

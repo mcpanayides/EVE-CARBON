@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Dashboard data
   esiFetch:              (url)                      => ipcRenderer.invoke('esi-fetch', url),
   httpGetText:           (url)                      => ipcRenderer.invoke('http-get-text', url),
+  forumLogin:            (baseUrl)                  => ipcRenderer.invoke('forum-login', baseUrl),
+  forumSessionStatus:    ()                         => ipcRenderer.invoke('forum-session-status'),
+  forumFetchText:        (url)                      => ipcRenderer.invoke('forum-fetch-text', url),
+  forumLogout:           ()                         => ipcRenderer.invoke('forum-logout'),
   getCharacterInfo:      (characterId)              => ipcRenderer.invoke('get-character-info', characterId),
   getClones:             (characterId)              => ipcRenderer.invoke('get-clones', characterId),
   getMarketPrices:       ()                         => ipcRenderer.invoke('get-market-prices'),

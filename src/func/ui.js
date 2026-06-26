@@ -445,6 +445,7 @@ function navigateToPage(page) {
   if (page === 'map')        initMapPage();
   if (page === 'market')     renderMarket();
   if (page === 'calendar')   renderCalendar();
+  if (page === 'fc')         initFcPage();
 }
 
 // Re-render the open data page after a background sync so new data shows without a

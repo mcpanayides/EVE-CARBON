@@ -134,6 +134,7 @@ const SCOPES         = [
   'esi-skills.read_skills.v1',                  // total skill points
   'esi-skills.read_skillqueue.v1',              // current skill queue (for estimating free time until next SP gain)
   'esi-fleets.read_fleet.v1',                    // for fleet role tags in Jabber messages (e.g. FC, squad commander, etc.)
+  'esi-fleets.write_fleet.v1',                   // invite the user's own alts into the fleet (Fleet Composition tool)
   'esi-ui.write_waypoint.v1',                    // set autopilot destination in active EVE client
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
@@ -573,6 +574,182 @@ ipcMain.handle('reprocess-from-names', async (_, names) => {
     return {};
   }
   return out;
+});
+
+// ─── Fleet Composition Tracker ────────────────────────────────────────────────
+// Roles are assigned by SDE ship-group membership. Group IDs verified against the
+// local SDE (the architecture doc's 83/1587 were wrong — Interceptor is 831,
+// Logistics Frigate is 1527). Edit FC_ROLE_GROUPS to add/retag ship classes.
+const FC_ROLE_GROUPS = {
+  831:  'Tackle',           // Interceptor
+  541:  'Tackle',           // Interdictor
+  894:  'Tackle',           // Heavy Interdiction Cruiser
+  832:  'Logistics',        // Logistics (Cruiser)
+  1527: 'Logistics',        // Logistics Frigate
+  540:  'Command Links',    // Command Ship (subcap boosts)
+  1534: 'Command Links',    // Command Destroyer (subcap boosts)
+  5120: 'Capital Command',  // Command Carrier (Salvation/Simurgh/Gaia/Ymir — capital boosts)
+  4902: 'Capital Command',  // Expedition Command Ship (Odysseus)
+  1538: 'Capital Support',  // Force Auxiliary (FAX)
+};
+
+// Returns a lookup table for EVERY published ship (SDE category 6), keyed by
+// ship_type_id for O(1) classification during the polling loop:
+//   { [typeId]: { name, group_id, group_name, tactical_role|null, tank } }
+// • tactical_role comes from FC_ROLE_GROUPS (null for plain DPS/other hulls).
+// • tank ('shield' | 'armor' | null) is derived from the hull's slot layout —
+//   more mid than low slots = shield-tanked, more low than mid = armor-tanked.
+//   Verified against known hulls (Armageddon→armor, Rokh→shield, Guardian→armor,
+//   Basilisk→shield, Damnation→armor, Claymore→shield). This powers doctrine
+//   mismatch ("false flag") detection in the renderer. Empty {} without the SDE.
+ipcMain.handle('fc-get-ship-roles', async () => {
+  const out = {};
+  if (!sdeDb) return out;
+  try {
+    // attributeID 12 = low slots, 13 = mid slots.
+    const rows = await sdeDb.all(
+      `SELECT t.typeID, t.typeName, t.groupID, g.groupName,
+              (SELECT COALESCE(da.valueInt, da.valueFloat) FROM dgmTypeAttributes da
+                 WHERE da.typeID = t.typeID AND da.attributeID = 12) AS lowSlots,
+              (SELECT COALESCE(da.valueInt, da.valueFloat) FROM dgmTypeAttributes da
+                 WHERE da.typeID = t.typeID AND da.attributeID = 13) AS medSlots
+         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+        WHERE g.categoryID = 6 AND t.published = 1`
+    );
+    for (const r of rows) {
+      const low = r.lowSlots || 0;
+      const med = r.medSlots || 0;
+      const tank = med > low ? 'shield' : (low > med ? 'armor' : null);
+      out[r.typeID] = {
+        name:          r.typeName,
+        group_id:      r.groupID,
+        group_name:    r.groupName,
+        tactical_role: FC_ROLE_GROUPS[r.groupID] || null,
+        tank,
+      };
+    }
+  } catch (e) {
+    console.warn('[fc] ship-roles query failed:', e.message);
+  }
+  return out;
+});
+
+// The fleet the character is currently in. ESI returns 404 when the character is
+// not in a fleet — surfaced as { inFleet:false } rather than an error. A token
+// predating esi-fleets.read_fleet.v1 returns 403 → { needsReauth:true }.
+// Returns { inFleet, fleetId, role, wingId, squadId } on success.
+ipcMain.handle('fc-get-character-fleet', async (_, characterId) => {
+  if (!characterId) return { inFleet: false };
+  try {
+    const token = await getValidToken(characterId);
+    const data  = await httpGet(
+      `${ESI_BASE}/v1/characters/${characterId}/fleet/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+    return {
+      inFleet: true,
+      fleetId: data.fleet_id,
+      role:    data.role,
+      wingId:  data.wing_id,
+      squadId: data.squad_id,
+    };
+  } catch (e) {
+    const msg = e.message || '';
+    if (/HTTP 404/.test(msg)) return { inFleet: false };
+    if (/HTTP 403/.test(msg)) return { inFleet: false, needsReauth: true, error: 'Re-authenticate this character to grant fleet access.' };
+    return { inFleet: false, error: msg };
+  }
+});
+
+// Fleet roster. Requires the authenticated character to be the fleet boss
+// (ESI restriction). Returns { ok, members:[{ characterId, shipTypeId, role,
+// roleName, joinTime, solarSystemId, takesFleetWarp }] }.
+ipcMain.handle('fc-get-fleet-members', async (_, characterId, fleetId) => {
+  if (!characterId || !fleetId) return { ok: false, error: 'missing character or fleet id' };
+  try {
+    const token = await getValidToken(characterId);
+    const data  = await httpGet(
+      `${ESI_BASE}/v1/fleets/${fleetId}/members/?datasource=tranquility`,
+      { Authorization: `Bearer ${token}` }
+    );
+    const members = (Array.isArray(data) ? data : []).map(m => ({
+      characterId:    m.character_id,
+      shipTypeId:     m.ship_type_id,
+      role:           m.role,
+      roleName:       m.role_name,
+      joinTime:       m.join_time,
+      solarSystemId:  m.solar_system_id,
+      takesFleetWarp: m.takes_fleet_warp,
+    }));
+    return { ok: true, members };
+  } catch (e) {
+    const msg = e.message || '';
+    // 404 = fleet closed/changed since we read the id; let the renderer reset.
+    if (/HTTP 404/.test(msg)) return { ok: false, fleetGone: true };
+    if (/HTTP 403/.test(msg)) return { ok: false, notBoss: true, error: 'Only the fleet boss can read the roster. Authenticate as the fleet boss.' };
+    return { ok: false, error: msg };
+  }
+});
+
+// Invite a batch of characters (the user's own alts) into the fleet. Requires the
+// authenticated character to be the fleet boss and esi-fleets.write_fleet.v1.
+// ESI sends a normal in-game invite each alt must ACCEPT — this never force-joins
+// anyone, keeping it within sanctioned ESI use (not input automation / botting).
+// Ensures a wing+squad exists, then invites each id as a squad_member, paced to
+// stay well under ESI error limits. Returns { ok, results:[{ id, ok, error }] }.
+ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => {
+  if (!bossId || !fleetId || !Array.isArray(inviteIds) || !inviteIds.length) {
+    return { ok: false, error: 'missing boss, fleet, or invite list' };
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let token;
+  try { token = await getValidToken(bossId); }
+  catch (e) { return { ok: false, error: 'token: ' + e.message }; }
+
+  const authHdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const base    = `${ESI_BASE}/v1/fleets/${fleetId}`;
+
+  const esiGet = async (url) => {
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
+    return r.json();
+  };
+  const esiPost = async (url, body) => {
+    const r = await fetch(url, { method: 'POST', headers: authHdr, body: JSON.stringify(body) });
+    if (r.status === 204 || r.ok) { try { return await r.json(); } catch { return {}; } }
+    const t = await r.text().catch(() => '');
+    const e = new Error(`HTTP ${r.status}${t ? ': ' + t : ''}`); e.status = r.status; throw e;
+  };
+
+  // Resolve (or create) a wing + squad to invite squad_members into.
+  let wingId = null, squadId = null;
+  try {
+    const wings = await esiGet(`${base}/wings/?datasource=tranquility`);
+    for (const w of (wings || [])) {
+      if (w.squads && w.squads.length) { wingId = w.id; squadId = w.squads[0].id; break; }
+      if (wingId == null) wingId = w.id;          // a wing with no squad — remember as fallback
+    }
+    if (wingId == null)  { const w = await esiPost(`${base}/wings/?datasource=tranquility`, {});               wingId  = w.wing_id; }
+    if (squadId == null) { const s = await esiPost(`${base}/wings/${wingId}/squads/?datasource=tranquility`, {}); squadId = s.squad_id; }
+  } catch (e) {
+    if (e.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate the fleet boss to grant fleet-write access.' };
+    return { ok: false, error: 'fleet setup: ' + (e.message || 'failed') };
+  }
+
+  const results = [];
+  for (const id of inviteIds) {
+    if (String(id) === String(bossId)) continue;  // boss is already in the fleet
+    try {
+      await esiPost(`${base}/members/?datasource=tranquility`, {
+        character_id: Number(id), role: 'squad_member', wing_id: wingId, squad_id: squadId,
+      });
+      results.push({ id, ok: true });
+    } catch (e) {
+      results.push({ id, ok: false, error: e.message });
+    }
+    await sleep(350);                              // gentle pacing
+  }
+  return { ok: true, results };
 });
 
 app.whenReady().then(async () => {

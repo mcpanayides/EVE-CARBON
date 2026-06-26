@@ -216,15 +216,29 @@ const PAGE_HTML = {
     </div>`,
 
   // ── Fleet Commander ─────────────────────────────────────────────────────────
+  // Mirrors the Industry page: a left TOOLS sub-nav drives navigateFcTab() and
+  // renders into #fcTabContent. Add new FC tools by adding a .fc-sub-btn here
+  // and a branch in navigateFcTab() (src/func/fc.js).
   fc: `
     <div id="page-fc" class="nav-page"
-         style="flex-direction:column; height:100%;">
+         style="flex-direction:column; height:100%; overflow:hidden;">
       <div class="page-header">
-        <h2>Fleet Commander</h2>
+        <div>
+          <h2>Fleet Commander</h2>
+          <div class="page-description">Live fleet tools for skirmish &amp; fleet commanders.</div>
+        </div>
         <button class="close-page-btn" onclick="closePage('fc')">✕</button>
       </div>
-      <div class="page-content">
-        <p>Fleet command tools and information - coming soon</p>
+      <div class="industry-layout">
+        <div class="industry-subnav">
+          <div class="industry-subnav-label">TOOLS</div>
+          <button class="industry-sub-btn fc-sub-btn active" data-fc-tab="composition">
+            <span class="industry-sub-icon material-symbols-outlined">groups</span>Fleet Composition
+          </button>
+        </div>
+        <div id="fcTabContent" class="industry-content">
+          <!-- Populated by navigateToPage('fc') → initFcPage() → navigateFcTab('composition') -->
+        </div>
       </div>
     </div>`,
 

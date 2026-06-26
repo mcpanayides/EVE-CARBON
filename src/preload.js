@@ -170,6 +170,12 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Salvage Calculator
   salvageGetRigData:   ()       => ipcRenderer.invoke('salvage-get-rig-data'),
 
+  // Fleet Composition Tracker
+  fcGetShipRoles:      ()                  => ipcRenderer.invoke('fc-get-ship-roles'),
+  fcGetCharacterFleet: (characterId)       => ipcRenderer.invoke('fc-get-character-fleet', characterId),
+  fcGetFleetMembers:   (characterId, fleetId) => ipcRenderer.invoke('fc-get-fleet-members', characterId, fleetId),
+  fcInviteCharacters:  (bossId, fleetId, ids) => ipcRenderer.invoke('fc-invite-characters', bossId, fleetId, ids),
+
   // Reactions Profit — all reaction formulas + materials from the SDE
   reactionsList:       ()       => ipcRenderer.invoke('reactions-list'),
 

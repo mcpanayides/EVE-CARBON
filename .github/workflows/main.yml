@@ -51,6 +51,11 @@ jobs:
           files: dist/*.exe
           body_path: RELEASE_NOTES.md
           tag_name: ${{ github.event.workflow_run.head_branch }}
+          # Publish as a STABLE release (not pre-release) so GitHub's
+          # /releases/latest returns it — older installed clients check that
+          # endpoint, which excludes pre-releases.
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -89,5 +94,7 @@ jobs:
         with:
           files: dist/*.dmg
           tag_name: ${{ github.event.workflow_run.head_branch }}
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

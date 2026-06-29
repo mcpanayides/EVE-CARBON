@@ -12,7 +12,10 @@ const fs   = require('fs');
 const path = require('path');
 const os   = require('os');
 
-const GH_LATEST_URL   = 'https://api.github.com/repos/mcpanayides/EVE-CARBON/releases/latest';
+// Use the releases LIST endpoint, not /releases/latest. /releases/latest EXCLUDES
+// pre-releases and drafts — and every EVE-Carbon release is published as a
+// pre-release, so /releases/latest returns 404 and the app never sees an update.
+const GH_RELEASES_API = 'https://api.github.com/repos/mcpanayides/EVE-CARBON/releases?per_page=30';
 const GH_RELEASES_URL = 'https://github.com/mcpanayides/EVE-CARBON/releases/latest';
 
 // Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
@@ -61,12 +64,22 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   ipcHandle('updater-check', async () => {
     const currentVersion = app.getVersion();
     try {
-      const data = await fetchJson(GH_LATEST_URL);
+      const releases = await fetchJson(GH_RELEASES_API);
+      const list = Array.isArray(releases) ? releases : [];
 
-      // GitHub returns tag_name like "v0.5.4" — strip the leading "v"
-      const tag = data?.tag_name;
-      if (!tag || !/^v?\d+\.\d+\.\d+/.test(tag)) return { hasUpdate: false, currentVersion };
-      const latestVersion = tag.replace(/^v/, '');
+      // Pick the highest semver among non-draft releases (pre-releases included).
+      // tag_name is like "v0.9.0" / "v0.8.4b"; we read the leading x.y.z.
+      let best = null; // { ver, release }
+      for (const r of list) {
+        if (!r || r.draft) continue;
+        const m = String(r.tag_name || '').replace(/^v/, '').match(/^\d+\.\d+\.\d+/);
+        if (!m) continue;
+        if (!best || compareVersions(m[0], best.ver) > 0) best = { ver: m[0], release: r };
+      }
+      if (!best) return { hasUpdate: false, currentVersion };
+
+      const latestVersion = best.ver;
+      const data          = best.release;
 
       // Check if this version was previously skipped
       const cfg = loadConfig();

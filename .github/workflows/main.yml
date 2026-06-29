@@ -37,11 +37,19 @@ jobs:
       - name: Build Windows exe
         run: npx electron-builder --win --x64 --publish never
 
+      # Release notes = only the TOP version section of CHANGELOG.md (from the
+      # first "## [" header to the next), so each release shows its own notes
+      # instead of the entire (previously stale-looking) changelog.
+      - name: Extract latest changelog section
+        shell: bash
+        run: |
+          awk '/^## \[/{c++} c==1' CHANGELOG.md > RELEASE_NOTES.md
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.exe
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
           tag_name: ${{ github.event.workflow_run.head_branch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

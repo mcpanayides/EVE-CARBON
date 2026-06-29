@@ -5,6 +5,35 @@ All notable changes to EVE Carbon will be documented here.
 ---
 
 
+## [0.9.0] - 2026-06-29
+### Features
+- **Widgetized dashboard** — the dashboard is now a configurable grid: **drag, resize, add and remove** widgets, with the layout persisted per session. Widgets snap tight and reflow their contents responsively as you resize them.
+- **New dashboard widgets:**
+  - **Net Worth** split into three independent widgets — Net Worth (KPIs), **Wealth Growth** (12-month chart), and **Wealth by Character**.
+  - **Wallet Balances** with a 24-hour up/down ticker — green ↗ / red ↘ change per character and combined.
+  - **Skill Queue** — the selected character's training queue with a live time-remaining countdown (adds the `esi-skills.read_skillqueue.v1` scope).
+  - **Market Quicklook** — pin items via local-SDE name autocomplete; live Jita buy/sell plus a 24-hour price-trend badge.
+  - **Active Market Orders** — buy/sell orders across all characters with fill bars and expiry.
+  - **Job Watch** — pin and monitor a single in-progress industry job with a live countdown; addable any number of times (one per job).
+- **Persistent market ticker** — a scrolling bottom bar of top market movers with item icons, Jita prices, and green/red day-over-day change.
+- **Always-on incursion banner** — pinned alert at the top of the dashboard when an incursion is active in your alliance's space.
+- **Fleet Commander page** — fleet composition tracker and fitting simulator.
+- **Calendar** — in-app iCalendar (`.ics`) parsing, plus forum integration.
+- **Reactions Profit calculator** — card grid with detailed breakdown modals.
+- **Resync All** — one-click background re-sync of every character.
+- **Map** — wormhole-connections toggle.
+- **Material Symbols icons** across the UI for a consistent look with the navbar.
+
+### Fixes
+- **Net-worth asset value** — fixed assets valuing to ~0 ISK when the global market-price fetch was rate-limited during cold start: an empty price map is no longer cached, prices keep a stale fallback, and poisoned values auto-recompute.
+- **Wallet balances** — fall back to the latest local snapshot when the live ESI call is rate-limited, so balances never show a false 0 ISK (and a bogus −100% drop).
+- **Cold-start self-heal** — Active Jobs, Skill Queue and Wallet widgets refresh automatically once the background sync warms ESI tokens; rate-limited calls fall back to cached data instead of blanking.
+- **Asset locations** — fitted ships and their contents now group under their station instead of floating to the top level as "Myrm", "…'s Velator", etc.; fully unknown / inaccessible structures collapse into a single group rather than cluttering the list with raw "Location {id}" rows.
+- **Market item search** — replaced the removed public ESI `/search/` endpoint with a local SDE search (with name autocomplete).
+
+### Notes
+- New scope `esi-skills.read_skillqueue.v1` (Skill Queue widget) — re-login may be required.
+
 ## [0.8.0] - 2026-06-18
 ### Features
 - **Trade hubs in Ore/Ice/Gas/Moon calculators** — choose between Jita, Amarr, Dodixie, Rens and Hek; prices come from the selected hub.

@@ -135,6 +135,8 @@ const SCOPES         = [
   'esi-skills.read_skillqueue.v1',              // current skill queue (for estimating free time until next SP gain)
   'esi-fleets.read_fleet.v1',                    // for fleet role tags in Jabber messages (e.g. FC, squad commander, etc.)
   'esi-fleets.write_fleet.v1',                   // invite the user's own alts into the fleet (Fleet Composition tool)
+  'esi-fittings.read_fittings.v1',               // import saved ship fits from the game (Fitting tool)
+  'esi-fittings.write_fittings.v1',              // push fits from the Fitting tool back to the game
   'esi-ui.write_waypoint.v1',                    // set autopilot destination in active EVE client
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
@@ -750,6 +752,193 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
     await sleep(350);                              // gentle pacing
   }
   return { ok: true, results };
+});
+
+// ─── Fitting tool ─────────────────────────────────────────────────────────────
+// Slot/hardpoint determined by dogma EFFECTS; CPU/PG/HP by ATTRIBUTES (all local
+// SDE — exact). Effect ids: loPower 11, hiPower 12, medPower 13, rigSlot 2663,
+// subSystem 3772, launcherFitted 40, turretFitted 42. Attr ids: cpu 50, power 30
+// (module usage); cpuOutput 48, powerOutput 11 (hull output); shieldCapacity 263,
+// armorHP 265, hp 9 (structure); rig/slot counts 12/13/14/1137.
+const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: 'subsystem' };
+const FIT_CATS = { ship: [6], module: [7], charge: [8], drone: [18], subsystem: [32] };
+
+// Per-type fitting facts used by the renderer to place & cost a module.
+async function _fitItemFacts(typeId) {
+  if (!sdeDb) return null;
+  const row = await sdeDb.get(
+    `SELECT t.typeID, t.typeName, t.groupID, g.groupName, g.categoryID
+       FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID WHERE t.typeID = ?`, [typeId]);
+  if (!row) return null;
+  const effs = await sdeDb.all(
+    `SELECT effectID FROM dgmTypeEffects WHERE typeID = ?`, [typeId]);
+  const effIds = new Set(effs.map(e => e.effectID));
+  let slot = null;
+  for (const [eid, s] of Object.entries(FIT_SLOT_EFFECT)) if (effIds.has(Number(eid))) { slot = s; break; }
+  const hardpoint = effIds.has(42) ? 'turret' : (effIds.has(40) ? 'launcher' : null);
+  // 50 cpu, 30 power(pg), 64 damageMultiplier, 51 rateOfFire(ms),
+  // 114/118/117/116 em/therm/kin/exp damage, 73 duration (activatable).
+  const attrRows = await sdeDb.all(
+    `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
+      WHERE typeID = ? AND attributeID IN (50,30,64,51,114,118,117,116,73)`, [typeId]);
+  const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
+  // overloadable = the module has any effect in dogma category 5 (overload).
+  const overloadRow = await sdeDb.get(
+    `SELECT 1 FROM dgmTypeEffects te JOIN dgmEffects e ON e.effectID = te.effectID
+      WHERE te.typeID = ? AND e.effectCategory = 5 LIMIT 1`, [typeId]);
+  return {
+    id: row.typeID, name: row.typeName, groupName: row.groupName, categoryId: row.categoryID,
+    slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
+    dmgMult: a[64] || 0, rof: a[51] || 0,
+    dmg: { em: a[114] || 0, th: a[118] || 0, kin: a[117] || 0, exp: a[116] || 0 },
+    activatable: !!(a[73] && a[73] > 0),   // has a cycle time → can be turned on
+    overloadable: !!overloadRow,           // can be overheated
+  };
+}
+
+// Search the SDE by name within a fitting "kind" (ship/module/charge/drone).
+ipcMain.handle('fit-search', async (_, query, kind, limit = 60) => {
+  if (!sdeDb || !query || String(query).trim().length < 2) return [];
+  const cats = FIT_CATS[kind] || FIT_CATS.module;
+  const ph = cats.map(() => '?').join(',');
+  try {
+    const rows = await sdeDb.all(
+      `SELECT t.typeID, t.typeName, t.groupID, g.groupName
+         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+        WHERE t.published = 1 AND g.categoryID IN (${ph}) AND LOWER(t.typeName) LIKE ?
+        ORDER BY (LOWER(t.typeName) = ?) DESC, length(t.typeName), t.typeName
+        LIMIT ?`,
+      [...cats, `%${String(query).toLowerCase()}%`, String(query).toLowerCase(), limit]
+    );
+    return rows.map(r => ({ id: r.typeID, name: r.typeName, groupName: r.groupName }));
+  } catch (e) { console.warn('[fit-search]', e.message); return []; }
+});
+
+// Full hull layout + base stats for the fitting canvas. Everything here is the
+// hull's intrinsic (pre-skill, pre-module) value from the SDE — exact. Resists
+// are returned as resonances (resist% = (1 - resonance) × 100, computed renderer-
+// side); EHP/align/cap-regen are derived there too.
+ipcMain.handle('fit-get-hull', async (_, typeId) => {
+  if (!sdeDb || !typeId) return null;
+  try {
+    const row = await sdeDb.get(
+      `SELECT t.typeID, t.typeName, t.mass, g.groupName, g.categoryID
+         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID WHERE t.typeID = ?`, [typeId]);
+    if (!row || row.categoryID !== 6) return null;
+    const attrRows = await sdeDb.all(
+      `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
+        WHERE typeID = ? AND attributeID IN (
+          14,13,12,1137,1367,102,101,48,11,263,265,9,482,55,
+          271,274,273,272,267,270,269,268,113,110,109,111,
+          76,564,192,208,209,210,211,37,70,600,552)`, [typeId]);
+    const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
+
+    // Sensor strength = the single non-zero sensor type (ships have exactly one).
+    const sensors = { Radar: a[208] || 0, Ladar: a[209] || 0, Magnetometric: a[210] || 0, Gravimetric: a[211] || 0 };
+    let sensorType = 'Gravimetric', sensorStrength = 0;
+    for (const [k, v] of Object.entries(sensors)) if (v > sensorStrength) { sensorStrength = v; sensorType = k; }
+
+    return {
+      id: row.typeID, name: row.typeName, groupName: row.groupName,
+      slots: { high: a[14] || 0, med: a[13] || 0, low: a[12] || 0, rig: a[1137] || 0, subsystem: a[1367] || 0 },
+      hardpoints: { turret: a[102] || 0, launcher: a[101] || 0 },
+      output: { cpu: a[48] || 0, pg: a[11] || 0 },
+      base: {
+        shieldHp: a[263] || 0, armorHp: a[265] || 0, structureHp: a[9] || 0,
+        capacitor: a[482] || 0, rechargeMs: a[55] || 0,
+        // resonances (lower = more resist). Order em, therm, kin, exp.
+        shieldRes: { em: a[271], th: a[274], kin: a[273], exp: a[272] },
+        armorRes:  { em: a[267], th: a[270], kin: a[269], exp: a[268] },
+        hullRes:   { em: a[113], th: a[110], kin: a[109], exp: a[111] },
+      },
+      targeting: { lockRange: a[76] || 0, scanRes: a[564] || 0, maxTargets: a[192] || 0, sensorType, sensorStrength },
+      nav: { maxVel: a[37] || 0, mass: row.mass || 0, agility: a[70] || 0, warpMult: a[600] || 0, sig: a[552] || 0 },
+    };
+  } catch (e) { console.warn('[fit-get-hull]', e.message); return null; }
+});
+
+// Batch fitting facts for a set of type ids (rendering fitted modules / EFT import).
+ipcMain.handle('fit-get-items', async (_, typeIds) => {
+  const out = {};
+  if (!sdeDb || !Array.isArray(typeIds)) return out;
+  for (const id of [...new Set(typeIds)]) {
+    const f = await _fitItemFacts(id).catch(() => null);
+    if (f) out[id] = f;
+  }
+  return out;
+});
+
+// Resolve fit lines (ship + module names from an EFT paste) to type facts.
+// Returns { byName: { lowerName: facts } } so the renderer can rebuild a fit.
+ipcMain.handle('fit-lookup-names', async (_, names) => {
+  const byName = {};
+  if (!sdeDb || !Array.isArray(names)) return { byName };
+  const wanted = [...new Set(names.map(n => String(n || '').trim()).filter(Boolean))];
+  for (const name of wanted) {
+    try {
+      const row = await sdeDb.get(
+        `SELECT t.typeID FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+          WHERE LOWER(t.typeName) = ? AND g.categoryID IN (6,7,8,18,32) LIMIT 1`, [name.toLowerCase()]);
+      if (row) { const f = await _fitItemFacts(row.typeID); if (f) byName[name.toLowerCase()] = f; }
+    } catch (_) { /* skip unresolved */ }
+  }
+  return { byName };
+});
+
+// Import the character's saved fits from the game (ESI). Requires
+// esi-fittings.read_fittings.v1. Returns { ok, fittings:[{ fittingId, name,
+// description, shipTypeId, items:[{ typeId, flag, quantity }] }] }.
+ipcMain.handle('fit-get-fittings', async (_, characterId) => {
+  if (!characterId) return { ok: false, error: 'no character' };
+  let token;
+  try { token = await getValidToken(characterId); }
+  catch (e) { return { ok: false, error: 'token: ' + e.message }; }
+  const hdr = { Authorization: `Bearer ${token}` };
+  // The fittings route version has changed over time — try v2 then v1 so a 404
+  // on the wrong version doesn't look like a failure.
+  for (const ver of ['v2', 'v1']) {
+    try {
+      const res = await fetch(`${ESI_BASE}/${ver}/characters/${characterId}/fittings/?datasource=tranquility`, { headers: hdr });
+      if (res.status === 404) continue;                 // wrong version — try the other
+      if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings access (esi-fittings.read_fittings.v1).' };
+      if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
+      const data = await res.json();
+      const fittings = (Array.isArray(data) ? data : []).map(f => ({
+        fittingId: f.fitting_id, name: f.name, description: f.description, shipTypeId: f.ship_type_id,
+        items: (f.items || []).map(i => ({ typeId: i.type_id, flag: i.flag, quantity: i.quantity })),
+      }));
+      return { ok: true, fittings };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+  return { ok: false, error: 'Fittings endpoint returned 404 on both v1 and v2.' };
+});
+
+// Save a fit to the game (ESI). Requires esi-fittings.write_fittings.v1.
+// fitting = { name, description, shipTypeId, items:[{ typeId, flag, quantity }] }.
+ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
+  if (!characterId || !fitting) return { ok: false, error: 'missing character or fit' };
+  try {
+    const token = await getValidToken(characterId);
+    const body = {
+      name: fitting.name || 'EVE Carbon Fit', description: fitting.description || '',
+      ship_type_id: fitting.shipTypeId,
+      items: (fitting.items || []).map(i => ({ type_id: i.typeId, flag: i.flag, quantity: i.quantity })),
+    };
+    const hdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    for (const ver of ['v2', 'v1']) {
+      const res = await fetch(`${ESI_BASE}/${ver}/characters/${characterId}/fittings/?datasource=tranquility`, {
+        method: 'POST', headers: hdr, body: JSON.stringify(body),
+      });
+      if (res.status === 404) continue;                 // wrong version — try the other
+      if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings write access (esi-fittings.write_fittings.v1).' };
+      if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
+      const j = await res.json().catch(() => ({}));
+      return { ok: true, fittingId: j.fitting_id };
+    }
+    return { ok: false, error: 'Fittings endpoint returned 404 on both v1 and v2.' };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 app.whenReady().then(async () => {

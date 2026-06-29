@@ -426,17 +426,17 @@
 .sec-lawless { color: var(--sec-lawless-text); background: var(--sec-lawless-bg); border-color: var(--sec-lawless-border); }
 
 /* ── KPI CARDS ── */
-.dash-wealth-header { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.dash-wealth-header { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px; }
 .dash-wealth-kpi {
   background-color: var(--bg-panel);
   background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
   background-size: 6px 6px;
   border: 1px solid var(--border-e);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 8px 10px;
 }
-.dash-kpi-label     { font-size: 9px; letter-spacing: 0.2em; color: var(--text-e); font-family: var(--mono); margin-bottom: 6px; }
-.dash-kpi-value     { font-size: 18px; font-weight: 700; color: var(--accent); font-family: var(--mono); margin-bottom: 3px; }
+.dash-kpi-label     { font-size: 9px; letter-spacing: 0.2em; color: var(--text-e); font-family: var(--mono); margin-bottom: 3px; }
+.dash-kpi-value     { font-size: 17px; font-weight: 700; color: var(--accent); font-family: var(--mono); margin-bottom: 2px; }
 .dash-kpi-value.liquidisk  { color: var(--liquidisk); }
 .dash-kpi-value.accent-purple { color: var(--assets); }
 .dash-kpi-sub       { font-size: 10px; color: var(--text-f); font-family: var(--mono); }
@@ -469,31 +469,197 @@
 .alliance-badge          { background: var(--accent); color: var(--text-on-accent); padding: 8px 14px; border-radius: 999px; font-size: 11px; letter-spacing: 0.09em; font-weight: 700; text-transform: uppercase; }
 .dashboard-main-char     { font-size: 14px; color: var(--text-1); font-weight: 600; }
 
-/* ── DASHBOARD PANELS GRID ── */
-/* ── Dashboard drag-and-drop two-column layout ─────────────────────────────── */
-.dashboard-dnd-grid          { display: flex; gap: 20px; align-items: flex-start; min-width: 0; }
-.dashboard-col               { display: flex; flex-direction: column; gap: 16px; flex: 1; min-width: 0; min-height: 80px; }
-.dashboard-col:first-child   { flex: 1.2; }
+/* ── DASHBOARD WIDGET GRID (Gridstack) ──────────────────────────────────────── */
+
+/* Toolbar above the grid: "+ Add Widget" + reset. */
+.dashboard-grid-toolbar      { display: flex; align-items: center; gap: 10px; }
+.dashboard-grid-addwrap      { position: relative; }
+.dashboard-add-widget-btn,
+.dashboard-reset-layout-btn  {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-1); background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 12px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.dashboard-add-widget-btn:hover,
+.dashboard-reset-layout-btn:hover { border-color: var(--accent); color: var(--accent); }
+.dashboard-reset-layout-btn  { margin-left: auto; color: var(--text-3); }
+
+/* Add-widget dropdown */
+.dashboard-add-widget-menu   {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+  min-width: 230px; max-height: 320px; overflow-y: auto;
+  background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+}
+.dashboard-add-item          {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  font-size: 12px; color: var(--text-1); background: none;
+  border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer;
+}
+.dashboard-add-item .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
+.dashboard-add-item:hover    { background: var(--bg-hover-subtle, rgba(255,255,255,0.04)); color: var(--accent); }
+.dashboard-add-plus          { color: var(--accent); font-weight: 700; opacity: 0.7; margin-left: 2px; }
+.dashboard-add-empty         { padding: 10px; font-size: 11px; color: var(--text-3); text-align: center; }
+
+/* Grid container + items */
+.grid-stack                  { min-height: 80px; }
+.grid-stack-item-content     { inset: 0; overflow: hidden; }
 
 .dashboard-panel {
-  padding: 18px;
+  height: 100%;
+  display: flex; flex-direction: column;
+  padding: 10px 11px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 9px;
   overflow: hidden;
 }
-.dashboard-panel-title       { font-size: 13px; font-weight: 700; color: var(--text-1); margin-bottom: 12px;
-                               display: flex; align-items: center; gap: 8px; }
+.dashboard-panel-title       { font-size: 12px; font-weight: 700; color: var(--text-1); margin-bottom: 7px;
+                               display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.dashboard-widget-icon       { font-size: 16px; color: var(--accent); flex-shrink: 0; }
+.dashboard-widget-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Body scrolls internally so a widget never overflows its grid cell.
+   container-type makes it a query container so widget content can respond to the
+   widget's OWN width (set by Gridstack), not the viewport — see @container rules. */
+.dashboard-widget-body       { flex: 1; min-height: 0; overflow-y: auto;
+                               container-type: inline-size; container-name: dashwidget; }
+.dashboard-widget-loading    { padding: 16px 0; text-align: center; color: var(--text-3);
+                               font-family: var(--mono); font-size: 11px; }
+/* Wealth Growth widget: let the chart fill the widget instead of a fixed height. */
+#dashboardWealthGrowth       { height: 100%; display: flex; flex-direction: column; }
 
-/* Drag handle */
-.dnd-grip                    { margin-left: auto; color: var(--text-3); font-size: 16px; cursor: grab;
+/* Drag handle + remove control */
+.dnd-handle                  { cursor: grab; }
+.dnd-grip                    { margin-left: auto; color: var(--text-3); font-size: 16px;
                                opacity: 0; transition: opacity 0.15s; user-select: none; line-height: 1; }
-.dnd-panel:hover .dnd-grip   { opacity: 1; }
-.dnd-panel[draggable="true"] { cursor: default; }
-.dnd-panel.dnd-dragging      { opacity: 0.4; outline: 2px dashed var(--accent); border-radius: 14px; }
-.dnd-panel.dnd-over          { outline: 2px solid var(--accent); border-radius: 14px;
-                               box-shadow: 0 0 0 4px rgba(var(--accent-rgb, 180,120,60), 0.15); }
-.dashboard-col.dnd-col-over  { outline: 2px dashed var(--border); border-radius: 10px; background: rgba(255,255,255,0.02); }
+.dashboard-panel:hover .dnd-grip { opacity: 1; }
+.dashboard-widget-remove     { color: var(--text-3); background: none; border: none; cursor: pointer;
+                               font-size: 12px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+                               opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.dashboard-panel:hover .dashboard-widget-remove { opacity: 1; }
+.dashboard-widget-remove:hover { color: var(--danger); }
+
+/* Gridstack drag/resize visuals themed to match Carbon */
+.grid-stack-item.ui-draggable-dragging .dashboard-panel { outline: 2px dashed var(--accent); }
+.grid-stack > .grid-stack-item > .ui-resizable-handle { filter: none; }
+.grid-stack .grid-stack-placeholder > .placeholder-content {
+  background: rgba(255,255,255,0.03);
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+}
+
+/* ── Wallet balances widget (with 24h up/down ticker) ── */
+.dash-wallet-total           { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px;
+                               border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.dash-wallet-total-label     { font-size: 9px; letter-spacing: 0.1em; color: var(--text-3); font-weight: 600; }
+.dash-wallet-total-value     { font-size: 18px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+.dash-wallet-total-chg       { font-size: 10px; font-family: var(--mono); }
+.dash-wallet-note            { font-size: 9px; color: var(--text-3); font-family: var(--mono);
+                               letter-spacing: 0.03em; margin-bottom: 8px; }
+.dash-wallet-rows            { display: flex; flex-direction: column; gap: 6px; }
+.dash-wallet-row             { display: flex; justify-content: space-between; align-items: center; font-size: 12px; gap: 8px; }
+.dash-wallet-name            { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* The balance cell is coloured green/red by its up/down class (the balance text,
+   the diagonal arrow, and the change amount all inherit it). */
+.dash-wallet-cell            { display: inline-flex; align-items: baseline; gap: 5px; flex-shrink: 0; margin-left: 10px; }
+.dash-wallet-cell.up         { color: var(--success, #44cc88); }   /* balance went up   */
+.dash-wallet-cell.down       { color: var(--danger); }             /* balance went down */
+.dash-wallet-cell.flat       { color: var(--text-3); }             /* no change in 24h  */
+.dash-wallet-total-chg.up    { color: var(--success, #44cc88); }
+.dash-wallet-total-chg.down  { color: var(--danger); }
+.dash-wallet-bal             { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+.dash-wallet-arrow           { font-size: 11px; line-height: 1; }
+.dash-wallet-chg             { font-size: 10px; font-family: var(--mono); opacity: 0.8; }
+
+/* ── Skill queue widget ── */
+.dash-skill-head             { display: flex; justify-content: space-between; align-items: baseline;
+                               padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.dash-skill-char             { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.dash-skill-total            { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.dash-skill-rows             { display: flex; flex-direction: column; gap: 5px; }
+.dash-skill-row              { display: flex; justify-content: space-between; align-items: center;
+                               font-size: 12px; padding: 3px 0; }
+.dash-skill-row.dash-skill-active { color: var(--accent); }
+.dash-skill-name             { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-skill-row.dash-skill-active .dash-skill-name { color: var(--text-1); }
+.dash-skill-name b           { color: var(--text-1); font-weight: 700; }
+.dash-skill-time             { color: var(--text-3); font-family: var(--mono); margin-left: 10px; flex-shrink: 0; }
+
+/* ── Market quicklook widget ── */
+.dash-market-add             { display: flex; gap: 6px; margin-bottom: 8px; }
+.dash-market-input           { flex: 1; min-width: 0; box-sizing: border-box; font-size: 12px; color: var(--text-1);
+                               background: var(--bg-panel); border: 1px solid var(--border);
+                               border-radius: 6px; padding: 6px 8px; }
+.dash-market-input:focus     { outline: none; border-color: var(--accent); }
+/* Autocomplete list — in-flow (pushes the rows down, widget body scrolls) so it
+   is never clipped by the widget's overflow, regardless of widget height. */
+.dash-market-suggest         { margin-bottom: 8px; max-height: 200px; overflow-y: auto;
+                               background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; }
+.dash-market-suggest-item    { display: block; width: 100%; text-align: left; font-size: 12px;
+                               color: var(--text-1); background: none; border: none; cursor: pointer;
+                               padding: 6px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-market-suggest-item:hover { background: var(--bg-hover-subtle, rgba(255,255,255,0.05)); color: var(--accent); }
+.dash-market-add-btn         { font-size: 11px; font-weight: 600; color: var(--text-1); flex-shrink: 0;
+                               background: var(--bg-card); border: 1px solid var(--border);
+                               border-radius: 6px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
+.dash-market-add-btn:hover   { border-color: var(--accent); color: var(--accent); }
+.dash-market-colhead         { display: flex; align-items: center; font-size: 9px; letter-spacing: 0.08em;
+                               color: var(--text-3); font-weight: 600; padding-bottom: 6px;
+                               border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.dash-market-rows            { display: flex; flex-direction: column; gap: 5px; }
+.dash-market-row             { display: flex; align-items: center; font-size: 12px; }
+.dash-market-name            { flex: 1; min-width: 0; color: var(--text-2);
+                               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-market-prices          { display: flex; gap: 12px; font-family: var(--mono); }
+.dash-market-prices > span   { min-width: 66px; text-align: right; white-space: nowrap; }
+.dash-market-sell            { color: var(--success, #44cc88); }
+.dash-market-buy             { color: var(--text-3); }
+.dash-market-trend           { font-size: 9px; }
+.dash-market-trend.up        { color: var(--success, #44cc88); }
+.dash-market-trend.down      { color: var(--danger); }
+.dash-market-remove,
+.dash-market-remove-spacer   { width: 22px; text-align: center; flex-shrink: 0; }
+.dash-market-remove          { color: var(--text-4, var(--text-3)); background: none; border: none;
+                               cursor: pointer; font-size: 11px; opacity: 0.5; }
+.dash-market-row:hover .dash-market-remove { opacity: 1; }
+.dash-market-remove:hover    { color: var(--danger); }
+
+/* ── PI widget (title comes from the grid header — no internal title) ── */
+.dash-pi-summary             { display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+                               font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.dash-pi-summary > span      { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-dash-link-btn            { padding: 2px 10px; font-family: var(--mono); font-size: 10px;
+                               background: transparent; border: 1px solid var(--border); border-radius: 3px;
+                               color: var(--text-3); cursor: pointer; letter-spacing: 0.06em; flex-shrink: 0;
+                               transition: color 0.15s, border-color 0.15s; }
+.pi-dash-link-btn:hover      { color: var(--accent); border-color: var(--accent); }
+.dash-pi-counts              { display: flex; gap: 10px; margin-bottom: 12px; }
+.dash-pi-count               { flex: 1; min-width: 0; padding: 8px 12px; text-align: center;
+                               background-color: var(--bg-panel);
+                               background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+                               background-size: 6px 6px; border: 1px solid var(--border); border-radius: 6px; }
+.dash-pi-count-num           { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+.dash-pi-count-label         { font-family: var(--mono); font-size: 9px; color: var(--text-3);
+                               letter-spacing: 0.08em; margin-top: 2px; }
+
+/* ── Responsive widgets ───────────────────────────────────────────────────────
+   When a widget is dragged narrow, horizontal groups stack vertically so the data
+   stays readable. Keyed off the widget's own width via the .dashboard-widget-body
+   query container, so every widget (current and future) inherits this behaviour. */
+@container dashwidget (max-width: 300px) {
+  .dash-wealth-header        { grid-template-columns: 1fr; }   /* net-worth KPIs stack */
+  .dash-pi-counts            { flex-direction: column; }        /* PI status panels stack */
+}
+@container dashwidget (max-width: 220px) {
+  .dash-market-row           { flex-wrap: wrap; }
+  .dash-market-prices        { width: 100%; justify-content: flex-start; gap: 16px; margin-top: 2px; }
+  .dash-wallet-row,
+  .dash-skill-row            { flex-wrap: wrap; }
+}
 
 /* ── Active industry jobs widget ─────────────────────────────────────────────── */
 .active-jobs-empty {
@@ -518,9 +684,10 @@
 }
 
 .active-jobs-scroll {
+  /* Horizontal scroll only for a wide table; vertical scrolling is owned by the
+     widget body (.dashboard-widget-body), so there's no nested scrollbar and no
+     dead space below a fixed-height box. */
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: 320px;
 }
 
 .active-jobs-list {
@@ -564,6 +731,40 @@
 .aj-cell-char { white-space: nowrap; }
 .aj-cell-item { white-space: nowrap; }
 .aj-cell-item span { color: var(--text-1); }
+
+/* ── Active market orders widget (reuses the active-jobs table) ── */
+.mo-side            { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+                      padding: 1px 7px; border-radius: 3px; white-space: nowrap; }
+.mo-side.mo-sell    { color: var(--success); background: rgba(39,174,96,0.14); }
+.mo-side.mo-buy     { color: var(--accent);  background: var(--accent-dim, rgba(180,120,60,0.16)); }
+.mo-cell-price      { font-family: var(--mono); color: var(--text-1); text-align: right; white-space: nowrap; }
+.mo-cell-qty        { min-width: 110px; }
+.mo-qty-bar         { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 3px; }
+.mo-qty-fill        { height: 100%; background: var(--accent); }
+.mo-cell-qty span   { font-size: 9px; color: var(--text-3); font-family: var(--mono); white-space: nowrap; }
+.mo-cell-time       { font-family: var(--mono); color: var(--text-3); white-space: nowrap; }
+
+/* ── Job Watch widget ── */
+.jw-picker          { width: 100%; box-sizing: border-box; font-size: 11px; color: var(--text-1);
+                      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+                      padding: 5px 8px; margin-bottom: 10px; cursor: pointer; }
+.jw-picker:focus    { outline: none; border-color: var(--accent); }
+.jw-card            { background: var(--bg-panel); border: 1px solid var(--border-e); border-radius: 8px; padding: 12px; }
+.jw-head            { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.jw-icon            { width: 48px; height: 48px; border-radius: 6px; border: 1px solid var(--border);
+                      object-fit: cover; flex-shrink: 0; background: var(--bg-deep); }
+.jw-head-info       { min-width: 0; }
+.jw-name            { font-size: 15px; font-weight: 700; color: var(--text-1);
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jw-sub             { display: flex; align-items: center; gap: 6px; margin: 4px 0 3px;
+                      font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.jw-char            { font-size: 11px; color: var(--text-2); }
+.jw-progress        { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+.jw-progress-fill   { height: 100%; background: linear-gradient(90deg, var(--accent), #4ecbb0);
+                      border-radius: 4px; transition: width 1s linear; }
+.jw-foot            { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--mono); }
+.jw-time            { font-size: 13px; font-weight: 700; color: var(--accent); }
+.jw-end             { font-size: 10px; color: var(--text-3); }
 
 /* Activity type badge */
 .aj-activity-badge {

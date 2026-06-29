@@ -17,66 +17,77 @@ async function renderMarket() {
   const summary = document.getElementById('marketSummary');
   if (!body) return;
 
-  body.innerHTML = '<tr><td colspan="7" class="loading-row">Loading market orders from ESI…</td></tr>';
-  if (summary) summary.textContent = 'Loading…';
+  // Only show the loading row when there's nothing on screen yet — SWR will
+  // replace it with the cached snapshot immediately if one exists.
+  if (!body.querySelector('tr') || body.querySelector('.loading-row')) {
+    body.innerHTML = '<tr><td colspan="7" class="loading-row">Loading market orders…</td></tr>';
+    if (summary) summary.textContent = 'Loading…';
+  }
 
-  try {
-    const accounts = await window.eveAPI.getAccounts().catch(() => []);
-    if (!accounts.length) {
-      body.innerHTML = '<tr><td colspan="7" class="loading-row">No characters. Add one on the Characters page.</td></tr>';
-      if (summary) summary.textContent = '';
+  await swrRender('market_orders_v1', _marketFetch, (built, meta) => {
+    if (!built) {
+      body.innerHTML = `<tr><td colspan="7" class="loading-row">Failed to load market orders${meta.error ? ': ' + escHtml(meta.error.message || '') : ''}.</td></tr>`;
+      if (summary) summary.textContent = 'Load failed.';
       return;
     }
+    _marketRenderRows(built, body, summary);
+  }, 0.5);
+}
 
-    // ── Pull every character's orders; keep sell orders only ─────────────────
-    const orderRows = [];
-    await Promise.all(accounts.map(async (acc) => {
-      let orders = [];
-      try { orders = await window.eveAPI.getCharacterOrders(acc.characterId); } catch (_) {}
-      (Array.isArray(orders) ? orders : []).forEach(o => {
-        if (!o.is_buy_order) orderRows.push({ acc, o });
-      });
-    }));
+// Fetch + assemble the display rows (serializable) so SWR can cache them.
+async function _marketFetch() {
+  const accounts = await window.eveAPI.getAccounts().catch(() => []);
+  if (!accounts.length) return [];
 
-    if (!orderRows.length) {
+  const orderRows = [];
+  await Promise.all(accounts.map(async (acc) => {
+    let orders = [];
+    try { orders = await window.eveAPI.getCharacterOrders(acc.characterId); } catch (_) {}
+    (Array.isArray(orders) ? orders : []).forEach(o => {
+      if (!o.is_buy_order) orderRows.push({ acc, o });
+    });
+  }));
+  if (!orderRows.length) return [];
+
+  const typeIds = [...new Set(orderRows.map(r => r.o.type_id).filter(Boolean))];
+  const [namesArr, jita] = await Promise.all([
+    window.eveAPI.getNames(typeIds).catch(() => []),
+    window.eveAPI.getJitaPrices(typeIds).catch(() => ({})),
+  ]);
+  const nameMap = {};
+  (Array.isArray(namesArr) ? namesArr : []).forEach(n => { if (n && n.id) nameMap[n.id] = n.name; });
+
+  const locMap = {};
+  const locIds = [...new Set(orderRows.map(r => r.o.location_id).filter(Boolean))];
+  await Promise.all(locIds.map(async (id) => {
+    const owner = orderRows.find(r => r.o.location_id === id)?.acc?.characterId;
+    try { const loc = await window.eveAPI.resolveLocation(id, owner); if (loc) locMap[id] = loc; } catch (_) {}
+  }));
+
+  return orderRows.map(({ acc, o }) => {
+    const loc = locMap[o.location_id] || {};
+    const jp  = jita[o.type_id] || {};
+    return {
+      charId:   acc.characterId,
+      charName: acc.characterName || `Char ${acc.characterId}`,
+      typeId:   o.type_id,
+      name:     nameMap[o.type_id] || `Type ${o.type_id}`,
+      locName:  loc.name || `Location ${o.location_id}`,
+      sub:      [loc.solar_system_name, loc.region_name].filter(Boolean).join(' · '),
+      qty:      o.volume_remain || 0,
+      price:    o.price || 0,
+      jita:     jp.sell || jp.buy || 0,
+    };
+  }).sort((a, b) => a.locName.localeCompare(b.locName) || a.name.localeCompare(b.name));
+}
+
+// Render the (cached or fresh) rows into the table.
+function _marketRenderRows(built, body, summary) {
+    if (!built.length) {
       body.innerHTML = '<tr><td colspan="7" class="loading-row">No active sell orders found across your characters.</td></tr>';
       if (summary) summary.textContent = '0 active sell orders';
       return;
     }
-
-    // ── Resolve item names + Jita 4-4 prices in batch ────────────────────────
-    const typeIds = [...new Set(orderRows.map(r => r.o.type_id).filter(Boolean))];
-    const [namesArr, jita] = await Promise.all([
-      window.eveAPI.getNames(typeIds).catch(() => []),
-      window.eveAPI.getJitaPrices(typeIds).catch(() => ({})),
-    ]);
-    const nameMap = {};
-    (Array.isArray(namesArr) ? namesArr : []).forEach(n => { if (n && n.id) nameMap[n.id] = n.name; });
-
-    // ── Resolve each distinct location (the locator caches these) ────────────
-    const locMap = {};
-    const locIds = [...new Set(orderRows.map(r => r.o.location_id).filter(Boolean))];
-    await Promise.all(locIds.map(async (id) => {
-      const owner = orderRows.find(r => r.o.location_id === id)?.acc?.characterId;
-      try { const loc = await window.eveAPI.resolveLocation(id, owner); if (loc) locMap[id] = loc; } catch (_) {}
-    }));
-
-    // ── Build + sort display rows (by location, then item) ───────────────────
-    const built = orderRows.map(({ acc, o }) => {
-      const loc = locMap[o.location_id] || {};
-      const jp  = jita[o.type_id] || {};
-      return {
-        charId:   acc.characterId,
-        charName: acc.characterName || `Char ${acc.characterId}`,
-        typeId:   o.type_id,
-        name:     nameMap[o.type_id] || `Type ${o.type_id}`,
-        locName:  loc.name || `Location ${o.location_id}`,
-        sub:      [loc.solar_system_name, loc.region_name].filter(Boolean).join(' · '),
-        qty:      o.volume_remain || 0,
-        price:    o.price || 0,
-        jita:     jp.sell || jp.buy || 0,
-      };
-    }).sort((a, b) => a.locName.localeCompare(b.locName) || a.name.localeCompare(b.name));
 
     body.innerHTML = built.map(r => {
       const hasJita = r.jita > 0;
@@ -119,9 +130,4 @@ async function renderMarket() {
       summary.textContent =
         `${built.length} active sell order${built.length !== 1 ? 's' : ''} across ${charCount} character${charCount !== 1 ? 's' : ''} · Jita 4-4 sell reference`;
     }
-
-  } catch (err) {
-    body.innerHTML = `<tr><td colspan="7" class="loading-row">Failed to load market orders: ${escHtml(err.message)}</td></tr>`;
-    if (summary) summary.textContent = 'Load failed.';
-  }
 }

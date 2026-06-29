@@ -596,6 +596,40 @@ function renderAssetTree() {
     return total > 0 && (pi / total) >= 0.6;
   };
 
+  // ── Consolidate fully-unknown structures ───────────────────────────────────
+  // Private/inaccessible structures with no name AND no solar system (and not a
+  // POCO/Skyhook) would otherwise each get a noisy "Location {id}" header. Fold
+  // them all into ONE group at the bottom so they stop cluttering the list. Their
+  // items stay intact under it, grouped by character.
+  const _isFullyUnknown = (loc) => loc.unresolved && !loc.solarSystemName && !_isPiLocation(loc);
+  const unknowns = locations.filter(_isFullyUnknown);
+  if (unknowns.length > 1) {
+    const merged = {
+      key:             '__unknown_structures__',
+      locationName:    'Unknown / inaccessible structures',
+      subtitle:        `${unknowns.length} structures · no name or system resolvable`,
+      unresolved:      true,
+      solarSystemName: '',
+      regionName:      '',
+      secStatus:       null,
+      charMap:         new Map(),
+      count:           0,
+    };
+    for (const u of unknowns) {
+      for (const [cId, ch] of u.charMap) {
+        if (!merged.charMap.has(cId)) {
+          merged.charMap.set(cId, { characterId: cId, characterName: ch.characterName, items: [] });
+        }
+        merged.charMap.get(cId).items.push(...ch.items);
+      }
+      merged.count += u.count;
+    }
+    // Keep the resolved locations in their sorted order; park the merged group last.
+    const remaining = locations.filter(l => !_isFullyUnknown(l));
+    remaining.push(merged);
+    locations.splice(0, locations.length, ...remaining);
+  }
+
   locations.forEach((loc, li) => {
     // Sec status badge
     let secColor = '#666';
@@ -607,7 +641,7 @@ function renderAssetTree() {
       else if (sec >= 0.1) secColor = '#e6c84a';
       else                 secColor = '#e05252';
     }
-    const subtitle = [loc.solarSystemName, loc.regionName].filter(Boolean).join(' · ');
+    const subtitle = loc.subtitle || [loc.solarSystemName, loc.regionName].filter(Boolean).join(' · ');
 
     // Relabel unresolved PI-bearing locations (POCOs / Skyhooks). The system, if
     // we have one, still rides along in the subtitle below.

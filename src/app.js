@@ -45,6 +45,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   await autoConnectJabber();
   prefetchAssetsBackground();
+
+  // Persistent bottom market ticker — delayed so its ~50 history fetches don't
+  // pile onto the cold-start ESI burst (result is cached ~1h server-side after).
+  if (typeof initMarketTicker === 'function') {
+    setTimeout(() => initMarketTicker().catch(() => {}), 5000);
+  }
 });
 
 // ─── Industry sub-nav binding ─────────────────────────────────────────────────

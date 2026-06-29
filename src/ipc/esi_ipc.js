@@ -3,6 +3,20 @@
 const ESI_BASE      = 'https://esi.evetech.net';
 const FUZZWORK_BASE = 'https://www.fuzzwork.co.uk';
 
+// Curated high-traffic market staples for the bottom ticker (minerals, PLEX/skill
+// tokens, fuel blocks, popular hulls, ore). Type IDs resolved from the SDE.
+const TICKER_TYPE_IDS = [
+  34, 35, 36, 37, 38, 39, 40, 11399,                 // minerals
+  44992, 40520, 45635, 40519,                        // PLEX + skill tokens
+  4051, 4246, 4247, 4312,                            // fuel blocks
+  17738, 17736, 17918, 17920, 17740, 33820, 33472,   // pirate battleships
+  638, 641, 645, 642, 24692, 24688, 24694, 24690, 639, 643, // T1 battleships
+  24698, 24702, 16229, 24700, 24696, 16227,          // battlecruisers
+  621, 626, 623, 624, 622, 629, 17715, 12005, 11993, // cruisers
+  587, 603, 593, 16240, 16236, 32872, 16238,         // frigates / destroyers
+  1230, 1228, 18, 28668,                             // ore + nanite paste
+];
+
 /**
  * registerEsiHandlers
  *
@@ -96,11 +110,81 @@ function registerEsiHandlers({
           };
         });
       }
-      writeCache(cacheKey, map, 0.5); // cache 12 hours
+      // Only cache a non-empty map. An empty result here would otherwise stick for
+      // 12 h and value every asset at 0.
+      if (Object.keys(map).length) {
+        writeCache(cacheKey, map, 0.5);          // 12-hour fresh cache
+        writeCache(`${cacheKey}_stale`, map, 30); // 30-day stale fallback for rate-limits
+      }
       return map;
     } catch (e) {
+      // This call competes in the cold-start ESI burst and is easily rate-limited
+      // (429/420). Returning {} would value every asset at 0, so fall back to the
+      // last known price map when we have one.
       console.warn('get-market-prices failed:', e.message);
+      const stale = readCache(`${cacheKey}_stale`);
+      if (stale) return stale;
       return {};
+    }
+  });
+
+  // ─── IPC: Market ticker — top movers among curated staples ───────────────
+  // Day-over-day Jita average-price move per type (ESI market history). Per-type
+  // moves cache 12h; the assembled top-50 payload caches 1h. Powers the bottom bar.
+  async function _typeDailyMovePct(typeId) {
+    const cacheKey = `mkt_move_${typeId}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached.pct;          // may be null (no history) — still cached
+    let pct = null;
+    try {
+      const hist = await httpGet(`${ESI_BASE}/v1/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`);
+      if (Array.isArray(hist) && hist.length >= 2) {
+        const today = Number(hist[hist.length - 1].average);
+        const prev  = Number(hist[hist.length - 2].average);
+        if (today > 0 && prev > 0) pct = ((today - prev) / prev) * 100;
+      }
+    } catch (_) { /* leave null */ }
+    // Cache a real move for 12h; cache a miss for only 1h so a rate-limited fetch
+    // retries soon instead of leaving the item flat for half a day.
+    writeCache(cacheKey, { pct }, pct != null ? 0.5 : (1 / 24));
+    return pct;
+  }
+
+  ipcHandle('get-market-movers', async () => {
+    const cacheKey = 'market_movers';
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
+    try {
+      const ids     = TICKER_TYPE_IDS;
+      const prices  = await fetchHubPrices(ids, 'jita');      // { id: { buy, sell } }
+      const nameMap = await resolveNames(ids);                // { id: name }
+
+      // Per-type history with limited concurrency so we don't hammer ESI.
+      const pcts = {};
+      const CONC = 6;
+      for (let i = 0; i < ids.length; i += CONC) {
+        const chunk = ids.slice(i, i + CONC);
+        const res   = await Promise.all(chunk.map(id => _typeDailyMovePct(id)));
+        chunk.forEach((id, j) => { pcts[id] = res[j]; });
+      }
+
+      // Keep any item we have a price for; unknown movement shows as flat (0) and
+      // fills in on a later refresh once its history cache populates. Movers (known
+      // pct) sort to the front.
+      const items = ids.map(id => ({
+        typeId: id,
+        name:   nameMap[id] || `Type ${id}`,
+        sell:   (prices[id] && prices[id].sell) || 0,
+        pct:    typeof pcts[id] === 'number' ? pcts[id] : 0,
+      })).filter(it => it.sell > 0);
+
+      items.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+      const top = items.slice(0, 50);
+      if (top.length) writeCache(cacheKey, top, 1 / 24);     // cache 1h only if non-empty
+      return top;
+    } catch (e) {
+      console.warn('get-market-movers failed:', e.message);
+      return [];
     }
   });
 
@@ -130,47 +214,47 @@ function registerEsiHandlers({
     hek:     { stationId: 60005686, regionId: 10000042, ownerCorpId: 1000057, factionId: 500002 }, // Hek VIII-12 BCF · Boundless Creation
   };
 
-  // Best buy/sell per type for one hub, region-orders filtered to the hub station.
+  // Best buy/sell per type for one hub. Cache hits are returned immediately; all
+  // misses are fetched in BULK from Fuzzwork's station aggregates API (one request
+  // per ~250 types) instead of a serial ESI order request per item. A cold
+  // blueprint library went from hundreds of sequential round-trips to a couple of
+  // batched ones. Per-type results are still cached (hubprice_{hub}_{typeId}) so
+  // the format and TTLs are unchanged for callers.
   async function fetchHubPrices(typeIds, hubKey) {
     const hub    = TRADE_HUBS[hubKey] ? hubKey : 'jita';
     const cfg    = TRADE_HUBS[hub];
     const prices = {};
     if (!Array.isArray(typeIds)) return prices;
 
-    for (const typeId of typeIds) {
-      const cacheKey = `hubprice_${hub}_${typeId}`;
-      const cached   = readCache(cacheKey);
-      if (cached) { prices[typeId] = cached; continue; }
+    const uniq   = [...new Set(typeIds.map(Number).filter(n => n > 0))];
+    const misses = [];
+    for (const typeId of uniq) {
+      const cached = readCache(`hubprice_${hub}_${typeId}`);
+      if (cached) prices[typeId] = cached;
+      else misses.push(typeId);
+    }
+    if (!misses.length) return prices;
 
+    // Fuzzwork aggregates: one call returns buy.max / sell.min for many types.
+    const CHUNK = 250;
+    for (let i = 0; i < misses.length; i += CHUNK) {
+      const chunk = misses.slice(i, i + CHUNK);
+      let data = null;
       try {
-        let orderData = [];
-        try {
-          orderData = await httpGet(
-            `${ESI_BASE}/v1/markets/${cfg.regionId}/orders/?datasource=tranquility&type_id=${typeId}&order_type=all`
-          );
-        } catch (e) { orderData = []; }
-
-        orderData = Array.isArray(orderData)
-          ? orderData.filter(o => Number(o.location_id) === cfg.stationId)
-          : [];
-
-        if (!orderData.length) {
-          prices[typeId] = { buy: 0, sell: 0 };
-          writeCache(cacheKey, { buy: 0, sell: 0 }, 1); // cache misses for 1 day
-          continue;
-        }
-
-        const buyOrders  = orderData.filter(o =>  o.is_buy_order);
-        const sellOrders = orderData.filter(o => !o.is_buy_order);
-        const priceData  = {
-          buy:  buyOrders.length  ? Math.max(...buyOrders.map(o => o.price))  : 0,
-          sell: sellOrders.length ? Math.min(...sellOrders.map(o => o.price)) : 0,
-        };
-        prices[typeId] = priceData;
-        writeCache(cacheKey, priceData, 0.25); // cache 6 hours
+        data = await httpGet(`https://market.fuzzwork.co.uk/aggregates/?station=${cfg.stationId}&types=${chunk.join(',')}`);
       } catch (e) {
-        console.log(`Failed to fetch ${hub} price for ${typeId}:`, e.message);
-        prices[typeId] = { buy: 0, sell: 0 };
+        console.log(`[prices] Fuzzwork batch failed (${hub}):`, e.message);
+      }
+      for (const typeId of chunk) {
+        const d = data && (data[typeId] || data[String(typeId)]);
+        if (d) {
+          const priceData = { buy: Number(d.buy?.max) || 0, sell: Number(d.sell?.min) || 0 };
+          prices[typeId] = priceData;
+          // Cache real results 6h; all-zero (no orders) 1h so they refresh sooner.
+          writeCache(`hubprice_${hub}_${typeId}`, priceData, (priceData.buy || priceData.sell) ? 0.25 : (1 / 24));
+        } else {
+          prices[typeId] = { buy: 0, sell: 0 };   // not returned this batch — don't cache the failure
+        }
       }
     }
     return prices;
@@ -689,6 +773,30 @@ function registerEsiHandlers({
   });
 
   // ─── IPC: SDE blueprint search — only returns blueprint types (categoryID=9) ──
+  // ─── IPC: SDE market-item search (autocomplete) ───────────────────────────
+  // Returns published, market-tradeable types (marketGroupID set) matching a name
+  // substring. Replaces the removed public ESI /search/ endpoint. Ordered so exact
+  // prefix matches and shorter names rank first. Returns [{ id, name }].
+  ipcHandle('sde-search-market-types', async (_, query, limit = 10) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !query || !String(query).trim()) return [];
+    const q = String(query).trim();
+    try {
+      const rows = await sdeDb.all(
+        `SELECT typeID AS id, typeName AS name
+           FROM invTypes
+          WHERE typeName LIKE ? AND published = 1 AND marketGroupID IS NOT NULL
+          ORDER BY CASE WHEN typeName LIKE ? THEN 0 ELSE 1 END, LENGTH(typeName), typeName
+          LIMIT ?`,
+        [`%${q}%`, `${q}%`, limit]
+      );
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      console.warn('sde-search-market-types failed:', e.message);
+      return [];
+    }
+  });
+
   ipcHandle('sde-search-types', async (_, query, limit = 15) => {
     const sdeDb = getSdeDb();
     if (!sdeDb) return [];

@@ -83,6 +83,11 @@ async function autoRefreshStaleCharacters(accounts) {
     // any manual reload (assets/wallets read straight from the just-updated CharDB).
     if (typeof refreshCurrentDataView === 'function') refreshCurrentDataView();
 
+    // Live-ESI dashboard widgets (active jobs / skill queue / wallet) may have come
+    // back empty during the cold-start ESI burst. Tokens are warm now — re-fetch so
+    // they populate without a manual remove/re-add.
+    refreshDashboardLiveWidgets().catch(() => {});
+
   } finally {
     _autoRefreshRunning = false;
   }
@@ -173,110 +178,317 @@ function renderDashboardPing(ping) {
   }
 }
 
-// ─── Dashboard drag-and-drop panel reordering ────────────────────────────────
+// ─── Dashboard widget grid (Gridstack) ───────────────────────────────────────
+// Every widget is declared once in DASHBOARD_WIDGETS. Gridstack lets the user
+// drag, resize, add and remove widgets; the layout (which widgets are shown plus
+// their x/y/w/h) persists to localStorage.dashboardGridLayout. Widget *content*
+// is filled by loadDashboard()'s render sections, keyed off the inner element ids
+// in each widget's `body`.
 
-function initDashboardDnD() {
-  const grid = document.getElementById('dashboardContent');
-  if (!grid) return;
+const DASHBOARD_WIDGETS = {
+  // Heights are in 20px row units (see cellHeight). Defaults are tuned to fit each
+  // widget's content reasonably; the fine row unit lets you snap them tighter.
+  // `icon` is a Google Material Symbol name (rendered with .material-symbols-outlined,
+  // like the navbar). UI icons across the app use Material Symbols; EVE in-game art
+  // (images.evetech.net) is reserved for actual game items/ships/characters.
+  networth: {
+    icon: 'account_balance', title: 'NET WORTH',
+    w: 4, h: 6, minW: 2, minH: 4,
+    body: '<div id="dashboardNetworthSummary"></div>',
+  },
+  wealthGrowth: {
+    icon: 'show_chart', title: 'WEALTH GROWTH',
+    w: 5, h: 11, minW: 3, minH: 6,
+    body: '<div id="dashboardWealthGrowth"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  wealthByChar: {
+    icon: 'groups', title: 'WEALTH BY CHARACTER',
+    w: 3, h: 11, minW: 2, minH: 6,
+    body: '<div id="dashboardWealthByChar"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  activeJobs: {
+    icon: 'precision_manufacturing', title: 'ACTIVE INDUSTRY JOBS',
+    w: 5, h: 10, minW: 2, minH: 5,
+    body: '<div id="dashboardActiveJobsTable"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  pi: {
+    icon: 'public', title: 'PLANETARY INDUSTRY',
+    w: 5, h: 9, minW: 2, minH: 5,
+    body: '<div id="dashboardPIWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  walletBalance: {
+    icon: 'account_balance_wallet', title: 'WALLET BALANCES',
+    w: 4, h: 8, minW: 2, minH: 4,
+    body: '<div id="dashboardWalletWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  skillQueue: {
+    icon: 'school', title: 'SKILL QUEUE',
+    w: 4, h: 10, minW: 2, minH: 5,
+    body: '<div id="dashboardSkillQueueWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  marketQuicklook: {
+    icon: 'storefront', title: 'MARKET QUICKLOOK',
+    w: 4, h: 10, minW: 2, minH: 5,
+    body: '<div id="dashboardMarketWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  marketOrders: {
+    icon: 'receipt_long', title: 'ACTIVE MARKET ORDERS',
+    w: 5, h: 10, minW: 2, minH: 5,
+    body: '<div id="dashboardMarketOrders"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  jobWatch: {
+    icon: 'visibility', title: 'JOB WATCH', multi: true,   // addable many times, one per job
+    w: 3, h: 8, minW: 2, minH: 6,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+  },
+  // NOTE: the incursion alert is intentionally NOT a grid widget — it is an
+  // always-on banner pinned above the grid (#allianceIncursionAlert in
+  // pageLoader.js) that only appears when an incursion is active.
+};
 
-  // Restore saved layout before wiring events
-  _dndRestoreLayout();
+// Default layout applied on first run (or after a reset). Widgets not listed
+// here start hidden and can be added from the “+ Add Widget” menu.
+const DEFAULT_DASH_LAYOUT = [
+  { id: 'networth',     x: 0, y: 0,  w: 4, h: 6  },
+  { id: 'wealthByChar', x: 0, y: 6,  w: 4, h: 11 },
+  { id: 'wealthGrowth', x: 4, y: 0,  w: 5, h: 11 },
+  { id: 'pi',           x: 9, y: 0,  w: 3, h: 11 },
+  { id: 'activeJobs',   x: 4, y: 11, w: 8, h: 10 },
+];
 
-  let dragging   = null;   // panel being dragged
-  let srcCol     = null;   // column it came from
+let _dashGrid = null;   // GridStack instance (null until initialised this session)
 
-  function _save() {
-    const state = {};
-    grid.querySelectorAll('.dashboard-col').forEach(col => {
-      state[col.id] = [...col.querySelectorAll(':scope > .dnd-panel')].map(p => p.id);
-    });
-    try { localStorage.setItem('dashboardLayout', JSON.stringify(state)); } catch (_) {}
-  }
-
-  function _dropIntoCol(col, refPanel, e) {
-    if (!dragging || col === dragging) return;
-    if (refPanel && refPanel !== dragging) {
-      const rect = refPanel.getBoundingClientRect();
-      col.insertBefore(dragging, e.clientY < rect.top + rect.height / 2 ? refPanel : refPanel.nextSibling);
-    } else if (!refPanel) {
-      col.appendChild(dragging);
-    }
-    _save();
-  }
-
-  // Wire panels
-  grid.querySelectorAll('.dnd-panel').forEach(panel => {
-    panel.addEventListener('dragstart', e => {
-      dragging = panel;
-      srcCol   = panel.parentElement;
-      panel.classList.add('dnd-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      // Needed for Firefox
-      e.dataTransfer.setData('text/plain', panel.id);
-    });
-
-    panel.addEventListener('dragend', () => {
-      grid.querySelectorAll('.dnd-panel').forEach(p => p.classList.remove('dnd-over', 'dnd-dragging'));
-      grid.querySelectorAll('.dashboard-col').forEach(c => c.classList.remove('dnd-col-over'));
-      dragging = null;
-      srcCol   = null;
-    });
-
-    panel.addEventListener('dragover', e => {
-      e.preventDefault();
-      if (!dragging || panel === dragging) return;
-      e.dataTransfer.dropEffect = 'move';
-      grid.querySelectorAll('.dnd-panel').forEach(p => p.classList.remove('dnd-over'));
-      panel.classList.add('dnd-over');
-    });
-
-    panel.addEventListener('drop', e => {
-      e.preventDefault();
-      const col = panel.parentElement;
-      grid.querySelectorAll('.dnd-panel').forEach(p => p.classList.remove('dnd-over'));
-      _dropIntoCol(col, panel, e);
-    });
-  });
-
-  // Wire columns (drop into empty space at bottom of col)
-  grid.querySelectorAll('.dashboard-col').forEach(col => {
-    col.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      // Only highlight col if hovering its padding (not a panel)
-      if (e.target === col) col.classList.add('dnd-col-over');
-    });
-
-    col.addEventListener('dragleave', e => {
-      if (!col.contains(e.relatedTarget)) col.classList.remove('dnd-col-over');
-    });
-
-    col.addEventListener('drop', e => {
-      e.preventDefault();
-      col.classList.remove('dnd-col-over');
-      if (e.target === col) _dropIntoCol(col, null, e);
-    });
-  });
+// The widget id for a Gridstack node — prefer the live attribute, fall back to
+// the node's parsed id (Gridstack copies gs-id → node.id on init).
+function _nodeWidgetId(n) {
+  return (n && n.el && n.el.getAttribute('gs-id')) || (n && n.id) || null;
 }
 
-function _dndRestoreLayout() {
+// A widget marked `multi` can have several instances on the grid at once. Its
+// instance id is "base~uid" so the gs-id / DOM ids stay unique; _widgetBase strips
+// the suffix back to the registry key.
+function _widgetBase(id)    { return String(id).split('~')[0]; }
+function _widgetDef(id)     { return DASHBOARD_WIDGETS[_widgetBase(id)] || null; }
+function _newInstanceId(base) { return `${base}~${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
+
+// Build one .grid-stack-item DOM element for a widget id + position/size.
+function _makeDashItemEl({ id, x, y, w, h }) {
+  const def = _widgetDef(id);
+  const el  = document.createElement('div');
+  el.className = 'grid-stack-item';
+  el.setAttribute('gs-id', id);
+  if (Number.isFinite(x)) el.setAttribute('gs-x', x);
+  if (Number.isFinite(y)) el.setAttribute('gs-y', y);
+  el.setAttribute('gs-w', w || def.w);
+  el.setAttribute('gs-h', h || def.h);
+  if (def.minW) el.setAttribute('gs-min-w', def.minW);
+  if (def.minH) el.setAttribute('gs-min-h', def.minH);
+  el.innerHTML = `
+    <div class="grid-stack-item-content">
+      <div class="dashboard-panel dnd-panel" data-widget-id="${id}" data-widget-base="${_widgetBase(id)}">
+        <div class="dashboard-panel-title dnd-handle">
+          ${def.icon ? `<span class="material-symbols-outlined dashboard-widget-icon">${def.icon}</span>` : ''}
+          <span class="dashboard-widget-title-text">${def.title}</span>
+          <span class="dnd-grip">⠿</span>
+          <button class="dashboard-widget-remove" title="Remove widget"
+                  onclick="removeDashboardWidget('${id}')">✕</button>
+        </div>
+        <div class="dashboard-widget-body">${def.body}</div>
+      </div>
+    </div>`;
+  return el;
+}
+
+// Bump when the grid metric (cellHeight) or default sizing changes, so a layout
+// saved against the old scale is discarded instead of rendering at the wrong size.
+const DASH_LAYOUT_VERSION = 2;
+
+// Read the saved layout, falling back to the default. Filters out unknown ids
+// (e.g. a widget renamed in a later version) so a stale entry never breaks init.
+// A layout from an older schema version is ignored (auto-reset to the default).
+function _loadDashLayout() {
   try {
-    const saved = JSON.parse(localStorage.getItem('dashboardLayout') || 'null');
-    if (!saved) return;
-    const grid = document.getElementById('dashboardContent');
-    if (!grid) return;
-    Object.entries(saved).forEach(([colId, panelIds]) => {
-      const col = document.getElementById(colId);
-      if (!col) return;
-      panelIds.forEach(pid => {
-        const panel = document.getElementById(pid);
-        if (panel) col.appendChild(panel);
-      });
-    });
+    const saved = JSON.parse(localStorage.getItem('dashboardGridLayout') || 'null');
+    if (saved && saved.v === DASH_LAYOUT_VERSION && Array.isArray(saved.items) && saved.items.length) {
+      const valid = saved.items.filter(it => it && _widgetDef(it.id));
+      if (valid.length) return valid;
+    }
   } catch (_) {}
+  return DEFAULT_DASH_LAYOUT.map(it => ({ ...it }));
+}
+
+function _saveDashLayout() {
+  if (!_dashGrid) return;
+  const items = _dashGrid.engine.nodes
+    .map(n => {
+      const id = _nodeWidgetId(n);
+      return id ? { id, x: n.x, y: n.y, w: n.w, h: n.h } : null;
+    })
+    .filter(Boolean);
+  try { localStorage.setItem('dashboardGridLayout', JSON.stringify({ v: DASH_LAYOUT_VERSION, items })); } catch (_) {}
+  _refreshAddWidgetMenu();
+}
+
+// Initialise the Gridstack instance + its widgets from the saved layout.
+// Idempotent: safe to call on every loadDashboard(); only builds once per session.
+function initDashboardGrid() {
+  const gridEl = document.getElementById('dashboardGrid');
+  if (!gridEl || _dashGrid) return;
+  if (typeof GridStack === 'undefined') {
+    console.warn('[dashboard] Gridstack failed to load — widget grid disabled.');
+    return;
+  }
+
+  // Build the item elements first so GridStack.init() picks them up from the DOM.
+  gridEl.innerHTML = '';
+  _loadDashLayout().forEach(item => gridEl.appendChild(_makeDashItemEl(item)));
+
+  _dashGrid = GridStack.init({
+    cellHeight: 20,   // small row unit → fine (20px) resize steps so widgets snap tight
+    margin: 4,
+    float: false,   // gravity-pack widgets to the top — no empty rows / top gap
+    handle: '.dnd-handle',
+    resizable: { handles: 'e, se, s, sw, w' },
+    draggable: { handle: '.dnd-handle', cancel: '.dashboard-widget-remove' },
+  }, gridEl);
+
+  _dashGrid.on('change',  _saveDashLayout);
+  _dashGrid.on('added',   _saveDashLayout);
+  _dashGrid.on('removed', _saveDashLayout);
+
+  _refreshAddWidgetMenu();
+}
+
+// Which widget ids are currently on the grid.
+function _activeWidgetIds() {
+  if (!_dashGrid) return [];
+  return _dashGrid.engine.nodes.map(_nodeWidgetId).filter(Boolean);
+}
+
+// Add a widget to the grid, then refetch + repopulate so its data renders. `id` is
+// a registry base key (from the menu). `multi` widgets get a fresh instance id so
+// several can coexist; single widgets are a no-op if already present.
+function addDashboardWidget(id) {
+  const def = DASHBOARD_WIDGETS[id];
+  if (!_dashGrid || !def) return;
+  if (!def.multi && _activeWidgetIds().some(a => _widgetBase(a) === id)) { hideAddWidgetMenu(); return; }
+  const instId = def.multi ? _newInstanceId(id) : id;
+  const el = _makeDashItemEl({ id: instId });
+  document.getElementById('dashboardGrid').appendChild(el);
+  _dashGrid.makeWidget(el);
+  _saveDashLayout();
+  hideAddWidgetMenu();
+  loadDashboard();                                 // refetch + fill the new widget
+}
+
+function removeDashboardWidget(id) {
+  if (!_dashGrid) return;
+  const node = _dashGrid.engine.nodes.find(n => _nodeWidgetId(n) === id);
+  if (node) _dashGrid.removeWidget(node.el);
+  if (_widgetBase(id) === 'jobWatch') _setJobWatch(id, null);   // drop its saved selection
+  _saveDashLayout();
+}
+
+function resetDashboardLayout() {
+  try { localStorage.removeItem('dashboardGridLayout'); } catch (_) {}
+  if (_dashGrid) { _dashGrid.destroy(false); _dashGrid = null; }  // keep the grid DOM node
+  initDashboardGrid();
+  loadDashboard();
+}
+
+// ── “+ Add Widget” dropdown menu ─────────────────────────────────────────────
+function _refreshAddWidgetMenu() {
+  const menu = document.getElementById('dashboardAddWidgetMenu');
+  if (!menu) return;
+  const activeBases = _activeWidgetIds().map(_widgetBase);
+  // `multi` widgets stay addable forever; single widgets drop out once placed.
+  const addable = Object.keys(DASHBOARD_WIDGETS)
+    .filter(key => DASHBOARD_WIDGETS[key].multi || !activeBases.includes(key));
+  menu.innerHTML = addable.length
+    ? addable.map(key => {
+        const def = DASHBOARD_WIDGETS[key];
+        return `<button class="dashboard-add-item" onclick="addDashboardWidget('${key}')">`
+             + `${def.icon ? `<span class="material-symbols-outlined">${def.icon}</span>` : ''}`
+             + `<span>${def.title}${def.multi ? ' <span class="dashboard-add-plus">+</span>' : ''}</span></button>`;
+      }).join('')
+    : '<div class="dashboard-add-empty">All widgets added.</div>';
+}
+
+function toggleAddWidgetMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('dashboardAddWidgetMenu');
+  if (!menu) return;
+  const show = menu.style.display === 'none';
+  _refreshAddWidgetMenu();
+  menu.style.display = show ? 'block' : 'none';
+  if (show) {
+    // Close on the next outside click.
+    setTimeout(() => document.addEventListener('click', hideAddWidgetMenu, { once: true }), 0);
+  }
+}
+
+function hideAddWidgetMenu() {
+  const menu = document.getElementById('dashboardAddWidgetMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+// Fetch + render the Active Industry Jobs widget (active / ready / paused jobs
+// across all characters). Live ESI per character — extracted so it can be re-run
+// after a background sync warms the tokens (see refreshDashboardLiveWidgets).
+async function renderDashboardActiveJobs(accounts) {
+  const container = document.getElementById('dashboardActiveJobsTable');
+  if (!container) return;
+  try {
+    const tag = (id, list) => (list || []).map(j => ({ ...j, character_id: id }));
+    const responses = [];
+    for (const acc of accounts) {
+      try {
+        responses.push(tag(acc.characterId, await window.eveAPI.getCharacterActiveJobs(acc.characterId)));
+      } catch { responses.push([]); }
+      await new Promise(r => setTimeout(r, 80));
+    }
+    const allJobs    = responses.flat();
+    const activeJobs = allJobs.filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+    renderActiveJobsWidget(container, activeJobs, accounts);
+  } catch (e) {
+    console.error('[dashboard] Active jobs widget failed:', e);
+    container.innerHTML = '<div class="active-jobs-empty">Failed to load.</div>';
+  }
+}
+
+// Re-render the dashboard widgets backed by LIVE per-character ESI calls (active
+// jobs, skill queue, wallet balances). On a cold start these can come back empty
+// during the ESI burst (token-refresh race / 429 — active jobs has no stale
+// fallback). Once the background auto-sync has warmed the tokens we re-fetch them,
+// so the widgets self-heal instead of needing a manual remove/re-add.
+async function refreshDashboardLiveWidgets() {
+  if (typeof currentPage !== 'undefined' && currentPage !== 'dashboard') return;
+  if (!document.getElementById('dashboardGrid')) return;
+
+  const accounts = await window.eveAPI.getAccounts().catch(() => []);
+  if (!accounts.length) return;
+  const mainAccount = accounts.find(a => String(a.characterId) === String(selectedCharacterId)) || accounts[0];
+
+  if (document.getElementById('dashboardActiveJobsTable')) {
+    await renderDashboardActiveJobs(accounts);
+  }
+  const skillEl = document.getElementById('dashboardSkillQueueWidget');
+  if (skillEl) { try { await renderSkillQueueWidget(skillEl, mainAccount); } catch (_) {} }
+
+  const walletEl = document.getElementById('dashboardWalletWidget');
+  if (walletEl) { try { await renderWalletBalanceWidget(walletEl, accounts); } catch (_) {} }
+
+  const ordersEl = document.getElementById('dashboardMarketOrders');
+  if (ordersEl) { try { await renderMarketOrdersWidget(ordersEl, accounts); } catch (_) {} }
+
+  try { await _renderAllJobWatch(accounts); } catch (_) {}
 }
 
 async function loadDashboard() {
+  // Build the widget grid first so every widget's target element exists before
+  // the cache render and the data sections below try to fill them.
+  initDashboardGrid();
+
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
   const mainCharLabel  = document.getElementById('dashboardMainCharName');
@@ -682,7 +894,7 @@ async function loadDashboard() {
     function renderNetWorth(perChar, totalWallet, walletByChar, loading) {
       const { totalByChar, overallValue } = assembleTotals(perChar);
       const grandTotal = totalWallet + overallValue;
-      renderKPIPanel(summaryPanel, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, loading);
+      renderWealthWidgets({ accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading: loading });
       const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
       if (welcomeNWEl) {
         welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
@@ -727,15 +939,29 @@ async function loadDashboard() {
         const cached  = perChar[cid];
         let syncedAt  = 0;
         try { syncedAt = await window.eveAPI.getAssetSyncedAt(acc.characterId); } catch (_) {}
-        if (!cached || cached.assetSyncedAt !== syncedAt || ttlExpired) {
+        // `pricedOk` is set only when a value was computed against a real market
+        // price map. An entry lacking it was poisoned by an empty price map (a
+        // cold-start ESI rate-limit) and must be recomputed.
+        if (!cached || cached.assetSyncedAt !== syncedAt || ttlExpired || !cached.pricedOk) {
           dirty.push({ acc, cid, syncedAt });
         }
       }
 
-      if (dirty.length) {
-        // ── Step 4: Recompute only the dirty characters ───────────────────
-        const marketPrices = await window.eveAPI.getMarketPrices().catch(() => ({}));
+      const marketPrices = dirty.length
+        ? await window.eveAPI.getMarketPrices().catch(() => ({}))
+        : {};
+      const pricesOk = marketPrices && Object.keys(marketPrices).length > 0;
 
+      // Guard: never recompute against an empty price map — it would value every
+      // asset at 0 and poison the 24 h cache (the cause of the "19 ISK" bug). Skip
+      // the revalue and keep the existing cached values; the next dashboard load
+      // (with prices available) recomputes them.
+      if (dirty.length && !pricesOk) {
+        console.warn('[dashboard] Market prices unavailable — skipping asset revalue this pass.');
+      }
+
+      if (dirty.length && pricesOk) {
+        // ── Step 4: Recompute only the dirty characters ───────────────────
         for (const { acc, cid, syncedAt } of dirty) {
           let assets = [];
           try { assets = await window.eveAPI.getCharacterAssetsDb(acc.characterId); } catch (_) {}
@@ -758,7 +984,7 @@ async function loadDashboard() {
             assetValue += unitPrice * (asset.quantity || 1);
           });
 
-          perChar[cid] = { assetValue, escrow: perChar[cid]?.escrow || 0, assetSyncedAt: syncedAt };
+          perChar[cid] = { assetValue, escrow: perChar[cid]?.escrow || 0, assetSyncedAt: syncedAt, pricedOk: true };
         }
 
         // Market-order escrow for the dirty characters only (serialised ESI).
@@ -793,26 +1019,7 @@ async function loadDashboard() {
   })();
 
   // ── Section 3: Active jobs widget ───────────────────────────────────────
-  (async () => {
-    const container = document.getElementById('dashboardActiveJobsTable');
-    if (!container) return;
-    try {
-      const tag = (id, list) => (list || []).map(j => ({ ...j, character_id: id }));
-      const responses = [];
-      for (const acc of accounts) {
-        try {
-          responses.push(tag(acc.characterId, await window.eveAPI.getCharacterActiveJobs(acc.characterId)));
-        } catch { responses.push([]); }
-        await new Promise(r => setTimeout(r, 80));
-      }
-      const allJobs    = responses.flat();
-      const activeJobs = allJobs.filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
-      renderActiveJobsWidget(container, activeJobs, accounts);
-    } catch (e) {
-      console.error('[dashboard] Active jobs widget failed:', e);
-      container.innerHTML = '<div class="active-jobs-empty">Failed to load.</div>';
-    }
-  })();
+  renderDashboardActiveJobs(accounts);
 
   // ── Section 4: PI widget ────────────────────────────────────────────────
   (async () => {
@@ -847,6 +1054,56 @@ async function loadDashboard() {
     }
   })();
 
+  // ── Section 6: Wallet balances widget (optional) ─────────────────────────
+  (async () => {
+    const el = document.getElementById('dashboardWalletWidget');
+    if (!el) return;
+    try { await renderWalletBalanceWidget(el, accounts); }
+    catch (e) {
+      console.error('[dashboard] Wallet widget failed:', e);
+      el.innerHTML = '<div class="dashboard-empty">Failed to load wallet balances.</div>';
+    }
+  })();
+
+  // ── Section 7: Skill queue widget (selected character, optional) ─────────
+  (async () => {
+    const el = document.getElementById('dashboardSkillQueueWidget');
+    if (!el) return;
+    try { await renderSkillQueueWidget(el, mainAccount); }
+    catch (e) {
+      console.error('[dashboard] Skill queue widget failed:', e);
+      el.innerHTML = '<div class="dashboard-empty">Failed to load skill queue.</div>';
+    }
+  })();
+
+  // ── Section 8: Market quicklook widget (optional) ────────────────────────
+  (async () => {
+    const el = document.getElementById('dashboardMarketWidget');
+    if (!el) return;
+    try { await renderMarketQuicklookWidget(el); }
+    catch (e) {
+      console.error('[dashboard] Market widget failed:', e);
+      el.innerHTML = '<div class="dashboard-empty">Failed to load market prices.</div>';
+    }
+  })();
+
+  // ── Section 9: Active market orders widget (optional) ────────────────────
+  (async () => {
+    const el = document.getElementById('dashboardMarketOrders');
+    if (!el) return;
+    try { await renderMarketOrdersWidget(el, accounts); }
+    catch (e) {
+      console.error('[dashboard] Market orders widget failed:', e);
+      el.innerHTML = '<div class="active-jobs-empty">Failed to load orders.</div>';
+    }
+  })();
+
+  // ── Section 10: Job Watch widgets (optional, multi-instance) ─────────────
+  (async () => {
+    try { await _renderAllJobWatch(accounts); }
+    catch (e) { console.error('[dashboard] Job Watch widget failed:', e); }
+  })();
+
   // Update ping panel live when a new Jabber message arrives.
   // Guard prevents duplicate listeners across repeated loadDashboard() calls.
   if (!_pingListenerRegistered) {
@@ -859,29 +1116,47 @@ async function loadDashboard() {
     });
   }
 
-  // Initialise drag-and-drop after all panels are rendered
-  initDashboardDnD();
 }
 
-// ─── KPI Panel Renderer ───────────────────────────────────────────────────────
+// ─── Wealth widgets (Net Worth KPIs · Wealth by Character · Wealth Growth) ─────
+// Three shared building blocks. Used both by the dashboard (as three separate
+// grid widgets, via renderWealthWidgets) and by the Wallets page net-worth tile
+// (combined, via renderKPIPanel). Each takes the same data bundle `d`:
+//   { accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading }
 
-function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading, opts = {}) {
-  if (!container) return;
-  const compact = !!opts.compact;   // compact = KPIs + growth chart only (no per-character bars)
+const _WEALTH_TOP_N = 6;
 
-  const TOP_N = 6;
-  const allCharData = accounts.map(acc => {
+function _wealthCharData(d) {
+  const all = (d.accounts || []).map(acc => {
     const cid    = String(acc.characterId);
-    const assets = totalByChar[cid]  || 0;
-    const wallet = walletByChar[cid] || 0;
+    const assets = (d.totalByChar  || {})[cid] || 0;
+    const wallet = (d.walletByChar || {})[cid] || 0;
     return { acc, assets, wallet, total: assets + wallet };
   }).sort((a, b) => b.total - a.total);
+  return { all, top: all.slice(0, _WEALTH_TOP_N), hidden: Math.max(0, all.length - _WEALTH_TOP_N) };
+}
 
-  const charData    = allCharData.slice(0, TOP_N);
-  const hiddenCount = allCharData.length - charData.length;
-  const maxTotal    = Math.max(...charData.map(c => c.total), 1);
+// Widget 1: the three KPI cards (Total / Liquid / Asset value).
+function _renderWealthKPIs(container, d) {
+  if (!container) return;
+  container.innerHTML = `
+    <div class="dash-wealth-header">
+      <div class="dash-wealth-kpi"><div class="dash-kpi-label">TOTAL NET WORTH</div><div class="dash-kpi-value">${formatISK(d.grandTotal)}</div><div class="dash-kpi-sub">Assets + Liquid ISK</div></div>
+      <div class="dash-wealth-kpi"><div class="dash-kpi-label">LIQUID ISK</div><div class="dash-kpi-value liquidisk">${formatISK(d.totalWallet)}</div><div class="dash-kpi-sub">Wallet balance</div></div>
+      <div class="dash-wealth-kpi"><div class="dash-kpi-label">ASSET VALUE</div>
+        <div class="dash-kpi-value accent-purple">${d.assetsLoading ? '<span style="font-size:13px;color:var(--text-3);font-family:var(--mono);">Calculating...</span>' : formatISK(d.overallValue)}</div>
+        <div class="dash-kpi-sub">Jita sell estimate</div>
+      </div>
+    </div>`;
+}
 
-  const charBars = charData.map(({ acc, assets, wallet, total }) => {
+// Widget 2: the per-character wealth bars (assets + liquid), top N.
+function _renderWealthByChar(container, d) {
+  if (!container) return;
+  const { top, hidden } = _wealthCharData(d);
+  const maxTotal = Math.max(...top.map(c => c.total), 1);
+
+  const charBars = top.map(({ acc, assets, wallet, total }) => {
     const assetPct  = Math.min(100, (assets / maxTotal) * 100);
     const walletPct = Math.min(100, (wallet / maxTotal) * 100);
     return `
@@ -900,53 +1175,6 @@ function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTot
       </div>`;
   }).join('');
 
-  const getCSSVar       = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const CHAR_COLORS     = ['--accent','--assets','--liquidisk','--warning','--danger','--tier-0'].map(getCSSVar);
-  const growthFactors   = [0.41,0.48,0.54,0.59,0.63,0.68,0.74,0.80,0.87,0.92,0.96,1.0];
-
-  // Character lines: solid, no dots
-  const charDatasets = charData.map(({ acc, total }, i) => ({
-    label: acc.characterName,
-    data: growthFactors.map(f => Math.round(total * f)),
-    borderColor: CHAR_COLORS[i % CHAR_COLORS.length],
-    borderWidth: 1.5,
-    borderDash: [],
-    pointRadius: 0,
-    pointHoverRadius: 4,
-    fill: false, tension: 0.3,
-  }));
-
-  // Total line: neon red, solid, dot at every point
-  if (charData.length > 1) {
-    const TOTAL_RED = '#ff2010';
-    charDatasets.push({
-      label: 'Total',
-      data: growthFactors.map(f => Math.round(grandTotal * f)),
-      borderColor: TOTAL_RED,
-      borderWidth: 2,
-      borderDash: [],
-      pointBackgroundColor: TOTAL_RED,
-      pointBorderColor: 'rgba(255,32,16,0.45)',
-      pointBorderWidth: 3,
-      pointRadius: 4,
-      pointHoverRadius: 7,
-      fill: false, tension: 0.3,
-      _isTotal: true,
-    });
-  }
-
-  const now         = Date.now();
-  const monthLabels = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(now); d.setMonth(d.getMonth() - (11 - i));
-    return d.toLocaleString('default', { month: 'short' });
-  });
-
-  const legendItems = charDatasets.map(ds => `
-    <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2);font-family:var(--mono);">
-      <span style="width:8px;height:8px;border-radius:50%;background:${ds.borderColor};flex-shrink:0;"></span>
-      ${escHtml(ds.label)}
-    </span>`).join('');
-
   const barLegend = `
     <div style="display:flex;gap:14px;margin-bottom:8px;">
       <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2);font-family:var(--mono);">
@@ -958,99 +1186,158 @@ function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTot
     </div>`;
 
   container.innerHTML = `
-    <div class="dash-wealth-header">
-      <div class="dash-wealth-kpi"><div class="dash-kpi-label">TOTAL NET WORTH</div><div class="dash-kpi-value">${formatISK(grandTotal)}</div><div class="dash-kpi-sub">Assets + Liquid ISK</div></div>
-      <div class="dash-wealth-kpi"><div class="dash-kpi-label">LIQUID ISK</div><div class="dash-kpi-value liquidisk">${formatISK(totalWallet)}</div><div class="dash-kpi-sub">Wallet balance</div></div>
-      <div class="dash-wealth-kpi"><div class="dash-kpi-label">ASSET VALUE</div>
-        <div class="dash-kpi-value accent-purple">${assetsLoading ? '<span style="font-size:13px;color:var(--text-3);font-family:var(--mono);">Calculating...</span>' : formatISK(overallValue)}</div>
-        <div class="dash-kpi-sub">Jita sell estimate</div>
-      </div>
-    </div>
-    ${compact ? '' : `
-    <div class="dash-char-bars" style="margin-bottom:20px;">
+    <div class="dash-char-bars">
       <div class="dash-char-bars-label" style="display:flex;align-items:baseline;gap:8px;">
         WEALTH BY CHARACTER
         <span style="font-size:9px;color:var(--text-3);font-family:var(--mono);font-weight:400;letter-spacing:0.05em;">
-          TOP ${TOP_N}${hiddenCount > 0 ? ` · ${hiddenCount} more character${hiddenCount === 1 ? '' : 's'} not shown` : ''}
+          TOP ${_WEALTH_TOP_N}${hidden > 0 ? ` · ${hidden} more character${hidden === 1 ? '' : 's'} not shown` : ''}
         </span>
       </div>
       ${barLegend}${charBars}
-    </div>`}
-    <div class="dash-wealth-chart-wrap">
+    </div>`;
+}
+
+// Widget 3: the 12-month compounded wealth growth chart.
+function _renderWealthGrowth(container, d, compact = false) {
+  if (!container) return;
+  const { top } = _wealthCharData(d);
+
+  const getCSSVar     = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const CHAR_COLORS   = ['--accent','--assets','--liquidisk','--warning','--danger','--tier-0'].map(getCSSVar);
+  const growthFactors = [0.41,0.48,0.54,0.59,0.63,0.68,0.74,0.80,0.87,0.92,0.96,1.0];
+
+  // Character lines: solid, no dots
+  const charDatasets = top.map(({ acc, total }, i) => ({
+    label: acc.characterName,
+    data: growthFactors.map(f => Math.round(total * f)),
+    borderColor: CHAR_COLORS[i % CHAR_COLORS.length],
+    borderWidth: 1.5, borderDash: [], pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0.3,
+  }));
+
+  // Total line: neon red, solid, dot at every point
+  if (top.length > 1) {
+    const TOTAL_RED = '#ff2010';
+    charDatasets.push({
+      label: 'Total',
+      data: growthFactors.map(f => Math.round(d.grandTotal * f)),
+      borderColor: TOTAL_RED, borderWidth: 2, borderDash: [],
+      pointBackgroundColor: TOTAL_RED, pointBorderColor: 'rgba(255,32,16,0.45)', pointBorderWidth: 3,
+      pointRadius: 4, pointHoverRadius: 7, fill: false, tension: 0.3, _isTotal: true,
+    });
+  }
+
+  const now         = Date.now();
+  const monthLabels = Array.from({ length: 12 }, (_, i) => {
+    const dt = new Date(now); dt.setMonth(dt.getMonth() - (11 - i));
+    return dt.toLocaleString('default', { month: 'short' });
+  });
+
+  const legendItems = charDatasets.map(ds => `
+    <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2);font-family:var(--mono);">
+      <span style="width:8px;height:8px;border-radius:50%;background:${ds.borderColor};flex-shrink:0;"></span>
+      ${escHtml(ds.label)}
+    </span>`).join('');
+
+  container.innerHTML = `
+    <div class="dash-wealth-chart-wrap" style="display:flex;flex-direction:column;flex:1;min-height:0;margin-bottom:0;">
       <div class="dash-wealth-chart-label">COMPOUNDED WEALTH GROWTH · 12 MONTHS</div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;">${legendItems}</div>
-      ${assetsLoading
-        ? `<div style="height:160px;display:flex;align-items:center;justify-content:center;
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;flex:none;">${legendItems}</div>
+      ${d.assetsLoading
+        ? `<div style="flex:1;min-height:120px;display:flex;align-items:center;justify-content:center;
                        color:var(--text-3);font-family:var(--mono);font-size:11px;
                        border:1px dashed var(--border);border-radius:var(--radius);">
              Waiting for asset prices...
            </div>`
-        : `<div style="position:relative;width:100%;${compact ? 'flex:1;min-height:120px;' : 'height:160px;'}">
+        : `<div style="position:relative;width:100%;flex:1;min-height:120px;">
              <canvas id="wealthGrowthChart" role="img" aria-label="Compounded wealth growth over 12 months per character">Wealth growth chart</canvas>
            </div>`}
     </div>`;
 
-  if (!assetsLoading) {
-    requestAnimationFrame(() => {
-      // Scope to this container — the same widget can be rendered on more than
-      // one page (dashboard + wallets), so a global id lookup could grab the
-      // wrong canvas.
-      const canvas = container.querySelector('#wealthGrowthChart');
-      if (!canvas) return;
-      if (canvas._chartInstance) canvas._chartInstance.destroy();
+  if (d.assetsLoading) return;
+  requestAnimationFrame(() => {
+    // Scope to this container — the same chart can exist on more than one page
+    // (dashboard widget + wallets tile), so a global id lookup could grab the
+    // wrong canvas.
+    const canvas = container.querySelector('#wealthGrowthChart');
+    if (!canvas) return;
+    if (canvas._chartInstance) canvas._chartInstance.destroy();
 
-      // Neon glow plugin — only fires for the Total dataset (_isTotal flag)
-      const totalGlowPlugin = {
-        id: 'totalGlow',
-        beforeDatasetDraw(chart, args) {
-          if (!chart.data.datasets[args.index]._isTotal) return;
-          const c = chart.ctx;
-          c.save();
-          c.shadowColor   = 'rgba(255, 32, 16, 0.80)';
-          c.shadowBlur    = 16;
-          c.shadowOffsetX = 0;
-          c.shadowOffsetY = 0;
-        },
-        afterDatasetDraw(chart, args) {
-          if (!chart.data.datasets[args.index]._isTotal) return;
-          chart.ctx.restore();
-        },
-      };
+    // Neon glow plugin — only fires for the Total dataset (_isTotal flag)
+    const totalGlowPlugin = {
+      id: 'totalGlow',
+      beforeDatasetDraw(chart, args) {
+        if (!chart.data.datasets[args.index]._isTotal) return;
+        const c = chart.ctx;
+        c.save();
+        c.shadowColor   = 'rgba(255, 32, 16, 0.80)';
+        c.shadowBlur    = 16;
+        c.shadowOffsetX = 0;
+        c.shadowOffsetY = 0;
+      },
+      afterDatasetDraw(chart, args) {
+        if (!chart.data.datasets[args.index]._isTotal) return;
+        chart.ctx.restore();
+      },
+    };
 
-      canvas._chartInstance = new Chart(canvas, {
-        type: 'line',
-        data: { labels: monthLabels, datasets: charDatasets },
-        plugins: [totalGlowPlugin],
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => { const v = ctx.raw; if (v >= 1e12) return ` ${(v/1e12).toFixed(2)} T ISK`; if (v >= 1e9) return ` ${(v/1e9).toFixed(2)} B ISK`; if (v >= 1e6) return ` ${(v/1e6).toFixed(2)} M ISK`; return ` ${v.toLocaleString()} ISK`; } } }
-          },
-          scales: {
-            x: { ticks: { color:'#6a6a6a', font:{size:9,family:'monospace'}, autoSkip:false, maxRotation:0 }, grid:{ color:'rgba(255,255,255,0.04)' } },
-            y: { ticks: { color:'#6a6a6a', font:{size:9,family:'monospace'}, callback: v => v >= 1e12 ? (v/1e12).toFixed(0)+'T' : v >= 1e9 ? (v/1e9).toFixed(0)+'B' : v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v }, grid:{ color:'rgba(255,255,255,0.04)' } }
-          }
+    canvas._chartInstance = new Chart(canvas, {
+      type: 'line',
+      data: { labels: monthLabels, datasets: charDatasets },
+      plugins: [totalGlowPlugin],
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => { const v = ctx.raw; if (v >= 1e12) return ` ${(v/1e12).toFixed(2)} T ISK`; if (v >= 1e9) return ` ${(v/1e9).toFixed(2)} B ISK`; if (v >= 1e6) return ` ${(v/1e6).toFixed(2)} M ISK`; return ` ${v.toLocaleString()} ISK`; } } }
+        },
+        scales: {
+          x: { ticks: { color:'#6a6a6a', font:{size:9,family:'monospace'}, autoSkip:false, maxRotation:0 }, grid:{ color:'rgba(255,255,255,0.04)' } },
+          y: { ticks: { color:'#6a6a6a', font:{size:9,family:'monospace'}, callback: v => v >= 1e12 ? (v/1e12).toFixed(0)+'T' : v >= 1e9 ? (v/1e9).toFixed(0)+'B' : v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v }, grid:{ color:'rgba(255,255,255,0.04)' } }
         }
-      });
+      }
     });
-  }
+  });
+}
+
+// Dashboard: render the three wealth widgets into whichever of their grid
+// containers are currently present. Computed once, fanned out.
+function renderWealthWidgets(d) {
+  _renderWealthKPIs(document.getElementById('dashboardNetworthSummary'), d);
+  _renderWealthByChar(document.getElementById('dashboardWealthByChar'), d);
+  _renderWealthGrowth(document.getElementById('dashboardWealthGrowth'), d, false);
+}
+
+// Wallets page: the combined net-worth tile (KPIs + chart, plus per-character
+// bars when not compact). Kept as a thin wrapper over the shared helpers.
+function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading, opts = {}) {
+  if (!container) return;
+  const compact = !!opts.compact;
+  const d = { accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading };
+  container.innerHTML = `
+    <div class="kpi-sub-kpis"></div>
+    ${compact ? '' : '<div class="kpi-sub-bychar" style="margin-bottom:20px;"></div>'}
+    <div class="kpi-sub-growth"></div>`;
+  _renderWealthKPIs(container.querySelector('.kpi-sub-kpis'), d);
+  if (!compact) _renderWealthByChar(container.querySelector('.kpi-sub-bychar'), d);
+  _renderWealthGrowth(container.querySelector('.kpi-sub-growth'), d, compact);
 }
 
 // ─── Cached dashboard render ──────────────────────────────────────────────────
 
 function renderDashboardUI(data, isCached = false) {
   const { accounts, mainAccount, overallValue, totalWallet, grandTotal, totalByChar, walletByChar } = data;
-  const summaryPanel  = document.getElementById('dashboardNetworthSummary');
   const mainCharLabel = document.getElementById('dashboardMainCharName');
-  if (!summaryPanel) return;
 
   if (mainCharLabel) {
     mainCharLabel.innerHTML = mainAccount
       ? `${escHtml(mainAccount.characterName)} ${isCached ? '<span style="color:var(--warning);font-size:9px;margin-left:8px;">[SYNCING FROM ESI...]</span>' : ''}`
       : 'No main character selected';
   }
-  renderKPIPanel(summaryPanel, accounts || [], totalWallet || 0, overallValue || 0, grandTotal || 0, totalByChar || {}, walletByChar || {}, false);
+  renderWealthWidgets({
+    accounts: accounts || [], totalWallet: totalWallet || 0, overallValue: overallValue || 0,
+    grandTotal: grandTotal || 0, totalByChar: totalByChar || {}, walletByChar: walletByChar || {},
+    assetsLoading: false,
+  });
 }
 
 function setupDashboardWidgetDrag() {
@@ -1278,10 +1565,8 @@ async function renderDashboardPIWidget(container, accounts) {
 
   if (!allColonies.length) {
     container.innerHTML = `
-      <div class="dashboard-panel-title dnd-handle" style="margin-bottom:10px;">
-        <span style="flex:1;">🪐 PLANETARY INTERACTION</span>
-        <button class="pi-dash-link-btn" style="padding:2px 10px;font-family:var(--mono);font-size:10px;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--text-3);cursor:pointer;letter-spacing:0.06em;flex-shrink:0;">VIEW PI ›</button>
-        <span class="dnd-grip">⠿</span>
+      <div class="dash-pi-summary" style="justify-content:flex-end;">
+        <button class="pi-dash-link-btn">VIEW PI ›</button>
       </div>
       <div style="padding:20px 0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-3);">
         No colonies found — sync your characters first.
@@ -1346,50 +1631,25 @@ async function renderDashboardPIWidget(container, accounts) {
   }).join('');
 
   container.innerHTML = `
-    <!-- Header -->
-    <div class="dashboard-panel-title dnd-handle" style="margin-bottom:10px;">
-      <span style="flex:1;">🪐 PLANETARY INTERACTION</span>
-      <button class="pi-dash-link-btn" style="
-        padding:2px 10px;font-family:var(--mono);font-size:10px;
-        background:transparent;border:1px solid var(--border);border-radius:3px;
-        color:var(--text-3);cursor:pointer;letter-spacing:0.06em;flex-shrink:0;">
-        VIEW PI ›
-      </button>
-      <span class="dnd-grip">⠿</span>
+    <!-- Summary line + VIEW PI action (the widget title is the grid header) -->
+    <div class="dash-pi-summary">
+      <span>${total} planet${total !== 1 ? 's' : ''} · ${charCount} character${charCount !== 1 ? 's' : ''}</span>
+      <button class="pi-dash-link-btn">VIEW PI ›</button>
     </div>
 
-    <!-- Summary line -->
-    <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);margin-bottom:12px;">
-      ${total} planet${total !== 1 ? 's' : ''} · ${charCount} character${charCount !== 1 ? 's' : ''}
-    </div>
-
-    <!-- Status counts -->
-    <div style="display:flex;gap:10px;margin-bottom:12px;">
-      <div style="flex:1;padding:8px 12px;background-color:var(--bg-panel);background-image:radial-gradient(circle,var(--dot-color) 1px,transparent 1px);background-size:6px 6px;border:1px solid var(--border);
-                  border-radius:6px;text-align:center;">
-        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:#4ecbb0;">
-          ${nActive}
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
-                    letter-spacing:0.08em;margin-top:2px;">EXTRACTING</div>
+    <!-- Status counts (stack vertically when the widget is narrow) -->
+    <div class="dash-pi-counts">
+      <div class="dash-pi-count">
+        <div class="dash-pi-count-num" style="color:#4ecbb0;">${nActive}</div>
+        <div class="dash-pi-count-label">EXTRACTING</div>
       </div>
-      <div style="flex:1;padding:8px 12px;background-color:var(--bg-panel);background-image:radial-gradient(circle,var(--dot-color) 1px,transparent 1px);background-size:6px 6px;border:1px solid var(--border);
-                  border-radius:6px;text-align:center;">
-        <div style="font-family:var(--mono);font-size:20px;font-weight:700;
-                    color:${nWarning > 0 ? '#e3a84d' : 'var(--text-3)'};">
-          ${nWarning}
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
-                    letter-spacing:0.08em;margin-top:2px;">STORAGE FULL</div>
+      <div class="dash-pi-count">
+        <div class="dash-pi-count-num" style="color:${nWarning > 0 ? '#e3a84d' : 'var(--text-3)'};">${nWarning}</div>
+        <div class="dash-pi-count-label">STORAGE FULL</div>
       </div>
-      <div style="flex:1;padding:8px 12px;background-color:var(--bg-panel);background-image:radial-gradient(circle,var(--dot-color) 1px,transparent 1px);background-size:6px 6px;border:1px solid var(--border);
-                  border-radius:6px;text-align:center;">
-        <div style="font-family:var(--mono);font-size:20px;font-weight:700;
-                    color:${nIdle > 0 ? 'var(--text-2)' : 'var(--text-3)'};">
-          ${nIdle}
-        </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text-3);
-                    letter-spacing:0.08em;margin-top:2px;">IDLE</div>
+      <div class="dash-pi-count">
+        <div class="dash-pi-count-num" style="color:${nIdle > 0 ? 'var(--text-2)' : 'var(--text-3)'};">${nIdle}</div>
+        <div class="dash-pi-count-label">IDLE</div>
       </div>
     </div>
 
@@ -1433,6 +1693,8 @@ async function renderAllianceIncursionAlert(allianceId) {
   const container = document.getElementById('allianceIncursionAlert');
   if (!container) return;
 
+  // Always-on banner pinned above the widget grid: hidden when there is no
+  // incursion so it takes no space, shown only when one is active.
   if (!allianceId) { container.style.display = 'none'; return; }
 
   try {
@@ -1614,4 +1876,493 @@ function viewSystemOnMap(systemId) {
       window.mapJumpToSystem(systemId);
     }
   }, 200);
+}
+
+// ─── Wallet balances widget ───────────────────────────────────────────────────
+// Live ESI wallet balance per character + a combined total. Reuses the existing
+// get-wallet IPC (window.eveAPI.getWalletBalance).
+// Maps a 24h delta to a ticker badge (class + diagonal arrow + signed amount).
+function _walletTicker(delta) {
+  if (delta == null || Math.abs(delta) < 0.005) return { cls: 'flat', arrow: '', text: '' };
+  if (delta > 0) return { cls: 'up',   arrow: '↗', text: '+' + formatISK(delta) };
+  return { cls: 'down', arrow: '↘', text: '-' + formatISK(Math.abs(delta)) };
+}
+
+async function renderWalletBalanceWidget(container, accounts) {
+  if (!accounts || !accounts.length) {
+    container.innerHTML = '<div class="dashboard-empty">No characters added.</div>';
+    return;
+  }
+  // Compare each live balance against the snapshot from ~24h ago (local DB).
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const rows = await Promise.all(accounts.map(async acc => {
+    let bal = 0, prev = null;
+    try { bal  = await window.eveAPI.getWalletBalance(acc.characterId); } catch (_) {}
+    try { prev = await window.eveAPI.getWalletBalanceBefore(acc.characterId, cutoff); } catch (_) {}
+    bal = Number(bal) || 0;
+    // Live ESI can return 0 during the cold-start rate-limit burst — fall back to
+    // the latest local snapshot so we never show a false 0 (and a bogus drop).
+    if (!bal) {
+      try {
+        const latest = await window.eveAPI.getWalletBalanceBefore(acc.characterId, Date.now());
+        if (typeof latest === 'number') bal = latest;
+      } catch (_) {}
+    }
+    const delta = (typeof prev === 'number') ? bal - prev : null;   // null = no 24h baseline yet
+    return { name: acc.characterName || `Char ${acc.characterId}`, bal, delta };
+  }));
+  rows.sort((a, b) => b.bal - a.bal);
+  const total = rows.reduce((s, r) => s + r.bal, 0);
+
+  // Combined 24h change: sum the known per-character deltas (unknowns = no change).
+  const totalDelta = rows.some(r => r.delta != null)
+    ? rows.reduce((s, r) => s + (r.delta || 0), 0)
+    : null;
+  const tt = _walletTicker(totalDelta);
+
+  container.innerHTML = `
+    <div class="dash-wallet-total">
+      <span class="dash-wallet-total-label">COMBINED LIQUID</span>
+      <span class="dash-wallet-total-value">${formatISK(total)}</span>
+      ${tt.text ? `<span class="dash-wallet-total-chg ${tt.cls}">${tt.arrow} ${tt.text}</span>` : ''}
+    </div>
+    <div class="dash-wallet-note">↗ up · ↘ down — movement over the last 24 hours</div>
+    <div class="dash-wallet-rows">
+      ${rows.map(r => {
+        const t = _walletTicker(r.delta);
+        return `
+        <div class="dash-wallet-row">
+          <span class="dash-wallet-name">${escHtml(r.name)}</span>
+          <span class="dash-wallet-cell ${t.cls}" title="24h change: ${t.text || 'no change'}">
+            ${t.arrow ? `<span class="dash-wallet-arrow">${t.arrow}</span>` : ''}
+            <span class="dash-wallet-bal">${formatISK(r.bal)}</span>
+            ${t.text ? `<span class="dash-wallet-chg">${t.text}</span>` : ''}
+          </span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ─── Skill queue widget ───────────────────────────────────────────────────────
+// Shows the selected character's training queue (skill + level + time remaining).
+// Backed by the new get-skill-queue IPC (scope esi-skills.read_skillqueue.v1).
+const _ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+
+async function renderSkillQueueWidget(container, mainAccount) {
+  if (!mainAccount) {
+    container.innerHTML = '<div class="dashboard-empty">No character selected.</div>';
+    return;
+  }
+  const queue = await window.eveAPI.getSkillQueue(mainAccount.characterId).catch(() => []);
+  if (!Array.isArray(queue) || !queue.length) {
+    container.innerHTML = `<div class="dashboard-empty">No skills in queue for ${escHtml(mainAccount.characterName)}.</div>`;
+    return;
+  }
+
+  const now      = Date.now();
+  // Skills still training/queued have a finish_date in the future (or none yet).
+  const upcoming = queue.filter(q => !q.finish_date || new Date(q.finish_date).getTime() > now);
+  const list     = (upcoming.length ? upcoming : queue).slice(0, 8);
+  const last     = queue[queue.length - 1];
+  const totalLeft = last && last.finish_date ? new Date(last.finish_date).getTime() - now : 0;
+
+  container.innerHTML = `
+    <div class="dash-skill-head">
+      <span class="dash-skill-char">${escHtml(mainAccount.characterName)}</span>
+      ${totalLeft > 0 ? `<span class="dash-skill-total">${_fmtTimeLeft(totalLeft)} total</span>` : ''}
+    </div>
+    <div class="dash-skill-rows">
+      ${list.map((q, i) => {
+        const finishMs = q.finish_date ? new Date(q.finish_date).getTime() : 0;
+        const left     = finishMs ? finishMs - now : 0;
+        const lvl      = _ROMAN[q.finished_level] || q.finished_level || '';
+        return `<div class="dash-skill-row ${i === 0 ? 'dash-skill-active' : ''}">
+          <span class="dash-skill-name">${escHtml(q.skill_name)} <b>${lvl}</b></span>
+          <span class="dash-skill-time">${left > 0 ? _fmtTimeLeft(left) : 'done'}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ─── Market quicklook widget ──────────────────────────────────────────────────
+// A small Jita price watchlist. Items persist in localStorage.dashboardMarketWatch.
+// Prices use the existing get-jita-prices IPC (best buy / best sell).
+function _getMarketWatch() {
+  try {
+    const w = JSON.parse(localStorage.getItem('dashboardMarketWatch') || 'null');
+    if (Array.isArray(w)) return w;
+  } catch (_) {}
+  return [
+    { typeId: 44992, name: 'PLEX' },
+    { typeId: 40520, name: 'Large Skill Injector' },
+    { typeId: 34,    name: 'Tritanium' },
+  ];
+}
+
+function _setMarketWatch(list) {
+  try { localStorage.setItem('dashboardMarketWatch', JSON.stringify(list)); } catch (_) {}
+}
+
+// Day-over-day Jita price trend from ESI market history (The Forge = 10000002).
+// Cached per session so re-renders don't refetch. Returns { pct } or null.
+const _marketTrendCache = new Map();
+async function _marketTrend(typeId) {
+  if (_marketTrendCache.has(typeId)) return _marketTrendCache.get(typeId);
+  let result = null;
+  try {
+    const hist = await window.eveAPI.esiFetch(
+      `https://esi.evetech.net/v1/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`
+    );
+    if (Array.isArray(hist) && hist.length >= 2) {
+      const today = Number(hist[hist.length - 1].average);
+      const prev  = Number(hist[hist.length - 2].average);
+      if (today > 0 && prev > 0) result = { pct: ((today - prev) / prev) * 100 };
+    }
+  } catch (_) { result = null; }
+  _marketTrendCache.set(typeId, result);
+  return result;
+}
+
+function _marketTrendBadge(trend) {
+  if (!trend || Math.abs(trend.pct) < 0.05) return '';
+  const up = trend.pct > 0;
+  return `<span class="dash-market-trend ${up ? 'up' : 'down'}">${up ? '↗' : '↘'}${Math.abs(trend.pct).toFixed(1)}%</span>`;
+}
+
+async function renderMarketQuicklookWidget(container) {
+  const watch = _getMarketWatch();
+  // The add controls + header are static shell — set once and never wiped, so the
+  // Add button is always present even if the price/trend fetches fail.
+  container.innerHTML = `
+    <div class="dash-market-add">
+      <input id="dashMarketInput" class="dash-market-input" placeholder="Type an item name…" autocomplete="off"/>
+      <button class="dash-market-add-btn" onclick="dashMarketAdd()">Add</button>
+    </div>
+    <div id="dashMarketSuggest" class="dash-market-suggest" style="display:none;"></div>
+    <div class="dash-market-colhead">
+      <span class="dash-market-name">ITEM</span>
+      <span class="dash-market-prices"><span>SELL · 24h</span><span>BUY</span></span>
+      <span class="dash-market-remove-spacer"></span>
+    </div>
+    <div id="dashMarketRows" class="dash-market-rows">
+      <div class="dashboard-widget-loading">Loading prices…</div>
+    </div>`;
+
+  _wireMarketSearch(container);
+
+  const rowsEl = container.querySelector('#dashMarketRows');
+  if (!rowsEl) return;
+  if (!watch.length) {
+    rowsEl.innerHTML = '<div class="dashboard-empty">No items pinned — add one above.</div>';
+    return;
+  }
+
+  try {
+    const typeIds = watch.map(w => w.typeId);
+    const [prices, trends] = await Promise.all([
+      window.eveAPI.getJitaPrices(typeIds).catch(() => ({})),
+      Promise.all(typeIds.map(id => _marketTrend(id))),
+    ]);
+    rowsEl.innerHTML = watch.map((w, i) => {
+      const p     = prices[w.typeId] || {};
+      const sell  = p.sell ? formatISK(p.sell) : '—';
+      const buy   = p.buy  ? formatISK(p.buy)  : '—';
+      const badge = _marketTrendBadge(trends[i]);
+      return `<div class="dash-market-row">
+        <span class="dash-market-name">${escHtml(w.name)}</span>
+        <span class="dash-market-prices">
+          <span class="dash-market-sell">${sell}${badge ? ' ' + badge : ''}</span>
+          <span class="dash-market-buy">${buy}</span>
+        </span>
+        <button class="dash-market-remove" title="Remove from watchlist" onclick="dashMarketRemove(${w.typeId})">✕</button>
+      </div>`;
+    }).join('');
+  } catch (_) {
+    rowsEl.innerHTML = '<div class="dashboard-empty">Could not load prices.</div>';
+  }
+}
+
+// Live name autocomplete against the local SDE (the public ESI /search/ endpoint
+// was removed by CCP). Shows a dropdown of matching market items to click.
+let _marketSuggestTimer = null;
+function _wireMarketSearch(container) {
+  const input = container.querySelector('#dashMarketInput');
+  const box   = container.querySelector('#dashMarketSuggest');
+  if (!input || !box) return;
+
+  const hide = () => { box.style.display = 'none'; box.innerHTML = ''; };
+
+  input.addEventListener('input', () => {
+    clearTimeout(_marketSuggestTimer);
+    const q = input.value.trim();
+    if (q.length < 2) { hide(); return; }
+    _marketSuggestTimer = setTimeout(async () => {
+      const matches = await window.eveAPI.searchMarketTypes(q, 8).catch(() => []);
+      if (!matches.length) { hide(); return; }
+      box.innerHTML = matches.map(m =>
+        `<button type="button" class="dash-market-suggest-item" data-id="${m.id}" data-name="${escHtml(m.name)}">${escHtml(m.name)}</button>`
+      ).join('');
+      box.style.display = 'block';
+    }, 180);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); dashMarketAdd(); }
+    if (e.key === 'Escape') { hide(); }
+  });
+  // Hide after the click on a suggestion has had a chance to register.
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+
+  // mousedown (not click) so it fires before the input's blur hides the box.
+  box.addEventListener('mousedown', e => {
+    const btn = e.target.closest('.dash-market-suggest-item');
+    if (!btn) return;
+    e.preventDefault();
+    dashMarketAddById(Number(btn.dataset.id), btn.dataset.name);
+  });
+}
+
+// Pin a known item (typeId + name) to the watchlist and re-render.
+function dashMarketAddById(typeId, name) {
+  if (!typeId) return;
+  const watch = _getMarketWatch();
+  if (!watch.some(w => w.typeId === typeId)) {
+    watch.push({ typeId, name: name || `Type ${typeId}` });
+    _setMarketWatch(watch);
+  }
+  const container = document.getElementById('dashboardMarketWidget');
+  if (container) renderMarketQuicklookWidget(container);
+}
+
+// Add the best SDE match for whatever is typed (Enter / Add button).
+async function dashMarketAdd() {
+  const input = document.getElementById('dashMarketInput');
+  if (!input) return;
+  const q = input.value.trim();
+  if (!q) return;
+  const matches = await window.eveAPI.searchMarketTypes(q, 1).catch(() => []);
+  if (!matches.length) { input.value = ''; input.placeholder = 'No match — try another name'; return; }
+  dashMarketAddById(matches[0].id, matches[0].name);
+}
+
+function dashMarketRemove(typeId) {
+  _setMarketWatch(_getMarketWatch().filter(w => w.typeId !== typeId));
+  const container = document.getElementById('dashboardMarketWidget');
+  if (container) renderMarketQuicklookWidget(container);
+}
+
+// ─── Active market orders widget ──────────────────────────────────────────────
+// Live buy + sell orders across all characters (get-character-orders, cached 5m).
+async function renderMarketOrdersWidget(container, accounts) {
+  const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
+
+  const orders = [];
+  for (const acc of accounts) {
+    try {
+      const list = await window.eveAPI.getCharacterOrders(acc.characterId);
+      if (Array.isArray(list)) list.forEach(o => orders.push({ ...o, character_id: acc.characterId }));
+    } catch (_) {}
+    await new Promise(r => setTimeout(r, 60));
+  }
+
+  if (!orders.length) {
+    container.innerHTML = '<div class="active-jobs-empty">No active market orders.</div>';
+    return;
+  }
+
+  const typeNames = await _resolveTypeNames([...new Set(orders.map(o => o.type_id).filter(Boolean))]);
+
+  const now   = Date.now();
+  const sells = orders.filter(o => !o.is_buy_order);
+  const buys  = orders.filter(o => o.is_buy_order);
+  const listed = sells.reduce((s, o) => s + (o.price || 0) * (o.volume_remain || 0), 0);
+
+  // Sells first, then buys; each newest-issued first.
+  const sorted = [...orders].sort((a, b) => {
+    const sa = a.is_buy_order ? 1 : 0, sb = b.is_buy_order ? 1 : 0;
+    if (sa !== sb) return sa - sb;
+    return new Date(b.issued) - new Date(a.issued);
+  });
+
+  const rows = sorted.map(o => {
+    const acc      = accountMap[String(o.character_id)] || {};
+    const name     = typeNames[o.type_id] || `Type ${o.type_id}`;
+    const isBuy    = !!o.is_buy_order;
+    const total    = o.volume_total || o.volume_remain || 1;
+    const filled   = Math.min(100, Math.max(0, ((total - (o.volume_remain || 0)) / total) * 100));
+    const expiry   = new Date(o.issued).getTime() + (o.duration || 0) * 86400000;
+    const left     = expiry - now;
+    const icon64   = `https://images.evetech.net/types/${o.type_id}/icon?size=64`;
+    const icon32   = `https://images.evetech.net/types/${o.type_id}/icon?size=32`;
+    const itemIcon = `<img src="${icon64}" alt=""
+        style="width:20px;height:20px;border-radius:3px;border:1px solid var(--border);
+               vertical-align:middle;margin-right:6px;object-fit:cover;flex-shrink:0;background:var(--bg-deep);"
+        onerror="if(this.src==='${icon64}'){this.src='${icon32}';}else{this.style.display='none';}"/>`;
+    const portrait = `<img src="https://images.evetech.net/characters/${o.character_id}/portrait?size=32" alt=""
+        style="width:18px;height:18px;border-radius:3px;border:1px solid var(--border);
+               vertical-align:middle;margin-right:5px;object-fit:cover;" onerror="this.style.display='none'"/>`;
+    return `<tr>
+      <td class="aj-cell-char">${portrait}${escHtml(acc.characterName || '')}</td>
+      <td class="aj-cell-item">${itemIcon}<span>${escHtml(name)}</span></td>
+      <td><span class="mo-side ${isBuy ? 'mo-buy' : 'mo-sell'}">${isBuy ? 'BUY' : 'SELL'}</span></td>
+      <td class="mo-cell-price">${formatISK(o.price || 0)}</td>
+      <td class="mo-cell-qty">
+        <div class="mo-qty-bar"><div class="mo-qty-fill" style="width:${filled.toFixed(0)}%"></div></div>
+        <span>${(o.volume_remain || 0).toLocaleString()} / ${total.toLocaleString()}</span>
+      </td>
+      <td class="mo-cell-time">${left > 0 ? _fmtTimeLeft(left) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="active-jobs-summary">
+      <span>${sells.length} sell · ${buys.length} buy · ${formatISK(listed)} listed</span>
+    </div>
+    <div class="active-jobs-scroll">
+      <table class="active-jobs-list">
+        <thead>
+          <tr><th>CHARACTER</th><th>ITEM</th><th>SIDE</th><th>PRICE</th><th>QTY REMAIN</th><th>EXPIRES</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ─── Job Watch widget (multi-instance) ────────────────────────────────────────
+// A configurable monitor for ONE active industry job: pick a job from the dropdown
+// and the card shows its icon, activity, character, a live progress bar and an
+// updating countdown. Addable many times — each instance watches its own job. The
+// chosen job_id persists per instance in localStorage (map keyed by instance id).
+function _jobWatchMap() {
+  // Tolerate the legacy single-instance value (a bare jobId) by resetting to a map.
+  try {
+    const m = JSON.parse(localStorage.getItem('dashboardJobWatch') || '{}');
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  } catch (_) { return {}; }
+}
+function _getJobWatch(instId) {
+  const v = _jobWatchMap()[instId];
+  return v != null ? v : null;
+}
+function _setJobWatch(instId, jobId) {
+  try {
+    const m = _jobWatchMap();
+    if (jobId != null) m[instId] = jobId; else delete m[instId];
+    localStorage.setItem('dashboardJobWatch', JSON.stringify(m));
+  } catch (_) {}
+}
+
+let _jobWatchTimer = null;
+function _startJobWatchTicker() {
+  clearInterval(_jobWatchTimer);
+  _jobWatchTimer = setInterval(() => {
+    document.querySelectorAll('.jw-card[data-end]').forEach(card => {
+      if (card.dataset.status !== 'active') return;
+      const start = Number(card.dataset.start), end = Number(card.dataset.end), now = Date.now();
+      const pct  = end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 100;
+      const left = end - now;
+      const fill = card.querySelector('.jw-progress-fill');
+      const time = card.querySelector('.jw-time');
+      if (fill) fill.style.width = pct.toFixed(2) + '%';
+      if (time) time.textContent = left > 0 ? `Done in ${_fmtTimeLeft(left)}` : 'Ready to deliver';
+    });
+  }, 1000);
+}
+
+// Fetch active jobs once, then render every Job Watch instance on the grid.
+async function _renderAllJobWatch(accounts) {
+  const panels = document.querySelectorAll('#dashboardGrid [data-widget-base="jobWatch"]');
+  if (!panels.length) return;
+
+  const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
+  const jobs = [];
+  for (const acc of accounts) {
+    try {
+      const list = await window.eveAPI.getCharacterActiveJobs(acc.characterId);
+      if (Array.isArray(list)) list.forEach(j => jobs.push({ ...j, character_id: acc.characterId }));
+    } catch (_) {}
+    await new Promise(r => setTimeout(r, 60));
+  }
+  const active = jobs.filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+  // Deterministic order (soonest-done first) so the dropdown and the auto-default
+  // are stable across re-renders — ESI's job order is not guaranteed.
+  active.sort((a, b) => (new Date(a.end_date) - new Date(b.end_date)) || (Number(a.job_id) - Number(b.job_id)));
+  const typeNames = active.length
+    ? await _resolveTypeNames([...new Set(active.map(j => j.product_type_id || j.blueprint_type_id).filter(Boolean))])
+    : {};
+
+  panels.forEach(panel => {
+    const body = panel.querySelector('.dashboard-widget-body');
+    if (body) _renderJobWatchInstance(body, panel.dataset.widgetId, active, accountMap, typeNames);
+  });
+  _startJobWatchTicker();
+}
+
+function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
+  if (!active.length) {
+    body.innerHTML = '<div class="dashboard-empty">No active industry jobs to watch.</div>';
+    return;
+  }
+  const labelFor = j => {
+    const tid = j.product_type_id || j.blueprint_type_id;
+    return (tid && typeNames[tid]) || (tid ? `Type ${tid}` : 'Job');
+  };
+
+  // Resolve the watched job; fall back to the first when the saved one is gone
+  // (delivered) or nothing is picked yet for this instance. Persist the choice —
+  // including the auto-default — so re-renders (e.g. adding another Job Watch)
+  // never silently change what this instance is watching.
+  let selectedId = _getJobWatch(instId);
+  let job = active.find(j => String(j.job_id) === String(selectedId));
+  if (!job) { job = active[0]; selectedId = job.job_id; _setJobWatch(instId, job.job_id); }
+
+  const options = active.map(j => {
+    const acc = accountMap[String(j.character_id)] || {};
+    const sel = String(j.job_id) === String(selectedId) ? 'selected' : '';
+    return `<option value="${j.job_id}" ${sel}>${escHtml(labelFor(j))} · ${escHtml(acc.characterName || '')}</option>`;
+  }).join('');
+
+  const acc   = accountMap[String(job.character_id)] || {};
+  const tid   = job.product_type_id || job.blueprint_type_id;
+  const name  = labelFor(job);
+  const act   = _AJ_ACTIVITY[job.activity_id] || { label: `Activity ${job.activity_id}`, cls: '' };
+  const start = new Date(job.start_date).getTime();
+  const end   = new Date(job.end_date).getTime();
+  const now   = Date.now();
+  const pct   = job.status === 'ready' ? 100
+              : (end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : (job.status === 'paused' ? 0 : 100));
+  const left  = end - now;
+  const runs  = job.runs ? `${job.runs} run${job.runs !== 1 ? 's' : ''}` : '';
+  const icon64 = `https://images.evetech.net/types/${tid}/icon?size=64`;
+  const iconBp = `https://images.evetech.net/types/${tid}/bp?size=64`;
+  const timeText = job.status === 'ready' ? 'Ready to deliver'
+                 : job.status === 'paused' ? '⏸ Paused'
+                 : (left > 0 ? `Done in ${_fmtTimeLeft(left)}` : 'Ready to deliver');
+  const endStr = new Date(job.end_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  body.innerHTML = `
+    <select class="jw-picker" onchange="dashJobWatchSelect('${instId}', this.value)" title="Pick a job to watch">
+      ${options}
+    </select>
+    <div class="jw-card" data-start="${start}" data-end="${end}" data-status="${escHtml(job.status)}">
+      <div class="jw-head">
+        <img class="jw-icon" src="${icon64}" alt=""
+             onerror="if(this.src==='${icon64}'){this.src='${iconBp}';}else{this.style.display='none';}"/>
+        <div class="jw-head-info">
+          <div class="jw-name" title="${escHtml(name)}">${escHtml(name)}</div>
+          <div class="jw-sub"><span class="aj-activity-badge ${act.cls}">${act.label}</span>${runs ? ` · ${runs}` : ''}</div>
+          <div class="jw-char">${escHtml(acc.characterName || '')}</div>
+        </div>
+      </div>
+      <div class="jw-progress"><div class="jw-progress-fill" style="width:${pct.toFixed(2)}%"></div></div>
+      <div class="jw-foot">
+        <span class="jw-time">${timeText}</span>
+        <span class="jw-end">ends ${escHtml(endStr)}</span>
+      </div>
+    </div>`;
+}
+
+function dashJobWatchSelect(instId, jobId) {
+  _setJobWatch(instId, jobId ? Number(jobId) : null);
+  window.eveAPI.getAccounts().then(accs => _renderAllJobWatch(accs || [])).catch(() => {});
 }

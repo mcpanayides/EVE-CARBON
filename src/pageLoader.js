@@ -86,30 +86,24 @@ const PAGE_HTML = {
         <button class="close-page-btn" onclick="closePage('dashboard')">&#x2715;</button>
       </div>
       <div class="page-content"
-           style="display:flex; flex-direction:column; gap:16px; padding:16px; overflow-y:auto;">
+           style="display:flex; flex-direction:column; gap:10px; padding:16px; overflow-y:auto;">
         <div id="dashboardWelcomeBanner" class="dashboard-welcome-banner"></div>
-        <div id="allianceIncursionAlert" style="display:none;"></div>
-        <div id="dashboardContent" class="dashboard-dnd-grid">
-          <div class="dashboard-col" id="dashboardColLeft">
-            <div class="dashboard-panel dnd-panel" id="dashboardSummaryPanel" draggable="true">
-              <div class="dashboard-panel-title dnd-handle">&#x2B21; NET WORTH &amp; WEALTH GROWTH <span class="dnd-grip">⠿</span></div>
-              <div id="dashboardNetworthSummary"></div>
-            </div>
+        <!-- Always-on incursion banner. Not a grid widget — pinned here at the top
+             and only shown (display toggled by renderAllianceIncursionAlert) when an
+             incursion is active in the character's alliance space. -->
+        <div id="allianceIncursionAlert" class="dashboard-incursion-banner" style="display:none;"></div>
+        <div class="dashboard-grid-toolbar">
+          <div class="dashboard-grid-addwrap">
+            <button class="dashboard-add-widget-btn" onclick="toggleAddWidgetMenu(event)">
+              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Add Widget
+            </button>
+            <div id="dashboardAddWidgetMenu" class="dashboard-add-widget-menu" style="display:none;"></div>
           </div>
-          <div class="dashboard-col" id="dashboardColRight">
-            <div class="dashboard-panel dnd-panel" id="dashboardActiveJobsPanel" draggable="true">
-              <div class="dashboard-panel-title dnd-handle">&#x25B6; ACTIVE INDUSTRY JOBS <span class="dnd-grip">⠿</span></div>
-              <div id="dashboardActiveJobsTable">
-                <div style="padding:16px 0;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:11px;">Loading…</div>
-              </div>
-            </div>
-            <div class="dashboard-panel dnd-panel" id="dashboardPIPanel" draggable="true">
-              <div id="dashboardPIWidget">
-                <div style="padding:16px 0;text-align:center;color:var(--text-3);font-family:var(--mono);font-size:11px;">Loading…</div>
-              </div>
-            </div>
-          </div>
+          <button class="dashboard-reset-layout-btn" onclick="resetDashboardLayout()"
+                  title="Restore the default widget layout">Reset layout</button>
         </div>
+        <!-- Widgets are injected by dashboard.js → initDashboardGrid() (Gridstack). -->
+        <div id="dashboardGrid" class="grid-stack"></div>
       </div>
     </div>`,
 
@@ -234,6 +228,9 @@ const PAGE_HTML = {
           <div class="industry-subnav-label">TOOLS</div>
           <button class="industry-sub-btn fc-sub-btn active" data-fc-tab="composition">
             <span class="industry-sub-icon material-symbols-outlined">groups</span>Fleet Composition
+          </button>
+          <button class="industry-sub-btn fc-sub-btn" data-fc-tab="fitting">
+            <span class="industry-sub-icon material-symbols-outlined">build</span>Fitting Simulator
           </button>
         </div>
         <div id="fcTabContent" class="industry-content">
@@ -479,6 +476,8 @@ window.__pagesReady = new Promise(resolve => {
     // Wire jabber IPC listeners — must happen before app.js calls autoConnectJabber
     // so the 'jabber-status' and 'jabber-message' handlers are in place first.
     if (typeof bindJabberEvents === 'function') bindJabberEvents();
+    // Add the per-page loading spinner beside each ✕ now that all pages are in DOM.
+    if (typeof _injectPageSpinners === 'function') _injectPageSpinners();
     // autoConnectJabber() is called by app.js after __pagesReady resolves —
     // do NOT call it here too or it fires twice on every startup.
     resolve();

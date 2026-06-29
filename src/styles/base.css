@@ -337,6 +337,21 @@ body::after {
   flex-shrink: 0;
 }
 .console-statusbar:hover { background: var(--bg-hover-subtle); }
+
+/* ── Per-page loading spinner (injected next to each page's ✕) ──────────────── */
+/* Passive indicator: hidden when idle, a spinning ring while the page is loading
+   data in the background (incl. the SWR refresh). Not clickable. */
+.page-header-actions { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.page-spinner {
+  display: none;
+  width: 14px; height: 14px; box-sizing: border-box;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.page-spinner.loading { display: inline-block; animation: page-spin 0.7s linear infinite; }
+@keyframes page-spin { to { transform: rotate(360deg); } }
 .console-toggle { margin-left: auto; color: var(--text-3); font-size: 9px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 2px; background: none; cursor: pointer; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
 .console-toggle:hover { color: var(--accent); border-color: var(--accent); }
 .console-label { color: var(--text-6); margin-right: 8px; letter-spacing: 0.08em; }
@@ -357,6 +372,35 @@ body::after {
 .console-log-entry.success .log-msg { color: var(--success); }
 .console-log-entry.error   .log-msg { color: var(--danger); }
 .console-log-entry.warning .log-msg { color: var(--warning); }
+
+/* ── MARKET TICKER (persistent bottom marquee) ────────────────────────────── */
+.market-ticker {
+  height: 28px; min-height: 28px; flex-shrink: 0;
+  background: var(--bg-deep); border-top: 1px solid var(--border-c);
+  display: flex; align-items: center; overflow: hidden; z-index: 1000;
+}
+.market-ticker-label {
+  flex-shrink: 0; display: flex; align-items: center; gap: 5px; height: 100%;
+  padding: 0 12px; font-size: 9px; letter-spacing: 0.12em; font-weight: 600;
+  color: var(--text-6); border-right: 1px solid var(--border-c); background: var(--bg-deep); z-index: 2;
+}
+.market-ticker-label .material-symbols-outlined { font-size: 14px; color: var(--accent); }
+.market-ticker-viewport { flex: 1; min-width: 0; height: 100%; overflow: hidden; display: flex; align-items: center; }
+.market-ticker-track    { display: inline-flex; align-items: center; white-space: nowrap; will-change: transform;
+                          animation: ticker-scroll 120s linear infinite; }
+.market-ticker-viewport:hover .market-ticker-track { animation-play-state: paused; }
+@keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.ticker-item  { display: inline-flex; align-items: center; gap: 6px; padding: 0 16px;
+                font-size: 11px; font-family: var(--mono); border-right: 1px solid var(--border); }
+.ticker-icon  { width: 17px; height: 17px; border-radius: 2px; flex-shrink: 0; }
+.ticker-name  { color: var(--text-2); }
+.ticker-price { color: var(--text-1); }
+.ticker-pct   { font-weight: 700; }
+.ticker-item.up   .ticker-pct { color: var(--success); }
+.ticker-item.down .ticker-pct { color: var(--danger); }
+.ticker-item.flat .ticker-pct { color: var(--text-3); }
+.ticker-empty { font-size: 10px; font-family: var(--mono); color: var(--text-3); padding: 0 14px; }
 
 /* ── EMPTY STATE ── */
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 2rem; color: var(--text-3); text-align: center; }

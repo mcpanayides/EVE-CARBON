@@ -1,5 +1,36 @@
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+// Stale-while-revalidate: render last-known data from the persistent cache
+// instantly, then fetch fresh in the background and re-render. So a page never
+// shows a blank stare — it shows the previous snapshot immediately, then updates.
+//
+//   key       persistent-cache key (per page/dataset)
+//   fetchData async () => serializable data (or null to skip caching)
+//   apply     (data, { fromCache, error }) => void  — renders the data
+//   ttlDays   how long the snapshot stays usable (default 1 day)
+//
+// `apply` may be called twice: once with the cached snapshot (fromCache:true),
+// then once with fresh data. If there's no cache, it's called once with fresh
+// data (or once with error and data:null when the fetch fails cold).
+async function swrRender(key, fetchData, apply, ttlDays = 1) {
+  let shownFromCache = false;
+  try {
+    const cached = await window.eveAPI.cacheGet(key);
+    if (cached != null) { apply(cached, { fromCache: true }); shownFromCache = true; }
+  } catch (_) { /* no usable cache */ }
+
+  try {
+    const fresh = await fetchData();
+    if (fresh != null) {
+      apply(fresh, { fromCache: false });
+      window.eveAPI.cacheSet(key, fresh, ttlDays).catch(() => {});
+    }
+  } catch (e) {
+    if (!shownFromCache) apply(null, { fromCache: false, error: e });
+    else console.warn('[swr] background refresh failed for', key, e?.message);
+  }
+}
+
 function escHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')

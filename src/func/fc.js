@@ -120,6 +120,8 @@ function navigateFcTab(tab) {
 
   if (tab === 'composition') {
     renderFleetComposition(mount);
+  } else if (tab === 'fitting') {
+    if (typeof renderFitting === 'function') renderFitting(mount);
   }
 }
 

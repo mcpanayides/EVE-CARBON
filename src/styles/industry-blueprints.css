@@ -325,6 +325,10 @@
 .wallet-networth-head { font-size: 13px; font-weight: 700; color: var(--text-1); display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex: none; }
 .wallet-networth-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .wallet-networth-body .dash-wealth-header { flex: none; }
+/* renderKPIPanel wraps each section in a .kpi-sub-* div; the growth one must
+   stretch so the chart fills the tile (KPIs section keeps its content height). */
+.wallet-networth-body .kpi-sub-kpis { flex: none; }
+.wallet-networth-body .kpi-sub-growth { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .wallet-networth-body .dash-wealth-chart-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 0; }
 .wallet-networth-body .dash-wealth-chart-label { flex: none; }
 .wallet-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--border-b); }

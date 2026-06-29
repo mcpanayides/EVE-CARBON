@@ -358,6 +358,23 @@ async function insertWalletSnapshot(characterId, balance) {
   );
 }
 
+// Balance from the most recent wallet snapshot at or before `beforeTs` (ms epoch).
+// Used for the dashboard's 24h wallet-change ticker. Returns a number, or null if
+// no snapshot is that old (e.g. the character was added less than 24h ago).
+async function getWalletBalanceBefore(characterId, beforeTs) {
+  if (!charDb) return null;
+  try {
+    const row = await charDb.get(
+      `SELECT balance FROM char_${characterId}_wallet
+        WHERE synced_at <= ? ORDER BY synced_at DESC LIMIT 1`,
+      [beforeTs]
+    );
+    return row && typeof row.balance === 'number' ? row.balance : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function upsertLocation(characterId, loc, stationName) {
   const db  = charDb;
   const now = Date.now();
@@ -820,29 +837,27 @@ async function getCharacterAssets(characterId) {
       if (!bundle) bundle = globalLoc.get(g.location_id) || null;
 
       if (!bundle) {
-        // Prefer a named owned container as the place. An asset-safety wrap or a
-        // named container/ship that holds these items ("BOVRIL- DO NOT USE") is
-        // far more useful than a raw structure id; keep any geo we found for the
-        // subtitle.
         const parent = byItemId.get(g.location_id);
-        if (parent && parent.custom_name && !isPlaceholder(parent.custom_name)) {
-          g.location_name = parent.custom_name;
-          if (terminusId != null) {
-            const geo = globalLoc.get(terminusId);
-            if (geo) for (const f of LOC_FIELDS) {
-              if (f !== 'location_name' && g[f] == null && geo[f] != null) g[f] = geo[f];
-            }
+        // PREFER collapsing items inside an owned container (ship / asset-safety
+        // wrap) under the container's TRUE root structure, so a ship and its
+        // fittings stay together under their station — even when the structure name
+        // is still unknown ("Location {id}"). Without this, a fitted ship's contents
+        // form a separate TOP-LEVEL group named after the ship ("Myrm", "…'s
+        // Velator") instead of sitting with the ship under its station.
+        if (parent && terminusId != null && terminusId !== g.location_id) {
+          g.location_id = terminusId;
+          const geo = globalLoc.get(terminusId);
+          if (geo) for (const f of LOC_FIELDS) {
+            if (f !== 'location_name' && g[f] == null && geo[f] != null) g[f] = geo[f];
           }
           continue;
         }
-        // Otherwise collapse deeply-nested orphans under their TRUE root: when the
-        // group's immediate location_id is a container we OWN but the chain dead-
-        // ends at an (unresolvable) structure, repoint the group at that structure
-        // id so a ship and the loose items inside it land in one
-        // "Location {structureId}" group instead of fragmenting across several
-        // "Location {containerId}" headers.
-        if (terminusId != null && terminusId !== g.location_id && byItemId.has(g.location_id)) {
-          g.location_id = terminusId;
+        // Last resort only — a named container we couldn't trace to any root: label
+        // the items by the container's own name so they aren't lumped under a bare
+        // id ("BOVRIL- DO NOT USE").
+        if (parent && parent.custom_name && !isPlaceholder(parent.custom_name)) {
+          g.location_name = parent.custom_name;
+          continue;
         }
         continue;
       }
@@ -1229,6 +1244,7 @@ module.exports = {
   getSkillLevels,
   upsertCharacterInfo,
   insertWalletSnapshot,
+  getWalletBalanceBefore,
   upsertLocation,
   upsertShip,
   replaceImplants,

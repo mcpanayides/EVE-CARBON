@@ -189,14 +189,52 @@ function registerCharacterHandlers({
         solar_system_name: nameMap[job.solar_system_id] || `System ${job.solar_system_id || 'Unknown'}`,
       }));
 
-      writeCache(cacheKey, result, 5 / 1440); // 5-minute cache
+      writeCache(cacheKey, result, 5 / 1440);     // 5-minute cache
+      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback for 429s
       return result;
     } catch (e) {
+      // On a rate-limit (common during the cold-start ESI burst) return the last
+      // known jobs rather than an empty list so the widget doesn't blank out.
       if (e.isRateLimit) {
         const stale = readCache(`${cacheKey}_stale`);
         if (stale) return stale;
       }
       console.warn('Failed to load active jobs:', e.message || e);
+      return [];
+    }
+  });
+
+  // ─── IPC: Skill queue (ESI live) ─────────────────────────────────────────
+  // Returns the character's training queue with skill names resolved.
+  // Scope: esi-skills.read_skillqueue.v1 (already requested at auth time).
+  // Short cache (5 min) — the queue only changes when the player edits it.
+  ipcHandle('get-skill-queue', async (_, characterId) => {
+    const cacheKey = `skillqueue_${characterId}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const token = await getValidToken(characterId);
+      const url   = `${ESI_BASE}/v2/characters/${characterId}/skillqueue/?datasource=tranquility`;
+      const queue = await httpGet(url, { Authorization: `Bearer ${token}` });
+      if (!Array.isArray(queue)) return [];
+
+      const skillIds = [...new Set(queue.map(q => q.skill_id).filter(Boolean))];
+      const nameMap  = skillIds.length ? await resolveNames(skillIds) : {};
+      const result   = queue
+        .sort((a, b) => (a.queue_position ?? 0) - (b.queue_position ?? 0))
+        .map(q => ({ ...q, skill_name: nameMap[q.skill_id] || `Skill ${q.skill_id}` }));
+
+      writeCache(cacheKey, result, 5 / 1440);     // 5-minute cache
+      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback for 429s
+      return result;
+    } catch (e) {
+      // Fall back to the last known queue on a rate-limit rather than blanking out.
+      if (e.isRateLimit) {
+        const stale = readCache(`${cacheKey}_stale`);
+        if (stale) return stale;
+      }
+      console.warn(`get-skill-queue failed for ${characterId}:`, e.message || e);
       return [];
     }
   });
@@ -234,17 +272,29 @@ function registerCharacterHandlers({
     return charInfoDb.getCharacterPIColonies(characterId);
   });
 
-  // ─── IPC: Character market orders (for escrow) ───────────────────────────
-  // Returns active buy orders — their 'escrow' field is ISK locked up.
+  // ─── IPC: Character market orders ────────────────────────────────────────
+  // Active buy + sell orders. Used by the dashboard escrow calc and the Market
+  // Orders widget. Short cache (5 min) + stale fallback so a rate-limit doesn't
+  // blank the widget.
   ipcHandle('get-character-orders', async (_, characterId) => {
+    const cacheKey = `orders_active_${characterId}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
     try {
       const token  = await getValidToken(characterId);
       const orders = await httpGet(
         `${ESI_BASE}/v2/characters/${characterId}/orders/?datasource=tranquility`,
         { Authorization: `Bearer ${token}` }
       );
-      return Array.isArray(orders) ? orders : [];
+      const result = Array.isArray(orders) ? orders : [];
+      writeCache(cacheKey, result, 5 / 1440);      // 5-minute cache
+      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback
+      return result;
     } catch (e) {
+      if (e.isRateLimit) {
+        const stale = readCache(`${cacheKey}_stale`);
+        if (stale) return stale;
+      }
       console.warn(`get-character-orders failed for ${characterId}:`, e.message);
       return [];
     }
@@ -266,22 +316,38 @@ function registerCharacterHandlers({
     }
   });
 
-  // ─── IPC: Wallet balance (ESI live) ──────────────────────────────────────
+  // ─── IPC: Wallet balance (ESI live, DB snapshot fallback) ────────────────
+  // Falls back to the latest local wallet snapshot when the live ESI call fails
+  // (e.g. the cold-start rate-limit burst) so callers never see a spurious 0.
+  const _latestWalletSnapshot = async (characterId) => {
+    try {
+      const snap = await charInfoDb.getWalletBalanceBefore(characterId, Date.now());
+      return typeof snap === 'number' ? snap : null;
+    } catch (_) { return null; }
+  };
   ipcHandle('get-wallet', async (_, characterId) => {
     try {
       const token         = await getValidToken(characterId);
       const url           = `${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`;
       const walletBalance = await httpGet(url, { Authorization: `Bearer ${token}` });
-      return typeof walletBalance === 'number' ? walletBalance : 0;
+      if (typeof walletBalance === 'number') return walletBalance;
+      const snap = await _latestWalletSnapshot(characterId);
+      return snap != null ? snap : 0;
     } catch (e) {
       console.warn(`Failed to fetch wallet for ${characterId}:`, e.message || e);
-      return 0;
+      const snap = await _latestWalletSnapshot(characterId);
+      return snap != null ? snap : 0;
     }
   });
 
   // ─── IPC: Wallet journal / transactions / loyalty points (from CharDB) ───
   ipcHandle('get-wallet-journal', async (_, characterId) => {
     return charInfoDb.getWalletJournal(characterId);
+  });
+
+  // Wallet balance from the latest snapshot at/before `beforeTs` (24h-change ticker).
+  ipcHandle('get-wallet-balance-before', async (_, characterId, beforeTs) => {
+    return charInfoDb.getWalletBalanceBefore(characterId, beforeTs);
   });
 
   ipcHandle('get-wallet-transactions', async (_, characterId) => {

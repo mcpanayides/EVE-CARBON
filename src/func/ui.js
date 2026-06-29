@@ -416,18 +416,53 @@ function restoreNavCollapsed() {
 // it re-renders fresh next time it's opened. Cleared only on app restart.
 let _pageInitialized = new Set();
 
+// Returns the loader's promise (where it has one) so callers can show a spinner
+// until the page's data has actually finished loading.
 function _initPageForFirstVisit(page) {
-  if (page === 'characters')      loadAccounts();
-  else if (page === 'dashboard')  loadDashboard();
-  else if (page === 'assets')     loadAssets();
-  else if (page === 'wallets')    renderWallets();
-  else if (page === 'industry')   initIndustryPage();
-  else if (page === 'pi')       { loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); }
-  else if (page === 'jabber')     loadJabberHistory();
-  else if (page === 'map')        initMapPage();
-  else if (page === 'market')     renderMarket();
-  else if (page === 'calendar')   renderCalendar();
-  else if (page === 'fc')         initFcPage();
+  switch (page) {
+    case 'characters': return loadAccounts();
+    case 'dashboard':  return loadDashboard();
+    case 'assets':     return loadAssets();
+    case 'wallets':    return renderWallets();
+    case 'industry':   return initIndustryPage();
+    case 'pi':       { const p = loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); return p; }
+    case 'jabber':     return loadJabberHistory();
+    case 'map':        return initMapPage();
+    case 'market':     return renderMarket();
+    case 'calendar':   return renderCalendar();
+    case 'fc':         return initFcPage();
+  }
+}
+
+// ─── Per-page loading spinner ─────────────────────────────────────────────────
+// A passive spinner is injected next to each page's ✕ (see _injectPageSpinners).
+// It is shown ONLY while the page is fetching data in the background — so the
+// user can tell "still loading" from "this is the cached data, it's done". It's
+// not clickable; it appears when a load starts and disappears when it finishes.
+function _setPageSpinning(page, on) {
+  const sp = document.querySelector(`#page-${page} .page-spinner`);
+  if (sp) sp.classList.toggle('loading', !!on);
+}
+
+// Inject the spinner beside every page's ✕, grouped so the header's
+// space-between layout keeps both pinned top-right. Idempotent.
+function _injectPageSpinners() {
+  document.querySelectorAll('.nav-page .close-page-btn').forEach(closeBtn => {
+    if (closeBtn.parentElement && closeBtn.parentElement.classList.contains('page-header-actions')) return;
+    const navPage = closeBtn.closest('.nav-page');
+    if (!navPage || !navPage.id) return;
+
+    const spinner = document.createElement('span');
+    spinner.className = 'page-spinner';
+    spinner.title = 'Loading…';
+    spinner.setAttribute('aria-hidden', 'true');
+
+    const wrap = document.createElement('div');
+    wrap.className = 'page-header-actions';
+    closeBtn.parentNode.insertBefore(wrap, closeBtn);
+    wrap.appendChild(spinner);
+    wrap.appendChild(closeBtn);   // move ✕ in beside the spinner
+  });
 }
 
 function navigateToPage(page) {
@@ -463,9 +498,15 @@ function navigateToPage(page) {
   if (typeof autoSyncOnNavigate === 'function') autoSyncOnNavigate();
 
   if (!_pageInitialized.has(page)) {
-    // First visit this session — build the page.
+    // First visit this session — build the page and show the spinner until its
+    // data has loaded (incl. the SWR background refresh) so the user can tell
+    // "still loading" from "this is the cached/loaded data".
     _pageInitialized.add(page);
-    _initPageForFirstVisit(page);
+    const p = _initPageForFirstVisit(page);
+    if (p && typeof p.then === 'function') {
+      _setPageSpinning(page, true);
+      Promise.resolve(p).finally(() => _setPageSpinning(page, false));
+    }
   } else if (page === 'fc' && typeof _fcOnPageShown === 'function') {
     // Returning to an already-set-up fleet page: keep the setup, re-check the fleet.
     _fcOnPageShown();

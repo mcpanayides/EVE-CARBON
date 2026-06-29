@@ -65,8 +65,33 @@ async function renderCalendar() {
 
   _calRender();                 // paint shell immediately (empty)
   await _calLoadConfig();
-  await _calLoadEvents();
+
+  // Stale-while-revalidate: paint last session's events instantly from the
+  // persistent cache, then refresh feeds/timers in the background and update.
+  try {
+    const cached = await window.eveAPI.cacheGet('calendar_sources_v1');
+    if (Array.isArray(cached) && cached.length) {
+      _calSources = _calReviveSources(cached);
+      _calSources.forEach(s => { if (_calSourceVis[s.label] === undefined) _calSourceVis[s.label] = true; });
+      _calRender();
+    }
+  } catch (_) { /* no cache yet */ }
+
+  await _calLoadEvents();        // fresh pull (feeds/PI/jobs, now in parallel)
+  window.eveAPI.cacheSet('calendar_sources_v1', _calSources, 1 / 24).catch(() => {}); // 1h TTL
   _calRender();
+}
+
+// Cached sources serialize Dates to ISO strings — turn start/end back into Dates.
+function _calReviveSources(arr) {
+  return arr.map(s => ({
+    ...s,
+    events: (s.events || []).map(e => ({
+      ...e,
+      start: e.start ? new Date(e.start) : null,
+      end:   e.end   ? new Date(e.end)   : null,
+    })),
+  }));
 }
 
 async function _calLoadConfig() {
@@ -101,29 +126,30 @@ async function _calLoadEvents() {
   const refreshBtn = document.getElementById('calRefresh');
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '⟳ …'; }
 
-  const next = [];
   let colorIdx = 0;
   const addColor = () => CAL_COLORS[colorIdx++ % CAL_COLORS.length];
 
+  // Kick every network source off at once (feeds, PI, jobs) rather than awaiting
+  // them one-by-one — colours are assigned up front so order stays stable.
+  const tasks = [];
   for (const url of (_calCfg.feeds || []).filter(Boolean)) {
-    next.push(await _calFetchSource(url, true, _calLabelFor(url, 'Forum'), addColor()));
+    tasks.push(_calFetchSource(url, true, _calLabelFor(url, 'Forum'), addColor()));
   }
   for (const url of (_calCfg.extraFeeds || []).filter(Boolean)) {
-    next.push(await _calFetchSource(url, false, _calLabelFor(url, 'Feed'), addColor()));
+    tasks.push(_calFetchSource(url, false, _calLabelFor(url, 'Feed'), addColor()));
   }
+  if (_calCfg.showPi)   tasks.push(_calBuildPiSource(addColor()));
+  if (_calCfg.showJobs) tasks.push(_calBuildJobsSource(addColor()));
 
-  // Imported .ics files
-  for (const imp of _calGetImports()) {
+  // Imported .ics files are local — parse them synchronously, no network wait.
+  const importSources = _calGetImports().map(imp => {
     let events = [];
     try { events = window.IcsParse.parseIcs(imp.ics || ''); } catch (_) {}
-    next.push({ label: imp.label || imp.name || 'Imported', color: addColor(), kind: 'file', events });
-  }
+    return { label: imp.label || imp.name || 'Imported', color: addColor(), kind: 'file', events };
+  });
 
-  // EVE auto-timers
-  if (_calCfg.showPi)   { const s = await _calBuildPiSource(addColor());   if (s) next.push(s); }
-  if (_calCfg.showJobs) { const s = await _calBuildJobsSource(addColor()); if (s) next.push(s); }
-
-  _calSources = next.filter(Boolean);
+  const settled = await Promise.all(tasks);
+  _calSources = [...settled, ...importSources].filter(Boolean);
   _calSources.forEach(s => { if (_calSourceVis[s.label] === undefined) _calSourceVis[s.label] = true; });
 
   _calLoading = false;

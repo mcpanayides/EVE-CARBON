@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Wallet journal, transactions and loyalty points (from CharDB, synced every 30 min)
   getWalletJournal:       (charId) => ipcRenderer.invoke('get-wallet-journal', charId),
+  getWalletBalanceBefore: (charId, beforeTs) => ipcRenderer.invoke('get-wallet-balance-before', charId, beforeTs),
   getWalletTransactions:  (charId) => ipcRenderer.invoke('get-wallet-transactions', charId),
   getLoyaltyPoints:       (charId) => ipcRenderer.invoke('get-loyalty-points', charId),
 
@@ -42,6 +43,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterInfo:      (characterId)              => ipcRenderer.invoke('get-character-info', characterId),
   getClones:             (characterId)              => ipcRenderer.invoke('get-clones', characterId),
   getMarketPrices:       ()                         => ipcRenderer.invoke('get-market-prices'),
+  getMarketMovers:       ()                         => ipcRenderer.invoke('get-market-movers'),
   getStructureInfo:      (structureId, characterId) => ipcRenderer.invoke('get-structure-info', structureId, characterId),
   resolveLocation:       (locationId, characterId)  => ipcRenderer.invoke('resolve-location', locationId, characterId),
   resolveSystemNames:    (systemIds)                => ipcRenderer.invoke('resolve-system-names', systemIds),
@@ -55,6 +57,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Public ESI / Fuzzwork
   searchTypes:           (q, lim)  => ipcRenderer.invoke('sde-search-types', q, lim),
+  searchMarketTypes:     (q, lim)  => ipcRenderer.invoke('sde-search-market-types', q, lim),
   search:                (q)       => ipcRenderer.invoke('esi-search', q),
   getNames:              (ids)     => ipcRenderer.invoke('esi-names', ids),
   getBlueprintMaterials: (id)      => ipcRenderer.invoke('get-blueprint-materials', id),
@@ -70,6 +73,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getMoonReprocessing:   (typeIds) => ipcRenderer.invoke('get-moon-reprocessing', typeIds),
   reprocessFromNames:    (names)   => ipcRenderer.invoke('reprocess-from-names', names),
   getSkillLevels:        (charId, typeIds) => ipcRenderer.invoke('get-skill-levels', charId, typeIds),
+  getSkillQueue:         (charId)  => ipcRenderer.invoke('get-skill-queue', charId),
   getTypeMetadata:       (typeIds) => ipcRenderer.invoke('get-type-metadata', typeIds),
   sdeGetPlanetRegions:   ()         => ipcRenderer.invoke('sde-get-planet-regions'),
   sdeGetRegionPlanets:   (regionId) => ipcRenderer.invoke('sde-get-region-planets', regionId),
@@ -175,6 +179,14 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fcGetCharacterFleet: (characterId)       => ipcRenderer.invoke('fc-get-character-fleet', characterId),
   fcGetFleetMembers:   (characterId, fleetId) => ipcRenderer.invoke('fc-get-fleet-members', characterId, fleetId),
   fcInviteCharacters:  (bossId, fleetId, ids) => ipcRenderer.invoke('fc-invite-characters', bossId, fleetId, ids),
+
+  // Fitting tool
+  fitSearch:        (query, kind, limit) => ipcRenderer.invoke('fit-search', query, kind, limit),
+  fitGetHull:       (typeId)             => ipcRenderer.invoke('fit-get-hull', typeId),
+  fitGetItems:      (typeIds)            => ipcRenderer.invoke('fit-get-items', typeIds),
+  fitLookupNames:   (names)              => ipcRenderer.invoke('fit-lookup-names', names),
+  fitGetFittings:   (characterId)        => ipcRenderer.invoke('fit-get-fittings', characterId),
+  fitSaveFitting:   (characterId, fit)   => ipcRenderer.invoke('fit-save-fitting', characterId, fit),
 
   // Reactions Profit — all reaction formulas + materials from the SDE
   reactionsList:       ()       => ipcRenderer.invoke('reactions-list'),

@@ -1,0 +1,163 @@
+/* ─── Fleet Commander · Fitting Simulator ──────────────────────────────────── */
+
+.fit-wrap {
+  display: grid;
+  grid-template-columns: 280px 1fr 260px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Left: item browser ── */
+.fit-browser {
+  display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--border); background: var(--bg-panel);
+  padding: 12px;
+}
+.fit-kind-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.fit-kind-btn {
+  flex: 1; padding: 6px 4px; background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-2); font-family: var(--mono); font-size: 10px; border-radius: 4px; cursor: pointer;
+}
+.fit-kind-btn:hover  { color: var(--text-1); }
+.fit-kind-btn.active { background: var(--bg-hover); color: var(--accent); border-color: var(--accent); }
+
+.fit-results { margin-top: 8px; overflow-y: auto; flex: 1; min-height: 0; }
+.fit-result {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px;
+  cursor: pointer; font-size: 12px; color: var(--text-1);
+}
+.fit-result:hover { background: var(--bg-hover); }
+.fit-result img { width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0; }
+.fit-result-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fit-result-grp  { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.fit-hint { color: var(--text-3); font-size: 12px; padding: 12px; text-align: center; }
+
+/* ── Center: canvas ── */
+.fit-canvas { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.fit-canvas-head {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex-shrink: 0;
+}
+.fit-hull-name { font-size: 16px; font-weight: 700; color: var(--text-1); flex: 1; min-width: 160px; }
+.fit-canvas-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.fit-btn {
+  padding: 6px 12px; background: var(--bg-panel); border: 1px solid var(--border);
+  color: var(--text-2); font-family: var(--mono); font-size: 11px; border-radius: 4px; cursor: pointer;
+}
+.fit-btn:hover { color: var(--text-1); border-color: var(--accent); }
+.fit-btn-accent { background: var(--accent); color: #07101a; border-color: var(--accent); font-weight: 700; }
+
+.fit-slots { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; }
+.fit-slot-group { margin-bottom: 16px; }
+.fit-slot-group-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-3);
+  margin-bottom: 6px; display: flex; justify-content: space-between;
+}
+.fit-slot {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 5px; overflow: hidden;
+}
+.fit-slot.sel { border-color: var(--accent); }
+.fit-slot.empty { background: transparent; border-style: dashed; opacity: 0.6; }
+
+/* Module state — coloured left edge + clickable dot (matches EVE's cues). */
+.fit-slot { border-left-width: 3px; }
+.fit-slot.state-offline    { border-left-color: #5d6b78; }
+.fit-slot.state-online     { border-left-color: #3a78c2; }
+.fit-slot.state-active     { border-left-color: #4ecb71; }
+.fit-slot.state-overheated { border-left-color: #e07b2e; }
+.fit-state-dot {
+  width: 18px; flex-shrink: 0; align-self: stretch; border: none; cursor: pointer;
+  background: none; display: flex; align-items: center; justify-content: center;
+}
+.fit-state-dot::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: #5d6b78;
+}
+.fit-slot.state-online     .fit-state-dot::before { background: #3a78c2; }
+.fit-slot.state-active     .fit-state-dot::before { background: #4ecb71; }
+.fit-slot.state-overheated .fit-state-dot::before { background: #e07b2e; box-shadow: 0 0 6px #e07b2e; }
+.fit-slot-body {
+  display: flex; align-items: center; gap: 8px; flex: 1; padding: 6px 8px;
+  background: none; border: none; color: var(--text-1); cursor: pointer; text-align: left; font-size: 12px;
+}
+.fit-slot-body img { width: 26px; height: 26px; border-radius: 3px; }
+.fit-slot-name { display: flex; flex-direction: column; }
+.fit-charge { font-size: 10px; color: var(--text-3); }
+.fit-slot-empty { padding: 8px; font-size: 11px; color: var(--text-3); font-style: italic; }
+.fit-slot-x {
+  background: none; border: none; color: var(--text-3); cursor: pointer; padding: 6px 10px; font-size: 12px;
+}
+.fit-slot-x:hover { color: #e0564b; }
+
+.fit-import-panel {
+  border-top: 1px solid var(--border); background: var(--bg-card); padding: 12px 16px; flex-shrink: 0;
+}
+.fit-import-title { font-family: var(--mono); font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
+.fit-import-actions { display: flex; gap: 6px; margin-top: 8px; }
+.fit-gamefit-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.fit-gamefit {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel);
+  border: 1px solid var(--border); border-radius: 4px; color: var(--text-1); cursor: pointer; font-size: 12px;
+}
+.fit-gamefit:hover { border-color: var(--accent); }
+.fit-gamefit img { width: 24px; height: 24px; }
+
+/* ── Right: stats ── */
+.fit-stats { border-left: 1px solid var(--border); background: var(--bg-panel); padding: 14px; overflow-y: auto; }
+.fit-stats-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px;
+}
+.fit-stats-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 10px; }
+.fit-note { color: var(--text-3); opacity: 0.7; }
+.fit-pending { opacity: 0.85; border-style: dashed; }
+
+.fit-stat-row { margin-bottom: 10px; }
+.fit-stat-top { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--text-2); margin-bottom: 4px; }
+.fit-stat-row.over .fit-stat-top { color: #e0564b; }
+.fit-bar { height: 6px; border-radius: 3px; background: var(--bg-deep); overflow: hidden; }
+.fit-bar-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+.fit-bar-fill.over { background: #e0564b; }
+
+.fit-mini-grid { margin-top: 6px; }
+.fit-mini {
+  display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono);
+  color: var(--text-2); padding: 3px 0; border-bottom: 1px solid var(--border);
+}
+.fit-mini:last-child { border-bottom: none; }
+.fit-mini.over, .fit-over { color: #e0564b; }
+
+.fit-stats-title { display: flex; align-items: center; gap: 6px; }
+.fit-sec-ico { font-size: 14px; color: var(--accent); }
+.fit-note-line { font-size: 10px; color: var(--text-3); margin-top: 8px; line-height: 1.4; }
+
+/* Big headline number (DPS / EHP) */
+.fit-big { font-size: 24px; font-weight: 800; font-family: var(--mono); color: var(--text-1); margin-bottom: 8px; }
+.fit-big-unit { font-size: 12px; font-weight: 500; color: var(--text-3); }
+
+/* Capacitor ring */
+.fit-cap { display: flex; align-items: center; gap: 14px; }
+.fit-cap-ring { width: 56px; height: 56px; transform: rotate(-90deg); flex-shrink: 0; }
+.fit-cap-bg { fill: none; stroke: var(--bg-deep); stroke-width: 5; }
+.fit-cap-fg { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
+  stroke-dasharray: 130 145; }
+.fit-cap-gj { font-size: 18px; font-weight: 700; font-family: var(--mono); color: var(--accent); }
+.fit-cap-sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+
+/* Defense resist grid */
+.fit-res-head, .fit-layer {
+  display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr; gap: 4px; align-items: center;
+}
+.fit-res-head { margin: 6px 0 4px; }
+.fit-res-head span { font-size: 9px; color: var(--text-3); text-align: center; font-family: var(--mono); }
+.fit-res-head span:first-child { text-align: left; }
+.fit-layer { margin-bottom: 4px; }
+.fit-layer-name { display: flex; flex-direction: column; font-size: 11px; color: var(--text-2); }
+.fit-layer-hp { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.fit-res {
+  text-align: center; font-size: 10px; font-family: var(--mono); font-weight: 600;
+  padding: 4px 0; border-radius: 3px; color: #fff;
+}
+.fit-res-em  { background: #2f6fb0; }
+.fit-res-th  { background: #b23b36; }
+.fit-res-kin { background: #5d6b78; }
+.fit-res-exp { background: #c08a2e; }

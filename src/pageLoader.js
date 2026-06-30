@@ -261,13 +261,36 @@ const PAGE_HTML = {
   // ── Forums ──────────────────────────────────────────────────────────────────
   forums: `
     <div id="page-forums" class="nav-page"
-         style="flex-direction:column; height:100%;">
+         style="flex-direction:column; height:100%; overflow:hidden;">
       <div class="page-header">
-        <h2>Forums</h2>
-        <button class="close-page-btn" onclick="closePage('forums')">✕</button>
+        <div>
+          <h2>Forums</h2>
+          <div class="page-description">Your alliance forum, signed in via your saved session — no password stored.</div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('forums')">&#x2715;</button>
       </div>
-      <div class="page-content">
-        <p>Forums and community links - coming soon</p>
+      <div class="forum-toolbar">
+        <button class="forum-tb-btn" id="forumBack"    title="Back"        onclick="forumNav('back')"><span class="material-symbols-outlined">arrow_back</span></button>
+        <button class="forum-tb-btn" id="forumForward" title="Forward"     onclick="forumNav('forward')"><span class="material-symbols-outlined">arrow_forward</span></button>
+        <button class="forum-tb-btn" id="forumReload"  title="Reload"      onclick="forumNav('reload')"><span class="material-symbols-outlined">refresh</span></button>
+        <button class="forum-tb-btn" id="forumHome"    title="Forum home"  onclick="forumNav('home')"><span class="material-symbols-outlined">home</span></button>
+        <span class="forum-tb-title" id="forumTitle">Forum</span>
+        <span class="forum-tb-spacer"></span>
+        <span class="forum-status-dot" id="forumStatusDot" title="Session status"></span>
+        <span class="forum-status-label" id="forumStatusLabel">checking…</span>
+        <button class="forum-tb-btn" id="forumLoginBtn"  title="Log in to the forum"        onclick="forumDoLogin()"><span class="material-symbols-outlined">login</span></button>
+        <button class="forum-tb-btn" id="forumLogoutBtn" title="Log out / clear session"    onclick="forumDoLogout()"><span class="material-symbols-outlined">logout</span></button>
+        <button class="forum-tb-btn" id="forumExternalBtn" title="Open in external browser" onclick="forumNav('external')"><span class="material-symbols-outlined">open_in_new</span></button>
+      </div>
+      <div class="forum-viewport" id="forumViewport">
+        <webview id="forumWebview" partition="persist:forum" allowpopups style="display:none;"></webview>
+        <div class="forum-loading" id="forumLoading" style="display:none;"><div class="forum-spinner"></div></div>
+        <div class="forum-empty" id="forumEmpty">
+          <span class="material-symbols-outlined forum-empty-icon">forum</span>
+          <div class="forum-empty-title">No forum configured yet</div>
+          <div class="forum-empty-sub">Add your forum URL in <strong>Settings &rarr; Forums</strong>, then click <strong>Log in</strong> once — your session is saved for next time.</div>
+          <button class="forum-empty-btn" onclick="document.getElementById('openSettingsBtn')?.click(); setTimeout(()=>document.querySelector('[data-settings-tab=forums]')?.click(), 140);">Open Forum Settings</button>
+        </div>
       </div>
     </div>`,
 

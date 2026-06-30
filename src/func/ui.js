@@ -321,6 +321,7 @@ async function populateSettingsInputs() {
   if (currentSettingsTab === 'palette')  await populatePaletteSettings();
   if (typeof populateIndustrySettings === 'function') populateIndustrySettings();
   if (typeof populateCalendarSettings === 'function') populateCalendarSettings();
+  if (typeof populateForumSettings === 'function') populateForumSettings();
 }
 
 async function saveAllSettings() {
@@ -329,6 +330,11 @@ async function saveAllSettings() {
   // Calendar feeds (merged into config under its own key, won't clobber jabber).
   if (typeof gatherCalendarSettings === 'function') {
     await window.eveAPI.saveAppConfig({ calendar: gatherCalendarSettings() });
+  }
+  // Forum base URL — save then force-reload the embedded forum with the new URL.
+  if (typeof gatherForumSettings === 'function') {
+    await window.eveAPI.saveAppConfig({ forum: gatherForumSettings() });
+    if (typeof initForumsPage === 'function') initForumsPage(true);
   }
   // Reload SIG/comms data whenever settings are saved so a pack change takes
   // effect immediately without requiring an app restart.
@@ -431,6 +437,7 @@ function _initPageForFirstVisit(page) {
     case 'market':     return renderMarket();
     case 'calendar':   return renderCalendar();
     case 'fc':         return initFcPage();
+    case 'forums':     return initForumsPage();
   }
 }
 

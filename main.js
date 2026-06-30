@@ -12,6 +12,21 @@ const https = require('https');
 const http  = require('http');
 const crypto = require('crypto');
 const fs    = require('fs');
+
+// Keep the embedded forum <webview> from spawning separate app windows: deny
+// popups / target=_blank and route genuine external links to the OS browser, so
+// browsing stays inside the main window.
+app.on('web-contents-created', (_evt, contents) => {
+  try {
+    if (typeof contents.getType === 'function' && contents.getType() === 'webview') {
+      contents.setWindowOpenHandler(({ url }) => {
+        if (url && /^https?:\/\//i.test(url)) shell.openExternal(url);
+        return { action: 'deny' };
+      });
+    }
+  } catch (_) {}
+});
+
 const createLocator           = require('./src/locator');
 const charInfoDb              = require('./src/character_info_db');
 const jabberDataDb            = require('./src/jabber_data_db');
@@ -1616,10 +1631,11 @@ function createWindow() {
       preload: path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,   // enables the embedded <webview> on the Forums page
     }
   });
- 
-  // DEVELOPER PANEL 
+
+  // DEVELOPER PANEL
   //win.webContents.openDevTools();
  
   const url = require('url');

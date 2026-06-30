@@ -186,11 +186,10 @@
   }
 
   function occurrence(ev, start, durMs) {
-    return {
-      uid: ev.uid, summary: ev.summary, description: ev.description,
-      location: ev.location, url: ev.url, allDay: !!ev.allDay,
-      start, end: new Date(start.getTime() + durMs),
-    };
+    // Spread the source event first so callers' extra fields (e.g. the calendar's
+    // structured `_moon` payload) survive expansion; start/end are then overridden
+    // with this occurrence's computed instant.
+    return { ...ev, allDay: !!ev.allDay, start, end: new Date(start.getTime() + durMs) };
   }
 
   return { unfold, decodeText, parseLine, parseDate, parseTimezones, parseIcs, parseRrule, expandRecurring };

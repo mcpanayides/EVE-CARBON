@@ -1164,6 +1164,33 @@ function _initSearch() {
   });
 }
 
+// Switch to the Map page and centre on a solar system by name (used by the
+// calendar's moon-extraction popup). Navigates first — which lazy-inits the map on
+// first visit — then polls until the system list is loaded before flying to it.
+async function mapGoToSystem(name) {
+  const want = String(name || '').trim().toLowerCase();
+  if (!want) return false;
+  if (typeof navigateToPage === 'function') navigateToPage('map');
+
+  for (let i = 0; i < 60; i++) {                 // up to ~6s for first-visit load
+    if (Array.isArray(_systems) && _systems.length) {
+      const sys = _systems.find(s => s.name.toLowerCase() === want)
+               || _systems.find(s => s.name.toLowerCase().startsWith(want));
+      if (sys) {
+        _flyTo(sys);
+        _showInfo(sys);
+        const input = document.getElementById('mapSearchInput');
+        if (input) input.value = sys.name;
+        return true;
+      }
+      break;   // systems are loaded but the name isn't on the map — stop waiting
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if (typeof showToast === 'function') showToast(`Couldn't find ${name} on the map.`, 'info');
+  return false;
+}
+
 function _flyTo(system) {
   if (!_canvas) return;
   const targetZoom = Math.max(_zoom, 0.5);

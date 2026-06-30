@@ -744,11 +744,11 @@
 .mo-cell-qty span   { font-size: 9px; color: var(--text-3); font-family: var(--mono); white-space: nowrap; }
 .mo-cell-time       { font-family: var(--mono); color: var(--text-3); white-space: nowrap; }
 
-/* ── Job Watch widget ── */
-.jw-picker          { width: 100%; box-sizing: border-box; font-size: 11px; color: var(--text-1);
+/* ── Job Watch / Character Wallet widget pickers ── */
+.jw-picker, .cw-picker { width: 100%; box-sizing: border-box; font-size: 11px; color: var(--text-1);
                       background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
                       padding: 5px 8px; margin-bottom: 10px; cursor: pointer; }
-.jw-picker:focus    { outline: none; border-color: var(--accent); }
+.jw-picker:focus, .cw-picker:focus { outline: none; border-color: var(--accent); }
 .jw-card            { background: var(--bg-panel); border: 1px solid var(--border-e); border-radius: 8px; padding: 12px; }
 .jw-head            { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .jw-icon            { width: 48px; height: 48px; border-radius: 6px; border: 1px solid var(--border);
@@ -765,6 +765,20 @@
 .jw-foot            { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--mono); }
 .jw-time            { font-size: 13px; font-weight: 700; color: var(--accent); }
 .jw-end             { font-size: 10px; color: var(--text-3); }
+
+/* ── Character Wallet widget ── */
+.cw-card            { display: flex; align-items: center; gap: 14px; cursor: pointer;
+                      background: var(--bg-panel); border: 1px solid var(--border-e); border-radius: 8px;
+                      padding: 14px; transition: border-color 0.15s; }
+.cw-card:hover      { border-color: var(--accent); }
+.cw-portrait        { width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%;
+                      border: 1px solid var(--border); object-fit: cover; background: var(--bg-deep); }
+.cw-info            { flex: 1; min-width: 0; }
+.cw-name            { font-size: 13px; font-weight: 700; color: var(--text-1);
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-balance         { margin-top: 4px; font-size: 18px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+.cw-journal-icon    { flex-shrink: 0; color: var(--text-3); font-size: 20px; transition: color 0.15s; }
+.cw-card:hover .cw-journal-icon { color: var(--accent); }
 
 /* Activity type badge */
 .aj-activity-badge {

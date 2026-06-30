@@ -1,0 +1,65 @@
+/* ── Forums page (embedded IP.Board webview) ──────────────────────────────── */
+
+.forum-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.forum-tb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text-2); cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.forum-tb-btn .material-symbols-outlined { font-size: 18px; }
+.forum-tb-btn:hover            { background: var(--bg-hover-subtle, rgba(255,255,255,0.05)); color: var(--text-1); }
+.forum-tb-btn:disabled         { opacity: 0.35; cursor: default; }
+.forum-tb-btn:disabled:hover   { background: none; color: var(--text-2); }
+
+.forum-tb-title {
+  margin-left: 8px; font-size: 12px; color: var(--text-2); font-weight: 600;
+  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.forum-tb-spacer       { flex: 1; }
+.forum-status-dot      { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-4, #666);
+                         box-shadow: 0 0 0 1px rgba(0,0,0,0.25); }
+.forum-status-dot.online  { background: var(--success, #27ae60); }
+.forum-status-dot.offline { background: var(--text-4, #666); }
+.forum-status-label    { font-size: 10px; font-family: var(--mono); letter-spacing: 0.06em; color: var(--text-3);
+                         margin: 0 8px 0 6px; flex-shrink: 0; }
+
+.forum-viewport        { position: relative; flex: 1; min-height: 0; background: var(--bg-deep); overflow: hidden; }
+/* Fill the relative viewport's real box via the offsets (inset:0). The host MUST
+   keep Electron's default display:flex (set in forums.js) — a flex container is not
+   a replaced element, so top/bottom:0 actually stretches it and its shadow <iframe>
+   fills. With display:block the <webview> would collapse to its ~150px intrinsic
+   height. No min-height needed: it auto-spans whatever height the window gives. */
+#forumWebview          { position: absolute; inset: 0; border: none; }
+
+.forum-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.15); z-index: 2; pointer-events: none;
+}
+.forum-spinner {
+  width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: forum-spin 0.7s linear infinite;
+}
+@keyframes forum-spin { to { transform: rotate(360deg); } }
+
+.forum-empty {
+  position: absolute; inset: 0; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px;
+}
+.forum-empty-icon  { font-size: 44px; color: var(--text-3); }
+.forum-empty-title { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.forum-empty-sub   { font-size: 12px; color: var(--text-3); max-width: 420px; line-height: 1.6; }
+.forum-empty-btn {
+  margin-top: 6px; font-size: 12px; font-weight: 600; color: var(--accent);
+  background: var(--accent-dim, rgba(180,120,60,0.15)); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 8px 16px; cursor: pointer;
+}
+.forum-empty-btn:hover { background: var(--accent); color: #fff; }

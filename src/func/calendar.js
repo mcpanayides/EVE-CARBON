@@ -97,9 +97,13 @@ function _calReviveSources(arr) {
 async function _calLoadConfig() {
   try {
     const cfg = await window.eveAPI.getAppConfig();
-    const c = (cfg && cfg.app && cfg.app.calendar) || {};
+    const app = (cfg && cfg.app) || {};
+    const c = app.calendar || {};
     _calCfg = {
       forumBaseUrl: c.forumBaseUrl || '',
+      // The Forums page stores its own URL (app.forum.url); fall back to the
+      // calendar's forum base. Used to detect a goonfleet.com forum for scraping.
+      forumUrl:     (app.forum && app.forum.url) || c.forumBaseUrl || '',
       feeds:        Array.isArray(c.feeds) ? c.feeds : [],
       extraFeeds:   Array.isArray(c.extraFeeds) ? c.extraFeeds : [],
       useSession:   !!c.useSession,
@@ -140,6 +144,9 @@ async function _calLoadEvents() {
   }
   if (_calCfg.showPi)   tasks.push(_calBuildPiSource(addColor()));
   if (_calCfg.showJobs) tasks.push(_calBuildJobsSource(addColor()));
+  // goonfleet.com surfaces alliance events + moon extractions on its forum index —
+  // scrape them (returns up to two sources: events and moons).
+  if (_calIsGoon()) tasks.push(_calBuildGoonSource(addColor(), addColor()));
 
   // Imported .ics files are local — parse them synchronously, no network wait.
   const importSources = _calGetImports().map(imp => {
@@ -148,7 +155,9 @@ async function _calLoadEvents() {
     return { label: imp.label || imp.name || 'Imported', color: addColor(), kind: 'file', events };
   });
 
-  const settled = await Promise.all(tasks);
+  // .flat() because a builder may return several sources (the goon scrape returns
+  // separate Events and Moon-Extraction sources so each can be toggled on its own).
+  const settled = (await Promise.all(tasks)).flat();
   _calSources = [...settled, ...importSources].filter(Boolean);
   _calSources.forEach(s => { if (_calSourceVis[s.label] === undefined) _calSourceVis[s.label] = true; });
 
@@ -210,13 +219,118 @@ async function _calBuildJobsSource(color) {
       return { uid: `job-${j.job_id || j.jobID || (j.character_id + '-' + j.end_date)}`,
         summary: `🏭 ${item} ready — ${act}`,
         description: `${act} job finishes on ${j._charName}. ${j.runs ? j.runs + ' run(s).' : ''}`.trim(),
-        start: d, end: d, allDay: false };
+        start: d, end: d, allDay: false,
+        // Structured payload powering the rich industry-job popup (see _calOpenEvent).
+        _job: { typeId: tid || null, item, activity: act, runs: j.runs || null, character: j._charName || '', end: d } };
     });
     return { label: 'Industry Jobs', color, kind: 'jobs', events };
   } catch (_) { return null; }
 }
 
 function _calCap(s) { return String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1); }
+
+// ── Goonfleet forum scrape (alliance events + moon extractions) ──────────────────
+// When the configured forum is goonfleet.com, its forum index shows two member-only
+// blocks — "Upcoming Events" and "Upcoming Moon Extractions". We scrape those
+// (main process, through the logged-in forum session) and surface them as calendar
+// sources. The times in those tables are EVE/UTC.
+function _calNormUrl(u) {
+  u = String(u || '').trim();
+  if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u;
+}
+function _calIsGoon() {
+  try { return /(^|\.)goonfleet\.com$/i.test(new URL(_calNormUrl(_calCfg.forumUrl)).hostname); }
+  catch (_) { return false; }
+}
+function _calSlug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+// Parse "YYYY-MM-DD HH:MM[:SS]" (EVE/UTC) → Date, or null if unparseable.
+function _calParseEveTs(s) {
+  const m = String(s || '').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// The 20 moon-ore types → type IDs, for EVE item icons in the extraction popup.
+const _CAL_MOON_ORE_IDS = {
+  bitumens: 45492, coesite: 45493, sylvite: 45491, zeolites: 45490,         // ubiquitous
+  cobaltite: 45494, euxenite: 45495, scheelite: 45497, titanite: 45496,     // common
+  chromite: 45501, otavite: 45498, sperrylite: 45499, vanadinite: 45500,    // uncommon
+  carnotite: 45502, cinnabar: 45506, pollucite: 45504, zircon: 45503,       // rare
+  loparite: 45512, monazite: 45511, xenotime: 45510, ytterbite: 45513,      // exceptional
+};
+function _calMoonOreId(name) { return _CAL_MOON_ORE_IDS[String(name || '').trim().toLowerCase()] || null; }
+
+// "Sylvite: 27.48%, Zeolites: 52.52%" → [{ ore, pct, typeId }] sorted high→low.
+function _calParseComposition(str) {
+  const out = [];
+  const re = /([A-Za-z][A-Za-z ]*?):\s*([\d.]+)\s*%/g;
+  let m;
+  while ((m = re.exec(String(str || '')))) {
+    const ore = m[1].trim();
+    out.push({ ore, pct: parseFloat(m[2]) || 0, typeId: _calMoonOreId(ore) });
+  }
+  return out.sort((a, b) => b.pct - a.pct);
+}
+
+// Returns an array of 0–2 sources: alliance events and/or moon extractions.
+async function _calBuildGoonSource(eventColor, moonColor) {
+  // The member blocks only render for a logged-in session — skip the scrape (and
+  // the hidden window it spawns) entirely when logged out.
+  try { const s = await window.eveAPI.forumSessionStatus(); if (!s || !s.loggedIn) return []; }
+  catch (_) { return []; }
+
+  let data;
+  try { data = await window.eveAPI.scrapeForumEvents(_calNormUrl(_calCfg.forumUrl)); }
+  catch (e) { console.warn('[calendar] goon scrape failed:', e?.message); return []; }
+  if (!data) return [];
+
+  const url = data.url || _calNormUrl(_calCfg.forumUrl);
+  const sources = [];
+
+  const eventEvents = [];
+  for (const e of (data.events || [])) {
+    const start = _calParseEveTs(e.start);
+    if (!start) continue;
+    eventEvents.push({
+      uid: `goon-evt-${_calSlug(e.title)}-${start.getTime()}`,
+      summary: `📣 ${e.title}`,
+      description: `Alliance event from the goonfleet.com forum.${e.timeToEvent ? `\nStarts in ${e.timeToEvent}.` : ''}`,
+      start, end: start, allDay: false, url,
+    });
+  }
+  if (eventEvents.length) sources.push({ label: 'GSF Events', color: eventColor, kind: 'forum', events: eventEvents });
+
+  const moonEvents = [];
+  for (const m of (data.moons || [])) {
+    const start = _calParseEveTs(m.arrival);
+    if (!start) continue;
+    const desc = [
+      m.region      ? `Region: ${m.region}` : null,
+      m.autofrack   ? `Auto-fracture: ${m.autofrack} EVE` : null,
+      m.composition ? `Composition: ${m.composition}` : null,
+    ].filter(Boolean).join('\n');
+    moonEvents.push({
+      uid: `goon-moon-${_calSlug(m.moon)}-${start.getTime()}`,
+      summary: `🌙 ${m.moon} — extraction arrives`,
+      description: desc || 'Moon extraction.',
+      start, end: start, allDay: false, url,
+      // Structured payload powering the rich extraction popup (see _calOpenEvent).
+      _moon: {
+        name:      m.moon,
+        system:    String(m.moon || '').trim().split(/\s+/)[0] || '',   // "MJ-LGH VI - Moon 16" → "MJ-LGH"
+        region:    m.region || '',
+        arrival:   start,
+        autofrack: _calParseEveTs(m.autofrack),
+        comp:      _calParseComposition(m.composition),
+      },
+    });
+  }
+  if (moonEvents.length) sources.push({ label: 'GSF Moon Extractions', color: moonColor, kind: 'forum', events: moonEvents });
+
+  return sources;
+}
 
 function _calLabelFor(url, fallback) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return fallback; }
@@ -392,8 +506,33 @@ function _calOpenEvent(e) {
   const back = document.createElement('div');
   back.id = 'calEventModal';
   back.className = 'cal-modal-backdrop';
+  back.innerHTML = e._moon ? _calMoonModalInner(e)
+                 : e._job  ? _calJobModalInner(e)
+                 :           _calGenericModalInner(e);
+  document.body.appendChild(back);
+
+  // Common: close button + backdrop click.
+  back.querySelector('#calModalClose')?.addEventListener('click', () => back.remove());
+  back.addEventListener('click', ev => { if (ev.target === back) back.remove(); });
+
+  const openForum = (ev) => {
+    ev.preventDefault();
+    if (window.eveAPI && window.eveAPI.openExternalUrl) window.eveAPI.openExternalUrl(e.url);
+    else window.open(e.url, '_blank');
+  };
+  back.querySelector('#calModalLink')?.addEventListener('click', openForum);
+  back.querySelector('#calMoonForumBtn')?.addEventListener('click', openForum);
+
+  // Moon: "View on map" → jump to the system and close.
+  back.querySelector('#calMoonMapBtn')?.addEventListener('click', () => {
+    back.remove();
+    if (typeof mapGoToSystem === 'function') mapGoToSystem(e._moon.system);
+  });
+}
+
+function _calGenericModalInner(e) {
   const endStr = e.end && !e.allDay && e.end - e.start > 0 ? ` → ${_calFmtEveTime(e.end)} EVE` : '';
-  back.innerHTML = `
+  return `
     <div class="cal-modal">
       <div class="cal-modal-head" style="border-left:4px solid ${e._color};">
         <div class="cal-modal-title">${escHtml(e.summary || '(untitled)')}</div>
@@ -407,15 +546,100 @@ function _calOpenEvent(e) {
         ${e.url ? `<a class="cal-modal-link" href="#" id="calModalLink">Open in forum ↗</a>` : ''}
       </div>
     </div>`;
-  document.body.appendChild(back);
-  back.querySelector('#calModalClose').addEventListener('click', () => back.remove());
-  back.addEventListener('click', ev => { if (ev.target === back) back.remove(); });
-  const link = back.querySelector('#calModalLink');
-  if (link) link.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    if (window.eveAPI && window.eveAPI.openExternalUrl) window.eveAPI.openExternalUrl(e.url);
-    else window.open(e.url, '_blank');
-  });
+}
+
+// Rich popup for a moon extraction: EVE ore icons + composition bars, arrival /
+// auto-fracture times in EVE + local, and a jump-to-system map link.
+function _calMoonModalInner(e) {
+  const m = e._moon;
+  // Dates may arrive as ISO strings after a disk-cache round-trip (only top-level
+  // start/end are revived) — coerce back to Date for formatting.
+  const toDate = (v) => { if (!v) return null; const d = (v instanceof Date) ? v : new Date(v); return isNaN(d.getTime()) ? null : d; };
+  const timeRow = (icon, label, v) => {
+    const d = toDate(v);
+    return `
+    <div class="cal-rich-time">
+      <span class="cal-rich-time-k"><span class="material-symbols-outlined">${icon}</span>${label}</span>
+      <span class="cal-rich-time-v">${d ? `${_calFmtEve(d)} <em>EVE</em> · ${_calFmtLocal(d)}` : '—'}</span>
+    </div>`;
+  };
+
+  const comp = (m.comp || []).map(c => {
+    const icon = c.typeId
+      ? `<img class="cal-ore-icon" src="${ESI_IMAGE}/${c.typeId}/icon?size=32" alt="" loading="lazy" onerror="this.style.visibility='hidden'"/>`
+      : `<span class="cal-ore-icon cal-ore-icon-blank material-symbols-outlined">diamond</span>`;
+    return `
+      <div class="cal-ore-row">
+        ${icon}
+        <span class="cal-ore-name">${escHtml(c.ore)}</span>
+        <span class="cal-ore-bar"><span class="cal-ore-bar-fill" style="width:${Math.max(2, Math.min(100, c.pct))}%;"></span></span>
+        <span class="cal-ore-pct">${c.pct.toFixed(1)}%</span>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="cal-modal cal-rich-modal is-moon">
+      <div class="cal-modal-head cal-rich-head">
+        <span class="cal-rich-badge material-symbols-outlined">dark_mode</span>
+        <div class="cal-rich-headtext">
+          <div class="cal-modal-title">${escHtml(m.name)}</div>
+          <div class="cal-rich-sub">Moon extraction${m.region ? ` · ${escHtml(m.region)}` : ''}</div>
+        </div>
+        <button class="cal-modal-close" id="calModalClose">✕</button>
+      </div>
+      <div class="cal-modal-body">
+        <div class="cal-rich-times">
+          ${timeRow('schedule', 'Chunk arrives', m.arrival)}
+          ${timeRow('bolt', 'Auto-fracture', m.autofrack)}
+        </div>
+        ${comp ? `<div class="cal-moon-comp"><div class="cal-moon-comp-hd">Composition</div>${comp}</div>` : ''}
+        <div class="cal-rich-actions">
+          ${m.system ? `<button class="cal-rich-btn" id="calMoonMapBtn"><span class="material-symbols-outlined">public</span>View ${escHtml(m.system)} on map</button>` : ''}
+          ${e.url ? `<a class="cal-rich-btn cal-rich-btn-ghost" id="calMoonForumBtn" href="#"><span class="material-symbols-outlined">open_in_new</span>Open in forum</a>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+// Rich popup for an industry job: the product/blueprint icon, completion time in
+// EVE + local, and the activity / runs / character behind it.
+function _calJobModalInner(e) {
+  const j = e._job;
+  const toDate = (v) => { if (!v) return null; const d = (v instanceof Date) ? v : new Date(v); return isNaN(d.getTime()) ? null : d; };
+  const done = toDate(j.end || e.start);
+
+  const badge = j.typeId
+    ? `<span class="cal-rich-badge"><img src="${ESI_IMAGE}/${j.typeId}/icon?size=64" alt="" loading="lazy" onerror="this.parentNode.classList.add('material-symbols-outlined');this.parentNode.textContent='precision_manufacturing';"/></span>`
+    : `<span class="cal-rich-badge material-symbols-outlined">precision_manufacturing</span>`;
+
+  const ACT_ICON = { 'Manufacturing': 'precision_manufacturing', 'TE Research': 'schedule', 'ME Research': 'tune',
+                     'Copying': 'content_copy', 'Invention': 'science', 'Reaction': 'experiment' };
+  const row = (icon, label, value) => value
+    ? `<div class="cal-rich-row"><span class="material-symbols-outlined">${icon}</span><span class="k">${label}</span><span class="v">${escHtml(String(value))}</span></div>`
+    : '';
+
+  return `
+    <div class="cal-modal cal-rich-modal is-job">
+      <div class="cal-modal-head cal-rich-head">
+        ${badge}
+        <div class="cal-rich-headtext">
+          <div class="cal-modal-title">${escHtml(j.item || 'Industry job')}</div>
+          <div class="cal-rich-sub">${escHtml(j.activity || 'Industry job')}${j.character ? ` · ${escHtml(j.character)}` : ''}</div>
+        </div>
+        <button class="cal-modal-close" id="calModalClose">✕</button>
+      </div>
+      <div class="cal-modal-body">
+        <div class="cal-rich-times">
+          <div class="cal-rich-time">
+            <span class="cal-rich-time-k"><span class="material-symbols-outlined">schedule</span>Completes</span>
+            <span class="cal-rich-time-v">${done ? `${_calFmtEve(done)} <em>EVE</em> · ${_calFmtLocal(done)}` : '—'}</span>
+          </div>
+        </div>
+        ${row(ACT_ICON[j.activity] || 'build', 'Activity', j.activity)}
+        ${row('tag', 'Runs', j.runs)}
+        ${row('person', 'Character', j.character)}
+      </div>
+    </div>`;
 }
 
 // ── Settings panel wiring (Settings → Calendar) ─────────────────────────────────

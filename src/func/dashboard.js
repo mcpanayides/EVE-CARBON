@@ -221,6 +221,11 @@ const DASHBOARD_WIDGETS = {
     w: 4, h: 8, minW: 2, minH: 4,
     body: '<div id="dashboardWalletWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
   },
+  charWallet: {
+    icon: 'account_balance_wallet', title: 'CHARACTER WALLET', multi: true,  // one per character
+    w: 3, h: 6, minW: 2, minH: 4,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+  },
   skillQueue: {
     icon: 'school', title: 'SKILL QUEUE',
     w: 4, h: 10, minW: 2, minH: 5,
@@ -385,7 +390,8 @@ function removeDashboardWidget(id) {
   if (!_dashGrid) return;
   const node = _dashGrid.engine.nodes.find(n => _nodeWidgetId(n) === id);
   if (node) _dashGrid.removeWidget(node.el);
-  if (_widgetBase(id) === 'jobWatch') _setJobWatch(id, null);   // drop its saved selection
+  if (_widgetBase(id) === 'jobWatch')   _setJobWatch(id, null);     // drop its saved selection
+  if (_widgetBase(id) === 'charWallet') _setCharWallet(id, null);   // drop its saved character
   _saveDashLayout();
 }
 
@@ -482,6 +488,7 @@ async function refreshDashboardLiveWidgets() {
   if (ordersEl) { try { await renderMarketOrdersWidget(ordersEl, accounts); } catch (_) {} }
 
   try { await _renderAllJobWatch(accounts); } catch (_) {}
+  try { await _renderAllCharWallet(accounts); } catch (_) {}
 }
 
 async function loadDashboard() {
@@ -1102,6 +1109,12 @@ async function loadDashboard() {
   (async () => {
     try { await _renderAllJobWatch(accounts); }
     catch (e) { console.error('[dashboard] Job Watch widget failed:', e); }
+  })();
+
+  // ── Section 11: Character Wallet widgets (optional, multi-instance) ───────
+  (async () => {
+    try { await _renderAllCharWallet(accounts); }
+    catch (e) { console.error('[dashboard] Character Wallet widget failed:', e); }
   })();
 
   // Update ping panel live when a new Jabber message arrives.
@@ -2365,4 +2378,96 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
 function dashJobWatchSelect(instId, jobId) {
   _setJobWatch(instId, jobId ? Number(jobId) : null);
   window.eveAPI.getAccounts().then(accs => _renderAllJobWatch(accs || [])).catch(() => {});
+}
+
+// ─── Character Wallet widget (multi-instance) ──────────────────────────────────
+// A per-character wallet card (portrait, name, ISK balance) — the same tile as the
+// Wallets page, but addable to the dashboard one-per-character. Pick the character
+// from the dropdown; clicking the card opens that character's wallet journal modal.
+// The chosen character persists per instance in localStorage (map keyed by inst id).
+function _charWalletMap() {
+  try {
+    const m = JSON.parse(localStorage.getItem('dashboardCharWallet') || '{}');
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  } catch (_) { return {}; }
+}
+function _getCharWallet(instId) {
+  const v = _charWalletMap()[instId];
+  return v != null ? v : null;
+}
+function _setCharWallet(instId, charId) {
+  try {
+    const m = _charWalletMap();
+    if (charId != null) m[instId] = String(charId); else delete m[instId];
+    localStorage.setItem('dashboardCharWallet', JSON.stringify(m));
+  } catch (_) {}
+}
+
+// Fetch every character's balance once, then render each Character Wallet instance.
+async function _renderAllCharWallet(accounts) {
+  const panels = document.querySelectorAll('#dashboardGrid [data-widget-base="charWallet"]');
+  if (!panels.length) return;
+
+  // Balance comes from the local character DB (synced ~30 min) — same source as the
+  // Wallets page — so this is a cheap parallel read, no live ESI burst.
+  const balByChar = {};
+  await Promise.all(accounts.map(async acc => {
+    try { const d = await window.eveAPI.getCharacterData(acc.characterId); balByChar[String(acc.characterId)] = d?.wallet?.balance ?? 0; }
+    catch (_) { balByChar[String(acc.characterId)] = 0; }
+  }));
+
+  panels.forEach(panel => {
+    const body = panel.querySelector('.dashboard-widget-body');
+    if (body) _renderCharWalletInstance(body, panel.dataset.widgetId, accounts, balByChar);
+  });
+}
+
+function _renderCharWalletInstance(body, instId, accounts, balByChar) {
+  if (!accounts.length) {
+    body.innerHTML = '<div class="dashboard-empty">No characters. Add one on the Characters page.</div>';
+    return;
+  }
+
+  // Resolve the selected character; fall back to the main/selected char (then the
+  // first) when nothing is picked yet or the saved one was removed. Persist the
+  // choice — including the auto-default — so re-renders never silently switch it.
+  let savedId = _getCharWallet(instId);
+  let acc = accounts.find(a => String(a.characterId) === String(savedId));
+  if (!acc) {
+    acc = accounts.find(a => String(a.characterId) === String(selectedCharacterId)) || accounts[0];
+    _setCharWallet(instId, acc.characterId);
+  }
+  const cid     = String(acc.characterId);
+  const name    = acc.characterName || `Char ${cid}`;
+  const balance = balByChar[cid] ?? 0;
+
+  const options = accounts.map(a => {
+    const sel = String(a.characterId) === cid ? 'selected' : '';
+    return `<option value="${a.characterId}" ${sel}>${escHtml(a.characterName || `Char ${a.characterId}`)}</option>`;
+  }).join('');
+
+  body.innerHTML = `
+    <select class="cw-picker" onchange="dashCharWalletSelect('${instId}', this.value)" title="Pick a character">
+      ${options}
+    </select>
+    <div class="cw-card" title="View wallet journal">
+      <img class="cw-portrait" src="https://images.evetech.net/characters/${cid}/portrait?size=64" alt=""
+           onerror="this.style.display='none'"/>
+      <div class="cw-info">
+        <div class="cw-name" title="${escHtml(name)}">${escHtml(name)}</div>
+        <div class="cw-balance">${formatISK(balance)}</div>
+      </div>
+      <span class="material-symbols-outlined cw-journal-icon">receipt_long</span>
+    </div>`;
+
+  // Bind the click in JS (not inline) so the character name can't break the markup.
+  const card = body.querySelector('.cw-card');
+  if (card) card.addEventListener('click', () => {
+    if (typeof openWalletJournal === 'function') openWalletJournal(cid, name);
+  });
+}
+
+function dashCharWalletSelect(instId, charId) {
+  _setCharWallet(instId, charId || null);
+  window.eveAPI.getAccounts().then(accs => _renderAllCharWallet(accs || [])).catch(() => {});
 }

@@ -51,6 +51,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (typeof initMarketTicker === 'function') {
     setTimeout(() => initMarketTicker().catch(() => {}), 5000);
   }
+
+  // Donation / feedback prompts (30-min usage + monthly-1st).
+  if (typeof initDonationPrompts === 'function') initDonationPrompts();
+
+  // Pre-fill the Forums settings field + session status.
+  if (typeof populateForumSettings === 'function') populateForumSettings();
 });
 
 // ─── Industry sub-nav binding ─────────────────────────────────────────────────

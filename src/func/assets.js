@@ -198,7 +198,13 @@ async function loadAssets() {
 
   } catch (err) {
     if (assetTableBody) {
-      assetTableBody.innerHTML = `<tr><td colspan="10" class="loading-row">Failed to load assets: ${err.message}</td></tr>`;
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 10;
+      cell.className = 'loading-row';
+      cell.textContent = `Failed to load assets: ${err.message}`;
+      row.appendChild(cell);
+      assetTableBody.replaceChildren(row);
     }
     if (assetSummary) assetSummary.textContent = 'Asset load failed.';
     throw err;

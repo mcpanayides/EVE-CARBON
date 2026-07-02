@@ -246,6 +246,13 @@ const DASHBOARD_WIDGETS = {
     w: 3, h: 8, minW: 2, minH: 6,
     body: '<div class="dashboard-widget-loading">Loading…</div>',
   },
+  // GoonFleet-only: live Beehive beacon status from the room MOTD. Gated out of the
+  // "add widget" menu for non-Goons (see _refreshAddWidgetMenu / _beehiveGoon).
+  beehive: {
+    icon: 'hive', title: 'BEEHIVE STATUS',
+    w: 4, h: 5, minW: 2, minH: 4,
+    body: '<div id="dashboardBeehiveWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
   // NOTE: the incursion alert is intentionally NOT a grid widget — it is an
   // always-on banner pinned above the grid (#allianceIncursionAlert in
   // pageLoader.js) that only appears when an incursion is active.
@@ -362,6 +369,9 @@ function initDashboardGrid() {
   _dashGrid.on('removed', _saveDashLayout);
 
   _refreshAddWidgetMenu();
+  // Resolve Goon status async, then re-refresh so the Beehive widget appears in the
+  // "add widget" menu only for Goons.
+  _checkBeehiveGoon().then(() => _refreshAddWidgetMenu());
 }
 
 // Which widget ids are currently on the grid.
@@ -409,7 +419,8 @@ function _refreshAddWidgetMenu() {
   const activeBases = _activeWidgetIds().map(_widgetBase);
   // `multi` widgets stay addable forever; single widgets drop out once placed.
   const addable = Object.keys(DASHBOARD_WIDGETS)
-    .filter(key => DASHBOARD_WIDGETS[key].multi || !activeBases.includes(key));
+    .filter(key => DASHBOARD_WIDGETS[key].multi || !activeBases.includes(key))
+    .filter(key => key !== 'beehive' || _beehiveGoon);   // Beehive is Goon-only
   menu.innerHTML = addable.length
     ? addable.map(key => {
         const def = DASHBOARD_WIDGETS[key];
@@ -436,6 +447,74 @@ function toggleAddWidgetMenu(e) {
 function hideAddWidgetMenu() {
   const menu = document.getElementById('dashboardAddWidgetMenu');
   if (menu) menu.style.display = 'none';
+}
+
+// ── Beehive status widget (GoonFleet only) ────────────────────────────────────
+// Live beacon status read from the Beehive room MOTD (see jabber_ipc.js). Shown
+// only for Goons; fail-safe RED whenever green/yellow isn't positively confirmed.
+let _beehiveGoon     = false;
+let _beehiveLast     = { status: 'red', text: '', changedAt: null };
+let _beehiveSubBound = false;
+
+// Goon detection: the Jabber service or forum URL already stored in the app config.
+async function _checkBeehiveGoon() {
+  try {
+    const cfg = await window.eveAPI.getAppConfig();
+    const a   = (cfg && (cfg.app || cfg)) || {};
+    const jab   = ((a.jabber && a.jabber.service) || '').toLowerCase();
+    const forum = (((a.forum && a.forum.url) || (a.calendar && a.calendar.forumBaseUrl)) || '').toLowerCase();
+    _beehiveGoon = jab.includes('goonfleet') || forum.includes('goonfleet');
+  } catch (_) { _beehiveGoon = false; }
+  return _beehiveGoon;
+}
+
+function _beehiveMeta(status) {
+  switch (status) {
+    case 'green':  return { color: '#3fb950', label: 'RUNNING',    sub: 'Up and running — good to go' };
+    case 'yellow': return { color: '#e3b341', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
+    default:       return { color: '#f04848', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+  }
+}
+
+function renderBeehiveWidget() {
+  const el = document.getElementById('dashboardBeehiveWidget');
+  if (!el) return;
+  const st     = _beehiveLast || { status: 'red' };
+  const status = st.status || 'red';
+  const m      = _beehiveMeta(status);
+  const when   = st.changedAt ? new Date(st.changedAt).toLocaleString() : '—';
+  const esc    = (typeof escHtml === 'function') ? escHtml : (s => s);
+  el.innerHTML = `
+    <div class="beehive-widget beehive-${status}">
+      <span class="beehive-light" style="background:${m.color};box-shadow:0 0 14px ${m.color},0 0 4px ${m.color};"></span>
+      <div class="beehive-info">
+        <div class="beehive-label" style="color:${m.color};">${m.label}</div>
+        <div class="beehive-sub">${esc(m.sub)}</div>
+        <div class="beehive-updated">MOTD updated ${esc(when)}</div>
+      </div>
+    </div>
+    <pre class="beehive-motd" title="Live Beehive MOTD">${esc((st.text || '').trim() || 'Waiting for Beehive MOTD… (connect Jabber)')}</pre>`;
+}
+
+function _beehiveRedAlert() {
+  const el = document.getElementById('dashboardBeehiveWidget');
+  if (el) { el.classList.remove('beehive-alert'); void el.offsetWidth; el.classList.add('beehive-alert'); }
+  if (typeof showToast === 'function') showToast('⚠ BEEHIVE IS RED — stand down beacons.', 'error');
+}
+
+// Fill the widget from the cached status, then subscribe (once) to live MOTD updates.
+async function initBeehiveWidget() {
+  if (!_beehiveSubBound) {
+    _beehiveSubBound = true;
+    window.eveAPI.on('beehive-status', (payload) => {
+      const prev = _beehiveLast && _beehiveLast.status;
+      if (payload) _beehiveLast = payload;
+      renderBeehiveWidget();
+      if (_beehiveLast.status === 'red' && prev && prev !== 'red') _beehiveRedAlert();
+    });
+  }
+  try { const s = await window.eveAPI.getBeehiveStatus(); if (s) _beehiveLast = s; } catch (_) {}
+  renderBeehiveWidget();
 }
 
 // Fetch + render the Active Industry Jobs widget (active / ready / paused jobs
@@ -495,6 +574,9 @@ async function loadDashboard() {
   // Build the widget grid first so every widget's target element exists before
   // the cache render and the data sections below try to fill them.
   initDashboardGrid();
+
+  // Beehive status widget (if present) — independent of ESI/characters, fill it now.
+  if (document.getElementById('dashboardBeehiveWidget')) initBeehiveWidget();
 
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
@@ -708,8 +790,12 @@ async function loadDashboard() {
         ${shipColHtml}`;
     }
 
-    try {
-      if (!mainAccount) return;
+    // Build/paint the banner from the local DB. Called immediately for a fast
+    // paint, then again after a live status refresh so ship / location / implants
+    // are the latest ESI pull on every load.
+    async function paintBanner(preserveNetWorth) {
+      const prevNW = preserveNetWorth
+        ? (document.getElementById('welcomeNetWorthValue')?.innerHTML || null) : null;
 
       // ── DB READ: single call, all tables ────────────────────────────────
       const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
@@ -821,9 +907,26 @@ async function loadDashboard() {
 
       logToConsole('Welcome banner loaded from local DB.', 'info');
 
+      // Preserve the already-computed net worth across a repaint so it doesn't flash
+      // back to "Calculating…".
+      if (prevNW != null) {
+        const nwEl = document.getElementById('welcomeNetWorthValue');
+        if (nwEl) nwEl.innerHTML = prevNW;
+      }
+
       // Check if alliance holds sov with active incursions — fire-and-forget
       renderAllianceIncursionAlert(info.alliance_id).catch(() => {});
+    }
 
+    try {
+      if (!mainAccount) return;
+      await paintBanner(false);   // instant paint from the local DB
+
+      // Live-refresh location / ship / active implants on every load (bypasses the
+      // implant stale-gate), then repaint just the banner with the fresh data.
+      window.eveAPI.syncCharacterStatus(mainAccount.characterId)
+        .then(() => paintBanner(true))
+        .catch(() => {});
     } catch (e) {
       console.warn('[dashboard] Banner render failed:', e.message);
       if (welcomeBanner && mainAccount) {

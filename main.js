@@ -2125,6 +2125,56 @@ ipcHandle('sync-character-full', async (event, characterId) => {
   if (missingScopes.length) { summary.needsReauth = true; summary.missingScopes = missingScopes; }
   return summary;
 });
+
+// ─── Status-only sync (location + ship + active implants) ─────────────────────
+// The dashboard banner shows "where am I / what am I flying / which implants". This
+// refreshes just those three on demand (every dashboard load) — no wallet / info /
+// jump-clone / asset work, and crucially NO implant stale-gate, so the banner is
+// always the latest ESI pull. Each step preserves stale DB data on its own error.
+async function statusCharacterSync(characterId) {
+  await charInfoDb.ensureCharacterTables(characterId);
+  const token   = await getValidToken(characterId);
+  const authHdr = { Authorization: `Bearer ${token}` };
+
+  // Current location (+ station/structure + system names)
+  try {
+    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    let stationName = null;
+    try {
+      if (loc.station_id)        { const s = await getLocator().resolveLocation(loc.station_id,   characterId); stationName = s?.name || null; }
+      else if (loc.structure_id) { const s = await getLocator().resolveLocation(loc.structure_id, characterId); stationName = s?.name || null; }
+    } catch (_) {}
+    let sysName = null;
+    if (loc.solar_system_id) { try { const nm = await resolveNames([loc.solar_system_id]); sysName = nm[loc.solar_system_id] || null; } catch (_) {} }
+    await charInfoDb.upsertLocation(characterId, { ...loc, solar_system_name: sysName }, stationName);
+  } catch (e) { console.warn(`[statusSync] location ${characterId}: ${e.message}`); }
+
+  // Current ship
+  try {
+    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    let typeName = '';
+    if (ship.ship_type_id) { try { const nm = await resolveNames([ship.ship_type_id]); typeName = nm[ship.ship_type_id] || ''; } catch (_) {} }
+    await charInfoDb.upsertShip(characterId, ship, typeName);
+  } catch (e) { console.warn(`[statusSync] ship ${characterId}: ${e.message}`); }
+
+  // Active implants — no stale gate; preserve DB rows if the fetch itself fails.
+  try {
+    const raw   = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+    const ids   = [...new Set(Array.isArray(raw) ? raw : [])];
+    const names = ids.length ? await resolveNames(ids) : {};
+    const slots = ids.length ? await resolveImplantSlots(ids) : {};
+    await charInfoDb.replaceImplants(characterId, ids.map(id => ({
+      implant_id: id, type_name: names[id] || `Type ${id}`, slot: slots[id] ?? null,
+    })));
+  } catch (e) { console.warn(`[statusSync] implants ${characterId}: ${e.message}`); }
+
+  return { ok: true };
+}
+
+ipcHandle('sync-character-status', async (_event, characterId) => {
+  try { return await statusCharacterSync(characterId); }
+  catch (e) { return { ok: false, error: e.message }; }
+});
  
 // ─── Core-only sync (everything except assets) ────────────────────────────────
 // Called by the auto-refresh cadence. Assets are deliberately excluded so

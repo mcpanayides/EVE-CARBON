@@ -17,6 +17,12 @@ const _MAP_WORLD = 10000; // normalised coordinate space
 const _MIN_ZOOM  = 0.008;
 const _MAX_ZOOM  = 8;
 
+// Zarzakh (Triglavian hub). Routing *through* it is a trap: entering via a regional
+// gate triggers a 6-hour "Emanation Lock" that bars leaving via any other regional
+// gate, so it's never the cross-region shortcut the gate graph makes it look like.
+// Avoided by default in the Stargate Planner and the map's right-click route.
+const _ZARZAKH_ID = 30100000;
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let _canvas      = null;
 let _ctx         = null;
@@ -30,6 +36,18 @@ let _selected    = null;
 let _overlay     = 'security';
 let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + IHUB diamonds) on by default
 let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
+let _viewMode    = 'classic'; // 'classic' (current look) | 'modern' (flat DOTLAN-style)
+
+// Modern "region view" (prototype): when set, the Modern view shows a single region
+// laid out from its gate graph (DOTLAN-style), NOT the flattened 3D galaxy.
+let _regionView     = null;   // regionId being shown (null = no region picked yet)
+let _regionLayout   = null;   // Map(systemId → { x, z }) computed layout positions
+let _regionLayoutId = null;   // regionId the cached layout was built for
+let _regionExits    = [];     // [{ fromId, name, regionId, regionName, x, z }] inter-region gate stubs
+let _regionCache    = new Map(); // regionId → { layout:Map, exits:[] } — per-session
+let _hoveredExit    = null;   // exit box currently under the cursor (clickable → its region)
+let _hoveredRegion  = null;   // region under the cursor in the galaxy overview (clickable)
+let _regionBackRect = null;   // screen rect of the "◄ Galaxy overview" link in region view
 let _whArcEdges  = null;   // deduped [[idA,idB],…] of every WH connection to draw as arcs
 let _rafPending  = false;
 let _loaded      = false;
@@ -429,6 +447,26 @@ function _adjustZoom(factor, cx, cy) {
 
 // ── Hit detection ─────────────────────────────────────────────────────────────
 function _hitTest(cx, cy) {
+  // Modern region view: test in screen space against the laid-out pill centres.
+  if (_viewMode === 'modern' && _regionView != null && _regionLayout) {
+    let best = null, bestD2 = 18 * 18;
+    for (const [id, p] of _regionLayout) {
+      const [sx, sy] = _w2c(p.x, p.z);
+      const dx = sx - cx, dy = sy - cy, d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = _sysById[id]; }
+    }
+    return best;
+  }
+  // Modern galaxy overview: nearest cluster node in screen space.
+  if (_viewMode === 'modern' && _galaxyModern) {
+    let best = null, bestD2 = 14 * 14;
+    for (const [id, p] of _galaxyModern.gpos) {
+      const [sx, sy] = _w2c(p.x, p.z);
+      const dx = sx - cx, dy = sy - cy, d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = _sysById[id]; }
+    }
+    return best;
+  }
   const thr = 10 / _zoom; // 10 canvas-px in world units
   const [wx, wz] = _c2w(cx, cy);
   const thr2 = thr * thr;
@@ -558,9 +596,574 @@ function _regularPolyPath(ctx, cx, cy, r, sides) {
   ctx.closePath();
 }
 
+// ── Modern view helpers ───────────────────────────────────────────────────────
+// Flat, schematic "DOTLAN" style: solid straight gate lines, flat-coloured nodes,
+// no glow / bloom / gradients. Shares system positions with the classic view.
+
+// Colour a system's dot uses under the current overlay (shared by both views).
+function _systemColor(s) {
+  switch (_overlay) {
+    case 'sovereignty': return _sovColor(s.id);
+    case 'fnf':         return _fnfColor(s);
+    case 'incursions':  return _incSet.has(s.id) ? '#dd44aa' : '#1c1c28';
+    case 'security':
+    default:            return _secColor(s.sec);
+  }
+}
+
+// Flat, solid, straight gate links for the modern view: thin neutral grey for
+// ordinary gates, a flat amber for cross-region ("regional") gates so they read as
+// the long hauls. No curves, no glow — a clean schematic network.
+function _drawModernLinks(ctx, W, H, lineW) {
+  const off = (ax, ay, bx, by) =>
+    (ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+    (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50);
+  const line = (a, b) => {
+    const [ax, ay] = _w2c(a.wx, a.wz), [bx, by] = _w2c(b.wx, b.wz);
+    if (off(ax, ay, bx, by)) return;
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+  };
+
+  // Ordinary intra-region gates — thin solid grey.
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(150,160,176,0.42)';
+  ctx.lineWidth   = Math.max(0.12, lineW);
+  for (const j of _jumps) {
+    const a = _sysById[j.from], b = _sysById[j.to];
+    if (!a || !b || a.regionId !== b.regionId) continue;
+    line(a, b);
+  }
+  ctx.stroke();
+
+  // Cross-region (regional) gates — flat amber, slightly thicker.
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(196,140,64,0.65)';
+  ctx.lineWidth   = Math.max(0.5, lineW * 1.3);
+  for (const j of _jumps) {
+    const a = _sysById[j.from], b = _sysById[j.to];
+    if (!a || !b || a.regionId === b.regionId) continue;
+    line(a, b);
+  }
+  ctx.stroke();
+}
+
+// ── Modern region view (DOTLAN-style per-region layout) ───────────────────────
+// Trace a pill / stadium (rounded-rect) path for a system node label.
+function _pillPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, h / 2, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+// The k-space region we open by default in Modern (their first example), else the
+// first region alphabetically.
+function _defaultRegionId() {
+  for (const [rid, name] of Object.entries(_regions)) if (name === 'Period Basis') return Number(rid);
+  const ks = Object.keys(_regions).map(Number).filter(r => r < 11000000).sort((a, b) => a - b);
+  return ks[0] != null ? ks[0] : null;
+}
+
+// World-grid cell size (square so edges resolve to vertical / 45° / steeper grid
+// angles, never random ones). Big enough that name pills never overlap at the
+// default zoom.
+const _REGION_CELL = 110;
+
+// Eight grid directions (E, SE, S, SW, W, NW, N, NE) for hanging spurs / exit boxes,
+// plus a snap of an arbitrary delta to the nearest of them.
+const _REGION_DIRS = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+function _dir8(dx, dz) {
+  if (!dx && !dz) return -1;
+  return ((Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+}
+// Pick a clean outward direction (index into _REGION_DIRS) to hang a satellite off
+// node (px,pz): maximise "outward" from the centroid, avoid running collinear with an
+// existing edge (so the stub never overlaps a gate line), prefer vertical/horizontal,
+// and skip occupied target cells.
+function _pickStubDir(px, pz, cX, cZ, blocked, free) {
+  let best = 6, bestScore = -Infinity;   // default N
+  const ox = px - cX, oz = pz - cZ, ol = Math.hypot(ox, oz) || 1;
+  for (let i = 0; i < 8; i++) {
+    const dx = _REGION_DIRS[i][0], dz = _REGION_DIRS[i][1], dl = Math.hypot(dx, dz);
+    let score = ((dx * ox + dz * oz) / (dl * ol)) * 3;            // outward
+    if (blocked.has(i) || blocked.has((i + 4) % 8)) score -= 6;   // collinear with an edge
+    if (dx === 0 || dz === 0) score += 0.4;                       // prefer vertical/horizontal
+    if (free && !free(i)) score -= 100;                           // target cell taken
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+// Compute clean schematic NODE positions for one region from its intra-region gate
+// graph: a LAYERED grid (BFS depth = row, ordered columns = slot) whose long axis is a
+// straight vertical spine, with dead-end spurs hung off at right angles. Returns
+// { sys, pos:Map(id→{x,z}) centred on the origin, adj, inRegion }. Pure (no globals) —
+// shared by the single-region view and the galaxy overview.
+function _computeRegionPositions(regionId) {
+  const sys = _systems.filter(s => s.regionId === regionId && s.id < 31000000);
+  const pos = new Map();
+  const inRegion = new Set(sys.map(s => s.id));
+  const adj = new Map(sys.map(s => [s.id, []]));
+  if (!sys.length) return { sys, pos, adj, inRegion };
+
+  for (const j of _jumps) if (inRegion.has(j.from) && inRegion.has(j.to)) adj.get(j.from).push(j.to);
+  for (const [k, v] of adj) adj.set(k, [...new Set(v)]);
+  const deg = (id) => adj.get(id).length;
+
+  const bfs = (src) => {
+    const dist = new Map([[src, 0]]);
+    const q = [src];
+    for (let qi = 0; qi < q.length; qi++) {
+      const u = q[qi], du = dist.get(u);
+      for (const v of adj.get(u)) if (!dist.has(v)) { dist.set(v, du + 1); q.push(v); }
+    }
+    return dist;
+  };
+
+  // Spine = an approximate diameter (double BFS); root + far2 are its endpoints.
+  let seed = sys[0].id;
+  for (const s of sys) if (deg(s.id) === 1) { seed = s.id; break; }
+  let dseed = bfs(seed), root = seed, fd = -1;
+  for (const [id, dv] of dseed) if (dv > fd) { fd = dv; root = id; }
+  const depth = bfs(root);
+  let far2 = root, fd2 = -1;
+  for (const [id, dv] of depth) if (dv > fd2) { fd2 = dv; far2 = id; }
+  let maxD = 0; for (const dv of depth.values()) maxD = Math.max(maxD, dv);
+  for (const s of sys) if (!depth.has(s.id)) depth.set(s.id, ++maxD);   // isolated → below
+
+  const isLeaf = (id) => deg(id) === 1 && id !== root && id !== far2 && deg(adj.get(id)[0]) >= 2;
+
+  const layers = [];
+  for (const s of sys) {
+    if (isLeaf(s.id)) continue;
+    const dv = depth.get(s.id);
+    (layers[dv] || (layers[dv] = [])).push(s.id);
+  }
+
+  const slot = new Map();
+  for (let dv = 0; dv < layers.length; dv++) {
+    const layer = layers[dv];
+    if (!layer || !layer.length) continue;
+    const bc = new Map();
+    for (const id of layer) {
+      let sum = 0, c = 0;
+      for (const v of adj.get(id)) if (slot.has(v)) { sum += slot.get(v); c++; }
+      bc.set(id, c ? sum / c : 0);
+    }
+    layer.sort((a, b) => (bc.get(a) - bc.get(b)) || (a - b));
+    let prev = -Infinity, sumAssigned = 0, sumBc = 0;
+    const assigned = [];
+    for (const id of layer) {
+      let s = Math.round(bc.get(id));
+      if (s <= prev) s = prev + 1;
+      prev = s; assigned.push(s); sumAssigned += s; sumBc += bc.get(id);
+    }
+    const shift = Math.round((sumBc - sumAssigned) / layer.length);
+    layer.forEach((id, i) => slot.set(id, assigned[i] + shift));
+  }
+
+  for (const id of slot.keys()) pos.set(id, { x: slot.get(id) * _REGION_CELL, z: depth.get(id) * _REGION_CELL });
+
+  // Hang each leaf one cell off its parent in a clean outward direction.
+  const ck = (x, z) => Math.round(x / _REGION_CELL) + '|' + Math.round(z / _REGION_CELL);
+  let cX0 = 0, cZ0 = 0; for (const p of pos.values()) { cX0 += p.x; cZ0 += p.z; } cX0 /= (pos.size || 1); cZ0 /= (pos.size || 1);
+  const occ = new Set(); for (const p of pos.values()) occ.add(ck(p.x, p.z));
+  const edgeDirs = (id, here) => {
+    const set = new Set();
+    for (const v of adj.get(id)) { const vp = pos.get(v); if (vp) { const i = _dir8(vp.x - here.x, vp.z - here.z); if (i >= 0) set.add(i); } }
+    return set;
+  };
+  for (const s of sys) {
+    if (!isLeaf(s.id)) continue;
+    const P = adj.get(s.id)[0], pp = pos.get(P);
+    if (!pp) { pos.set(s.id, { x: 0, z: depth.get(s.id) * _REGION_CELL }); continue; }
+    const free = (i) => !occ.has(ck(pp.x + _REGION_DIRS[i][0] * _REGION_CELL, pp.z + _REGION_DIRS[i][1] * _REGION_CELL));
+    const di = _pickStubDir(pp.x, pp.z, cX0, cZ0, edgeDirs(P, pp), free);
+    const lx = pp.x + _REGION_DIRS[di][0] * _REGION_CELL, lz = pp.z + _REGION_DIRS[di][1] * _REGION_CELL;
+    occ.add(ck(lx, lz));
+    pos.set(s.id, { x: lx, z: lz });
+  }
+
+  // Centre the cluster on the origin (so the galaxy view can place + rotate it).
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of pos.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  const mx = (minX + maxX) / 2, mz = (minZ + maxZ) / 2;
+  for (const p of pos.values()) { p.x -= mx; p.z -= mz; }
+  return { sys, pos, adj, inRegion };
+}
+
+// Single-region view layout: clean node positions + clickable inter-region gate
+// stubs, oriented so the region's gateways sit at the top. Cached per region.
+function _buildRegionLayout(regionId) {
+  const cached = _regionCache.get(regionId);
+  if (cached) { _regionLayout = cached.layout; _regionExits = cached.exits; _regionLayoutId = regionId; return _regionLayout; }
+
+  const { sys, pos, adj, inRegion } = _computeRegionPositions(regionId);
+  const map = pos, exits = [];
+
+  if (sys.length) {
+    const ck = (x, z) => Math.round(x / _REGION_CELL) + '|' + Math.round(z / _REGION_CELL);
+    let cX0 = 0, cZ0 = 0; for (const p of map.values()) { cX0 += p.x; cZ0 += p.z; } cX0 /= map.size; cZ0 /= map.size;
+    const occ = new Set(); for (const p of map.values()) occ.add(ck(p.x, p.z));
+    const edgeDirs = (id, here) => {
+      const set = new Set();
+      for (const v of adj.get(id)) { const vp = map.get(v); if (vp) { const i = _dir8(vp.x - here.x, vp.z - here.z); if (i >= 0) set.add(i); } }
+      return set;
+    };
+    // Inter-region gate stubs hung at a clean outward angle, never along a gate line.
+    const seen = new Set(), usedDir = new Map();
+    for (const j of _jumps) {
+      if (!inRegion.has(j.from) || inRegion.has(j.to)) continue;
+      const key = j.from + '>' + j.to;
+      if (seen.has(key)) continue; seen.add(key);
+      const ext = _sysById[j.to], ip = map.get(j.from);
+      if (!ext || !ip) continue;
+      const blocked = edgeDirs(j.from, ip);
+      for (const u of (usedDir.get(j.from) || [])) blocked.add(u);
+      const free = (i) => !occ.has(ck(ip.x + _REGION_DIRS[i][0] * _REGION_CELL, ip.z + _REGION_DIRS[i][1] * _REGION_CELL));
+      const di = _pickStubDir(ip.x, ip.z, cX0, cZ0, blocked, free);
+      (usedDir.get(j.from) || usedDir.set(j.from, []).get(j.from)).push(di);
+      exits.push({
+        fromId: j.from, name: ext.name, regionId: ext.regionId,
+        regionName: _regions[ext.regionId] || '',
+        x: ip.x + _REGION_DIRS[di][0] * _REGION_CELL * 1.7,
+        z: ip.z + _REGION_DIRS[di][1] * _REGION_CELL * 1.7,
+      });
+    }
+    // Orient gateways to the top: flip vertically if exits sit in the lower half.
+    let zmin = Infinity, zmax = -Infinity;
+    for (const p of map.values()) { zmin = Math.min(zmin, p.z); zmax = Math.max(zmax, p.z); }
+    let emz = 0; for (const e of exits) emz += e.z; emz /= (exits.length || 1);
+    if (exits.length && emz > (zmin + zmax) / 2) {
+      for (const p of map.values()) p.z = -p.z;
+      for (const e of exits) e.z = -e.z;
+    }
+  }
+
+  _regionLayout = map; _regionExits = exits; _regionLayoutId = regionId;
+  _regionCache.set(regionId, { layout: map, exits });
+  return map;
+}
+
+// ── Modern galaxy overview ────────────────────────────────────────────────────
+// The whole galaxy laid out with each region's clean modern cluster placed at its
+// CLASSIC centroid and rotated to the region's classic stretch direction (so the
+// overall shape still reads like the classic map). Built once, cached.
+let _galaxyModern = null;   // { gpos:Map(id→{x,z}), labels:[{regionId,name,x,z}] }
+
+// Dominant-axis angle of a point cloud (2-D PCA) — used to orient each cluster.
+function _pcaAngle(pts) {
+  const n = pts.length; if (n < 2) return Math.PI / 2;
+  let mx = 0, mz = 0; for (const p of pts) { mx += p.x; mz += p.z; } mx /= n; mz /= n;
+  let cxx = 0, cxz = 0, czz = 0;
+  for (const p of pts) { const dx = p.x - mx, dz = p.z - mz; cxx += dx * dx; cxz += dx * dz; czz += dz * dz; }
+  return 0.5 * Math.atan2(2 * cxz, cxx - czz);
+}
+
+function _buildGalaxyModern() {
+  if (_galaxyModern) return _galaxyModern;
+  const gpos = new Map(), labels = [];
+  const rids = Object.keys(_regionCentroids).map(Number).filter(r => r < 11000000 && _regions[r]);
+  // Nearest-neighbour centroid distance → each region's space budget.
+  const nn = new Map();
+  for (const r of rids) {
+    const c = _regionCentroids[r]; let best = Infinity;
+    for (const o of rids) { if (o === r) continue; const co = _regionCentroids[o]; const d = Math.hypot(c.wx - co.wx, c.wz - co.wz); if (d < best) best = d; }
+    nn.set(r, isFinite(best) ? best : 600);
+  }
+  for (const r of rids) {
+    const { sys, pos } = _computeRegionPositions(r);
+    if (!pos.size) continue;
+    let lr = 1; for (const p of pos.values()) lr = Math.max(lr, Math.hypot(p.x, p.z));
+    const ang = _pcaAngle(sys.map(s => ({ x: s.wx, z: s.wz }))) - Math.PI / 2;   // local spine is +z
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    // Cluster radius as a fraction of the distance to the nearest region. Lower =
+    // smaller, tighter clusters with clearer gaps between regions. (Stays well under
+    // 0.5, so clusters never overlap.)
+    const REGION_FILL = 0.22;
+    const scale = (REGION_FILL * nn.get(r)) / lr;
+    const c = _regionCentroids[r];
+    for (const [id, p] of pos) {
+      const rx = p.x * cos - p.z * sin, rz = p.x * sin + p.z * cos;
+      gpos.set(id, { x: c.wx + rx * scale, z: c.wz + rz * scale });
+    }
+    labels.push({ regionId: r, name: _regions[r], x: c.wx, z: c.wz });
+  }
+  _galaxyModern = { gpos, labels };
+  return _galaxyModern;
+}
+
+// Fit the galaxy-overview cluster cloud to the viewport.
+function _fitGalaxyModern() {
+  const g = _buildGalaxyModern();
+  if (!_canvas || !g.gpos.size) { _fitGalaxy(); return; }
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of g.gpos.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  const w = (maxX - minX) || 1, h = (maxZ - minZ) || 1, pad = 40;
+  _zoom = Math.min((_canvas.width - pad * 2) / w, (_canvas.height - pad * 2) / h);
+  _panX = (_canvas.width  - w * _zoom) / 2 - minX * _zoom;
+  _panY = (_canvas.height - h * _zoom) / 2 - minZ * _zoom;
+}
+
+// Leave a single region back to the galaxy overview.
+function _backToOverview() {
+  _regionView = null; _hoveredExit = null;
+  _buildGalaxyModern(); _fitGalaxyModern();
+  const sel = document.getElementById('mapRegionSelect');
+  if (sel) sel.value = 'galaxy';
+  _scheduleRender();
+}
+
+function _renderGalaxyModern() {
+  const ctx = _ctx, W = _canvas.width, H = _canvas.height;
+  ctx.fillStyle = '#0b0d12';
+  ctx.fillRect(0, 0, W, H);
+  const g = _buildGalaxyModern(), gp = g.gpos;
+  if (!gp.size) return;
+
+  const off = (ax, ay, bx, by) => (ax < -40 && bx < -40) || (ax > W + 40 && bx > W + 40) || (ay < -40 && by < -40) || (ay > H + 40 && by > H + 40);
+  const lineW = Math.max(0.12, Math.min(1.1, _zoom * 22));
+
+  // Intra-region links (grey) then inter-region gates (amber).
+  ctx.strokeStyle = 'rgba(150,160,176,0.32)'; ctx.lineWidth = lineW; ctx.beginPath();
+  for (const j of _jumps) {
+    const a = gp.get(j.from), b = gp.get(j.to); if (!a || !b) continue;
+    const sa = _sysById[j.from], sb = _sysById[j.to]; if (!sa || !sb || sa.regionId !== sb.regionId) continue;
+    const [ax, ay] = _w2c(a.x, a.z), [bx, by] = _w2c(b.x, b.z); if (off(ax, ay, bx, by)) continue;
+    ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(196,140,64,0.5)'; ctx.lineWidth = Math.max(0.3, lineW * 1.2); ctx.beginPath();
+  for (const j of _jumps) {
+    if (j.from > j.to) continue;
+    const a = gp.get(j.from), b = gp.get(j.to); if (!a || !b) continue;
+    const sa = _sysById[j.from], sb = _sysById[j.to]; if (!sa || !sb || sa.regionId === sb.regionId) continue;
+    const [ax, ay] = _w2c(a.x, a.z), [bx, by] = _w2c(b.x, b.z); if (off(ax, ay, bx, by)) continue;
+    ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+  }
+  ctx.stroke();
+
+  // System dots.
+  const dotR = Math.max(0.6, Math.min(3, _zoom * 26));
+  for (const [id, p] of gp) {
+    const s = _sysById[id]; if (!s) continue;
+    const [cx, cy] = _w2c(p.x, p.z);
+    if (cx < -8 || cx > W + 8 || cy < -8 || cy > H + 8) continue;
+    ctx.beginPath(); ctx.arc(cx, cy, dotR, 0, Math.PI * 2); ctx.fillStyle = _systemColor(s); ctx.fill();
+  }
+
+  // Region labels at the cluster centres (highlight the one under the cursor).
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold ${Math.max(9, Math.min(15, _zoom * 30))}px var(--mono, monospace)`;
+  for (const lb of g.labels) {
+    const [lx, ly] = _w2c(lb.x, lb.z);
+    if (lx < -80 || lx > W + 80 || ly < -30 || ly > H + 30) continue;
+    ctx.fillStyle = (_hoveredRegion === lb.regionId) ? 'rgba(245,215,150,1)' : 'rgba(205,215,235,0.5)';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4;
+    ctx.fillText(lb.name.toUpperCase(), lx, ly);
+    ctx.shadowBlur = 0;
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  ctx.fillStyle = 'rgba(150,160,180,0.8)'; ctx.font = '11px var(--mono, monospace)';
+  ctx.fillText('Modern galaxy overview — click a region to open it', 14, H - 14);
+}
+
+// Open the region at a fixed, overlap-free zoom: fit the layout width to the
+// viewport but clamp so cell spacing never drops below the pill size (big regions
+// extend past the viewport and you pan/scroll, DOTLAN-style). Align the spine top.
+function _fitRegion() {
+  if (!_regionLayout || !_regionLayout.size || !_canvas) return;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity;
+  for (const p of _regionLayout.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); }
+  const w = (maxX - minX) || 1;
+  // 0.8 floor keeps cell spacing ≥ ~88 px (pills are ≤ ~80 px), so nothing overlaps.
+  _zoom = Math.min(1.0, Math.max(0.8, (_canvas.width - 140) / w));
+  _panX = _canvas.width / 2 - ((minX + maxX) / 2) * _zoom;
+  _panY = 70 - minZ * _zoom;
+}
+
+// Exit box (if any) under a screen point — uses the screen rect each box stored on
+// its last render. Returns the exit (→ click navigates to its region).
+function _regionExitAt(cx, cy) {
+  if (!(_viewMode === 'modern' && _regionView != null) || !_regionExits) return null;
+  for (const ex of _regionExits) {
+    if (ex._sx == null) continue;
+    if (Math.abs(cx - ex._sx) <= ex._w / 2 && Math.abs(cy - ex._sy) <= ex._h / 2) return ex;
+  }
+  return null;
+}
+
+// Open a region in the Modern view: build (or reuse) its layout and fit to it.
+function _enterRegion(regionId) {
+  if (regionId == null) return;
+  _regionView = regionId;
+  _hoveredExit = null;
+  _buildRegionLayout(regionId);
+  _fitRegion();
+  const sel = document.getElementById('mapRegionSelect');
+  if (sel) sel.value = String(regionId);
+}
+
+// Leave the Modern region view and return to the Classic galaxy overview. Used by
+// external entry points (route overlays, "view on map") that operate in galaxy coords.
+function _forceGalaxyView() {
+  if (_viewMode !== 'modern' && _regionView == null) return;
+  _viewMode = 'classic';
+  _regionView = null;
+  const sel = document.getElementById('mapRegionSelect');
+  if (sel) sel.style.display = 'none';
+  document.querySelectorAll('.map-view-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.view === 'classic'));
+}
+
+// Fill the region dropdown from loaded region data (known space only). Safe to call
+// repeatedly; only fills once.
+function _populateRegionSelect() {
+  const sel = document.getElementById('mapRegionSelect');
+  if (!sel || sel._filled || !_regions || !Object.keys(_regions).length) return;
+  const opts = Object.entries(_regions)
+    .map(([rid, name]) => ({ rid: Number(rid), name }))
+    .filter(o => o.rid < 11000000 && o.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="galaxy">◄ Galaxy overview</option>'
+    + opts.map(o => `<option value="${o.rid}">${o.name}</option>`).join('');
+  sel._filled = true;
+}
+
+// Render the Modern region view: straight gate links + DOTLAN-style name pills laid
+// out from the gate graph. Replaces the galaxy render entirely while a region is open.
+function _renderRegion() {
+  const ctx = _ctx, W = _canvas.width, H = _canvas.height;
+  ctx.fillStyle = '#12141a';
+  ctx.fillRect(0, 0, W, H);
+
+  const layout = _regionLayout;
+  if (!layout || !layout.size) {
+    ctx.fillStyle = 'rgba(205,215,235,0.6)';
+    ctx.font = '14px var(--mono, monospace)';
+    ctx.textAlign = 'center';
+    ctx.fillText('No systems to lay out for this region.', W / 2, H / 2);
+    ctx.textAlign = 'left';
+    return;
+  }
+
+  // Gate links — thin solid grey straight lines.
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(150,160,176,0.5)';
+  ctx.lineWidth   = Math.max(0.6, Math.min(1.6, _zoom * 200));
+  for (const j of _jumps) {
+    const a = layout.get(j.from), b = layout.get(j.to);
+    if (!a || !b) continue;
+    const [ax, ay] = _w2c(a.x, a.z), [bx, by] = _w2c(b.x, b.z);
+    if ((ax < -60 && bx < -60) || (ax > W + 60 && bx > W + 60) ||
+        (ay < -40 && by < -40) || (ay > H + 40 && by > H + 40)) continue;
+    ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+  }
+  ctx.stroke();
+
+  // Inter-region gate stubs — amber connectors out to the neighbour boxes.
+  if (_regionExits.length) {
+    ctx.strokeStyle = 'rgba(196,140,64,0.85)';
+    ctx.lineWidth   = Math.max(0.8, Math.min(2, _zoom * 220));
+    ctx.beginPath();
+    for (const ex of _regionExits) {
+      const ip = layout.get(ex.fromId); if (!ip) continue;
+      const [ax, ay] = _w2c(ip.x, ip.z), [sx, sy] = _w2c(ex.x, ex.z);
+      if ((ax < -80 && sx < -80) || (ax > W + 80 && sx > W + 80) ||
+          (ay < -60 && sy < -60) || (ay > H + 60 && sy > H + 60)) continue;
+      ctx.moveTo(ax, ay); ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+  }
+
+  // System pills (fixed screen size, DOTLAN-like name labels).
+  const fs = 11;
+  ctx.font = `${fs}px var(--mono, monospace)`;
+  ctx.textBaseline = 'middle';
+  for (const [id, p] of layout) {
+    const s = _sysById[id]; if (!s) continue;
+    const [cx, cy] = _w2c(p.x, p.z);
+    if (cx < -90 || cx > W + 90 || cy < -30 || cy > H + 30) continue;
+    const border = _systemColor(s);   // respects the active overlay (sec / sov / F&F / incursions)
+    const tw  = ctx.measureText(s.name).width;
+    const padX = 7, padY = 4;
+    const w = tw + padX * 2, h = fs + padY * 2;
+    _pillPath(ctx, cx - w / 2, cy - h / 2, w, h, h / 2);
+    ctx.fillStyle = 'rgba(38,40,50,0.96)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = border;
+    ctx.stroke();
+    if (_selected && _selected.id === id) { ctx.lineWidth = 2.5; ctx.strokeStyle = '#e0b34a'; ctx.stroke(); }
+    else if (_hovered && _hovered.id === id) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.stroke(); }
+    ctx.fillStyle = 'rgba(226,231,240,0.96)';
+    ctx.textAlign = 'center';
+    ctx.fillText(s.name, cx, cy);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Inter-region gate stub boxes — clickable links to the neighbouring region.
+  if (_regionExits.length) {
+    const efs = 10;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const ex of _regionExits) {
+      const [sx, sy] = _w2c(ex.x, ex.z);
+      ctx.font = `${efs}px var(--mono, monospace)`;
+      const tw1 = ctx.measureText(ex.name).width;
+      ctx.font = `${efs - 1}px var(--mono, monospace)`;
+      const tw2 = ctx.measureText(ex.regionName + '  ▸').width;
+      const w = Math.max(tw1, tw2) + 16, h = efs * 2 + 10;
+      ex._sx = sx; ex._sy = sy; ex._w = w; ex._h = h;   // remembered for click hit-testing
+      if (sx < -100 || sx > W + 100 || sy < -50 || sy > H + 50) continue;
+      const hot = _hoveredExit === ex;
+      _pillPath(ctx, sx - w / 2, sy - h / 2, w, h, 4);
+      ctx.fillStyle = hot ? 'rgba(46,38,24,0.98)' : 'rgba(26,24,28,0.97)';
+      ctx.fill();
+      ctx.lineWidth = hot ? 1.8 : 1.2;
+      ctx.strokeStyle = hot ? 'rgba(240,190,110,1)' : 'rgba(196,140,64,0.9)';
+      ctx.stroke();
+      ctx.font = `${efs}px var(--mono, monospace)`;
+      ctx.fillStyle = 'rgba(232,234,242,0.96)';
+      ctx.fillText(ex.name, sx, sy - efs * 0.55);
+      ctx.font = `${efs - 1}px var(--mono, monospace)`;
+      ctx.fillStyle = hot ? 'rgba(240,200,140,1)' : 'rgba(204,158,96,0.95)';
+      ctx.fillText(ex.regionName + '  ▸', sx, sy + efs * 0.6);
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  // Title + back link + hint.
+  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = 'rgba(210,218,236,0.92)';
+  ctx.font = 'bold 14px var(--mono, monospace)';
+  ctx.fillText(`${_regions[_regionView] || 'Region'} · ${layout.size} systems`, 14, 24);
+  // Clickable "◄ Galaxy overview" link (rect remembered for hit-testing).
+  ctx.font = '12px var(--mono, monospace)';
+  const back = '◄ Galaxy overview';
+  ctx.fillStyle = 'rgba(150,190,235,0.95)';
+  ctx.fillText(back, 14, 44);
+  _regionBackRect = { x: 12, y: 32, w: ctx.measureText(back).width + 4, h: 18 };
+  ctx.fillStyle = 'rgba(150,160,180,0.7)';
+  ctx.font = '11px var(--mono, monospace)';
+  ctx.fillText('Click an amber gateway box to jump to a neighbouring region', 14, 62);
+  ctx.shadowBlur = 0;
+}
+
 function _render() {
   _rafPending = false;
   if (!_canvas || !_ctx || !_systems.length) return;
+  // Modern takes over the whole canvas (its own coordinate space): a single region
+  // when one is open, otherwise the galaxy overview of all region clusters.
+  if (_viewMode === 'modern' && _regionView != null) { _renderRegion(); return; }
+  if (_viewMode === 'modern') { _renderGalaxyModern(); return; }
 
   const ctx = _ctx;
   const W   = _canvas.width;
@@ -573,9 +1176,11 @@ function _render() {
   // names are shown instead. Raised from the old 2.2 so mid-zoom doesn't turn
   // into an unreadable wall of system labels.
   const SYS_LABEL_DOTR = 3.2;
+  const _modern = _viewMode === 'modern';
 
-  // Background — pure black to match the in-game star map.
-  ctx.fillStyle = '#000000';
+  // Background — classic: pure black (in-game star map). Modern: a flat dark slate
+  // for the schematic DOTLAN-style panel look.
+  ctx.fillStyle = _modern ? '#12141a' : '#000000';
   ctx.fillRect(0, 0, W, H);
 
   // ── Jump connections ────────────────────────────────────────────────────────
@@ -585,37 +1190,43 @@ function _render() {
     (ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
     (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50);
 
-  // 1. Normal gates — faint grey dashed.
-  ctx.beginPath();
-  ctx.strokeStyle = 'rgba(150,160,180,0.18)';
-  ctx.lineWidth   = lineW;
-  ctx.setLineDash([3.5, 4.5]);
-  for (const j of _jumps) {
-    const a = _sysById[j.from], b = _sysById[j.to];
-    if (!a || !b || a.regionId !== b.regionId) continue;   // cross-region drawn below
-    const [ax, ay] = _w2c(a.wx, a.wz);
-    const [bx, by] = _w2c(b.wx, b.wz);
-    if (_offscreen(ax, ay, bx, by)) continue;
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
-  }
-  ctx.stroke();
-  ctx.setLineDash([]);
+  if (_modern) {
+    // Modern view: flat solid straight gate links (no glow), replacing the classic
+    // dashed/maroon passes.
+    _drawModernLinks(ctx, W, H, lineW);
+  } else {
+    // 1. Normal gates — faint grey dashed.
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(150,160,180,0.18)';
+    ctx.lineWidth   = lineW;
+    ctx.setLineDash([3.5, 4.5]);
+    for (const j of _jumps) {
+      const a = _sysById[j.from], b = _sysById[j.to];
+      if (!a || !b || a.regionId !== b.regionId) continue;   // cross-region drawn below
+      const [ax, ay] = _w2c(a.wx, a.wz);
+      const [bx, by] = _w2c(b.wx, b.wz);
+      if (_offscreen(ax, ay, bx, by)) continue;
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-  // 2. Regional smuggler gates (cross-region) — solid dark purple.
-  ctx.beginPath();
-  ctx.strokeStyle = 'rgba(58, 10, 44, 0.78)';
-  ctx.lineWidth   = Math.max(lineW * 1.3, 0.75);
-  for (const j of _jumps) {
-    const a = _sysById[j.from], b = _sysById[j.to];
-    if (!a || !b || a.regionId === b.regionId) continue;   // only cross-region
-    const [ax, ay] = _w2c(a.wx, a.wz);
-    const [bx, by] = _w2c(b.wx, b.wz);
-    if (_offscreen(ax, ay, bx, by)) continue;
-    ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
+    // 2. Regional smuggler gates (cross-region) — solid dark purple.
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(58, 10, 44, 0.78)';
+    ctx.lineWidth   = Math.max(lineW * 1.3, 0.75);
+    for (const j of _jumps) {
+      const a = _sysById[j.from], b = _sysById[j.to];
+      if (!a || !b || a.regionId === b.regionId) continue;   // only cross-region
+      const [ax, ay] = _w2c(a.wx, a.wz);
+      const [bx, by] = _w2c(b.wx, b.wz);
+      if (_offscreen(ax, ay, bx, by)) continue;
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
 
   // ── Wormhole connection arcs (EvE-Scout public API) ─────────────────────────
   // Every Thera/Turnur/J-space connection drawn as a dark-purple arc, exactly like
@@ -741,26 +1352,26 @@ function _render() {
     if (cx < -margin || cx > W + margin) continue;
     if (cy < -margin || cy > H + margin) continue;
 
-    // Overlay colour
-    let col;
-    switch (_overlay) {
-      case 'security':    col = _secColor(s.sec); break;
-      case 'sovereignty': col = _sovColor(s.id);  break;
-      case 'fnf':         col = _fnfColor(s);     break;
-      case 'incursions':  col = _incSet.has(s.id) ? '#dd44aa' : '#1c1c28'; break;
-      default:            col = _secColor(s.sec);
-    }
+    // Overlay colour (shared with the modern territory field).
+    const col = _systemColor(s);
 
     // Node glyph: a dot by default; special systems get distinct polygons —
     //   Pochven (Triglavian) → triangle, Thera/Turnur → pentagon, Zarzakh → hexagon.
     ctx.beginPath();
     const r = dotR * 1.7;
-    if      (s.id === 30100000)               _regularPolyPath(ctx, cx, cy, r, 6); // Zarzakh
+    if      (s.id === _ZARZAKH_ID)            _regularPolyPath(ctx, cx, cy, r, 6); // Zarzakh
     else if (_PENTAGON_SYS.has(s.id))         _regularPolyPath(ctx, cx, cy, r, 5); // Thera / Turnur
     else if (s.regionId === _pochvenRegionId) _regularPolyPath(ctx, cx, cy, r, 3); // Pochven
     else                                      ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
+    // Modern view: a thin flat outline crisps the node edge against the slate
+    // background (no glow), once dots are big enough to read it.
+    if (_modern && dotR > 1.1) {
+      ctx.lineWidth   = Math.max(0.4, dotR * 0.28);
+      ctx.strokeStyle = 'rgba(8,10,14,0.85)';
+      ctx.stroke();
+    }
 
     // Incursion ring (shows on any overlay as a subtle indicator)
     if (_overlay !== 'incursions' && _incSet.has(s.id)) {
@@ -1145,6 +1756,7 @@ function _initSearch() {
     if (!sys) return;
     input.value            = sys.name;
     results.style.display  = 'none';
+    _forceGalaxyView();   // search fly-to works in galaxy coords
     _flyTo(sys);
     _showInfo(sys);
   });
@@ -1177,6 +1789,7 @@ async function mapGoToSystem(name) {
       const sys = _systems.find(s => s.name.toLowerCase() === want)
                || _systems.find(s => s.name.toLowerCase().startsWith(want));
       if (sys) {
+        _forceGalaxyView();   // galaxy-coord fly-to — leave any Modern region view
         _flyTo(sys);
         _showInfo(sys);
         const input = document.getElementById('mapSearchInput');
@@ -1219,6 +1832,46 @@ function _initToolbar() {
     });
   });
 
+  // View style (Classic / Modern). Kept separate from the overlay buttons so the
+  // overlay handler above doesn't clear it. Modern opens a DOTLAN-style per-region
+  // view (prototype); Classic returns to the whole-galaxy overview.
+  const regionSel = document.getElementById('mapRegionSelect');
+  document.querySelectorAll('.map-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.view;
+      if (mode === _viewMode) return;
+      _viewMode = mode;
+      document.querySelectorAll('.map-view-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+      if (mode === 'modern') {
+        _populateRegionSelect();
+        if (regionSel) { regionSel.style.display = ''; regionSel.value = 'galaxy'; }
+        _regionView = null;                 // start at the galaxy overview
+        _buildGalaxyModern();
+        _fitGalaxyModern();
+      } else {
+        if (regionSel) regionSel.style.display = 'none';
+        _regionView = null;
+        _fitGalaxy();
+      }
+      _scheduleRender();
+    });
+  });
+
+  if (regionSel) {
+    regionSel.addEventListener('change', () => {
+      if (_viewMode !== 'modern') {
+        _viewMode = 'modern';
+        document.querySelectorAll('.map-view-btn')
+          .forEach(b => b.classList.toggle('active', b.dataset.view === 'modern'));
+        regionSel.style.display = '';
+      }
+      if (regionSel.value === 'galaxy') { _backToOverview(); return; }
+      _enterRegion(Number(regionSel.value));
+      _scheduleRender();
+    });
+  }
+
   const jbBtn = document.getElementById('mapJbToggle');
   if (jbBtn) {
     jbBtn.classList.toggle('active', _showJb);   // reflect the default-on state
@@ -1246,7 +1899,10 @@ function _initToolbar() {
   const zoomFit = document.getElementById('mapZoomFit');
   if (zoomIn)  zoomIn.addEventListener('click',  () => _adjustZoom(1.45, _canvas.width/2, _canvas.height/2));
   if (zoomOut) zoomOut.addEventListener('click', () => _adjustZoom(1/1.45, _canvas.width/2, _canvas.height/2));
-  if (zoomFit) zoomFit.addEventListener('click', () => { _fitGalaxy(); _scheduleRender(); });
+  if (zoomFit) zoomFit.addEventListener('click', () => {
+    if (_viewMode === 'modern' && _regionView != null) _fitRegion(); else _fitGalaxy();
+    _scheduleRender();
+  });
 
   const refreshBtn = document.getElementById('mapRefreshBtn');
   if (refreshBtn) {
@@ -1298,16 +1954,42 @@ function _initCanvas() {
       return;
     }
 
+    const tip = document.getElementById('mapTooltip');
+
+    // Modern region view: an inter-region gateway box under the cursor is a clickable
+    // link to that region — take priority over system hover.
+    const prevEx = _hoveredExit;
+    _hoveredExit = _regionExitAt(cx, cy);
+    if (_hoveredExit) {
+      if (_hovered) { _hovered = null; }
+      _canvas.style.cursor = 'pointer';
+      if (tip) {
+        tip.textContent = `${_hoveredExit.name} → ${_hoveredExit.regionName}`;
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top = (e.clientY - 10) + 'px';
+        tip.style.display = 'block';
+      }
+      if (prevEx !== _hoveredExit) _scheduleRender();
+      return;
+    }
+    if (prevEx) _scheduleRender();
+
     const prev = _hovered;
     _hovered = _hitTest(cx, cy);
     _canvas.style.cursor = _hovered ? 'pointer' : 'grab';
+
+    // Galaxy overview: track the hovered region so its label can highlight.
+    const inOverview = _viewMode === 'modern' && _regionView == null;
+    if (inOverview) {
+      const reg = _hovered ? _hovered.regionId : null;
+      if (reg !== _hoveredRegion) { _hoveredRegion = reg; _scheduleRender(); }
+    }
     if (_hovered?.id !== prev?.id) _scheduleRender();
 
     // Floating tooltip
-    const tip = document.getElementById('mapTooltip');
     if (tip) {
       if (_hovered) {
-        tip.textContent  = _hovered.name;
+        tip.textContent  = inOverview ? `${_hovered.name} · ${_regions[_hovered.regionId] || ''}` : _hovered.name;
         tip.style.left   = (e.clientX + 14) + 'px';
         tip.style.top    = (e.clientY - 10) + 'px';
         tip.style.display = 'block';
@@ -1326,7 +2008,29 @@ function _initCanvas() {
     if (moved < 5) {
       // Treat as click — toggle info panel
       const rect = _canvas.getBoundingClientRect();
-      const sys  = _hitTest(e.clientX - rect.left, e.clientY - rect.top);
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      // Modern region view: the "◄ Galaxy overview" link returns to the overview.
+      if (_viewMode === 'modern' && _regionView != null && _regionBackRect &&
+          mx >= _regionBackRect.x && mx <= _regionBackRect.x + _regionBackRect.w &&
+          my >= _regionBackRect.y && my <= _regionBackRect.y + _regionBackRect.h) {
+        _backToOverview();
+        return;
+      }
+      // Modern region view: clicking a gateway box jumps to that region.
+      const ex = _regionExitAt(mx, my);
+      if (ex && ex.regionId != null) {
+        _enterRegion(ex.regionId);
+        _hoveredExit = null;
+        _scheduleRender();
+        return;
+      }
+      // Galaxy overview: clicking a cluster opens that region.
+      if (_viewMode === 'modern' && _regionView == null) {
+        const hit = _hitTest(mx, my);
+        if (hit) _enterRegion(hit.regionId);
+        return;
+      }
+      const sys  = _hitTest(mx, my);
       if (sys) {
         _showInfo(sys);
       } else {
@@ -1341,6 +2045,8 @@ function _initCanvas() {
   _canvas.addEventListener('mouseleave', () => {
     _dragging = false;
     _hovered  = null;
+    _hoveredExit = null;
+    _hoveredRegion = null;
     _canvas.style.cursor = 'grab';
     const tip = document.getElementById('mapTooltip');
     if (tip) tip.style.display = 'none';
@@ -1530,7 +2236,7 @@ function _mapHeap() {
 function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedEdges = null) {
   if (!_sysById[startId] || !_sysById[endId]) return null;
   _ensureGateAdj();
-  const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, useBridges = false, useWormholes = false } = opts;
+  const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, avoidZarzakh = false, useBridges = false, useWormholes = false } = opts;
   if (useBridges) _buildBridgeAdj();
 
   const dist = new Map(), prev = new Map(), done = new Set();
@@ -1556,6 +2262,9 @@ function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedE
         if (avoidLow  && toSys.sec > 0.0 && toSys.sec < 0.45) continue;
         if (avoidNull && toSys.sec <= 0.0) continue;
         if (avoidRed  && _travelSafetyCost(toSys) >= 50) continue;
+        // Zarzakh's 6h gate lock means you can't gate out the far side — never route
+        // through it (it stays reachable only as an explicit destination).
+        if (avoidZarzakh && to === _ZARZAKH_ID) continue;
       }
       const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys));
       if (nd < (dist.has(to) ? dist.get(to) : Infinity)) {
@@ -1626,7 +2335,7 @@ function _kShortestRoutes(startId, endId, opts = {}, K = 3) {
 async function _computeTravelRoute() {
   if (!_travelStart || !_travelEnd) return;
   if (!_fnfLoaded) await _loadFnfStandings();   // so blue/red weighting applies
-  const path = _travelRoutePath(_travelStart, _travelEnd, { mode: 'safest', useBridges: true });
+  const path = _travelRoutePath(_travelStart, _travelEnd, { mode: 'safest', useBridges: true, avoidZarzakh: true });
   if (!path) {
     if (typeof showToast === 'function') showToast('No gate route found between those systems.', 'error');
     return;
@@ -1810,6 +2519,7 @@ function _sgBuildModal() {
             <label class="jp-check"><input type="checkbox" id="sgAvoidLow"> Avoid low-sec</label>
             <label class="jp-check"><input type="checkbox" id="sgAvoidNull"> Avoid null-sec</label>
             <label class="jp-check"><input type="checkbox" id="sgAvoidRed"> Avoid red (−5 / −10)</label>
+            <label class="jp-check"><input type="checkbox" id="sgAvoidZarzakh" checked> Avoid Zarzakh <span class="jp-dim" style="font-weight:400;">(6 h gate lock — can't exit the other side)</span></label>
           </div>
           <button id="sgPlotBtn" class="calc-btn" style="width:100%;margin-top:6px;">PLOT ROUTE</button>
           <div style="display:flex;gap:6px;margin-top:6px;">
@@ -1832,7 +2542,7 @@ function _sgBuildModal() {
   m.querySelector('#sgAltBtn').addEventListener('click', _sgShowAlternatives);
   m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlotAndShow(); } });
   // Auto re-plot whenever any option (or From/To) changes.
-  ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgFrom', '#sgTo']
+  ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgAvoidZarzakh', '#sgFrom', '#sgTo']
     .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', _sgMaybeReplot); });
   return m;
 }
@@ -1880,6 +2590,7 @@ async function _sgPlot() {
     avoidLow:     document.getElementById('sgAvoidLow').checked,
     avoidNull:    document.getElementById('sgAvoidNull').checked,
     avoidRed:     document.getElementById('sgAvoidRed').checked,
+    avoidZarzakh: document.getElementById('sgAvoidZarzakh').checked,
     useBridges:   document.getElementById('sgUseBridges').checked,
     useWormholes: useWh,
   };
@@ -1953,6 +2664,7 @@ async function _sgShowAlternatives() {
     avoidLow:     document.getElementById('sgAvoidLow').checked,
     avoidNull:    document.getElementById('sgAvoidNull').checked,
     avoidRed:     document.getElementById('sgAvoidRed').checked,
+    avoidZarzakh: document.getElementById('sgAvoidZarzakh').checked,
     useBridges:   document.getElementById('sgUseBridges').checked,
     useWormholes: useWh,
   };
@@ -2083,6 +2795,7 @@ async function initMapPage() {
     _relayoutSpecialRegions(); // declutter Pochven/Exordium via a gate-graph layout
     _layoutWormholeBlock();     // J-space grid to the right of the (final) galaxy
     _computeRegionCentroids(); // must come after normalisation & _regions are set
+    _populateRegionSelect();   // fill the Modern-view region picker
 
     _loaded = true;
     _onResize(); // Size the canvas now that data is ready; calls _fitGalaxy()
@@ -2134,6 +2847,7 @@ async function initMapPage() {
 // Switches to Incursions overlay and flies to the given system.
 // Safe to call before the galaxy has loaded; the jump is deferred until ready.
 window.mapJumpToSystem = function (systemId) {
+  _forceGalaxyView();   // galaxy-coord jump — leave any Modern region view
   // Always switch to incursions overlay so the context is clear
   _overlay = 'incursions';
   document.querySelectorAll('.map-overlay-btn').forEach(b => b.classList.remove('active'));
@@ -2190,6 +2904,7 @@ window.mapShowRoute = function (systemIds, waypointIds, fit = true) {
   if (!ids.length) return;
   const wps = new Set((waypointIds || []).map(Number).filter(Boolean));
   if (_loaded) {
+    _forceGalaxyView();   // routes are drawn in galaxy coords
     _routeIds = ids;
     _routeWaypointIds = wps;
     if (fit) _fitToSystems(ids);
@@ -2206,6 +2921,7 @@ window.mapShowJumpRoute = function (systemIds, waypointIds, fit = true) {
   if (!ids.length) return;
   const wps = new Set((waypointIds || []).map(Number).filter(Boolean));
   if (_loaded) {
+    _forceGalaxyView();   // routes are drawn in galaxy coords
     _jumpRouteIds = ids;
     _jumpRouteWaypointIds = wps;
     if (fit) _fitToSystems(ids);

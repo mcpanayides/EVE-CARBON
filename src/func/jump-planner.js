@@ -17,10 +17,15 @@
 const JP_LY = 9.4607e15;            // metres per light-year
 const JP_JUMPABLE_MAX_SEC = 0.45;   // can't jump to/from systems that display 0.5+
 
+// Zarzakh — the Triglavian hub. Routing *through* it is a trap: entering via a
+// regional gate triggers a 6-hour "Emanation Lock" that bars leaving via any other
+// regional gate, so it's never the quick cross-region shortcut the gate graph makes
+// it look like. The planners avoid it by default (toggle off to allow).
+const JP_ZARZAKH_ID = 30100000;
 // Cyno-jammed systems: jump drives and cynosural fields are disabled, so capitals
-// can only transit them via stargates (never cyno in or out). Zarzakh (30100000)
-// is the permanent one.
-const JP_CYNO_JAMMED = new Set([30100000]);
+// can only transit them via stargates (never cyno in or out). Zarzakh is the
+// permanent one.
+const JP_CYNO_JAMMED = new Set([JP_ZARZAKH_ID]);
 
 // Ship base jump range (LY, SDE dogma 867) + isotopes/LY (dogma 868).
 // JDC adds +25% range per level; JFC cuts fuel 10% per level.
@@ -232,7 +237,7 @@ function _jpHeap() {
 // ── Routing ───────────────────────────────────────────────────────────────────
 // Returns { path:[ids], hops:[{from,to,ly,kind}] } or null if unreachable.
 function _jpRoute(startId, endId, opts) {
-  const { mode, safest, rangeLY, avoidIncSet, useRegionalGates } = opts;
+  const { mode, safest, rangeLY, avoidIncSet, useRegionalGates, avoidZarzakh } = opts;
   const dist = new Map(), prev = new Map(), kind = new Map(), done = new Set();
   const heap = _jpHeap();
   dist.set(startId, 0); heap.push(0, startId);
@@ -259,6 +264,9 @@ function _jpRoute(startId, endId, opts) {
       if (avoidIncSet && avoidIncSet.has(toId) && toId !== endId) return;
       // User-removed systems are routed around (never the leg's own endpoints).
       if (_jpAvoid.has(toId) && toId !== endId && toId !== startId) return;
+      // Zarzakh trap: its 6h gate lock means you can't gate straight out the far
+      // side, so don't route through it unless it's an explicit endpoint.
+      if (avoidZarzakh && toId === JP_ZARZAKH_ID && toId !== endId && toId !== startId) return;
       const w  = safest ? _jpSafety(_jpById[toId]) : 1;
       const nd = d + edgeCost * w;
       if (nd < (dist.has(toId) ? dist.get(toId) : Infinity)) {
@@ -471,8 +479,9 @@ window.jpPlotToMap = async function (fromId, toId) {
   const jdc    = m ? +m.querySelector('#jpJdc').value : 5;
   const safest = m ? m.querySelector('#jpSafest').checked : false;
   const useRG  = m ? m.querySelector('#jpRegional').checked : false;
+  const avoidZarzakh = m ? m.querySelector('#jpAvoidZarzakh').checked : true;
   const route  = _jpRouteMulti([from.id, to.id], {
-    mode: 'cyno', safest, rangeLY: _jpRangeFor(shipId, jdc), avoidIncSet: null, useRegionalGates: useRG,
+    mode: 'cyno', safest, rangeLY: _jpRangeFor(shipId, jdc), avoidIncSet: null, useRegionalGates: useRG, avoidZarzakh,
   });
   if (route.error) return;
   _jpLastRoute = route;
@@ -622,7 +631,7 @@ function _jpReplot() {
   const stops = [c.fromId, ..._jpWaypoints.filter(id => _jpById[id]), c.toId];
   const route = _jpRouteMulti(stops, {
     mode: c.mode, safest: c.safest, rangeLY: c.rangeLY,
-    avoidIncSet: c.avoidIncSet, useRegionalGates: c.useRegionalGates,
+    avoidIncSet: c.avoidIncSet, useRegionalGates: c.useRegionalGates, avoidZarzakh: c.avoidZarzakh,
   });
   if (route.error) return false;
   const result = document.querySelector('#jumpPlannerModal #jpResult');
@@ -819,6 +828,7 @@ function _jpBuildModal() {
             <label class="jp-check"><input type="checkbox" id="jpSafest"> Safest route (prefer your space)</label>
             <label class="jp-check"><input type="checkbox" id="jpAvoidInc"> Avoid incursions</label>
             <label class="jp-check"><input type="checkbox" id="jpRegional"> Use regional gates (stargates) <span class="jp-dim" style="font-weight:400;">— faster, needs a move op</span></label>
+            <label class="jp-check"><input type="checkbox" id="jpAvoidZarzakh" checked> Avoid Zarzakh <span class="jp-dim" style="font-weight:400;">— 6 h gate lock; can't exit the other side</span></label>
           </div>
 
           <div class="jp-bridges">
@@ -861,7 +871,7 @@ function _jpBuildModal() {
   m.querySelector('#jpPlotBtn').addEventListener('click', () => _jpPlot(m));
   // Auto re-plot when any option (ship, mode, skills, toggles, From/To) changes —
   // only once a route has already been plotted, so we don't error on a blank form.
-  ['#jpShip', '#jpMode', '#jpJdc', '#jpJfc', '#jpJf', '#jpSafest', '#jpAvoidInc', '#jpRegional', '#jpFrom', '#jpTo']
+  ['#jpShip', '#jpMode', '#jpJdc', '#jpJfc', '#jpJf', '#jpSafest', '#jpAvoidInc', '#jpRegional', '#jpAvoidZarzakh', '#jpFrom', '#jpTo']
     .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', () => _jpMaybeReplot(m)); });
   m.querySelector('#jpBridgeAdd').addEventListener('click', () => _jpAddBridge(m));
   m.querySelector('#jpWaypointAdd').addEventListener('click', () => _jpAddWaypoint(m));
@@ -911,6 +921,7 @@ async function _jpPlot(m) {
   const mode    = m.querySelector('#jpMode').value;
   const safest  = m.querySelector('#jpSafest').checked;
   const useRegionalGates = m.querySelector('#jpRegional').checked;
+  const avoidZarzakh = m.querySelector('#jpAvoidZarzakh').checked;
   const shipId  = m.querySelector('#jpShip').value;
   const jdc     = +m.querySelector('#jpJdc').value;
   const jfc     = +m.querySelector('#jpJfc').value;
@@ -943,7 +954,7 @@ async function _jpPlot(m) {
   result.innerHTML = `<div class="jp-empty">Plotting…</div>`;
   // Defer so the "Plotting…" paint happens before the (synchronous) search.
   setTimeout(() => {
-    const route = _jpRouteMulti(stops, { mode, safest, rangeLY, avoidIncSet, useRegionalGates });
+    const route = _jpRouteMulti(stops, { mode, safest, rangeLY, avoidIncSet, useRegionalGates, avoidZarzakh });
     if (route.error) {
       const a = _jpById[route.error.fromId]?.name || route.error.fromId;
       const b = _jpById[route.error.toId]?.name   || route.error.toId;
@@ -952,7 +963,7 @@ async function _jpPlot(m) {
     }
     _jpRenderRoute(result, route, { mode, safest, shipId, jfc, jf, useRegionalGates });
     // Remember everything needed to re-plot after a map-driven waypoint edit.
-    _jpLastPlotCtx = { fromId: from.id, toId: to.id, mode, safest, rangeLY, useRegionalGates, avoidIncSet, shipId, jfc, jf };
+    _jpLastPlotCtx = { fromId: from.id, toId: to.id, mode, safest, rangeLY, useRegionalGates, avoidIncSet, avoidZarzakh, shipId, jfc, jf };
   }, 20);
 }
 

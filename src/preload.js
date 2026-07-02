@@ -9,6 +9,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // asset sync that self-skips unless assets are older than ASSET_STALE_MS (6 h).
   syncCharacterCore:           (characterId) => ipcRenderer.invoke('sync-character-core', characterId),
   syncCharacterAssetsIfStale:  (characterId) => ipcRenderer.invoke('sync-character-assets-if-stale', characterId),
+  // Live status only (location + ship + active implants) — used to keep the
+  // dashboard banner current on every load, bypassing the implant stale-gate.
+  syncCharacterStatus:         (characterId) => ipcRenderer.invoke('sync-character-status', characterId),
 
   // Read stored character data from CharDB
   getCharacterInfoDb:       (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
@@ -151,6 +154,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   wipeJabberData:      ()       => ipcRenderer.invoke('jabber-wipe-data'),
   openPingAlert:       (rowId)  => ipcRenderer.invoke('jabber-open-ping-alert', rowId),
   getPingAlertData:    ()       => ipcRenderer.invoke('jabber-get-ping-alert-data'),
+  getBeehiveStatus:    ()       => ipcRenderer.invoke('beehive-get-status'),
 
   // Alliance packs
   getPacks:            ()       => ipcRenderer.invoke('get-packs'),
@@ -221,6 +225,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
       'char-sync-progress',
       'jabber-status',
       'jabber-message',
+      'beehive-status',
       'ping-file-updated',
       'ping-alert-data',
       'repair-progress',

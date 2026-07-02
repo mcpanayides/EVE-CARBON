@@ -8,6 +8,50 @@ const { ipcMain, BrowserWindow } = require('electron');
 let jabberClient = null;
 let jabberConnectionActive = false;
 
+// ── Beehive beacon status ─────────────────────────────────────────────────────
+// Derived from the MOTD (MUC subject) of the GoonFleet "Beehive" room. Drives a
+// dashboard widget. Fail-safe: RED (stand down) whenever we can't positively
+// confirm green/yellow — disconnected, room not joined, or MOTD unrecognised.
+const BEEHIVE_ROOM = 'Beehive@conference.goonfleet.com';
+let beehiveStatus = { status: 'red', text: '', changedAt: null };
+
+// Classify the Beehive MOTD into a traffic light. The status lives on the "Beehive
+// is currently ___" line — classify THAT (most reliable). Only if it's missing do we
+// scan the whole MOTD, and then only for unambiguous whole words, so body text like
+// "Red Loot Buyback" can't force a false RED. Yellow is checked before green so an
+// "online, spooling" state reads yellow. Fail-safe: anything unrecognised → RED.
+//   green  = online / running / active / up          (good to go)
+//   yellow = spooling (spinning up) / holding / winding down / finishing
+//   red    = offline / everything else
+const _BEEHIVE_YELLOW = /spool|spinning up|holding|winding|finishing|wrapping|stand[-\s]?down|\bhold\b|\byellow\b|\bamber\b/;
+const _BEEHIVE_GREEN  = /\bonline\b|\brunning\b|\bactive\b|\blive\b|\bopen\b|\bup\b|\bgo\b|\bready\b|good to go|\bgreen\b/;
+
+function parseBeehiveStatus(motd) {
+  const t = (motd || '').toLowerCase();
+  const line = (t.match(/beehive is\s+(?:currently\s+)?([^\n.!]*)/) || [])[1];
+
+  if (line != null) {                          // explicit status line — trust it
+    if (_BEEHIVE_YELLOW.test(line)) return 'yellow';
+    if (_BEEHIVE_GREEN.test(line))  return 'green';
+    return 'red';
+  }
+  // No status line — only unambiguous whole-word signals (avoid loose colour words).
+  if (/\bspool(?:ing|ed)?\b|\bspinning up\b/.test(t)) return 'yellow';
+  if (/\bonline\b/.test(t)) return 'green';
+  return 'red';   // fail-safe default
+}
+
+function updateBeehiveStatus(motd) {
+  beehiveStatus = { status: parseBeehiveStatus(motd), text: motd || '', changedAt: new Date().toISOString() };
+  broadcastToRenderers('beehive-status', beehiveStatus);
+}
+
+// Back to the fail-safe when we lose the room (disconnect / offline).
+function resetBeehiveStatus() {
+  beehiveStatus = { status: 'red', text: '', changedAt: new Date().toISOString() };
+  broadcastToRenderers('beehive-status', beehiveStatus);
+}
+
 let xmppLibrary = null;
 async function getXmppClient() {
   if (!xmppLibrary) xmppLibrary = await import('@xmpp/client');
@@ -56,16 +100,41 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
 
       jabberClient.on('offline', () => {
         jabberConnectionActive = false;
+        resetBeehiveStatus();   // lost the room → fail-safe RED
         broadcastToRenderers('jabber-status', { status: 'offline', message: 'Disconnected' });
       });
 
-      jabberClient.on('online', (address) => {
+      jabberClient.on('online', async (address) => {
         jabberConnectionActive = true;
         broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${address.toString()}` });
+
+        // Join the Beehive MUC (GoonFleet only) so its MOTD (subject) reaches us.
+        // history maxstanzas=0 avoids replaying old room chatter; the subject still
+        // arrives on join and on every change.
+        if (/goonfleet/i.test(domain) || /goonfleet/i.test(service)) {
+          try {
+            const { xml } = await getXmppClient();
+            const nick = username || address.local || 'evecarbon';
+            await jabberClient.send(xml('presence', { to: `${BEEHIVE_ROOM}/${nick}` },
+              xml('x', { xmlns: 'http://jabber.org/protocol/muc' }, xml('history', { maxstanzas: '0' }))));
+          } catch (e) {
+            console.warn('[jabber] Beehive MUC join failed:', e.message || e);
+          }
+        }
       });
 
       jabberClient.on('stanza', async (stanza) => {
         if (!stanza.is('message')) return;
+
+        // Beehive room: its MOTD (subject) drives the status widget. Never route the
+        // room's own messages/subject into the ping pipeline.
+        const fromAttr = (stanza.attrs.from || '').toLowerCase();
+        if (fromAttr.startsWith(BEEHIVE_ROOM.toLowerCase())) {
+          const subject = stanza.getChildText('subject');
+          if (subject != null) updateBeehiveStatus(subject);   // subject stanza = MOTD
+          return;
+        }
+
         const body = stanza.getChildText('body');
         if (!body) return;
         const from       = stanza.attrs.from || '';
@@ -106,8 +175,13 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
       jabberClient = null; // Null first so no new events route through
       try { await clientToStop.stop(); } catch (_) {}
     }
+    resetBeehiveStatus();   // fail-safe RED while disconnected
     return true;
   });
+
+  // Current Beehive beacon status (cached from the room MOTD) for the dashboard
+  // widget to read on mount, before the next live subject update arrives.
+  ipcMain.handle('beehive-get-status', async () => beehiveStatus);
 
   ipcMain.handle('jabber-get-messages', async (_, limit = 200) => {
     try {

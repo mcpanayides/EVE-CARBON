@@ -1129,3 +1129,21 @@
 .dashboard-key-value    { font-size: 28px; font-weight: 700; color: var(--accent); }
 .dashboard-wealth-list  { display: grid; gap: 10px; margin-top: 14px; }
 .dashboard-wealth-row   { display: flex; justify-content: space-between; gap: 10px; padding: 12px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--text-1); }
+
+/* ── Beehive status widget (GoonFleet) ────────────────────────────────────── */
+.beehive-widget       { display: flex; align-items: center; gap: 14px; padding: 6px 4px 12px; }
+.beehive-light        { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+.beehive-info         { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.beehive-label        { font-size: 18px; font-weight: 800; letter-spacing: 0.06em; line-height: 1.1; }
+.beehive-sub          { font-size: 12px; color: var(--text-2); }
+.beehive-updated      { font-size: 10px; color: var(--text-3); font-family: var(--mono, monospace); margin-top: 2px; }
+.beehive-motd         { margin: 0; padding: 8px 10px; background: var(--bg-deep); border: 1px solid var(--border);
+                        border-radius: 8px; font-family: var(--mono, monospace); font-size: 10.5px; line-height: 1.35;
+                        color: var(--text-2); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: auto; }
+
+/* Flash when the status flips to RED so an active runner can't miss the stand-down. */
+.beehive-alert        { animation: beehiveRedFlash 0.5s ease-in-out 4; border-radius: 10px; }
+@keyframes beehiveRedFlash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,72,72,0); }
+  50%      { box-shadow: 0 0 0 3px rgba(240,72,72,0.85); background: rgba(240,72,72,0.08); }
+}

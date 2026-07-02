@@ -84,5 +84,9 @@
     "sqlite": "^4.0.25",
     "sqlite3": "^6.0.1",
     "unbzip2-stream": "^1.4.3"
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true,
+    "sqlite3@6.0.1": true
   }
 }

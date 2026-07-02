@@ -776,7 +776,8 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
 // (module usage); cpuOutput 48, powerOutput 11 (hull output); shieldCapacity 263,
 // armorHP 265, hp 9 (structure); rig/slot counts 12/13/14/1137.
 const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: 'subsystem' };
-const FIT_CATS = { ship: [6], module: [7], charge: [8], drone: [18], subsystem: [32] };
+// 'module' includes subsystems; 'charge' includes drones (one browser tab covers both).
+const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18], drone: [18], subsystem: [32] };
 
 // Per-type fitting facts used by the renderer to place & cost a module.
 async function _fitItemFacts(typeId) {
@@ -786,28 +787,72 @@ async function _fitItemFacts(typeId) {
        FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID WHERE t.typeID = ?`, [typeId]);
   if (!row) return null;
   const effs = await sdeDb.all(
-    `SELECT effectID FROM dgmTypeEffects WHERE typeID = ?`, [typeId]);
+    `SELECT te.effectID, e.effectName, e.effectCategory
+       FROM dgmTypeEffects te JOIN dgmEffects e ON e.effectID = te.effectID
+      WHERE te.typeID = ?`, [typeId]);
   const effIds = new Set(effs.map(e => e.effectID));
   let slot = null;
   for (const [eid, s] of Object.entries(FIT_SLOT_EFFECT)) if (effIds.has(Number(eid))) { slot = s; break; }
   const hardpoint = effIds.has(42) ? 'turret' : (effIds.has(40) ? 'launcher' : null);
-  // 50 cpu, 30 power(pg), 64 damageMultiplier, 51 rateOfFire(ms),
-  // 114/118/117/116 em/therm/kin/exp damage, 73 duration (activatable).
+  // Activatable = has an active/targeted/area effect (category 1/2/3) beyond the
+  // universal 'online' effect every fittable module carries. (The old duration-
+  // attribute test missed guns — their cycle comes from attr 51, not 73.)
+  // Overloadable = activatable AND has an overload (category 5) effect — passive
+  // modules (plates, membranes, rigs) can never be overheated.
+  const activatableEff = effs.some(e => [1, 2, 3].includes(e.effectCategory) && e.effectName !== 'online');
+  const overloadableEff = activatableEff && effs.some(e => e.effectCategory === 5);
+  // All attribute IDs verified against this SDE (dgmAttributeTypes):
+  //   50 cpu, 30 power(pg), 64 damageMultiplier, 51 speed(rateOfFire ms),
+  //   114/118/117/116 em/therm/kin/exp damage, 73 duration (activatable),
+  //   54 maxRange, 158 falloff, 160 trackingSpeed (weapons),
+  //   604 chargeGroup1, 128 chargeSize (what a module can load — incl. scripts),
+  //   37 maxVelocity, 281 explosionDelay(ms) (missiles → range ≈ vel × time),
+  //   120 weaponRangeMultiplier, 517 fallofMultiplier (ammo range effects),
+  //   351 maxRangeBonus, 349 falloffBonus, 767 trackingSpeedBonus (TC/TE/rigs, %),
+  //   547 missileVelocityBonus, 596 explosionDelayBonus, 20 speedFactor (MGC/rigs, %),
+  //   204 speedMultiplier (damage-mod RoF mult), 213 missileDamageMultiplierBonus (BCS),
+  //   202 cpuMultiplier, 145 powerOutputMultiplier (Co-Proc / RCU / PDS),
+  //   424 cpuOutputBonus2, 313 powerEngineeringOutputBonus (fitting rigs, %),
+  //   1210 overloadDamageModifier, 1205 overloadRofBonus,
+  //   1935 overloadTrackingModuleStrengthBonus, 1211 heatDamage, 6 capacitorNeed.
   const attrRows = await sdeDb.all(
     `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
-      WHERE typeID = ? AND attributeID IN (50,30,64,51,114,118,117,116,73)`, [typeId]);
+      WHERE typeID = ? AND attributeID IN (50,30,64,51,114,118,117,116,73,
+        54,158,160,604,128,37,281,120,517,351,349,767,547,596,20,204,213,
+        202,145,424,313,1210,1205,1935,1211,6)`, [typeId]);
   const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
-  // overloadable = the module has any effect in dogma category 5 (overload).
-  const overloadRow = await sdeDb.get(
-    `SELECT 1 FROM dgmTypeEffects te JOIN dgmEffects e ON e.effectID = te.effectID
-      WHERE te.typeID = ? AND e.effectCategory = 5 LIMIT 1`, [typeId]);
   return {
-    id: row.typeID, name: row.typeName, groupName: row.groupName, categoryId: row.categoryID,
+    id: row.typeID, name: row.typeName, groupName: row.groupName,
+    groupId: row.groupID, categoryId: row.categoryID,
     slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
     dmgMult: a[64] || 0, rof: a[51] || 0,
     dmg: { em: a[114] || 0, th: a[118] || 0, kin: a[117] || 0, exp: a[116] || 0 },
-    activatable: !!(a[73] && a[73] > 0),   // has a cycle time → can be turned on
-    overloadable: !!overloadRow,           // can be overheated
+    activatable: activatableEff,
+    overloadable: overloadableEff,
+    // Weapon geometry (guns)
+    optimal: a[54] || 0, falloff: a[158] || 0, tracking: a[160] || 0,
+    chargeGroup: a[604] || null, chargeSize: a[128] || null,
+    // Missile geometry (on the charge)
+    missileVel: a[37] || 0, flightMs: a[281] || 0,
+    // Ammo range multipliers (on the charge)
+    rangeMult: a[120] != null ? a[120] : null, falloffMult: a[517] != null ? a[517] : null,
+    // % bonuses carried by TC / TE / MGC / MGE / weapon rigs
+    bonus: {
+      optimal: a[351] || 0, falloff: a[349] || 0, tracking: a[767] || 0,
+      mslVel: a[547] || 0, mslFlight: a[596] || 0, mslVelRig: a[20] || 0,
+    },
+    // Damage-mod multipliers (Gyro/Heat Sink/Mag Stab: 64+204; BCS: 213+204)
+    dmgMultMod: a[64] && slot === 'low' ? a[64] : null,
+    mslDmgMult: a[213] || null, rofMult: a[204] || null,
+    // Fitting resource modifiers (Co-Proc / RCU / PDS / fitting rigs)
+    cpuMult: a[202] || null, pgMult: a[145] || null,
+    cpuOutBonus: a[424] || 0, pgOutBonus: a[313] || 0,
+    // Heat
+    heat: {
+      dmgMod: a[1210] || 0, rofBonus: a[1205] || 0,
+      trackModBonus: a[1935] || 0, selfDamage: a[1211] || 0,
+    },
+    capNeed: a[6] || 0,
   };
 }
 
@@ -881,6 +926,125 @@ ipcMain.handle('fit-get-items', async (_, typeIds) => {
     if (f) out[id] = f;
   }
   return out;
+});
+
+// ─── Fitting browser trees ────────────────────────────────────────────────────
+// EVE-style grouped browsing, built from the SDE and cached per kind:
+//   ship   → ship class (invGroups) → race (chrRaces) → hulls
+//   module → the market-group tree under Ship Equipment (9) + Rigs/Subsystems (955)
+//   charge → Ammunition & Charges (11) + Drones (157) in one tab
+// Each type row carries slot / hardpoint / cpu / pg / required skills so the
+// renderer can run the EVE-style filter row without extra IPC round-trips.
+const _fitTreeCache = new Map();
+
+async function _fitBuildTree(kind) {
+  if (_fitTreeCache.has(kind)) return _fitTreeCache.get(kind);
+  if (!sdeDb) return null;
+
+  if (kind === 'ship') {
+    const races = {};
+    (await sdeDb.all(`SELECT raceID, raceName FROM chrRaces`)).forEach(r => { races[r.raceID] = r.raceName; });
+    const rows = await sdeDb.all(
+      `SELECT t.typeID id, t.typeName n, t.raceID race, g.groupName cls
+         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+        WHERE g.categoryID = 6 AND t.published = 1
+        ORDER BY g.groupName, t.typeName`);
+    const byClass = new Map();
+    for (const r of rows) {
+      if (!byClass.has(r.cls)) byClass.set(r.cls, new Map());
+      const raceName = races[r.race] || 'Other';
+      const byRace = byClass.get(r.cls);
+      if (!byRace.has(raceName)) byRace.set(raceName, []);
+      byRace.get(raceName).push({ id: r.id, name: r.n });
+    }
+    const sections = [...byClass.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([cls, byRace]) => ({
+      name: cls,
+      count: [...byRace.values()].reduce((s, t) => s + t.length, 0),
+      kids: [...byRace.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([race, types]) => ({
+        name: race, count: types.length, kids: [], types,
+      })),
+      types: [],
+    }));
+    const tree = { sections };
+    _fitTreeCache.set(kind, tree);
+    return tree;
+  }
+
+  // Market-group kinds — bulk-load everything once, then assemble the subtree.
+  const mgRows = await sdeDb.all(`SELECT marketGroupID id, parentGroupID p, marketGroupName n FROM invMarketGroups`);
+  const mgById = new Map(mgRows.map(m => [m.id, m]));
+  const mgKids = new Map();
+  for (const m of mgRows) {
+    if (m.p == null) continue;
+    if (!mgKids.has(m.p)) mgKids.set(m.p, []);
+    mgKids.get(m.p).push(m.id);
+  }
+  const typeRows = await sdeDb.all(
+    `SELECT typeID id, typeName n, marketGroupID mg FROM invTypes WHERE published = 1 AND marketGroupID IS NOT NULL`);
+  const typesByMg = new Map();
+  for (const t of typeRows) {
+    if (!typesByMg.has(t.mg)) typesByMg.set(t.mg, []);
+    typesByMg.get(t.mg).push(t);
+  }
+  // Slot / hardpoint / cpu / pg / required skills for the filter row.
+  const effByType = new Map();
+  for (const e of await sdeDb.all(`SELECT typeID t, effectID e FROM dgmTypeEffects WHERE effectID IN (11,12,13,2663,3772,40,42)`)) {
+    if (!effByType.has(e.t)) effByType.set(e.t, []);
+    effByType.get(e.t).push(e.e);
+  }
+  const attrByType = new Map();
+  for (const a of await sdeDb.all(`SELECT typeID t, attributeID a, COALESCE(valueInt, valueFloat) v FROM dgmTypeAttributes WHERE attributeID IN (50,30,182,277,183,278,184,279)`)) {
+    if (!attrByType.has(a.t)) attrByType.set(a.t, {});
+    attrByType.get(a.t)[a.a] = a.v;
+  }
+  const decorate = (t) => {
+    const effs = effByType.get(t.id) || [];
+    let slot = null;
+    for (const [eid, s] of Object.entries(FIT_SLOT_EFFECT)) if (effs.includes(Number(eid))) { slot = s; break; }
+    const hp = effs.includes(42) ? 'turret' : (effs.includes(40) ? 'launcher' : null);
+    const a = attrByType.get(t.id) || {};
+    const sk = [];
+    if (a[182] && a[277]) sk.push([a[182], a[277]]);
+    if (a[183] && a[278]) sk.push([a[183], a[278]]);
+    if (a[184] && a[279]) sk.push([a[184], a[279]]);
+    return { id: t.id, name: t.n, slot, hp, cpu: a[50] || 0, pg: a[30] || 0, sk };
+  };
+  const buildNode = (mgId) => {
+    const mg = mgById.get(mgId);
+    if (!mg) return null;
+    const kids = (mgKids.get(mgId) || []).map(buildNode).filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const types = (typesByMg.get(mgId) || []).map(decorate)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const count = types.length + kids.reduce((s, k) => s + k.count, 0);
+    if (!count) return null;
+    return { name: mg.n, count, kids, types };
+  };
+  const findChildByName = (parentId, name) =>
+    (mgKids.get(parentId) || []).find(id => mgById.get(id)?.n === name);
+
+  let sections = [];
+  if (kind === 'module') {
+    sections = (mgKids.get(9) || []).map(buildNode).filter(Boolean);
+    for (const name of ['Rigs', 'Subsystems']) {
+      const id = findChildByName(955, name);
+      const node = id ? buildNode(id) : null;
+      if (node) sections.push(node);
+    }
+  } else if (kind === 'charge') {
+    sections = (mgKids.get(11) || []).map(buildNode).filter(Boolean);
+    const drones = buildNode(157);
+    if (drones) sections.push(drones);
+  }
+  sections.sort((a, b) => a.name.localeCompare(b.name));
+  const tree = { sections };
+  _fitTreeCache.set(kind, tree);
+  return tree;
+}
+
+ipcMain.handle('fit-browse-tree', async (_, kind) => {
+  try { return await _fitBuildTree(kind); }
+  catch (e) { console.warn('[fit-browse-tree]', e.message); return null; }
 });
 
 // Resolve fit lines (ship + module names from an EFT paste) to type facts.

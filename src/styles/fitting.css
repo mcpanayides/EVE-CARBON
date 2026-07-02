@@ -2,7 +2,9 @@
 
 .fit-wrap {
   display: grid;
-  grid-template-columns: 280px 1fr 260px;
+  /* browser | resize handle | wheel | stats — browser width is user-resizable
+     (inline style set from localStorage.fitBrowserW in renderFitting). */
+  grid-template-columns: 280px 6px 1fr 310px;
   height: 100%;
   min-height: 0;
 }
@@ -22,6 +24,33 @@
 .fit-kind-btn.active { background: var(--bg-hover); color: var(--accent); border-color: var(--accent); }
 
 .fit-results { margin-top: 8px; overflow-y: auto; flex: 1; min-height: 0; }
+
+/* ── Modules-tab filter row (slot / fits / skills) ── */
+.fit-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.fit-filter-chip {
+  padding: 3px 8px; background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-3); font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.05em;
+  border-radius: 4px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.fit-filter-chip:hover { color: var(--text-1); }
+.fit-filter-chip.on { color: var(--accent); border-color: var(--accent); background: var(--bg-hover); }
+
+/* ── Grouped browse tree (EVE-style) ── */
+details.ft-grp { margin: 0; }
+details.ft-grp > summary {
+  display: flex; align-items: center; gap: 6px; padding: 5px 6px; cursor: pointer;
+  font-size: 12px; color: var(--text-2); border-radius: 4px; user-select: none; list-style: none;
+}
+details.ft-grp > summary::before {
+  content: '▸'; font-size: 9px; color: var(--text-3); transition: transform 0.12s; flex-shrink: 0;
+}
+details.ft-grp[open] > summary::before { transform: rotate(90deg); }
+details.ft-grp > summary:hover { background: var(--bg-hover); color: var(--text-1); }
+details.ft-grp > summary::-webkit-details-marker { display: none; }
+.ft-count { margin-left: auto; font-size: 9px; font-family: var(--mono); color: var(--text-3); }
+.ft-body { padding-left: 14px; border-left: 1px solid var(--border); margin-left: 10px; }
+.ft-fit { padding-left: 26px; color: var(--accent); font-size: 11.5px; }
+.ft-fit:hover { background: var(--bg-hover); }
 .fit-result {
   display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px;
   cursor: pointer; font-size: 12px; color: var(--text-1);
@@ -47,47 +76,119 @@
 .fit-btn:hover { color: var(--text-1); border-color: var(--accent); }
 .fit-btn-accent { background: var(--accent); color: #07101a; border-color: var(--accent); font-weight: 700; }
 
-.fit-slots { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; }
-.fit-slot-group { margin-bottom: 16px; }
-.fit-slot-group-label {
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-3);
-  margin-bottom: 6px; display: flex; justify-content: space-between;
+/* ── Fitting wheel ── */
+.fit-wheel-wrap {
+  flex: 1; min-height: 0; overflow: auto; display: flex;
+  align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 46%, rgba(70,90,130,0.10), transparent 62%);
 }
-.fit-slot {
-  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
-  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 5px; overflow: hidden;
-}
-.fit-slot.sel { border-color: var(--accent); }
-.fit-slot.empty { background: transparent; border-style: dashed; opacity: 0.6; }
+.fit-wheel { position: relative; width: 640px; height: 640px; flex-shrink: 0; }
 
-/* Module state — coloured left edge + clickable dot (matches EVE's cues). */
-.fit-slot { border-left-width: 3px; }
-.fit-slot.state-offline    { border-left-color: #5d6b78; }
-.fit-slot.state-online     { border-left-color: #3a78c2; }
-.fit-slot.state-active     { border-left-color: #4ecb71; }
-.fit-slot.state-overheated { border-left-color: #e07b2e; }
-.fit-state-dot {
-  width: 18px; flex-shrink: 0; align-self: stretch; border: none; cursor: pointer;
-  background: none; display: flex; align-items: center; justify-content: center;
+.fw-ring { position: absolute; inset: 0; pointer-events: none; }
+.fw-ring-base  { fill: none; stroke: rgba(150,160,176,0.08); stroke-width: 1; }
+.fw-ring-arc   { fill: none; stroke: rgba(150,160,176,0.20); stroke-width: 56; stroke-linecap: round; opacity: 0.28; }
+.fw-ring-label {
+  fill: rgba(150,160,176,0.75); font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.18em; text-anchor: middle; dominant-baseline: middle;
 }
-.fit-state-dot::before {
-  content: ''; width: 8px; height: 8px; border-radius: 50%; background: #5d6b78;
+
+.fw-center {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none;
 }
-.fit-slot.state-online     .fit-state-dot::before { background: #3a78c2; }
-.fit-slot.state-active     .fit-state-dot::before { background: #4ecb71; }
-.fit-slot.state-overheated .fit-state-dot::before { background: #e07b2e; box-shadow: 0 0 6px #e07b2e; }
-.fit-slot-body {
-  display: flex; align-items: center; gap: 8px; flex: 1; padding: 6px 8px;
-  background: none; border: none; color: var(--text-1); cursor: pointer; text-align: left; font-size: 12px;
+.fw-ship {
+  width: 250px; height: 250px; object-fit: contain;
+  filter: drop-shadow(0 10px 34px rgba(0,0,0,0.65));
+  transition: transform 0.12s ease-out; will-change: transform;
 }
-.fit-slot-body img { width: 26px; height: 26px; border-radius: 3px; }
-.fit-slot-name { display: flex; flex-direction: column; }
-.fit-charge { font-size: 10px; color: var(--text-3); }
-.fit-slot-empty { padding: 8px; font-size: 11px; color: var(--text-3); font-style: italic; }
-.fit-slot-x {
-  background: none; border: none; color: var(--text-3); cursor: pointer; padding: 6px 10px; font-size: 12px;
+.fw-center-bars { display: flex; flex-direction: column; gap: 4px; width: 170px; }
+.fw-mini-bar { display: flex; align-items: center; gap: 6px; }
+.fw-mini-bar span { font-family: var(--mono); font-size: 9px; color: var(--text-3); width: 26px; }
+.fw-mini-track { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-deep); overflow: hidden; }
+.fw-mini-fill { height: 100%; background: var(--accent); }
+.fw-mini-fill.over { background: #e0564b; }
+
+/* Wheel slot cells — centred on their ring position. State = ring colour. */
+.fw-slot {
+  position: absolute; width: 52px; height: 52px; transform: translate(-50%, -50%);
+  background: rgba(14,17,24,0.92); border: 2px solid #5d6b78; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.fit-slot-x:hover { color: #e0564b; }
+.fw-slot img { width: 42px; height: 42px; border-radius: 6px; pointer-events: none; }
+.fw-slot.empty {
+  border-style: dashed; border-color: rgba(93,107,120,0.45); background: rgba(14,17,24,0.5); cursor: default;
+}
+.fw-slot.empty span { font-family: var(--mono); font-size: 11px; color: rgba(150,160,176,0.4); }
+/* Standardised state hues: GREEN = powered (online AND active — active is just
+   brighter), grey = offline, BRIGHT RED + pulse = overheated. Selection is CYAN so
+   it can never be mistaken for heat. */
+.fw-slot.sel { border-color: #57c7ff !important; box-shadow: 0 0 0 2px #57c7ff, 0 0 12px rgba(87,199,255,0.45); }
+.fw-slot.state-offline    { border-color: #5d6b78; opacity: 0.55; border-style: dashed; }
+.fw-slot.state-online     { border-color: #3f9e5c; }
+.fw-slot.state-active     { border-color: #4ecb71; box-shadow: 0 0 9px rgba(78,203,113,0.4); }
+.fw-slot.state-overheated {
+  border-color: #ff3b30;
+  box-shadow: 0 0 8px #ff3b30, 0 0 22px rgba(255,59,48,0.85);
+  animation: fwHeatPulse 1s ease-in-out infinite;
+}
+@keyframes fwHeatPulse {
+  0%, 100% { box-shadow: 0 0 8px #ff3b30, 0 0 22px rgba(255,59,48,0.85); }
+  50%      { box-shadow: 0 0 14px #ff5b50, 0 0 34px rgba(255,59,48,1); }
+}
+/* Occupied slot adjacent to an overheated module — heat bleeds into it. */
+.fw-slot.fw-heat-adjacent { box-shadow: 0 0 10px rgba(255,120,60,0.4); }
+/* Drop target highlight while dragging a module over it. */
+.fw-slot.fw-drop { border-color: #57c7ff; background: rgba(87,199,255,0.16); border-style: solid; }
+.fw-slot[draggable="true"] { cursor: grab; }
+
+.fw-charge {
+  position: absolute; right: -7px; bottom: -7px; width: 22px !important; height: 22px !important;
+  border: 1px solid var(--border); border-radius: 5px !important; background: var(--bg-deep);
+}
+.fw-x {
+  position: absolute; left: -8px; top: -8px; width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg-deep); color: var(--text-3);
+  font-size: 10px; line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center;
+}
+.fw-slot:hover .fw-x { display: flex; }
+.fw-x:hover { color: #e0564b; border-color: #e0564b; }
+
+/* Wheel tooltip */
+.fw-tip {
+  position: absolute; z-index: 30; min-width: 200px; max-width: 260px; pointer-events: none;
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.6); padding: 8px 10px;
+}
+.fw-tip-name { font-size: 12px; font-weight: 700; color: var(--text-1); }
+.fw-tip-sub  { font-size: 10.5px; color: var(--text-2); font-family: var(--mono); margin-top: 3px; }
+.fw-tip-hint { font-size: 9.5px; color: var(--text-3); margin-top: 6px; font-style: italic; }
+.fw-tip-offline    { color: #5d6b78; }
+.fw-tip-online     { color: #3f9e5c; }
+.fw-tip-active     { color: #4ecb71; }
+.fw-tip-overheated { color: #ff3b30; }
+
+/* ── Weapon range chart ── */
+#fitRangeChart { width: 100%; display: block; margin-bottom: 6px; cursor: crosshair; }
+.fit-chart-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
+.fit-legend-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 9.5px; font-family: var(--mono); color: var(--text-2); }
+.fit-series-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.fit-series-dot.dashed { border-radius: 2px; height: 3px; margin: 2.5px 0; }
+.fit-heat-toggle {
+  display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-2);
+  font-family: var(--mono); margin: 4px 0 8px; cursor: pointer;
+}
+.fit-heat-toggle input { accent-color: #e07b2e; cursor: pointer; }
+.fit-weapon-row .fit-hot { color: #e07b2e; font-weight: 700; font-size: 9px; }
+/* Column resize handle between the browser and the wheel. */
+.fit-col-handle {
+  cursor: col-resize; background: transparent; position: relative;
+}
+.fit-col-handle::after {
+  content: ''; position: absolute; inset: 0 2px; border-radius: 2px;
+  background: transparent; transition: background 0.15s;
+}
+.fit-col-handle:hover::after { background: var(--accent); opacity: 0.55; }
 
 .fit-import-panel {
   border-top: 1px solid var(--border); background: var(--bg-card); padding: 12px 16px; flex-shrink: 0;

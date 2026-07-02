@@ -169,16 +169,34 @@ function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
   });
 }
 
-// Variant of fetchJson that disables TLS certificate verification.
-// Used ONLY for Hammertime (stop.hammerti.me.uk) which has a known cert issue.
+const HAMMERTIME_PINNED_SHA256 =
+  '80:58:09:6A:C4:60:03:EB:F6:F5:67:D8:04:C3:0E:28:D1:39:39:E0:DE:27:9F:86:3A:36:63:68:7C:26:21:C7';
+
 function fetchJsonInsecure(url, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     let opts;
     try { opts = urlToOpts(url, { 'Accept': 'application/json' }); }
     catch (e) { return reject(new Error(`Invalid URL: ${url}`)); }
+
+    // Skip Node's automatic chain/hostname validation (which always fails
+    // for this host) in favor of the manual fingerprint check below.
     opts.rejectUnauthorized = false;
 
     const req = https.request(opts, (res) => {
+      const cert = res.socket.getPeerCertificate();
+      if (!cert || !cert.fingerprint256) {
+        req.destroy();
+        return reject(new Error('No certificate presented by server'));
+      }
+      if (cert.fingerprint256 !== HAMMERTIME_PINNED_SHA256) {
+        req.destroy();
+        return reject(new Error(
+          `Refusing connection: certificate fingerprint mismatch for ${url} ` +
+          `(got ${cert.fingerprint256}, expected ${HAMMERTIME_PINNED_SHA256}). ` +
+          `Hammertime may have rotated or fixed their TLS cert — verify and update the pin.`
+        ));
+      }
+
       if (res.statusCode < 200 || res.statusCode >= 300) {
         reject(new Error(`HTTP ${res.statusCode}: ${url}`));
         res.resume();
@@ -186,7 +204,7 @@ function fetchJsonInsecure(url, timeoutMs = 12000) {
       }
       let d = '';
       res.on('data', c => (d += c));
-      res.on('end',  () => {
+      res.on('end', () => {
         try { resolve(JSON.parse(d)); }
         catch { reject(new Error('JSON parse error')); }
       });
@@ -196,7 +214,6 @@ function fetchJsonInsecure(url, timeoutMs = 12000) {
     req.end();
   });
 }
-
 // ─── Factory ──────────────────────────────────────────────────────────────────
 module.exports = function createLocator({ httpGet, readCache, writeCache, getValidToken,
                                           getAllCharacterIds,

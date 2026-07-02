@@ -39,6 +39,7 @@
 'use strict';
 
 const https = require('https');
+const tls = require('tls');
 
 const ESI_BASE                = 'https://esi.evetech.net';
 const ADAM4EVE_BASE           = 'https://www.adam4eve.eu';
@@ -178,9 +179,23 @@ function fetchJsonInsecure(url, timeoutMs = 12000) {
     try { opts = urlToOpts(url, { 'Accept': 'application/json' }); }
     catch (e) { return reject(new Error(`Invalid URL: ${url}`)); }
 
-    // Skip Node's automatic chain/hostname validation (which always fails
-    // for this host) in favor of the manual fingerprint check below.
-    opts.rejectUnauthorized = false;
+    // Keep Node's default chain/hostname validation enabled and add
+    // certificate pinning as an additional identity check.
+    opts.checkServerIdentity = (host, cert) => {
+      const err = tls.checkServerIdentity(host, cert);
+      if (err) return err;
+      if (!cert || !cert.fingerprint256) {
+        return new Error('No certificate presented by server');
+      }
+      if (cert.fingerprint256 !== HAMMERTIME_PINNED_SHA256) {
+        return new Error(
+          `Refusing connection: certificate fingerprint mismatch for ${url} ` +
+          `(got ${cert.fingerprint256}, expected ${HAMMERTIME_PINNED_SHA256}). ` +
+          `Hammertime may have rotated or fixed their TLS cert — verify and update the pin.`
+        );
+      }
+      return undefined;
+    };
 
     const req = https.request(opts, (res) => {
       const cert = res.socket.getPeerCertificate();

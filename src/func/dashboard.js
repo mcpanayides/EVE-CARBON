@@ -2179,20 +2179,57 @@ async function renderMarketQuicklookWidget(container) {
       window.eveAPI.getJitaPrices(typeIds).catch(() => ({})),
       Promise.all(typeIds.map(id => _marketTrend(id))),
     ]);
-    rowsEl.innerHTML = watch.map((w, i) => {
+    rowsEl.textContent = '';
+    watch.forEach((w, i) => {
       const p     = prices[w.typeId] || {};
       const sell  = p.sell ? formatISK(p.sell) : '—';
       const buy   = p.buy  ? formatISK(p.buy)  : '—';
       const badge = _marketTrendBadge(trends[i]);
-      return `<div class="dash-market-row">
-        <span class="dash-market-name">${escHtml(w.name)}</span>
-        <span class="dash-market-prices">
-          <span class="dash-market-sell">${sell}${badge ? ' ' + badge : ''}</span>
-          <span class="dash-market-buy">${buy}</span>
-        </span>
-        <button class="dash-market-remove" title="Remove from watchlist" onclick="dashMarketRemove(${w.typeId})">✕</button>
-      </div>`;
-    }).join('');
+      const typeIdNum = Number(w.typeId);
+
+      const row = document.createElement('div');
+      row.className = 'dash-market-row';
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'dash-market-name';
+      nameEl.textContent = String(w.name || '');
+
+      const pricesEl = document.createElement('span');
+      pricesEl.className = 'dash-market-prices';
+
+      const sellEl = document.createElement('span');
+      sellEl.className = 'dash-market-sell';
+      sellEl.textContent = sell;
+      if (badge) {
+        sellEl.appendChild(document.createTextNode(' '));
+        const badgeWrap = document.createElement('span');
+        badgeWrap.innerHTML = badge;
+        const badgeNode = badgeWrap.firstElementChild;
+        if (badgeNode) sellEl.appendChild(badgeNode);
+      }
+
+      const buyEl = document.createElement('span');
+      buyEl.className = 'dash-market-buy';
+      buyEl.textContent = buy;
+
+      pricesEl.appendChild(sellEl);
+      pricesEl.appendChild(buyEl);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'dash-market-remove';
+      removeBtn.title = 'Remove from watchlist';
+      removeBtn.textContent = '✕';
+      if (Number.isFinite(typeIdNum)) {
+        removeBtn.addEventListener('click', () => dashMarketRemove(typeIdNum));
+      } else {
+        removeBtn.disabled = true;
+      }
+
+      row.appendChild(nameEl);
+      row.appendChild(pricesEl);
+      row.appendChild(removeBtn);
+      rowsEl.appendChild(row);
+    });
   } catch (_) {
     rowsEl.innerHTML = '<div class="dashboard-empty">Could not load prices.</div>';
   }

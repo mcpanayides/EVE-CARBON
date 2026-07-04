@@ -776,14 +776,15 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
 // (module usage); cpuOutput 48, powerOutput 11 (hull output); shieldCapacity 263,
 // armorHP 265, hp 9 (structure); rig/slot counts 12/13/14/1137.
 const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: 'subsystem' };
-// 'module' includes subsystems; 'charge' includes drones (one browser tab covers both).
-const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18], drone: [18], subsystem: [32] };
+// 'module' includes subsystems; 'charge' includes drones AND fighters (cat 87) —
+// one browser tab covers everything that goes in a bay.
+const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32] };
 
 // Per-type fitting facts used by the renderer to place & cost a module.
 async function _fitItemFacts(typeId) {
   if (!sdeDb) return null;
   const row = await sdeDb.get(
-    `SELECT t.typeID, t.typeName, t.groupID, g.groupName, g.categoryID
+    `SELECT t.typeID, t.typeName, t.groupID, t.volume, g.groupName, g.categoryID
        FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID WHERE t.typeID = ?`, [typeId]);
   if (!row) return null;
   const effs = await sdeDb.all(
@@ -819,11 +820,18 @@ async function _fitItemFacts(typeId) {
     `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
       WHERE typeID = ? AND attributeID IN (50,30,64,51,114,118,117,116,73,
         54,158,160,604,128,37,281,120,517,351,349,767,547,596,20,204,213,
-        202,145,424,313,1210,1205,1935,1211,6)`, [typeId]);
+        202,145,424,313,1210,1205,1935,1211,6,605,606,609,1153)`, [typeId]);
   const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
+  // Full raw attribute map — the renderer's ship-stats engine reads shield/armor/
+  // resist/velocity/cap/sensor modifiers from here so fitted modules affect the
+  // stats panel live (attr IDs verified against this SDE, see fitting.js).
+  const allAttrRows = await sdeDb.all(
+    `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes WHERE typeID = ?`, [typeId]);
+  const attrs = {}; allAttrRows.forEach(r => { attrs[r.attributeID] = r.v; });
   return {
     id: row.typeID, name: row.typeName, groupName: row.groupName,
-    groupId: row.groupID, categoryId: row.categoryID,
+    groupId: row.groupID, categoryId: row.categoryID, attrs,
+    volume: row.volume || 0,   // m³ (drone-bay accounting)
     slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
     dmgMult: a[64] || 0, rof: a[51] || 0,
     dmg: { em: a[114] || 0, th: a[118] || 0, kin: a[117] || 0, exp: a[116] || 0 },
@@ -832,6 +840,8 @@ async function _fitItemFacts(typeId) {
     // Weapon geometry (guns)
     optimal: a[54] || 0, falloff: a[158] || 0, tracking: a[160] || 0,
     chargeGroup: a[604] || null, chargeSize: a[128] || null,
+    chargeGroups: [a[604], a[605], a[606], a[609]].filter(Boolean),   // all accepted charge groups
+    calCost: a[1153] || 0,                                            // rig calibration cost
     // Missile geometry (on the charge)
     missileVel: a[37] || 0, flightMs: a[281] || 0,
     // Ammo range multipliers (on the charge)
@@ -882,7 +892,7 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
   if (!sdeDb || !typeId) return null;
   try {
     const row = await sdeDb.get(
-      `SELECT t.typeID, t.typeName, t.mass, g.groupName, g.categoryID
+      `SELECT t.typeID, t.typeName, t.mass, t.capacity, g.groupName, g.categoryID
          FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID WHERE t.typeID = ?`, [typeId]);
     if (!row || row.categoryID !== 6) return null;
     const attrRows = await sdeDb.all(
@@ -890,7 +900,7 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
         WHERE typeID = ? AND attributeID IN (
           14,13,12,1137,1367,102,101,48,11,263,265,9,482,55,
           271,274,273,272,267,270,269,268,113,110,109,111,
-          76,564,192,208,209,210,211,37,70,600,552)`, [typeId]);
+          76,564,192,208,209,210,211,37,70,600,552,1132,283,1271,2055,2216)`, [typeId]);
     const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
 
     // Sensor strength = the single non-zero sensor type (ships have exactly one).
@@ -898,11 +908,28 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
     let sensorType = 'Gravimetric', sensorStrength = 0;
     for (const [k, v] of Object.entries(sensors)) if (v > sensorStrength) { sensorStrength = v; sensorType = k; }
 
+    // T3 hulls: the SDE's maxSubSystems (1367) can be stale — the truth is the
+    // number of DISTINCT subsystem slots (attr 1366) among the subsystems built
+    // for this hull (attr 1380 fitsToShipType).
+    let subCount = a[1367] || 0;
+    if (subCount > 0) {
+      const sub = await sdeDb.get(
+        `SELECT COUNT(DISTINCT COALESCE(s.valueInt, s.valueFloat)) c
+           FROM dgmTypeAttributes f
+           JOIN dgmTypeAttributes s ON s.typeID = f.typeID AND s.attributeID = 1366
+           JOIN invTypes t ON t.typeID = f.typeID AND t.published = 1
+          WHERE f.attributeID = 1380 AND COALESCE(f.valueInt, f.valueFloat) = ?`, [typeId]);
+      if (sub && sub.c > 0) subCount = sub.c;
+    }
+
     return {
       id: row.typeID, name: row.typeName, groupName: row.groupName,
-      slots: { high: a[14] || 0, med: a[13] || 0, low: a[12] || 0, rig: a[1137] || 0, subsystem: a[1367] || 0 },
+      slots: { high: a[14] || 0, med: a[13] || 0, low: a[12] || 0, rig: a[1137] || 0, subsystem: subCount },
       hardpoints: { turret: a[102] || 0, launcher: a[101] || 0 },
-      output: { cpu: a[48] || 0, pg: a[11] || 0 },
+      output: { cpu: a[48] || 0, pg: a[11] || 0, calibration: a[1132] || 0 },
+      cargo: row.capacity || 0,                                        // cargo hold m³
+      drone: { bay: a[283] || 0, bandwidth: a[1271] || 0 },            // drone bay m³ / Mbit
+      fighter: { bay: a[2055] || 0, tubes: a[2216] || 0 },             // fighter bay m³ / launch tubes
       base: {
         shieldHp: a[263] || 0, armorHp: a[265] || 0, structureHp: a[9] || 0,
         capacitor: a[482] || 0, rechargeMs: a[55] || 0,
@@ -944,15 +971,27 @@ async function _fitBuildTree(kind) {
   if (kind === 'ship') {
     const races = {};
     (await sdeDb.all(`SELECT raceID, raceName FROM chrRaces`)).forEach(r => { races[r.raceID] = r.raceName; });
+    // Pirate hulls (Cynabal, Orthrus, Ashimmu…) carry an EMPIRE raceID in the SDE
+    // (Angel = Minmatar, etc.) — the reliable signal is their market-group ancestry,
+    // which ends in a "Pirate Faction" node. Build the set once.
+    const mgAll = await sdeDb.all(`SELECT marketGroupID id, parentGroupID p, marketGroupName n FROM invMarketGroups`);
+    const mgParent = new Map(mgAll.map(m => [m.id, m.p]));
+    const mgName   = new Map(mgAll.map(m => [m.id, m.n]));
+    const isPirateMg = (mgId) => {
+      for (let cur = mgId, hops = 0; cur != null && hops < 12; cur = mgParent.get(cur), hops++) {
+        if ((mgName.get(cur) || '').startsWith('Pirate Faction')) return true;
+      }
+      return false;
+    };
     const rows = await sdeDb.all(
-      `SELECT t.typeID id, t.typeName n, t.raceID race, g.groupName cls
+      `SELECT t.typeID id, t.typeName n, t.raceID race, t.marketGroupID mg, g.groupName cls
          FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
         WHERE g.categoryID = 6 AND t.published = 1
         ORDER BY g.groupName, t.typeName`);
     const byClass = new Map();
     for (const r of rows) {
       if (!byClass.has(r.cls)) byClass.set(r.cls, new Map());
-      const raceName = races[r.race] || 'Other';
+      const raceName = isPirateMg(r.mg) ? 'Pirate' : (races[r.race] || 'Other');
       const byRace = byClass.get(r.cls);
       if (!byRace.has(raceName)) byRace.set(raceName, []);
       byRace.get(raceName).push({ id: r.id, name: r.n });
@@ -1045,6 +1084,41 @@ async function _fitBuildTree(kind) {
 ipcMain.handle('fit-browse-tree', async (_, kind) => {
   try { return await _fitBuildTree(kind); }
   catch (e) { console.warn('[fit-browse-tree]', e.message); return null; }
+});
+
+// ─── Compatible ammo for a module ─────────────────────────────────────────────
+// Charges (category 8) in the module's chargeGroup1-4, matching chargeSize when
+// both sides declare one. Each row carries its meta group (Tech I / Tech II /
+// Storyline / Faction / Officer / Deadspace) so the renderer can build the
+// grouped right-click "load ammo" menu. Cached per module type.
+const _fitAmmoCache = new Map();
+ipcMain.handle('fit-ammo-for', async (_, typeId) => {
+  if (!sdeDb || !typeId) return [];
+  if (_fitAmmoCache.has(typeId)) return _fitAmmoCache.get(typeId);
+  try {
+    const rows = await sdeDb.all(
+      `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
+        WHERE typeID = ? AND attributeID IN (604,605,606,609,128)`, [typeId]);
+    const a = {}; rows.forEach(r => { a[r.attributeID] = r.v; });
+    const groups = [a[604], a[605], a[606], a[609]].filter(Boolean);
+    if (!groups.length) { _fitAmmoCache.set(typeId, []); return []; }
+    const size = a[128] || null;
+    const ph = groups.map(() => '?').join(',');
+    const ammo = await sdeDb.all(
+      `SELECT t.typeID id, t.typeName name, mt.metaGroupID meta,
+              (SELECT COALESCE(cs.valueInt, cs.valueFloat) FROM dgmTypeAttributes cs
+                WHERE cs.typeID = t.typeID AND cs.attributeID = 128) AS csize
+         FROM invTypes t
+         JOIN invGroups g ON g.groupID = t.groupID
+         LEFT JOIN invMetaTypes mt ON mt.typeID = t.typeID
+        WHERE t.groupID IN (${ph}) AND t.published = 1 AND g.categoryID = 8
+        ORDER BY t.typeName`, groups);
+    const out = ammo
+      .filter(r => size == null || r.csize == null || r.csize === size)
+      .map(r => ({ id: r.id, name: r.name, meta: r.meta || 1 }));
+    _fitAmmoCache.set(typeId, out);
+    return out;
+  } catch (e) { console.warn('[fit-ammo-for]', e.message); return []; }
 });
 
 // Resolve fit lines (ship + module names from an EFT paste) to type facts.

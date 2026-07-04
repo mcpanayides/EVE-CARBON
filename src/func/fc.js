@@ -102,7 +102,13 @@ function initFcPage() {
     fresh.addEventListener('click', () => navigateFcTab(fresh.dataset.fcTab));
   });
   const content = document.getElementById('fcTabContent');
-  if (content && !content.querySelector(':scope > *')) navigateFcTab('composition');
+  if (content && !content.querySelector(':scope > *')) {
+    // First entry this session — reopen the sub-tab the user was last on
+    // (so Ctrl+R lands back on e.g. the Fitting Simulator, not Composition).
+    let last = null;
+    try { last = localStorage.getItem('fcLastTab'); } catch (_) {}
+    navigateFcTab(last === 'fitting' ? 'fitting' : 'composition');
+  }
 }
 
 function navigateFcTab(tab) {
@@ -110,6 +116,7 @@ function navigateFcTab(tab) {
   // the background against a hidden page.
   if (currentFcTab === 'composition' && tab !== 'composition') _fcStopTracking();
   currentFcTab = tab;
+  try { localStorage.setItem('fcLastTab', tab); } catch (_) {}
 
   document.querySelectorAll('.fc-sub-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.fcTab === tab);

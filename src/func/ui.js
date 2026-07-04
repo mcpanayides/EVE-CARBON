@@ -496,6 +496,10 @@ function navigateToPage(page) {
 
   currentPage = page;
 
+  // Remember where the user is so a reload (Ctrl+R) reopens this page instead of
+  // bouncing back to the dashboard. Only persist real pages.
+  if (selectedPage) { try { localStorage.setItem('lastPage', page); } catch (_) {} }
+
   // Leaving the fleet page pauses its poll loop — the tracking setup is kept so
   // returning resumes exactly where you were (see _fcOnPageHidden/_fcOnPageShown).
   if (prevPage === 'fc' && page !== 'fc' && typeof _fcOnPageHidden === 'function') _fcOnPageHidden();

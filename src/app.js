@@ -35,10 +35,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   bindNavigation();
   bindIndustrySubNav();
 
-  // Auto-navigate: dashboard if characters exist, otherwise characters page
+  // Auto-navigate: restore the page the user was on before the reload (Ctrl+R),
+  // falling back to dashboard if characters exist, otherwise the characters page.
   const accounts = await window.eveAPI.getAccounts().catch(() => []);
   if (accounts && accounts.length > 0) {
-    navigateToPage('dashboard');
+    let last = null;
+    try { last = localStorage.getItem('lastPage'); } catch (_) {}
+    navigateToPage(last && document.getElementById(`page-${last}`) ? last : 'dashboard');
   } else {
     navigateToPage('characters');
   }

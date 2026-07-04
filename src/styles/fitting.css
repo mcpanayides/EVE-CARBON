@@ -2,9 +2,9 @@
 
 .fit-wrap {
   display: grid;
-  /* browser | resize handle | wheel | stats — browser width is user-resizable
-     (inline style set from localStorage.fitBrowserW in renderFitting). */
-  grid-template-columns: 280px 6px 1fr 310px;
+  /* browser | handle | wheel | handle | stats — browser and stats widths are both
+     user-resizable (inline style from localStorage fitBrowserW / fitStatsW). */
+  grid-template-columns: 280px 6px 1fr 6px 310px;
   height: 100%;
   min-height: 0;
 }
@@ -76,75 +76,177 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-btn:hover { color: var(--text-1); border-color: var(--accent); }
 .fit-btn-accent { background: var(--accent); color: #07101a; border-color: var(--accent); font-weight: 700; }
 
+/* ── Skill profile bar (below the header) ── */
+.fit-skillbar {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: 6px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+}
+.fit-skillbar-label {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-3);
+}
+.fit-skillbar-label .material-symbols-outlined { font-size: 14px; color: var(--accent); }
+.fit-skillbar select { font-size: 11px; padding: 4px 6px; }
+.fit-skillbar-note { font-size: 10px; color: var(--text-3); font-style: italic; }
+
 /* ── Fitting wheel ── */
 .fit-wheel-wrap {
   flex: 1; min-height: 0; overflow: auto; display: flex;
   align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 46%, rgba(70,90,130,0.10), transparent 62%);
 }
-.fit-wheel { position: relative; width: 640px; height: 640px; flex-shrink: 0; }
+.fit-wheel { position: relative; width: 720px; height: 720px; flex-shrink: 0; }
 
+/* The dark ring band the slots sit on (in-game style). */
 .fw-ring { position: absolute; inset: 0; pointer-events: none; }
-.fw-ring-base  { fill: none; stroke: rgba(150,160,176,0.08); stroke-width: 1; }
-.fw-ring-arc   { fill: none; stroke: rgba(150,160,176,0.20); stroke-width: 56; stroke-linecap: round; opacity: 0.28; }
-.fw-ring-label {
-  fill: rgba(150,160,176,0.75); font-family: var(--mono); font-size: 11px;
-  letter-spacing: 0.18em; text-anchor: middle; dominant-baseline: middle;
+.fw-band          { fill: none; stroke: #16181e; opacity: 0.97; }
+.fw-band-edge-in  { fill: none; stroke: rgba(0,0,0,0.65); stroke-width: 3; }
+.fw-band-edge-out { fill: none; stroke: rgba(110,125,150,0.22); stroke-width: 1.5; }
+
+/* Circular porthole — the ship render fills the whole centre, like in game. */
+.fw-porthole2 {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 532px; height: 532px; border-radius: 50%; overflow: hidden;
+  background: #0a0c10;
+  box-shadow: inset 0 0 60px rgba(0,0,0,0.75), inset 0 0 8px rgba(0,0,0,0.9);
+}
+.fw-porthole2 .fw-ship {
+  width: 100%; height: 100%; object-fit: cover;
+  transform: perspective(800px) scale(1.08);
+  transition: transform 0.12s ease-out; will-change: transform;
+  filter: saturate(0.96);
 }
 
-.fw-center {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none;
+/* Hardpoint counters at the top corners of the wheel (turrets left, launchers right). */
+.fw-hp {
+  position: absolute; top: 26px; display: flex; align-items: center; gap: 4px;
+  padding: 3px 8px; background: rgba(14,17,24,0.85); border: 1px solid var(--border);
+  border-radius: 12px; font-family: var(--mono); font-size: 11px; color: var(--text-2);
 }
-.fw-ship {
-  width: 250px; height: 250px; object-fit: contain;
-  filter: drop-shadow(0 10px 34px rgba(0,0,0,0.65));
-  transition: transform 0.12s ease-out; will-change: transform;
+.fw-hp .material-symbols-outlined { font-size: 13px; color: var(--text-3); }
+.fw-hp { top: 92px; }
+.fw-hp-left  { left: 96px; }
+.fw-hp-right { right: 96px; }
+
+/* Cargo / drone / fighter bay chips — pinned to the bottom-left CORNER of the
+   fitting canvas (in-game style), not floating inside the wheel. */
+.fit-wheel-wrap { position: relative; }
+#fwBaysWrap { position: absolute; left: 14px; bottom: 14px; z-index: 22; }
+.fw-bays { display: flex; flex-direction: column; gap: 5px; }
+.fw-bay {
+  display: flex; align-items: center; gap: 5px; padding: 3px 9px;
+  background: rgba(14,17,24,0.85); border: 1px solid var(--border); border-radius: 12px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--text-2);
 }
-.fw-center-bars { display: flex; flex-direction: column; gap: 4px; width: 170px; }
+.fw-bay .material-symbols-outlined { font-size: 13px; color: var(--text-3); }
+.fw-bay-drone { cursor: pointer; }
+.fw-bay-drone:hover, .fw-bay-drone.open { border-color: var(--accent); color: var(--text-1); }
+.fw-bay-drone.fw-drop { border-color: #57c7ff; background: rgba(87,199,255,0.16); }
+
+/* Drone/fighter bay panel — sits directly above the bay chips in the corner. */
+.fw-dronebay {
+  width: 310px; margin-bottom: 8px;
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: 8px;
+  box-shadow: 0 8px 26px rgba(0,0,0,0.6); overflow: hidden;
+  max-height: 330px; overflow-y: auto;
+}
+.fw-db-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 7px 10px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
+  color: var(--text-3); border-bottom: 1px solid var(--border);
+}
+.fw-db-head span { letter-spacing: 0; color: var(--text-2); }
+.fw-db-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.fw-db-row img { width: 28px; height: 28px; border-radius: 4px; flex-shrink: 0; }
+.fw-db-main { flex: 1; min-width: 0; }
+.fw-db-name { font-size: 11.5px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-db-qty  { color: var(--text-3); font-family: var(--mono); font-size: 10px; }
+.fw-db-stats { font-size: 9.5px; color: var(--text-3); font-family: var(--mono); margin-top: 2px; }
+.fw-db-active { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.fw-db-active span.on { color: #4ecb71; font-weight: 700; }
+.fw-db-btn {
+  width: 18px; height: 18px; line-height: 1; padding: 0; background: var(--bg-deep);
+  border: 1px solid var(--border); border-radius: 4px; color: var(--text-2); cursor: pointer; font-size: 11px;
+}
+.fw-db-btn:hover { color: var(--text-1); border-color: var(--accent); }
+.fw-db-x { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 11px; padding: 2px 4px; }
+.fw-db-x:hover { color: #e0564b; }
+.fw-db-empty { padding: 12px; font-size: 11px; color: var(--text-3); text-align: center; }
+.fw-db-hint  { padding: 6px 10px; font-size: 9px; color: var(--text-3); font-style: italic; }
+
+/* CPU / PWR / CAL readout — floats near the bottom of the porthole. */
+.fw-center-bars {
+  position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 4px; width: 170px;
+  padding: 7px 10px; border-radius: 8px;
+  background: rgba(10,12,16,0.72); border: 1px solid rgba(110,125,150,0.18);
+  backdrop-filter: blur(2px);
+}
 .fw-mini-bar { display: flex; align-items: center; gap: 6px; }
 .fw-mini-bar span { font-family: var(--mono); font-size: 9px; color: var(--text-3); width: 26px; }
 .fw-mini-track { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-deep); overflow: hidden; }
 .fw-mini-fill { height: 100%; background: var(--accent); }
 .fw-mini-fill.over { background: #e0564b; }
 
-/* Wheel slot cells — centred on their ring position. State = ring colour. */
+/* Wheel slot cells — rotated wedge slices following the ring. The cell rotates
+   to its ring angle; the .fw-wedge layer is a TRAPEZOID (wider at the outer
+   edge, tapered toward the porthole) clipped from the box; icons counter-rotate
+   inline so they stay upright. States are silhouette GLOWS (drop-shadow follows
+   the wedge shape), like the in-game window. */
 .fw-slot {
-  position: absolute; width: 52px; height: 52px; transform: translate(-50%, -50%);
-  background: rgba(14,17,24,0.92); border: 2px solid #5d6b78; border-radius: 10px;
+  position: absolute; width: 56px; height: 65px;
+  background: none; border: none;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.fw-slot img { width: 42px; height: 42px; border-radius: 6px; pointer-events: none; }
-.fw-slot.empty {
-  border-style: dashed; border-color: rgba(93,107,120,0.45); background: rgba(14,17,24,0.5); cursor: default;
+.fw-wedge {
+  position: absolute; inset: 0; z-index: 0; border-radius: 5px;
+  clip-path: polygon(5% 0%, 95% 0%, 87% 100%, 13% 100%);
+  background: rgba(27,30,38,0.96);
+  box-shadow: inset 0 1px 0 rgba(140,152,172,0.25), inset 0 0 8px rgba(0,0,0,0.45);
+  transition: background 0.15s;
 }
-.fw-slot.empty span { font-family: var(--mono); font-size: 11px; color: rgba(150,160,176,0.4); }
-/* Standardised state hues: GREEN = powered (online AND active — active is just
-   brighter), grey = offline, BRIGHT RED + pulse = overheated. Selection is CYAN so
-   it can never be mistaken for heat. */
-.fw-slot.sel { border-color: #57c7ff !important; box-shadow: 0 0 0 2px #57c7ff, 0 0 12px rgba(87,199,255,0.45); }
-.fw-slot.state-offline    { border-color: #5d6b78; opacity: 0.55; border-style: dashed; }
-.fw-slot.state-online     { border-color: #3f9e5c; }
-.fw-slot.state-active     { border-color: #4ecb71; box-shadow: 0 0 9px rgba(78,203,113,0.4); }
+.fw-icon { width: 50px; height: 50px; border-radius: 4px; pointer-events: none; position: relative; z-index: 1; }
+/* Empty (available) slots — open dark wedges. */
+.fw-slot.empty { cursor: default; }
+.fw-slot.empty .fw-wedge { background: rgba(15,17,22,0.85); box-shadow: inset 0 0 10px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(105,118,138,0.22); }
+/* Locked positions — the wedge exists but the hull/subsystems don't grant it. */
+.fw-slot.locked { cursor: default; pointer-events: none; }
+.fw-slot.locked .fw-wedge { background: rgba(17,19,24,0.55); box-shadow: inset 0 0 12px rgba(0,0,0,0.5); }
+/* State hues (match the game): BLUE glow = online (passives), GREEN glow =
+   actively running, dim = offline, BRIGHT RED pulsing glow = overheated.
+   Selection is CYAN so it can never be mistaken for heat. Glows are drop-shadow
+   filters, so they trace the wedge silhouette. */
+.fw-slot.sel { filter: drop-shadow(0 0 3px #57c7ff) drop-shadow(0 0 8px rgba(87,199,255,0.7)); }
+.fw-slot.sel .fw-wedge { background: rgba(30,44,58,0.96); }
+.fw-slot.state-offline { opacity: 0.5; }
+.fw-slot.state-online  { filter: drop-shadow(0 0 4px rgba(58,120,194,0.85)); }
+.fw-slot.state-online .fw-wedge { background: rgba(26,33,46,0.96); }
+.fw-slot.state-active  { filter: drop-shadow(0 0 5px rgba(78,203,113,0.9)); }
+.fw-slot.state-active .fw-wedge { background: rgba(23,38,28,0.96); }
 .fw-slot.state-overheated {
-  border-color: #ff3b30;
-  box-shadow: 0 0 8px #ff3b30, 0 0 22px rgba(255,59,48,0.85);
+  filter: drop-shadow(0 0 4px #ff3b30) drop-shadow(0 0 10px rgba(255,59,48,0.9));
   animation: fwHeatPulse 1s ease-in-out infinite;
 }
+.fw-slot.state-overheated .fw-wedge { background: rgba(46,21,18,0.97); }
 @keyframes fwHeatPulse {
-  0%, 100% { box-shadow: 0 0 8px #ff3b30, 0 0 22px rgba(255,59,48,0.85); }
-  50%      { box-shadow: 0 0 14px #ff5b50, 0 0 34px rgba(255,59,48,1); }
+  0%, 100% { filter: drop-shadow(0 0 4px #ff3b30) drop-shadow(0 0 10px rgba(255,59,48,0.9)); }
+  50%      { filter: drop-shadow(0 0 7px #ff5b50) drop-shadow(0 0 18px rgba(255,59,48,1)); }
 }
 /* Occupied slot adjacent to an overheated module — heat bleeds into it. */
-.fw-slot.fw-heat-adjacent { box-shadow: 0 0 10px rgba(255,120,60,0.4); }
+.fw-slot.fw-heat-adjacent { filter: drop-shadow(0 0 6px rgba(255,120,60,0.55)); }
 /* Drop target highlight while dragging a module over it. */
-.fw-slot.fw-drop { border-color: #57c7ff; background: rgba(87,199,255,0.16); border-style: solid; }
+.fw-slot.fw-drop { filter: drop-shadow(0 0 6px rgba(87,199,255,0.8)); }
+.fw-slot.fw-drop .fw-wedge { background: rgba(35,55,70,0.96); }
 .fw-slot[draggable="true"] { cursor: grab; }
 
+/* Loaded charge — a small circle in the slot's bottom-right corner (in-game style). */
 .fw-charge {
-  position: absolute; right: -7px; bottom: -7px; width: 22px !important; height: 22px !important;
-  border: 1px solid var(--border); border-radius: 5px !important; background: var(--bg-deep);
+  position: absolute; right: -7px; bottom: -7px; width: 20px !important; height: 20px !important;
+  border: 1px solid rgba(150,160,176,0.5); border-radius: 50% !important; background: var(--bg-deep);
+  object-fit: cover;
 }
 .fw-x {
   position: absolute; left: -8px; top: -8px; width: 18px; height: 18px; border-radius: 50%;
@@ -163,10 +265,59 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-tip-name { font-size: 12px; font-weight: 700; color: var(--text-1); }
 .fw-tip-sub  { font-size: 10.5px; color: var(--text-2); font-family: var(--mono); margin-top: 3px; }
 .fw-tip-hint { font-size: 9.5px; color: var(--text-3); margin-top: 6px; font-style: italic; }
+/* Structured stat rows: muted label column + mono value column. */
+.fw-tip-grid {
+  display: grid; grid-template-columns: auto 1fr; gap: 3px 12px;
+  margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border);
+}
+.fw-tip-k { font-size: 10px; color: var(--text-3); }
+.fw-tip-v { font-size: 10.5px; font-family: var(--mono); font-weight: 600; color: var(--text-1); text-align: right; }
+.fw-tip-v.hot { color: #ff5b50; }
+.fw-tip-v.dim { color: var(--text-3); font-weight: 400; font-style: italic; }
 .fw-tip-offline    { color: #5d6b78; }
-.fw-tip-online     { color: #3f9e5c; }
+.fw-tip-online     { color: #3a78c2; }
 .fw-tip-active     { color: #4ecb71; }
 .fw-tip-overheated { color: #ff3b30; }
+
+/* ── Slot context menu (right-click) ── */
+#fitCtxMenu {
+  position: fixed; z-index: 10070; min-width: 220px; max-width: 300px;
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.65); overflow: hidden auto; max-height: 420px;
+  font-family: var(--mono);
+}
+.fit-ctx-head {
+  padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--text-1);
+  border-bottom: 1px solid var(--border);
+}
+.fit-ctx-states { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.fit-ctx-state {
+  flex: 1; padding: 4px 0; font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+  background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-3); cursor: pointer;
+}
+.fit-ctx-state.st-offline.on    { color: #aab4bd; border-color: #5d6b78; }
+.fit-ctx-state.st-online.on     { color: #6ea8e8; border-color: #3a78c2; }
+.fit-ctx-state.st-active.on     { color: #4ecb71; border-color: #4ecb71; }
+.fit-ctx-state.st-overheated.on { color: #ff3b30; border-color: #ff3b30; box-shadow: 0 0 8px rgba(255,59,48,0.4); }
+.fit-ctx-state:hover { color: var(--text-1); }
+.fit-ctx-sec {
+  padding: 6px 12px 3px; font-size: 9px; letter-spacing: 0.1em; color: var(--text-3);
+  border-top: 1px solid var(--border);
+}
+.fit-ctx-hint {
+  padding: 5px 12px; font-size: 9px; color: var(--text-3); font-style: italic;
+  border-top: 1px solid var(--border);
+}
+.fit-ctx-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 7px 12px; background: none; border: none; border-top: 1px solid var(--border);
+  color: var(--text-1); font-family: var(--mono); font-size: 11.5px; cursor: pointer;
+}
+.fit-ctx-item:hover { background: var(--bg-hover); }
+.fit-ctx-item img { width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; }
+.fit-ctx-charge { border-top: none; padding: 4px 12px 4px 18px; }
+.fit-ctx-danger { color: #e0564b; }
 
 /* ── Weapon range chart ── */
 #fitRangeChart { width: 100%; display: block; margin-bottom: 6px; cursor: crosshair; }
@@ -235,12 +386,11 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-big { font-size: 24px; font-weight: 800; font-family: var(--mono); color: var(--text-1); margin-bottom: 8px; }
 .fit-big-unit { font-size: 12px; font-weight: 500; color: var(--text-3); }
 
-/* Capacitor ring */
+/* Capacitor ring — segmented like the in-game capacitor wheel. */
 .fit-cap { display: flex; align-items: center; gap: 14px; }
 .fit-cap-ring { width: 56px; height: 56px; transform: rotate(-90deg); flex-shrink: 0; }
-.fit-cap-bg { fill: none; stroke: var(--bg-deep); stroke-width: 5; }
-.fit-cap-fg { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round;
-  stroke-dasharray: 130 145; }
+.fit-cap-bg { fill: none; stroke: var(--bg-deep); stroke-width: 6; stroke-dasharray: 4 2.2; }
+.fit-cap-fg { fill: none; stroke: var(--accent); stroke-width: 6; stroke-dasharray: 4 2.2; }
 .fit-cap-gj { font-size: 18px; font-weight: 700; font-family: var(--mono); color: var(--accent); }
 .fit-cap-sub { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
 
@@ -254,9 +404,16 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-layer { margin-bottom: 4px; }
 .fit-layer-name { display: flex; flex-direction: column; font-size: 11px; color: var(--text-2); }
 .fit-layer-hp { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
-.fit-res {
-  text-align: center; font-size: 10px; font-family: var(--mono); font-weight: 600;
-  padding: 4px 0; border-radius: 3px; color: #fff;
+/* Resist cells = mini bars filling 0→100% (0% resist = empty track, EVE style). */
+.fit-res-cell {
+  position: relative; display: block; height: 18px; border-radius: 3px;
+  background: var(--bg-deep); border: 1px solid var(--border); overflow: hidden;
+}
+.fit-res-fill { position: absolute; inset: 0 auto 0 0; border-radius: 2px; }
+.fit-res-val {
+  position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
+  height: 100%; font-size: 9.5px; font-family: var(--mono); font-weight: 700;
+  color: var(--text-1); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
 .fit-res-em  { background: #2f6fb0; }
 .fit-res-th  { background: #b23b36; }

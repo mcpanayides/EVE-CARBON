@@ -188,6 +188,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Fitting tool
   fitSearch:        (query, kind, limit) => ipcRenderer.invoke('fit-search', query, kind, limit),
   fitBrowseTree:    (kind)               => ipcRenderer.invoke('fit-browse-tree', kind),
+  fitAmmoFor:       (typeId)             => ipcRenderer.invoke('fit-ammo-for', typeId),
   fitGetHull:       (typeId)             => ipcRenderer.invoke('fit-get-hull', typeId),
   fitGetItems:      (typeIds)            => ipcRenderer.invoke('fit-get-items', typeIds),
   fitLookupNames:   (names)              => ipcRenderer.invoke('fit-lookup-names', names),

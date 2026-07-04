@@ -14,10 +14,18 @@
 //
 // Honesty note: a skill profile (character / all-0 / all-V) is applied across the
 // common skill families (gunnery, missiles, drones, tank, cap, nav, targeting,
-// fitting). Per-HULL trait bonuses (ship role bonuses like "25% bonus to Medium
-// Projectile damage") are NOT applied yet — that needs the full dogma trait
-// engine. Everything shown is computed from exact SDE values with EVE's
-// stacking-penalty formula.
+// fitting). Per-HULL trait bonuses (role bonuses and per-skill-level bonuses from
+// invTraits — damage, rate of fire, resists, HP, missile velocity/flight, ranges,
+// drone damage) ARE applied via the trait engine below, matched through the
+// showinfo skill links in each trait's bonusText. Implants (10 slots) apply their
+// fitting-relevant attribute bonuses as plain (non-penalized) multipliers.
+// Pirate/navy implant SETS (Nirvana, Amulet, Snake, Crystal, Asklepian,
+// Ascendancy, Halo, Rapture, Hydra, Genolution, HG/LG navy sensor sets…) apply
+// their full set mechanic: every piece's set multiplier amplifies all worn
+// pieces of that set, Omega included.
+// Not simulated: cap-use bonuses, reload time, EWAR strength, boosters (drugs),
+// and specialization-skill (T2) damage. Everything else is exact SDE values
+// with EVE's stacking-penalty formula.
 
 const FIT_SLOTS = [
   { key: 'high', label: 'High Slots' },
@@ -73,6 +81,12 @@ const FIT_SK = {
   nav: 3449, accel: 3452, evasive: 3453,
   lrt: 3428, sigAn: 3431,
   cpuMgmt: 3426, pgMgmt: 3413, wu: 3318, awu: 11207,
+  shieldOp: 3416, repSys: 3393,                  // shield recharge time / repairer duration
+  // Command Burst Specialist skills (+10%/lvl own-burst strength, attr 2572)
+  shieldSpec: 3351, armorSpec: 11569, skirmSpec: 11572, infoSpec: 3352,
+  // Cap-use skills: Controlled Bursts (turrets −5%), Fuel Conservation (AB −10%),
+  // High Speed Maneuvering (MWD −5%), Shield Compensation (boosters −2%)
+  ctrlBursts: 3316, fuelCons: 3451, hsm: 3454, shieldComp: 21059,
 };
 const FIT_SK_IDS = Object.values(FIT_SK);
 
@@ -101,8 +115,14 @@ const _fitState = {
   searchResults: [],
   gameFits: null,                              // cached ESI fits list while the picker is open
   heatPreview: false,                          // chart: overlay "everything overheated"
-  drones: [],                                  // bay stacks: { id, name, f, qty, active }
-  droneBayOpen: false,                         // bay panel visible on the wheel
+  drones: [],                                  // drone bay stacks: { id, name, f, qty, active }
+  droneBayOpen: false,                         // drone bay panel visible on the wheel
+  fighters: [],                                // LAUNCH TUBES: per tube null | { id, name, f, units, active }
+  fighterBayOpen: false,                       // fighter tube panel visible
+  implants: new Array(10).fill(null),          // slot 1-10 → { id, name, f } (character-level, survives hull swaps)
+  implantsOpen: false,                         // implants panel visible
+  links: localStorage.getItem('fitLinks') || 'off',   // incoming command-burst preset
+  target: null,                                // { id, name, base } — applied-damage reference hull
   // Skill profile: 'none' (all 0) | 'all5' | 'char' (a synced character's skills)
   skills: {
     mode: localStorage.getItem('fitSkillMode') || 'all5',
@@ -114,6 +134,7 @@ const _fitState = {
   filters: { slots: new Set(), fits: false, skills: false },   // Modules-tab filter row
   skillLevels: null, skillsChar: null,         // cached getSkillLevels result for the skills filter
   fitsByHull: null, fitsChar: null,            // saved game fits grouped by hull (Hulls & Fits tab)
+  fitsError: null,                             // why game fits couldn't load (shown in the tree)
 };
 let _fitSearchTimer = null;
 let _fitSimCache = null;                       // last weapon-sim result (tooltips reuse it)
@@ -148,7 +169,8 @@ function renderFitting(mount) {
             <button id="fitImportGame" class="fit-btn">Import from Game</button>
             <button id="fitImportEft"  class="fit-btn">Paste EFT</button>
             <button id="fitCopyEft"    class="fit-btn">Copy EFT</button>
-            <button id="fitSaveGame"   class="fit-btn fit-btn-accent">Save to Game</button>
+            <button id="fitSaveLocal"  class="fit-btn fit-btn-accent">Save</button>
+            <button id="fitSaveGame"   class="fit-btn">Save to Game</button>
             <button id="fitClear"      class="fit-btn">Clear</button>
           </div>
         </div>
@@ -157,6 +179,17 @@ function renderFitting(mount) {
           <select id="fitSkillSel" class="field-input" style="width:220px;">
             <option value="all5">All skills V</option>
             <option value="none">No skills (all 0)</option>
+          </select>
+          <span class="fit-skillbar-label" title="Simulate command bursts received from a fleet booster (max-skill Command Ship with mindlink, T2 bursts). Shown as green + bonuses on the stats."><span class="material-symbols-outlined">podcasts</span> LINKS</span>
+          <select id="fitLinksSel" class="field-input" style="width:190px;">
+            <option value="off">No incoming links</option>
+            <option value="shield">Shield bursts (max)</option>
+            <option value="armor">Armor bursts (max)</option>
+            <option value="skirmish">Skirmish bursts (max)</option>
+            <option value="info">Info bursts (max)</option>
+            <option value="shieldskirm">Shield + Skirmish (max)</option>
+            <option value="armorskirm">Armor + Skirmish (max)</option>
+            <option value="all">All bursts (max)</option>
           </select>
           <span id="fitSkillNote" class="fit-skillbar-note"></span>
         </div>
@@ -184,6 +217,10 @@ function renderFitting(mount) {
 
   const results = mount.querySelector('#fitResults');
   results.addEventListener('click', (e) => {
+    const del = e.target.closest('[data-delfit]');
+    if (del) { _fitDeleteLocalFit(del.dataset.delfit); return; }
+    const localRow = e.target.closest('[data-localfit]');
+    if (localRow) { _fitLoadLocalFit(localRow.dataset.localfit); return; }
     const fitRow = e.target.closest('[data-fitidx]');
     if (fitRow) {                                   // saved game fit under a hull
       const f = (_fitState.fitsByHull?.all || [])[Number(fitRow.dataset.fitidx)];
@@ -253,7 +290,18 @@ function renderFitting(mount) {
   mount.querySelector('#fitCopyEft').addEventListener('click', _fitCopyEFT);
   mount.querySelector('#fitImportEft').addEventListener('click', _fitShowEftPaste);
   mount.querySelector('#fitImportGame').addEventListener('click', _fitImportFromGame);
+  mount.querySelector('#fitSaveLocal').addEventListener('click', _fitSaveLocal);
   mount.querySelector('#fitSaveGame').addEventListener('click', _fitSaveToGame);
+
+  // Incoming fleet links (command-burst presets) — persists across sessions.
+  const linksSel = mount.querySelector('#fitLinksSel');
+  linksSel.value = _fitState.links;
+  if (linksSel.selectedIndex === -1) { linksSel.value = 'off'; _fitState.links = 'off'; }
+  linksSel.addEventListener('change', () => {
+    _fitState.links = linksSel.value;
+    try { localStorage.setItem('fitLinks', linksSel.value); } catch (_) {}
+    _fitRenderAll();
+  });
 
   _fitPopulateChars();
   _fitInitSkillBar();
@@ -322,10 +370,16 @@ async function _fitLoadSkillProfile() {
   if (s.mode !== 'char' || !s.charId) return;
   const ids = new Set(FIT_SK_IDS);
   for (const m of _fitAllMods()) {
-    if (m.f?.attrs?.[182]) ids.add(m.f.attrs[182]);
-    if (m.charge?.f?.attrs?.[182]) ids.add(m.charge.f.attrs[182]);
+    for (const k of [182, 183, 184]) if (m.f?.attrs?.[k]) ids.add(m.f.attrs[k]);
+    for (const k of [182, 183, 184]) if (m.charge?.f?.attrs?.[k]) ids.add(m.charge.f.attrs[k]);
   }
-  for (const d of _fitState.drones) if (d.f?.attrs?.[182]) ids.add(d.f.attrs[182]);
+  for (const d of _fitState.drones) for (const k of [182, 183, 184]) if (d.f?.attrs?.[k]) ids.add(d.f.attrs[k]);
+  // Hull + subsystem trait bonuses scale with their own skills (racial hull
+  // skills, T3 subsystem skills) — fetch those levels too.
+  for (const r of (_fitState.hull?.traits || [])) if (r.skillID > 0) ids.add(r.skillID);
+  for (const m of _fitState.modules.subsystem || []) {
+    if (m) for (const r of (m.f?.traits || [])) if (r.skillID > 0) ids.add(r.skillID);
+  }
   const want = [...ids].filter(id => !s.fetched.has(id));
   if (!want.length) return;
   want.forEach(id => s.fetched.add(id));
@@ -363,13 +417,21 @@ function _fitPersist() {
         : null);
     }
     const drones = _fitState.drones.map(d => ({ id: d.id, qty: d.qty, active: d.active }));
-    localStorage.setItem('fitSaved', JSON.stringify({ hullId: _fitState.hull.id, fitName: _fitState.fitName, racks, drones }));
+    const fighters = (_fitState.fighters || []).map(t => t ? { id: t.id, units: t.units, active: t.active ? 1 : 0 } : null);
+    const implants = _fitState.implants.map(i => i ? { id: i.id, name: i.name } : null);
+    localStorage.setItem('fitSaved', JSON.stringify({ hullId: _fitState.hull.id, fitName: _fitState.fitName, racks, drones, fighters, implants }));
   } catch (_) {}
 }
 
 async function _fitRestore() {
   let data = null;
   try { data = JSON.parse(localStorage.getItem('fitSaved') || 'null'); } catch (_) {}
+  return _fitApplySnapshot(data);
+}
+
+// Rebuild the whole fit (hull, modules, states, charges, drones) from a snapshot
+// in the _fitPersist shape — shared by the Ctrl+R restore and locally saved fits.
+async function _fitApplySnapshot(data) {
   if (!data?.hullId) return false;
   const hull = await window.eveAPI.fitGetHull(data.hullId).catch(() => null);
   if (!hull) return false;
@@ -378,13 +440,43 @@ async function _fitRestore() {
     for (const e of rack || []) { if (e) { ids.add(e.id); if (e.c) ids.add(e.c.id); } }
   }
   for (const d of (data.drones || [])) ids.add(d.id);
+  for (const t of (data.fighters || [])) if (t) ids.add(t.id);
+  for (const i of (data.implants || [])) if (i) ids.add(i.id);
   const facts = ids.size ? await window.eveAPI.fitGetItems([...ids]).catch(() => ({})) : {};
   _fitState.hull = hull;
   _fitState.fitName = data.fitName || 'EVE Carbon Fit';
   _fitState.modules = _fitEmptyRacks(hull);
   _fitState.drones = (data.drones || [])
-    .filter(d => facts[d.id])
+    .filter(d => facts[d.id] && facts[d.id].categoryId !== 87)
     .map(d => ({ id: d.id, name: facts[d.id].name, f: facts[d.id], qty: d.qty || 1, active: d.active || 0 }));
+  // Fighter tubes (new snapshots) …
+  _fitState.fighters = [];
+  (data.fighters || []).forEach((t, i) => {
+    _fitState.fighters[i] = (t && facts[t.id])
+      ? { id: t.id, name: facts[t.id].name, f: facts[t.id], units: t.units || 1, active: t.active !== 0 }
+      : null;
+  });
+  // …and legacy snapshots that stored fighters as drone-bay stacks: refill tubes.
+  for (const d of (data.drones || [])) {
+    const f = facts[d.id];
+    if (!f || f.categoryId !== 87) continue;
+    let left = d.qty || 1;
+    const sqMax = f.attrs?.[2215] || 1;
+    const tubes = hull.fighter?.tubes || 0;
+    while (left > 0 && _fitState.fighters.filter(Boolean).length < tubes) {
+      const idx = (() => { for (let i = 0; i < tubes; i++) if (!_fitState.fighters[i]) return i; return -1; })();
+      if (idx === -1) break;
+      const units = Math.min(sqMax, left);
+      _fitState.fighters[idx] = { id: f.id, name: f.name, f, units, active: true };
+      left -= units;
+    }
+  }
+  if (data.implants) {
+    _fitState.implants = new Array(10).fill(null);
+    data.implants.forEach((i, n) => {
+      if (i && facts[i.id] && n < 10) _fitState.implants[n] = { id: i.id, name: facts[i.id].name, f: facts[i.id] };
+    });
+  }
   for (const [key, rack] of Object.entries(data.racks || {})) {
     // Stored racks may be larger than the bare hull (T3: subsystems grant the
     // slots) — size to the snapshot; _fitSyncRacks reconciles after placement.
@@ -417,15 +509,73 @@ function _fitRenderBrowser() {
   else _fitRenderTree();
 }
 
+// Hull names for game-fit rows (fit payloads only carry shipTypeId).
+const _fitHullNameCache = new Map();
+async function _fitHullNames(ids) {
+  const missing = [...new Set(ids)].filter(id => id && !_fitHullNameCache.has(id));
+  if (missing.length) {
+    const facts = await window.eveAPI.fitGetItems(missing).catch(() => ({}));
+    for (const id of missing) _fitHullNameCache.set(id, facts[id]?.name || '');
+  }
+  return (id) => _fitHullNameCache.get(id) || '';
+}
+
+// Ship-tab search matches HULL NAMES and FIT NAMES together: a matching hull
+// lists every saved fit for it (local + game), and a fit whose NAME matches
+// shows up with its hull labelled — "Fight Club" finds the Nyx fit directly.
 async function _fitDoSearch() {
-  const box = document.getElementById('fitResults');
-  const q   = document.getElementById('fitSearch')?.value.trim() || '';
+  const box  = document.getElementById('fitResults');
+  const qRaw = document.getElementById('fitSearch')?.value.trim() || '';
+  const q    = qRaw.toLowerCase();
   if (!box || q.length < 2) return;
   box.innerHTML = `<div class="fit-hint">Searching…</div>`;
-  const results = await window.eveAPI.fitSearch(q, _fitState.searchKind, 80).catch(() => []);
+  const results = await window.eveAPI.fitSearch(qRaw, _fitState.searchKind, 80).catch(() => []);
+  if ((document.getElementById('fitSearch')?.value.trim() || '') !== qRaw) return;   // stale response
   _fitState.searchResults = results;
-  if (!results.length) { box.innerHTML = `<div class="fit-hint">No matches.</div>`; return; }
-  box.innerHTML = results.map(r => _fitTypeRowHtml({ id: r.id, name: r.name }, r.groupName)).join('');
+
+  if (_fitState.searchKind !== 'ship') {
+    box.innerHTML = results.length
+      ? results.map(r => _fitTypeRowHtml({ id: r.id, name: r.name }, r.groupName)).join('')
+      : `<div class="fit-hint">No matches.</div>`;
+    return;
+  }
+
+  await _fitEnsureGameFits();
+  const locals = _fitLocalFits();
+  const game   = _fitState.fitsByHull?.all || [];
+  const localRow = (lf, hullLabel = '') => `
+    <div class="fit-result ft-fit ft-fit-local" data-localfit="${lf.id}" title="Saved in EVE Carbon — click to load">
+      <span class="material-symbols-outlined">save</span>
+      <span class="fit-result-name">${_fitEsc(lf.name)}</span>
+      ${hullLabel ? `<span class="fit-result-grp">${_fitEsc(hullLabel)}</span>` : ''}
+      <button class="ft-fit-del" data-delfit="${lf.id}" title="Delete this saved fit">✕</button>
+    </div>`;
+  const gameRow = (i, f, hullLabel = '') => `
+    <div class="fit-result ft-fit" data-fitidx="${i}" title="Saved fit (in game) — click to load">
+      <span>⚙</span><span class="fit-result-name">${_fitEsc(f.name)}</span>
+      ${hullLabel ? `<span class="fit-result-grp">${_fitEsc(hullLabel)}</span>` : ''}
+    </div>`;
+
+  const rows = [];
+  const shownLocal = new Set(), shownGame = new Set();
+  // Matching hulls — each with ALL of its saved fits nested beneath it.
+  for (const r of results) {
+    rows.push(_fitTypeRowHtml({ id: r.id, name: r.name }, r.groupName));
+    locals.forEach(lf => { if (lf.hullId === r.id) { rows.push(localRow(lf)); shownLocal.add(lf.id); } });
+    game.forEach((f, i) => { if (f.shipTypeId === r.id) { rows.push(gameRow(i, f)); shownGame.add(i); } });
+  }
+  // Fits matched by NAME (or stored hull name) that aren't already listed.
+  const extraL = locals.filter(lf => !shownLocal.has(lf.id)
+    && (lf.name.toLowerCase().includes(q) || (lf.hullName || '').toLowerCase().includes(q)));
+  const extraG = game.map((f, i) => ({ f, i })).filter(({ f, i }) => !shownGame.has(i) && (f.name || '').toLowerCase().includes(q));
+  if (extraL.length || extraG.length) {
+    const nameOf = await _fitHullNames(extraG.map(({ f }) => f.shipTypeId));
+    if ((document.getElementById('fitSearch')?.value.trim() || '') !== qRaw) return;
+    if (rows.length) rows.push(`<div class="ft-fit-sec">FITS MATCHING “${_fitEsc(qRaw)}”</div>`);
+    extraL.forEach(lf => rows.push(localRow(lf, lf.hullName)));
+    extraG.forEach(({ f, i }) => rows.push(gameRow(i, f, nameOf(f.shipTypeId))));
+  }
+  box.innerHTML = rows.join('') || `<div class="fit-hint">No hulls or fits match.</div>`;
 }
 
 // One clickable/draggable type row (shared by search results and the tree).
@@ -479,8 +629,10 @@ async function _fitRenderTree() {
         <div class="ft-body">${node.kids.map(k => grpHtml(k, key)).join('')}<div class="ft-types"></div></div>
       </details>`;
   };
-  box.innerHTML = tree.sections.map(s => grpHtml(s, kind)).join('')
-    || `<div class="fit-hint">Nothing matches the active filters.</div>`;
+  const fitsNote = (kind === 'ship' && _fitState.fitsError)
+    ? `<div class="fit-hint fit-hint-warn">⚠ Game fits unavailable — ${_fitEsc(_fitState.fitsError)} Locally saved fits are unaffected.</div>` : '';
+  box.innerHTML = fitsNote + (tree.sections.map(s => grpHtml(s, kind)).join('')
+    || `<div class="fit-hint">Nothing matches the active filters.</div>`);
 
   box.querySelectorAll('details.ft-grp').forEach(d => {
     d.addEventListener('toggle', () => {
@@ -503,12 +655,23 @@ function _fitFillTypes(detailsEl, node) {
   if (!holder || !node.types.length) return;
   const kind = _fitState.searchKind;
   const types = kind === 'module' ? node.types.filter(_fitPassesFilters) : node.types;
+  const locals = kind === 'ship' ? _fitLocalFits() : [];
   holder.innerHTML = types.map(t => {
     let html = _fitTypeRowHtml(t);
-    if (kind === 'ship' && _fitState.fitsByHull?.byHull?.has(t.id)) {
-      html += _fitState.fitsByHull.byHull.get(t.id)
-        .map(({ i, name }) => `<div class="fit-result ft-fit" data-fitidx="${i}" title="Saved fit — click to load">⚙ ${_fitEsc(name)}</div>`)
-        .join('');
+    if (kind === 'ship') {
+      for (const lf of locals) {
+        if (lf.hullId !== t.id) continue;
+        html += `
+          <div class="fit-result ft-fit ft-fit-local" data-localfit="${lf.id}" title="Saved in EVE Carbon — click to load">
+            <span class="material-symbols-outlined">save</span>${_fitEsc(lf.name)}
+            <button class="ft-fit-del" data-delfit="${lf.id}" title="Delete this saved fit">✕</button>
+          </div>`;
+      }
+      if (_fitState.fitsByHull?.byHull?.has(t.id)) {
+        html += _fitState.fitsByHull.byHull.get(t.id)
+          .map(({ i, name }) => `<div class="fit-result ft-fit" data-fitidx="${i}" title="Saved fit — click to load">⚙ ${_fitEsc(name)}</div>`)
+          .join('');
+      }
     }
     return html;
   }).join('') || `<div class="fit-hint" style="padding:4px 8px;">No matches for the active filters.</div>`;
@@ -517,10 +680,24 @@ function _fitFillTypes(detailsEl, node) {
 // Saved game fits for the selected character, grouped by hull (Hulls & Fits tab).
 async function _fitEnsureGameFits() {
   const charId = document.getElementById('fitCharSelect')?.value || '';
-  if (!charId) { _fitState.fitsByHull = null; return; }
-  if (_fitState.fitsChar === charId && _fitState.fitsByHull) return;
-  const res = await window.eveAPI.fitGetFittings(charId).catch(() => ({ ok: false }));
-  const all = (res.ok && res.fittings) || [];
+  if (!charId) { _fitState.fitsByHull = null; _fitState.fitsError = null; return; }
+  if (_fitState.fitsChar === charId && _fitState.fitsByHull) { _fitState.fitsError = null; return; }
+  // After a failure, keep showing the notice but don't re-hit ESI on every
+  // render — retry at most every 30 s (rate-limit friendly).
+  if (_fitState.fitsError && Date.now() - (_fitState.fitsErrorAt || 0) < 30000) return;
+  const res = await window.eveAPI.fitGetFittings(charId).catch(e => ({ ok: false, error: e.message }));
+  if (!res.ok) {
+    // Do NOT cache a failed fetch as an empty list — the next render retries,
+    // and the tree shows WHY the fits are missing instead of silently blanking.
+    _fitState.fitsByHull = null; _fitState.fitsChar = null;
+    _fitState.fitsErrorAt = Date.now();
+    _fitState.fitsError = res.needsReauth
+      ? 'Re-authenticate this character to grant fittings access.'
+      : (res.error || 'Could not load game fits.');
+    return;
+  }
+  _fitState.fitsError = null;
+  const all = res.fittings || [];
   const byHull = new Map();
   all.forEach((f, i) => {
     if (!byHull.has(f.shipTypeId)) byHull.set(f.shipTypeId, []);
@@ -673,6 +850,11 @@ function _fitSyncRacks() {
     while (rack.length < want) rack.push(null);
     if (rack.length > want) rack.splice(want).forEach(m => { if (m) dropped.push(m.name); });
   }
+  // Fighter launch tubes track the hull too.
+  const tubes = hull.fighter?.tubes || 0;
+  const fl = _fitState.fighters || (_fitState.fighters = []);
+  while (fl.length < tubes) fl.push(null);
+  if (fl.length > tubes) fl.splice(tubes).forEach(t => { if (t) dropped.push(`${t.name} squadron`); });
   if (dropped.length) _fitFlash(`Unfitted (slot removed): ${dropped.join(', ')}`);
 }
 
@@ -693,6 +875,7 @@ async function _fitLoadHull(typeId) {
   _fitState.hull = hull;
   _fitState.modules = _fitEmptyRacks(hull);
   _fitState.drones = [];
+  _fitState.fighters = [];
   _fitState.selected = null;
   _fitRenderAll();
 }
@@ -703,11 +886,86 @@ async function _fitLoadHull(typeId) {
 // fighter bay, launched as SQUADRONS limited by launch tubes).
 function _fitIsFighter(d)     { return (d.f?.categoryId ?? d.categoryId) === 87; }
 function _fitDroneUsedM3()    { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.qty * (d.f?.volume || 0), 0); }
-function _fitFighterUsedM3()  { return _fitState.drones.filter(_fitIsFighter).reduce((s, d) => s + d.qty * (d.f?.volume || 0), 0); }
 function _fitDroneActiveBw()  { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.active * (d.f?.attrs?.[1272] || 0), 0); }
 function _fitDroneActiveN()   { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.active, 0); }
-function _fitFighterActiveSq(){ return _fitState.drones.filter(_fitIsFighter).reduce((s, d) => s + d.active, 0); }
 function _fitFighterSqSize(d) { return d.f?.attrs?.[2215] || 1; }
+
+// ── Fighters live in LAUNCH TUBES — one squadron per tube (in-game model). ──
+// Hulls limit squadrons by TYPE: fighterLightSlots / SupportSlots / HeavySlots
+// (a Thanatos' 4 tubes hold at most 3 light + 2 support; a Hel 3 light + 4 heavy).
+function _fitFighterType(f) {
+  const g = f?.groupId;
+  if (g === 1652 || g === 4777) return 'light';
+  if (g === 1537 || g === 4778) return 'support';
+  if (g === 1653 || g === 4779) return 'heavy';
+  return null;
+}
+function _fitFighterTubeCaps() {
+  const fg = _fitState.hull?.fighter || {};
+  return { tubes: fg.tubes || 0, light: fg.light || 0, support: fg.support || 0, heavy: fg.heavy || 0 };
+}
+function _fitFighterTypeCount(type) {
+  return (_fitState.fighters || []).filter(t => t && _fitFighterType(t.f) === type).length;
+}
+function _fitFighterUsedM3()  { return (_fitState.fighters || []).reduce((s, t) => s + (t ? t.units * (t.f?.volume || 0) : 0), 0); }
+function _fitFighterActiveSq(){ return (_fitState.fighters || []).filter(t => t && t.active).length; }
+
+// Load a squadron into a tube. Enforces tube count, per-type squadron slots and
+// fighter-bay volume; auto-clamps units to what the bay can still hold.
+// Returns the number of UNITS placed (0 = refused, with the reason flashed).
+function _fitAddFighter(facts, atTube = null, wantUnits = Infinity) {
+  const hull = _fitState.hull;
+  const caps = _fitFighterTubeCaps();
+  if (!caps.tubes) { _fitFlash(`${hull.name} has no fighter launch tubes.`); return 0; }
+  const type = _fitFighterType(facts);
+  if (!type) { _fitFlash(`${facts.name} isn't a fighter.`); return 0; }
+  const fl = _fitState.fighters;
+  const idx = (atTube != null && atTube < fl.length && !fl[atTube]) ? atTube : fl.findIndex(t => !t);
+  if (idx === -1) { _fitFlash(`All ${caps.tubes} launch tubes are loaded.`); return 0; }
+  if (_fitFighterTypeCount(type) >= (caps[type] || 0)) {
+    _fitFlash(`No free ${type}-squadron slots (${_fitFighterTypeCount(type)}/${caps[type] || 0} on ${hull.name}).`);
+    return 0;
+  }
+  const sqMax = facts.attrs?.[2215] || 1;
+  const free  = (hull.fighter?.bay || 0) - _fitFighterUsedM3();
+  const units = Math.max(0, Math.min(sqMax, wantUnits, Math.floor(free / (facts.volume || 1))));
+  if (!units) { _fitFlash(`Fighter bay full (${_fitNum(_fitFighterUsedM3())} / ${_fitNum(hull.fighter.bay)} m³).`); return 0; }
+  fl[idx] = { id: facts.id, name: facts.name, f: facts, units, active: true };
+  _fitRenderAll();
+  if (units < Math.min(sqMax, wantUnits)) _fitFlash(`Tube ${idx + 1}: only ${units}/${sqMax} ${facts.name}s fit in the bay.`);
+  return units;
+}
+
+// Combined sustained DPS of one tube's squadron: primary attack + missile salvo
+// (averaged over its cooldown) + bomb launches.
+function _fitFighterTubeDps(t) {
+  const a = t.f?.attrs || {};
+  let dps = 0;
+  const add = (perUnit, cycMs) => { if (perUnit > 0 && cycMs > 0) dps += (perUnit * t.units) / (cycMs / 1000); };
+  add(((a[2227] || 0) + (a[2228] || 0) + (a[2229] || 0) + (a[2230] || 0)) * (a[2226] || 1), a[2233] || 0);
+  add(((a[2131] || 0) + (a[2132] || 0) + (a[2133] || 0) + (a[2134] || 0)) * (a[2130] || 1), a[2182] || 0);
+  if (a[2324]) {
+    const bf = _fitBombFacts(a[2324]);
+    if (bf) { const d = bf.dmg || {}; add((d.em || 0) + (d.th || 0) + (d.kin || 0) + (d.exp || 0), a[2349] || 60000); }
+  }
+  return dps;
+}
+
+// Units stepper for a tube (±1): capped by squadron max and fighter-bay volume.
+function _fitTubeUnits(i, delta) {
+  const t = _fitState.fighters[i];
+  if (!t) return;
+  if (delta > 0) {
+    const sqMax = t.f?.attrs?.[2215] || 1;
+    if (t.units >= sqMax) { _fitFlash(`Squadron is full (${sqMax} max for ${t.name}).`); return; }
+    const free = (_fitState.hull?.fighter?.bay || 0) - _fitFighterUsedM3();
+    if (free < (t.f?.volume || 0)) { _fitFlash(`Fighter bay full (${_fitNum(_fitFighterUsedM3())} / ${_fitNum(_fitState.hull.fighter.bay)} m³).`); return; }
+    t.units++;
+  } else {
+    t.units = Math.max(1, t.units - 1);
+  }
+  _fitRenderAll();
+}
 // Control range: 20 km base + Drone Avionics (+5 km/lvl) + Advanced Drone
 // Avionics (+3 km/lvl) + Drone Link Augmentors (attr 459, flat metres, online).
 function _fitDroneCtrlRange() {
@@ -720,13 +978,24 @@ function _fitDroneCap() { return _fitSkill(FIT_SK.drones); }
 
 function _fitAddDrone(facts, qty = 1) {
   if (!_fitState.hull) { _fitFlash('Pick a hull first.'); return; }
-  const fighter = facts.categoryId === 87;
-  const bay = fighter ? (_fitState.hull.fighter?.bay || 0) : _fitEffDrone().bay;
-  if (!bay) { _fitFlash(`${_fitState.hull.name} has no ${fighter ? 'fighter' : 'drone'} bay.`); return; }
-  const used = fighter ? _fitFighterUsedM3() : _fitDroneUsedM3();
+  // Fighters go into launch tubes, one squadron per tube. A click adds one full
+  // squadron; an import quantity fills as many tubes as it can.
+  if (facts.categoryId === 87) {
+    if (qty <= 1) { _fitAddFighter(facts); return; }
+    let left = qty;
+    while (left > 0) {
+      const placed = _fitAddFighter(facts, null, left);
+      if (!placed) break;
+      left -= placed;
+    }
+    return;
+  }
+  const bay = _fitEffDrone().bay;
+  if (!bay) { _fitFlash(`${_fitState.hull.name} has no drone bay.`); return; }
+  const used = _fitDroneUsedM3();
   const vol  = facts.volume || 0;
   const fits = Math.max(0, Math.min(qty, Math.floor((bay - used) / (vol || 1))));
-  if (!fits) { _fitFlash(`${fighter ? 'Fighter' : 'Drone'} bay full (${_fitNum(used)} / ${_fitNum(bay)} m³).`); return; }
+  if (!fits) { _fitFlash(`Drone bay full (${_fitNum(used)} / ${_fitNum(bay)} m³).`); return; }
   const stack = _fitState.drones.find(d => d.id === facts.id);
   if (stack) stack.qty += fits;
   else _fitState.drones.push({ id: facts.id, name: facts.name, f: facts, qty: fits, active: 0 });
@@ -735,28 +1004,19 @@ function _fitAddDrone(facts, qty = 1) {
   if (fits < qty) _fitFlash(`Only ${fits} fit in the bay.`);
 }
 
-// Change a stack's ACTIVE count (±1). Drones: bandwidth + max 5 in space (assumes
-// Drones V). Fighters: active = SQUADRONS — capped by launch tubes and by how many
-// full squadrons the units in the bay can form.
+// Change a drone stack's ACTIVE count (±1): bandwidth + max-in-space limits.
+// (Fighters live in launch tubes — see _fitTubeUnits / the tube panel.)
 function _fitDroneSetActive(id, delta) {
   const d = _fitState.drones.find(x => x.id === id);
   if (!d || !_fitState.hull) return;
   if (delta > 0) {
-    if (_fitIsFighter(d)) {
-      const tubes = _fitState.hull.fighter?.tubes || 0;
-      const maxSq = Math.floor(d.qty / _fitFighterSqSize(d));
-      if (_fitFighterActiveSq() >= tubes) { _fitFlash(`All ${tubes} launch tubes in use.`); return; }
-      if (d.active >= maxSq) { _fitFlash(`Not enough ${d.name}s for another full squadron (${_fitFighterSqSize(d)}/sq).`); return; }
-      d.active++;
-    } else {
-      const bw = _fitEffDrone().bandwidth;
-      const unit = d.f?.attrs?.[1272] || 0;
-      if (d.active >= d.qty) return;
-      const cap = _fitDroneCap();
-      if (_fitDroneActiveN() >= cap) { _fitFlash(cap ? `Max ${cap} drones in space (Drones ${cap === 5 ? 'V' : cap}).` : 'The Drones skill is 0 under this profile — no drones can launch.'); return; }
-      if (_fitDroneActiveBw() + unit > bw) { _fitFlash(`Not enough drone bandwidth (${_fitNum(bw)} Mbit/s).`); return; }
-      d.active++;
-    }
+    const bw = _fitEffDrone().bandwidth;
+    const unit = d.f?.attrs?.[1272] || 0;
+    if (d.active >= d.qty) return;
+    const cap = _fitDroneCap();
+    if (_fitDroneActiveN() >= cap) { _fitFlash(cap ? `Max ${cap} drones in space (Drones ${cap === 5 ? 'V' : cap}).` : 'The Drones skill is 0 under this profile — no drones can launch.'); return; }
+    if (_fitDroneActiveBw() + unit > bw) { _fitFlash(`Not enough drone bandwidth (${_fitNum(bw)} Mbit/s).`); return; }
+    d.active++;
   } else {
     d.active = Math.max(0, d.active - 1);
   }
@@ -771,41 +1031,88 @@ function _fitDroneSim() {
   if (!_fitState.hull) return out;
   const ctrl = _fitDroneCtrlRange();
   // Drone Damage Amplifiers (attr 1255, %, online lows) — stacking penalized —
-  // plus Drone Interfacing (+10%/lvl, never penalized).
+  // plus Drone Interfacing (+10%/lvl, never penalized), hull drone-damage traits
+  // (Gila/Ishtar/Rattlesnake…) and drone-tuner implants.
   const dda = [];
   for (const m of _fitAllMods()) if (m.state !== 'offline' && m.f?.attrs?.[1255]) dda.push(m.f.attrs[1255] / 100);
-  const dmgMult = _fitStackChain(dda) * _fitSkMult('interfacing', 10);
+  const dmgMult = _fitStackChain(dda) * _fitSkMult('interfacing', 10) * _fitImplantBonuses().droneDmg;
   for (const d of _fitState.drones) {
-    if (!d.active) continue;
+    if (!d.active || _fitIsFighter(d)) continue;                     // fighters live in tubes now
     const a = d.f?.attrs || {};
-    if (_fitIsFighter(d)) {
-      const sq = _fitFighterSqSize(d);
-      const perVolley = ((a[2227] || 0) + (a[2228] || 0) + (a[2229] || 0) + (a[2230] || 0)) * (a[2226] || 1) * sq;
-      const cyc = a[2233] || 0;
-      const dps = perVolley > 0 && cyc > 0 ? (perVolley / (cyc / 1000)) * d.active : 0;
-      if (!dps) continue;
+    const droneTrait = _fitTraitMult('dmg', _fitRsSet(d.f), 'drone');
+    const raw = (a[114] || 0) + (a[118] || 0) + (a[117] || 0) + (a[116] || 0);
+    const perShot = raw * (a[64] || 1) * dmgMult * droneTrait;
+    const rof = a[51] || 0;
+    const dps = perShot > 0 && rof > 0 ? (perShot / (rof / 1000)) * d.active : 0;
+    if (!dps) continue;
+    out.push({
+      kind: 'drone', flavor: 'drone', hot: false,
+      name: d.name, chargeName: null, count: d.active,
+      dps, volley: perShot * d.active,
+      split: { em: (a[114] || 0) / raw, th: (a[118] || 0) / raw, kin: (a[117] || 0) / raw, exp: (a[116] || 0) / raw },
+      optimal: a[54] || 0, falloff: a[158] || 0, tracking: a[160] || 0,
+      vel: a[37] || 0, range: ctrl,
+    });
+  }
+  // Launched squadrons — grouped per fighter type so 2 tubes of Einherjis read
+  // as one chart series. Each ABILITY is its own series: the constant primary
+  // attack, the big cooldown SALVO (Tyrfing-style heavy attack bombers), and
+  // bomb launches (long-range fighters) — all scale with UNITS launched.
+  const fMap = new Map();
+  for (const t of _fitState.fighters || []) {
+    if (!t || !t.active) continue;
+    const e = fMap.get(t.id) || { f: t.f, name: t.name, units: 0, squads: 0 };
+    e.units += t.units; e.squads++;
+    fMap.set(t.id, e);
+  }
+  for (const e of fMap.values()) {
+    const a = e.f?.attrs || {};
+    const push = (suffix, comp, mult, cycMs, rangeM) => {
+      const perUnit = (comp.em + comp.th + comp.kin + comp.exp) * mult;
+      const volley = perUnit * e.units;
+      const dps = volley > 0 && cycMs > 0 ? volley / (cycMs / 1000) : 0;
+      if (!dps) return;
+      const sum = comp.em + comp.th + comp.kin + comp.exp;
       out.push({
         kind: 'fighter', flavor: 'fighter', hot: false,
-        name: d.name, chargeName: null, count: d.active,
-        dps, volley: perVolley * d.active,
-        optimal: a[2236] || 0, falloff: a[2237] || 0, tracking: null,
-        vel: a[37] || 0, range: Infinity,
+        name: `${e.name} — ${suffix}`, chargeName: null, count: e.squads,
+        dps, volley,
+        split: { em: comp.em / sum, th: comp.th / sum, kin: comp.kin / sum, exp: comp.exp / sum },
+        optimal: rangeM, falloff: 0, tracking: null,
+        vel: a[37] || 0, range: Infinity, abilityRange: rangeM,
       });
-    } else {
-      const perShot = ((a[114] || 0) + (a[118] || 0) + (a[117] || 0) + (a[116] || 0)) * (a[64] || 1) * dmgMult;
-      const rof = a[51] || 0;
-      const dps = perShot > 0 && rof > 0 ? (perShot / (rof / 1000)) * d.active : 0;
-      if (!dps) continue;
-      out.push({
-        kind: 'drone', flavor: 'drone', hot: false,
-        name: d.name, chargeName: null, count: d.active,
-        dps, volley: perShot * d.active,
-        optimal: a[54] || 0, falloff: a[158] || 0, tracking: a[160] || 0,
-        vel: a[37] || 0, range: ctrl,
-      });
+    };
+    // Primary attack (constant fire).
+    push('attack',
+      { em: a[2227] || 0, th: a[2228] || 0, kin: a[2229] || 0, exp: a[2230] || 0 },
+      a[2226] || 1, a[2233] || 0, (a[2236] || 0) + (a[2237] || 0));
+    // Missile salvo (huge volley on a long cooldown — DPS shown as the
+    // sustained average, volley shows the burst).
+    push('salvo',
+      { em: a[2131] || 0, th: a[2132] || 0, kin: a[2133] || 0, exp: a[2134] || 0 },
+      a[2130] || 1, a[2182] || 0, a[2149] || 0);
+    // Bomb launch — damage lives on the BOMB type (attr 2324), fetched lazily.
+    if (a[2324]) {
+      const bf = _fitBombFacts(a[2324]);
+      if (bf) {
+        const d = bf.dmg || {};
+        push('bomb', { em: d.em || 0, th: d.th || 0, kin: d.kin || 0, exp: d.exp || 0 }, 1, a[2349] || 60000, bf.attrs?.[54] || 0);
+      }
     }
   }
   return out;
+}
+
+// Bomb items referenced by fighter launch-bomb abilities — fetched once, then
+// the render that needed them re-runs.
+const _fitBombCache = new Map();
+function _fitBombFacts(typeId) {
+  if (_fitBombCache.has(typeId)) return _fitBombCache.get(typeId);
+  _fitBombCache.set(typeId, null);
+  window.eveAPI.fitGetItems([typeId]).then(r => {
+    if (r && r[typeId]) { _fitBombCache.set(typeId, r[typeId]); _fitRenderAll(); }
+  }).catch(() => {});
+  return null;
 }
 
 // Full fit-legality check (mirrors the game): the hull must have that slot type
@@ -871,6 +1178,35 @@ function _fitMod(facts) {
            activatable, overloadable, state: activatable ? 'active' : 'online' };
 }
 
+// A copy of a fitted module: same type, same state, same loaded charge.
+function _fitDupMod(src) {
+  const copy = _fitMod(src.f);
+  copy.state = src.state;                                // mirror active/overheated/etc.
+  if (src.charge) copy.charge = { ...src.charge };
+  return copy;
+}
+
+// Shift+click on a fitted module: clone it — module AND whatever charge it has
+// loaded — into the next free slot of the same rack (fast way to fill a rack
+// with identical weapons). Respects slot, hardpoint and CPU/PG limits.
+// (Shift+DRAG+drop clones onto a specific slot — see _fitHandleDrop.)
+function _fitCloneSlot(slot, idx) {
+  try {
+    const src = _fitState.modules[slot]?.[idx];
+    if (!src) return;
+    if (slot === 'subsystem') { _fitFlash('Subsystems are one per slot — nothing to duplicate.'); return; }
+    const err = _fitCanFit(src.f);
+    if (err) { _fitFlash(err); return; }
+    if (!_fitPlace(slot, _fitDupMod(src))) { _fitFlash(`No free ${slot} slots.`); return; }
+    _fitRenderAll();
+    _fitFlash(`Duplicated ${src.name}${src.charge ? ` + ${src.charge.name}` : ''}.`);
+  } catch (e) {
+    // Never fail silently — surface whatever went wrong in the header.
+    console.error('[fitting] shift+click duplicate failed:', e);
+    _fitFlash('Duplicate failed: ' + e.message);
+  }
+}
+
 // Cycle a fitted module's state: offline → online → active? → overheated? → …
 function _fitCycleState(slot, idx) {
   const m = _fitState.modules[slot]?.[idx];
@@ -885,6 +1221,8 @@ function _fitCycleState(slot, idx) {
 // Drop payloads: "move:slot:idx" (reposition within a rack) or "new:typeId"
 // (from the browser — module to a specific slot, or a charge onto a module).
 // Shift-dropping a charge loads it into EVERY compatible fitted module.
+// Shift-dropping a FITTED module duplicates it (charge included) onto the
+// target slot instead of moving it.
 async function _fitHandleDrop(payload, tgtSlot, tgtIdx, shiftAll = false) {
   if (!payload || !_fitState.hull) return;
 
@@ -895,6 +1233,18 @@ async function _fitHandleDrop(payload, tgtSlot, tgtIdx, shiftAll = false) {
     if (srcSlot === 'subsystem') { _fitFlash('Subsystems occupy fixed slots (Core / Defensive / Offensive / Propulsion).'); return; }
     if (srcSlot !== tgtSlot) { _fitFlash(`That's a ${srcSlot}-slot module — it can't move to a ${tgtSlot} slot.`); return; }
     const rack = _fitState.modules[srcSlot];
+    if (shiftAll) {                                      // shift held → copy, don't move
+      const src = rack[srcIdx];
+      if (!src) return;
+      if (rack[tgtIdx]) { _fitFlash('Shift-drop onto an EMPTY slot to duplicate.'); return; }
+      const err = _fitCanFit(src.f);                     // free slot count + hardpoints
+      if (err) { _fitFlash(err); return; }
+      rack[tgtIdx] = _fitDupMod(src);
+      _fitState.selected = null;
+      _fitRenderAll();
+      _fitFlash(`Duplicated ${src.name}${src.charge ? ` + ${src.charge.name}` : ''}.`);
+      return;
+    }
     [rack[srcIdx], rack[tgtIdx]] = [rack[tgtIdx], rack[srcIdx]];   // swap (or move into empty)
     _fitState.selected = null;
     _fitRenderAll();
@@ -980,6 +1330,305 @@ function _fitStackChain(fractions) {
   pos.forEach((b, i) => { mult *= 1 + b * Math.exp(-((i / 2.67) ** 2)); });
   neg.forEach((b, i) => { mult *= 1 + b * Math.exp(-((i / 2.67) ** 2)); });
   return mult;
+}
+
+// ─── Hull-trait engine ─────────────────────────────────────────────────────────
+// invTraits rows (hull + fitted T3 subsystems) parsed into machine records.
+// skillID -1 = role bonus (always on); otherwise %-per-level of that skill.
+// The bonusText's <a href=showinfo:ID> links are the SKILL ids the affected
+// weapons / charges / drones / modules must REQUIRE (requiredSkill1-3) — that's
+// the matcher, no name parsing of item types needed. Trait bonuses are plain
+// multipliers (never stacking-penalized), exactly like the game.
+const _FIT_DT_ALL = ['em', 'th', 'kin', 'exp'];
+const _FIT_DT_KEY = { em: 'em', thermal: 'th', kinetic: 'kin', explosive: 'exp' };
+
+function _fitParseTrait(r) {
+  if (r == null || r.bonus == null || r.unitID !== 105) return null;   // % rows only
+  const raw = String(r.bonusText || '');
+  const links = [...raw.matchAll(/showinfo:(\d+)/g)].map(x => Number(x[1]));
+  const text = raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const rec = { pct: Number(r.bonus) || 0, skillId: r.skillID > 0 ? r.skillID : null, links, text };
+  const has = (s) => text.includes(s);
+
+  if (has('signature radius penalty'))      return { ...rec, q: 'mwdSigPen' };
+  if (has('all shield resistances'))        return { ...rec, q: 'res', layer: 'shield', dtypes: _FIT_DT_ALL };
+  if (has('all armor resistances'))         return { ...rec, q: 'res', layer: 'armor',  dtypes: _FIT_DT_ALL };
+  const resM = text.match(/(shield|armor|hull|structure) (em|thermal|kinetic|explosive) resistance/);
+  if (resM) return { ...rec, q: 'res', layer: resM[1] === 'structure' ? 'hull' : resM[1], dtypes: [_FIT_DT_KEY[resM[2]]] };
+  if (has('rate of fire') && !has('reload')) return { ...rec, q: 'rof' };
+  if (has('burst strength')) return { ...rec, q: 'burstStr' };         // command-ship burst bonuses
+  if (/(booster|boost|repairer|repair) amount/.test(text)) return { ...rec, q: 'repAmount' };
+  if (has('damage') && !has('damage from overheating') && !has('smartbomb')) {
+    const dtypes = Object.keys(_FIT_DT_KEY).filter(w => has(w)).map(w => _FIT_DT_KEY[w]);
+    return { ...rec, q: 'dmg', dtypes };
+  }
+  if (has('falloff'))        return { ...rec, q: 'falloff' };
+  if (has('optimal range'))  return { ...rec, q: 'optimal' };
+  if (has('tracking speed')) return { ...rec, q: 'tracking' };
+  if (has('flight time'))    return { ...rec, q: 'mslFlight' };
+  if (has('warp speed'))     return { ...rec, q: 'warp' };
+  if (has('velocity') && !has('explosion velocity')) {
+    if (has('drone')) return null;                                     // drone speed isn't simmed
+    if (has('afterburner') || has('microwarpdrive')) return { ...rec, q: 'propBoost' };
+    if (has('missile')) return { ...rec, q: 'mslVel' };
+    if (links.length)   return { ...rec, q: 'mslVel' };                // "<HAM> max velocity" — scoped, only charges can match
+    if (has('max velocity')) return { ...rec, q: 'shipVel' };
+    return null;
+  }
+  if (has('hitpoints')) {
+    if (links.length) return { ...rec, q: 'modhp' };                   // "<Shield Extender> hitpoints" — scales that module's HP add
+    if (has('shield')) return { ...rec, q: 'hp', layer: 'shield' };
+    if (has('armor'))  return { ...rec, q: 'hp', layer: 'armor' };
+    if (has('structure') || has('hull')) return { ...rec, q: 'hp', layer: 'struct' };
+    return null;
+  }
+  if (has('capacitor capacity'))       return { ...rec, q: 'cap' };
+  if (has('capacitor recharge time'))  return { ...rec, q: 'capTime' };
+  return null;                                                         // not simulated (reps, EWAR, reload, …)
+}
+
+// All active trait records: the hull's + every fitted (non-offline) subsystem's.
+function _fitTraitRecords() {
+  const hull = _fitState.hull;
+  if (!hull) return [];
+  if (_fitTraitRecords._hull === hull && _fitTraitRecords._subs === _fitSubsKey()) return _fitTraitRecords._recs;
+  const rows = [...(hull.traits || [])];
+  for (const m of _fitState.modules.subsystem || []) {
+    if (m && m.state !== 'offline') rows.push(...(m.f?.traits || []));
+  }
+  const recs = rows.map(_fitParseTrait).filter(Boolean);
+  _fitTraitRecords._hull = hull; _fitTraitRecords._subs = _fitSubsKey(); _fitTraitRecords._recs = recs;
+  return recs;
+}
+function _fitSubsKey() {
+  return (_fitState.modules.subsystem || []).map(m => (m && m.state !== 'offline') ? m.id : 0).join(',');
+}
+
+// Bonus scale: role rows apply once; per-skill rows scale with the profile's level.
+function _fitTraitLvl(rec) { return rec.skillId ? _fitSkill(rec.skillId) : 1; }
+
+// Does a trait row apply to an item with this required-skill set?
+// Linked rows match if any linked skill is required by the weapon/charge/drone/
+// module; unlinked rows fall back to the kind word in the text ("missile",
+// "turret", "drone" — e.g. the Drake's "25% bonus to Missile velocity").
+function _fitTraitMatches(rec, rsSet, kindWord) {
+  if (rec.links.length) return !!rsSet && rec.links.some(id => rsSet.has(id));
+  if (!kindWord) return true;
+  return rec.text.includes(kindWord);
+}
+
+// Required-skill id set (requiredSkill1-3 = attrs 182/183/184) for facts objects.
+function _fitRsSet(...factsList) {
+  const s = new Set();
+  for (const f of factsList) {
+    const a = f?.attrs || {};
+    for (const id of [a[182], a[183], a[184]]) if (id) s.add(id);
+  }
+  return s;
+}
+
+// Product of all matching trait multipliers for a quantity (1 + pct·lvl/100).
+function _fitTraitMult(q, rsSet = null, kindWord = null) {
+  let k = 1;
+  for (const rec of _fitTraitRecords()) {
+    if (rec.q !== q || !_fitTraitMatches(rec, rsSet, kindWord)) continue;
+    k *= 1 + (rec.pct * _fitTraitLvl(rec)) / 100;
+  }
+  return k;
+}
+// Same for ship-level quantities with a layer (hp).
+function _fitTraitLayerMult(q, layer) {
+  let k = 1;
+  for (const rec of _fitTraitRecords()) {
+    if (rec.q === q && rec.layer === layer) k *= 1 + (rec.pct * _fitTraitLvl(rec)) / 100;
+  }
+  return k;
+}
+// Module-HP trait scale ("+100% Shield Extender hitpoints") for one fitted module.
+function _fitModHpMult(mFacts) {
+  let k = 1;
+  const rs = _fitRsSet(mFacts);
+  for (const rec of _fitTraitRecords()) {
+    if (rec.q === 'modhp' && rec.links.some(id => rs.has(id))) k *= 1 + (rec.pct * _fitTraitLvl(rec)) / 100;
+  }
+  return k;
+}
+// Resonance scale from resist traits: res × (1 − pct·lvl/100) per matching row.
+function _fitTraitRes(layer, res) {
+  for (const rec of _fitTraitRecords()) {
+    if (rec.q !== 'res' || rec.layer !== layer) continue;
+    const k = 1 - (rec.pct * _fitTraitLvl(rec)) / 100;
+    for (const t of rec.dtypes) if (res[t] != null) res[t] *= k;
+  }
+  return res;
+}
+
+// ─── Implants ──────────────────────────────────────────────────────────────────
+// 10 slots (implantness attr 331). Bonuses are carried as plain % attributes and
+// scoped by the implant's effect names ("…RequiringGunnery" → turrets,
+// "missileSkill…" → launchers, drone tuners → drones). Implant bonuses are never
+// stacking-penalized. Pirate SET multipliers are not applied (each implant's own
+// bonus is), and rep/boost-amount implants aren't simulated.
+const _FIT_MSL_FRAG = {   // per-missile-type damage implants: effect suffix → charge group fragment
+  heavyassault: 'heavy assault', heavy: 'heavy missile', cruise: 'cruise',
+  torpedo: 'torpedo', light: 'light missile', rocket: 'rocket', defender: 'defender',
+};
+// Pirate / navy implant SET attributes (implantSetSerpentis, ImplantSetNirvana…).
+// Set mechanic: every piece's set-multiplier amplifies the bonuses of ALL worn
+// pieces of that set, its own included — verified against the known full-set
+// numbers (High-grade Amulet/Crystal ≈ +53.6%, High-grade Snake ≈ +24.7%).
+const _FIT_SET_ATTRS = [
+  802, 803, 838, 863, 864, 799, 1282, 1284, 1291, 1292, 1293,
+  1550, 1552, 1553, 1554, 1569, 1570, 1571, 1572, 1799, 1932, 2825, 3017, 3023, 3027, 3107,
+];
+function _fitImplantBonuses() {
+  const B = {
+    turretDmg: 1, turretRof: 1, turretOpt: 1, turretFall: 1, turretTrack: 1,
+    mslRof: 1, mslVel: 1, mslFlight: 1, mslDmg: [],
+    droneDmg: 1, shieldHp: 1, armorHp: 1, hullHp: 1, cap: 1, capTime: 1,
+    vel: 1, agi: 1, sig: 1, propBoost: 1, cpuOut: 1, pgOut: 1,
+    lock: 1, scanres: 1, sensor: 1, sensorFlat: 0, warp: 1,
+    shieldBoostAmt: 1, armorRepAmt: 1, repDur: 1,
+  };
+  const sensorAttr = { Gravimetric: 1027, Ladar: 1028, Magnetometric: 1029, Radar: 1030 }[_fitState.hull?.targeting?.sensorType];
+  const sensorFlatAttr = { Gravimetric: 1567, Ladar: 1566, Magnetometric: 1568, Radar: 1565 }[_fitState.hull?.targeting?.sensorType];
+  // Pass 1 — set-multiplier product per worn set (Omega is the big amplifier).
+  const setProd = {};
+  for (const imp of _fitState.implants) {
+    const a = imp?.f?.attrs || {};
+    for (const id of _FIT_SET_ATTRS) if (a[id]) setProd[id] = (setProd[id] || 1) * a[id];
+  }
+  for (const imp of _fitState.implants) {
+    if (!imp?.f) continue;
+    const a = imp.f.attrs || {};
+    const effs = (imp.f.effects || []).join(' ').toLowerCase();
+    // Set pieces: all their bonuses are scaled by the whole set's multiplier product.
+    let setK = 1;
+    for (const id of _FIT_SET_ATTRS) if (a[id] && setProd[id]) { setK = setProd[id]; break; }
+    const p = (id) => 1 + ((a[id] || 0) * setK) / 100;
+    // Drone tuners / 'Valdimar' drone implants: their damage applies to drones and
+    // their hp/speed attrs must NEVER leak onto the ship.
+    if (effs.includes('drone')) {
+      if (a[292]) B.droneDmg *= p(292);
+      continue;
+    }
+    if (a[292]) {                                        // damageMultiplierBonus
+      if (effs.includes('missile')) {
+        const sufM = effs.match(/dmgbonus(\w+)/);
+        const frag = sufM ? _FIT_MSL_FRAG[sufM[1]] : null;
+        if (frag) B.mslDmg.push({ frag, mult: p(292) }); // per-missile-type (Snapshot line)
+      } else B.turretDmg *= p(292);                      // Gunnery-scoped (Lancer/Gunslinger)
+    }
+    if (a[441]) B.turretRof   *= p(441);                 // negative = faster
+    // 294 doubles as EWAR-range on Centurion sets — only gunnery-scoped ones
+    // (Sharpshooter line) touch turret optimal.
+    if (a[294] && effs.includes('gunnery')) B.turretOpt *= p(294);
+    if (a[349]) B.turretFall  *= p(349);
+    if (a[767]) B.turretTrack *= p(767);
+    if (a[293]) B.mslRof *= p(293);
+    if (a[20] && effs.includes('missile')) B.mslVel *= p(20);   // 'Deadeye' Missile Projection
+    if (a[547]) B.mslVel *= p(547);
+    if (a[557]) B.mslFlight *= p(557);
+    if (a[3030]) B.mslFlight *= p(3030);                 // Hydra pieces
+    if (a[3015]) B.shieldHp *= p(3015);                  // Nirvana pieces
+    if (a[337])  B.shieldHp *= p(337);
+    if (a[335])  B.armorHp *= p(335);
+    if (a[1083]) B.armorHp *= p(1083);
+    if (a[327])  B.hullHp *= p(327);
+    if (a[1079]) B.cap *= p(1079);
+    if (a[314])  B.capTime *= p(314);                    // negative = faster recharge
+    if (a[1076]) B.vel *= p(1076);
+    if (a[315])  B.vel *= p(315);                        // Snake pieces (set-amplified via setK)
+    if (a[2603]) B.vel *= p(2603);
+    if (a[151])  B.agi *= p(151);                        // negative = more agile
+    if (a[554])  B.sig *= p(554);                        // Halo: negative
+    if (a[318])  B.propBoost *= p(318);                  // Zor's / Acceleration Control
+    if (a[424])  B.cpuOut *= p(424);
+    if (a[313])  B.pgOut *= p(313);
+    if (a[309])  B.lock *= p(309);
+    if (a[566])  B.scanres *= p(566);
+    if (a[624])  B.warp *= p(624);
+    if (sensorAttr && a[sensorAttr]) B.sensor *= p(sensorAttr);
+    if (sensorFlatAttr && a[sensorFlatAttr]) B.sensorFlat += a[sensorFlatAttr] * setK;   // LG navy sets: flat points
+    if (a[548])  B.shieldBoostAmt *= p(548);             // Crystal pieces (set-amplified)
+    if (a[2457]) B.armorRepAmt *= p(2457);               // Asklepian pieces (set-amplified)
+    if (a[806])  B.armorRepAmt *= p(806);                // 'Noble' repair-amount implants
+    if (a[312])  B.repDur *= p(312);                     // 'Noble' RS — negative = faster reps
+  }
+  return B;
+}
+function _fitImplantCount() { return _fitState.implants.filter(Boolean).length; }
+
+// ─── Command bursts (own + incoming links) ──────────────────────────────────────
+// Burst charges carry warfareBuff IDs + base % (attrs 2468/2470/2472/2536 +
+// 2596-2599). Buff semantics (verified against the SDE charge names):
+//   10/13 shield/armor resists · 12/15 shield/armor HP · 11/14 booster/rep cycle
+//   20 sig radius · 60 agility · 22 AB/MWD boost · 16 lock range · 26 scan res ·
+//   18 sensor strength. Bursts NEVER stack — the strongest source per buff wins.
+const FIT_BURST_FAMILY = { 1769: 'shield', 1774: 'armor', 1772: 'skirmish', 1773: 'info' };   // charge group → family
+const FIT_BURST_SPEC   = { shield: FIT_SK.shieldSpec, armor: FIT_SK.armorSpec, skirmish: FIT_SK.skirmSpec, info: FIT_SK.infoSpec };
+const FIT_BURST_CMDSK  = { shield: 3350, armor: 20494, skirmish: 3349, info: 20495 };         // command skills traits link
+// Incoming-links "max boosts": T2 burst module (×1.25) · Specialist V (+50%) ·
+// Command Ships V hull trait (+15%) · mindlink (+25%) = ×2.6953 on charge base.
+const FIT_LINK_MAX = 1.25 * 1.5 * 1.15 * 1.25;
+// Base buff % per family's charge set (SDE warfareBuff multipliers, T1-only charges).
+const FIT_LINK_CHARGES = {
+  shield:   { 10: 8, 11: 8, 12: 8 },
+  armor:    { 13: 8, 14: 8, 15: 8 },
+  skirmish: { 20: 6, 60: 6, 22: 12 },
+  info:     { 16: 9, 26: 18, 18: 18 },
+};
+const FIT_LINK_LABELS = {
+  off: 'None', shield: 'Shield (max)', armor: 'Armor (max)', skirmish: 'Skirmish (max)',
+  info: 'Info (max)', shieldskirm: 'Shield + Skirmish (max)', armorskirm: 'Armor + Skirmish (max)', all: 'All (max)',
+};
+const FIT_LINK_FAMILIES = {
+  off: [], shield: ['shield'], armor: ['armor'], skirmish: ['skirmish'], info: ['info'],
+  shieldskirm: ['shield', 'skirmish'], armorskirm: ['armor', 'skirmish'],
+  all: ['shield', 'armor', 'skirmish', 'info'],
+};
+
+// Fitted, running Command Burst modules with a charge → their buffs at OUR
+// strength: module value (T1 ×1, T2 ×1.25) · Specialist skill (+10%/lvl) ·
+// command-ship hull traits · a matching Mindlink implant (+25%).
+function _fitOwnBursts() {
+  const out = [];
+  for (const m of _fitAllMods()) {
+    if (m.f?.groupId !== 1770) continue;
+    if (m.state !== 'active' && m.state !== 'overheated') continue;
+    const cf = m.charge?.f;
+    const family = cf ? FIT_BURST_FAMILY[cf.groupId] : null;
+    if (!family) continue;
+    let k = (m.f.attrs?.[2469] || 1) * (1 + 0.10 * _fitSkill(FIT_BURST_SPEC[family]));
+    for (const rec of _fitTraitRecords()) {
+      if (rec.q === 'burstStr' && rec.links.includes(FIT_BURST_CMDSK[family])) k *= 1 + (rec.pct * _fitTraitLvl(rec)) / 100;
+    }
+    for (const imp of _fitState.implants) {
+      const ia = imp?.f?.attrs || {};
+      // Mindlinks name their families via required Specialist skills.
+      if (ia[884] && _fitRsSet(imp.f).has(FIT_BURST_SPEC[family])) k *= 1 + ia[884] / 100;
+    }
+    const buffs = {}, a = cf.attrs || {};
+    for (const [idA, vA] of [[2468, 2596], [2470, 2597], [2472, 2598], [2536, 2599]]) {
+      if (a[idA] && a[vA]) buffs[a[idA]] = Math.abs(a[vA]) * k;
+    }
+    out.push({ name: m.name, chargeName: m.charge.name, family, buffs });
+  }
+  return out;
+}
+
+// Combined buff map (buffID → strength %): incoming preset + own bursts,
+// strongest single source per buff (in-game rule — bursts don't stack).
+function _fitActiveBuffs() {
+  const map = {};
+  const take = (id, v) => { if (v > (map[id] || 0)) map[id] = v; };
+  for (const fam of (FIT_LINK_FAMILIES[_fitState.links] || [])) {
+    for (const [id, base] of Object.entries(FIT_LINK_CHARGES[fam])) take(Number(id), base * FIT_LINK_MAX);
+  }
+  for (const b of _fitOwnBursts()) {
+    for (const [id, v] of Object.entries(b.buffs)) take(Number(id), v);
+  }
+  return map;
 }
 
 // A fitted module counts (passively) unless offline; active-only modules (TC/MGC)
@@ -1124,9 +1773,10 @@ function _fitEffOutputs() {
     if (f.cpuOutBonus) cpuB.push(f.cpuOutBonus / 100);
     if (f.pgOutBonus)  pgB.push(f.pgOutBonus / 100);
   }
+  const I = _fitImplantBonuses();
   return {
-    cpu: (hull.output.cpu + cpuAdd) * _fitStackChain(cpuB) * _fitSkMult('cpuMgmt', 5),
-    pg:  (hull.output.pg  + pgAdd)  * _fitStackChain(pgB)  * _fitSkMult('pgMgmt', 5),
+    cpu: (hull.output.cpu + cpuAdd) * _fitStackChain(cpuB) * _fitSkMult('cpuMgmt', 5) * I.cpuOut,
+    pg:  (hull.output.pg  + pgAdd)  * _fitStackChain(pgB)  * _fitSkMult('pgMgmt', 5)  * I.pgOut,
   };
 }
 
@@ -1150,35 +1800,64 @@ function _fitWeaponSim(heatAll = false) {
   }
 
   const out = [];
+  const I = _fitImplantBonuses();
   for (const g of groups.values()) {
     const { m, f, count, hot, kind } = g;
     const flavor = _fitWeaponFlavor(f.groupName);
     const rb  = _fitRangeBonuses(kind);
     const db  = _fitDamageBonuses(flavor);
     const c   = m.charge, cf = c?.f || {};
+    // Hull-trait matching context: skills required by the weapon OR its charge
+    // (traits link "Small Projectile Turret" for guns, missile-type skills for
+    // launcher bonuses), plus the kind word for unlinked traits.
+    const rsSet = _fitRsSet(f, cf);
+    const kw = kind === 'missile' ? 'missile' : 'turret';
 
     // Rate of fire (ms): damage-mod chain + skills (Gunnery/Rapid Firing for
-    // turrets, Missile Launcher Operation/Rapid Launch for launchers).
+    // turrets, Missile Launcher Operation/Rapid Launch for launchers) + hull
+    // traits ("5% bonus to … rate of fire" per level) + implants.
     let rof = (f.rof || 1) * _fitStackChain(db.rofM);
     rof *= kind === 'turret'
-      ? _fitSkMult('gunnery', -2) * _fitSkMult('rapidFiring', -4)
-      : _fitSkMult('mlo', -2) * _fitSkMult('rapidLaunch', -3);
+      ? _fitSkMult('gunnery', -2) * _fitSkMult('rapidFiring', -4) * I.turretRof
+      : _fitSkMult('mlo', -2) * _fitSkMult('rapidLaunch', -3) * I.mslRof;
+    for (const rec of _fitTraitRecords()) {
+      if (rec.q === 'rof' && _fitTraitMatches(rec, rsSet, kw)) rof *= 1 - (rec.pct * _fitTraitLvl(rec)) / 100;
+    }
     if (hot && kind === 'missile' && f.heat?.rofBonus) rof *= 1 + f.heat.rofBonus / 100;
 
     // Damage per shot: mods + heat + skills (Surgical Strike / Warhead Upgrades,
     // plus the weapon's/charge's own racial skill at +5%/lvl via requiredSkill1).
+    // Hull traits can be damage-TYPE-scoped (Drake: kinetic only) so each
+    // component carries its own multiplier.
     const d = (kind === 'missile' ? cf.dmg : c?.dmg) || c?.dmg;
-    let perShot = 0;
+    let perShot = 0, split = null;
     if (d) {
-      perShot = (d.em || 0) + (d.th || 0) + (d.kin || 0) + (d.exp || 0);
+      const tm = { em: 1, th: 1, kin: 1, exp: 1 };
+      for (const rec of _fitTraitRecords()) {
+        if (rec.q !== 'dmg' || !_fitTraitMatches(rec, rsSet, kw)) continue;
+        const k = 1 + (rec.pct * _fitTraitLvl(rec)) / 100;
+        for (const t of (rec.dtypes.length ? rec.dtypes : _FIT_DT_ALL)) tm[t] *= k;
+      }
+      const comp = { em: (d.em || 0) * tm.em, th: (d.th || 0) * tm.th, kin: (d.kin || 0) * tm.kin, exp: (d.exp || 0) * tm.exp };
+      perShot = comp.em + comp.th + comp.kin + comp.exp;
+      if (perShot > 0) split = { em: comp.em / perShot, th: comp.th / perShot, kin: comp.kin / perShot, exp: comp.exp / perShot };
       if (kind === 'turret') perShot *= (f.dmgMult || 1);
       perShot *= _fitStackChain(db.dmg);
+      // Racial 5%/lvl damage skill = the first required skill that isn't the
+      // baseline operation skill (T2 items list Gunnery/MLO first, the racial
+      // size/type skill second — T1 items list the racial skill first).
       if (kind === 'turret') {
-        perShot *= _fitSkMult('surgical', 3);
-        perShot *= 1 + 0.05 * _fitSkill(f.attrs?.[182] || 0);
+        perShot *= _fitSkMult('surgical', 3) * I.turretDmg;
+        const racial = [f.attrs?.[182], f.attrs?.[183], f.attrs?.[184]].find(id => id && id !== FIT_SK.gunnery) || 0;
+        perShot *= 1 + 0.05 * _fitSkill(racial);
       } else {
         perShot *= _fitSkMult('warhead', 2);
-        perShot *= 1 + 0.05 * _fitSkill(cf.attrs?.[182] || 0);
+        const racial = [cf.attrs?.[182], cf.attrs?.[183], cf.attrs?.[184]].find(id => id && id !== FIT_SK.mlo) || 0;
+        perShot *= 1 + 0.05 * _fitSkill(racial);
+        const grp = (cf.groupName || '').toLowerCase();
+        for (const s of I.mslDmg) {   // per-missile-type implants (Snapshot line)
+          if (grp.includes(s.frag) && (s.frag !== 'heavy missile' || !grp.includes('assault'))) perShot *= s.mult;
+        }
       }
       if (hot && kind === 'turret' && f.heat?.dmgMod) perShot *= 1 + f.heat.dmgMod / 100;
     }
@@ -1190,18 +1869,23 @@ function _fitWeaponSim(heatAll = false) {
       const ammoFall = (cf.falloffMult != null) ? cf.falloffMult : 1;
       entry = {
         kind, flavor, count, hot, name: f.name, chargeName: c?.name || null,
-        dps: dps * count, volley: perShot * count,
-        optimal:  (f.optimal  || 0) * ammoOpt  * _fitStackChain(rb.opt)   * _fitSkMult('sharpshooter', 5),
-        falloff:  (f.falloff  || 0) * ammoFall * _fitStackChain(rb.fall)  * _fitSkMult('trajectory', 5),
-        tracking: (f.tracking || 0) * _fitStackChain(rb.track)            * _fitSkMult('motion', 5),
+        dps: dps * count, volley: perShot * count, split,
+        optimal:  (f.optimal  || 0) * ammoOpt  * _fitStackChain(rb.opt)   * _fitSkMult('sharpshooter', 5)
+                  * _fitTraitMult('optimal', rsSet, kw) * I.turretOpt,
+        falloff:  (f.falloff  || 0) * ammoFall * _fitStackChain(rb.fall)  * _fitSkMult('trajectory', 5)
+                  * _fitTraitMult('falloff', rsSet, kw) * I.turretFall,
+        tracking: (f.tracking || 0) * _fitStackChain(rb.track)            * _fitSkMult('motion', 5)
+                  * _fitTraitMult('tracking', rsSet, kw) * I.turretTrack,
       };
       entry.range = entry.optimal + entry.falloff;
     } else {
-      const vel    = (cf.missileVel || 0) * _fitStackChain(rb.vel)          * _fitSkMult('projection', 10);
-      const flight = ((cf.flightMs || 0) / 1000) * _fitStackChain(rb.flight) * _fitSkMult('bombardment', 10);
+      const vel    = (cf.missileVel || 0) * _fitStackChain(rb.vel) * _fitSkMult('projection', 10)
+                     * _fitTraitMult('mslVel', rsSet, kw) * I.mslVel;
+      const flight = ((cf.flightMs || 0) / 1000) * _fitStackChain(rb.flight) * _fitSkMult('bombardment', 10)
+                     * _fitTraitMult('mslFlight', rsSet, kw) * I.mslFlight;
       entry = {
         kind, flavor, count, hot, name: f.name, chargeName: c?.name || null,
-        dps: dps * count, volley: perShot * count,
+        dps: dps * count, volley: perShot * count, split,
         optimal: vel * flight, falloff: 0, tracking: null,
         range: vel * flight,
       };
@@ -1260,29 +1944,19 @@ function _fitRingSvg() {
 // per-unit numbers that decide an engagement — DPS, top speed, attack range.
 // Fighters activate as SQUADRONS (tube-limited); drones as units (bandwidth).
 function _fitDroneBayHtml(hull) {
-  const rows = _fitState.drones.map(d => {
+  const rows = _fitState.drones.filter(d => !_fitIsFighter(d)).map(d => {
     const a = d.f?.attrs || {};
-    let stats, activeTitle;
-    if (_fitIsFighter(d)) {
-      const sq = _fitFighterSqSize(d);
-      const perVolley = ((a[2227] || 0) + (a[2228] || 0) + (a[2229] || 0) + (a[2230] || 0)) * (a[2226] || 1) * sq;
-      const dps = a[2233] ? perVolley / (a[2233] / 1000) : 0;
-      stats = `${_fitNum(dps)} dps/sq · ${_fitNum(a[37] || 0)} m/s · ${sq}/squadron`;
-      activeTitle = 'Squadrons launched (uses a tube)';
-    } else {
-      const perShot = ((a[114] || 0) + (a[118] || 0) + (a[117] || 0) + (a[116] || 0)) * (a[64] || 1);
-      const dps = a[51] ? perShot / (a[51] / 1000) : 0;
-      stats = `${_fitNum(dps)} dps · ${_fitNum(a[37] || 0)} m/s · ${_fitKm(a[54] || 0)} + ${_fitKm(a[158] || 0)} · ${_fitNum(a[1272] || 0)} Mbit`;
-      activeTitle = 'Active in space';
-    }
+    const perShot = ((a[114] || 0) + (a[118] || 0) + (a[117] || 0) + (a[116] || 0)) * (a[64] || 1);
+    const dps = a[51] ? perShot / (a[51] / 1000) : 0;
+    const stats = `${_fitNum(dps)} dps · ${_fitNum(a[37] || 0)} m/s · ${_fitKm(a[54] || 0)} + ${_fitKm(a[158] || 0)} · ${_fitNum(a[1272] || 0)} Mbit`;
     return `
       <div class="fw-db-row">
         <img src="https://images.evetech.net/types/${d.id}/icon?size=32" alt=""/>
         <div class="fw-db-main">
-          <div class="fw-db-name">${_fitEsc(d.name)} <span class="fw-db-qty">×${d.qty}${_fitIsFighter(d) ? ' units' : ''}</span></div>
+          <div class="fw-db-name">${_fitEsc(d.name)} <span class="fw-db-qty">×${d.qty}</span></div>
           <div class="fw-db-stats">${stats}</div>
         </div>
-        <div class="fw-db-active" title="${activeTitle}">
+        <div class="fw-db-active" title="Active in space">
           <button class="fw-db-btn" data-dact="${d.id}:-1">−</button>
           <span class="${d.active ? 'on' : ''}">${d.active}</span>
           <button class="fw-db-btn" data-dact="${d.id}:1">＋</button>
@@ -1291,18 +1965,54 @@ function _fitDroneBayHtml(hull) {
       </div>`;
   }).join('');
 
-  const headBits = [];
   const effD = _fitEffDrone();
-  if (effD.bay) headBits.push(`${_fitNum(_fitDroneUsedM3())} / ${_fitNum(effD.bay)} m³ · ${_fitNum(_fitDroneActiveBw())} / ${_fitNum(effD.bandwidth)} Mbit · ${_fitDroneActiveN()}/${_fitDroneCap()}`);
-  if (hull.fighter?.bay) headBits.push(`fighters ${_fitNum(_fitFighterUsedM3())} / ${_fitNum(hull.fighter.bay)} m³ · ${_fitFighterActiveSq()}/${hull.fighter.tubes} tubes`);
   return `
     <div class="fw-dronebay" id="fwDroneBay">
-      <div class="fw-db-head">${hull.fighter?.bay ? 'FIGHTER' : 'DRONE'} BAY<span>${headBits.join('  ·  ')}</span></div>
-      ${rows || `<div class="fw-db-empty">Drag ${hull.fighter?.bay ? 'fighters' : 'drones'} here (Charges &amp; Drones tab), or click one in the browser.</div>`}
-      <div class="fw-db-hint">${hull.fighter?.bay
-        ? 'Launched squadrons add DPS across the grid. Squadron size is per fighter type.'
-        : `Active drones add DPS &amp; a curve out to control range (${_fitKm(_fitDroneCtrlRange())}). Max in space: ${_fitDroneCap()} (Drones skill).`}</div>
+      <div class="fw-db-head">DRONE BAY<span>${_fitNum(_fitDroneUsedM3())} / ${_fitNum(effD.bay)} m³ · ${_fitNum(_fitDroneActiveBw())} / ${_fitNum(effD.bandwidth)} Mbit · ${_fitDroneActiveN()}/${_fitDroneCap()}</span></div>
+      ${rows || `<div class="fw-db-empty">Drag drones here (Charges &amp; Drones tab), or click one in the browser.</div>`}
+      <div class="fw-db-hint">Active drones add DPS &amp; a curve out to control range (${_fitKm(_fitDroneCtrlRange())}). Max in space: ${_fitDroneCap()} (Drones skill).</div>
     </div>`;
+}
+
+
+// Implants panel — 10 slots (implantness 1-10), with an inline implant search.
+// Implants are character-level: they survive hull swaps and Clear, and are
+// stored with fit snapshots. Attribute-only implants (+Perception etc.) socket
+// fine but change no fitting stats.
+function _fitImplantPanelHtml() {
+  const rows = _fitState.implants.map((imp, i) => imp ? `
+      <div class="fw-db-row">
+        <span class="fw-imp-slotn">${i + 1}</span>
+        <img src="https://images.evetech.net/types/${imp.id}/icon?size=32" alt=""/>
+        <div class="fw-db-main"><div class="fw-db-name">${_fitEsc(imp.name)}</div></div>
+        <button class="fw-db-x" data-imprm="${i}" title="Remove implant">✕</button>
+      </div>` : `
+      <div class="fw-db-row fw-imp-empty">
+        <span class="fw-imp-slotn">${i + 1}</span>
+        <div class="fw-db-main"><div class="fw-db-name">— empty —</div></div>
+      </div>`).join('');
+  return `
+    <div class="fw-dronebay" id="fwImplants">
+      <div class="fw-db-head">IMPLANTS<span>${_fitImplantCount()}/10</span></div>
+      <div class="fw-imp-search">
+        <input id="fwImpSearch" class="field-input" value="${_fitEsc(_fitState._impQ || '')}" placeholder="Search implants — e.g. Deadeye, Snake, Genolution…" autocomplete="off"/>
+        <div id="fwImpResults" class="fw-imp-results"></div>
+      </div>
+      ${rows}
+      <div class="fw-db-hint">Bonuses apply to DPS, tank, reps, cap, speed, fitting &amp; targeting — pirate SETS (Nirvana, Amulet, Snake, Crystal, Asklepian…) amplify each other, Omega included. ${_fitImplantCount() ? '<button id="fwImpClear" class="fw-imp-clear">Remove all</button>' : ''}</div>
+    </div>`;
+}
+
+async function _fitAddImplant(typeId) {
+  const facts = (await window.eveAPI.fitGetItems([typeId]).catch(() => ({})))[typeId];
+  if (!facts) return;
+  const slotN = facts.attrs?.[331];
+  if (!slotN || slotN < 1 || slotN > 10) { _fitFlash('That item has no implant slot.'); return; }
+  const prev = _fitState.implants[slotN - 1];
+  _fitState.implants[slotN - 1] = { id: facts.id, name: facts.name, f: facts };
+  _fitRenderAll();
+  document.getElementById('fwImpSearch')?.focus();   // keep socketing from the same search
+  _fitFlash(prev ? `Slot ${slotN}: ${prev.name} → ${facts.name}.` : `${facts.name} → slot ${slotN}.`);
 }
 
 // Bay chips + panel live in the bottom-left corner of the CANVAS (not the wheel),
@@ -1318,9 +2028,9 @@ function _fitRenderBays(hull) {
     wrap.appendChild(bays);
   }
   const effD = _fitEffDrone();
-  const hasBay = effD.bay > 0 || (hull.fighter?.bay || 0) > 0;
   bays.innerHTML = `
-    ${_fitState.droneBayOpen && hasBay ? _fitDroneBayHtml(hull) : ''}
+    ${_fitState.droneBayOpen && effD.bay > 0 ? _fitDroneBayHtml(hull) : ''}
+    ${_fitState.implantsOpen ? _fitImplantPanelHtml() : ''}
     <div class="fw-bays">
       <div class="fw-bay" title="Cargo hold capacity">
         <span class="material-symbols-outlined">inventory_2</span>${_fitNum(hull.cargo || 0)} m³
@@ -1330,15 +2040,64 @@ function _fitRenderBays(hull) {
              title="Drone bay — click to open. Drag drones here.">
           <span class="material-symbols-outlined">smart_toy</span>${_fitNum(_fitDroneUsedM3())} / ${_fitNum(effD.bay)} m³
         </div>` : ''}
-      ${(hull.fighter?.bay || 0) > 0 ? `
-        <div class="fw-bay fw-bay-drone ${_fitState.droneBayOpen ? 'open' : ''}" data-baychip="1"
-             title="Fighter bay (${hull.fighter.tubes} tubes) — click to open. Drag fighters here.">
+      ${(hull.fighter?.tubes || 0) > 0 ? `
+        <div class="fw-bay" title="Fighter bay — squadrons load into the launch-tube wedges below the wheel.">
           <span class="material-symbols-outlined">flight</span>${_fitNum(_fitFighterUsedM3())} / ${_fitNum(hull.fighter.bay)} m³
         </div>` : ''}
+      <div class="fw-bay fw-bay-drone ${_fitState.implantsOpen ? 'open' : ''}" data-impchip="1"
+           title="Implants (10 slots) — click to open. Bonuses feed the simulation.">
+        <span class="material-symbols-outlined">neurology</span>${_fitImplantCount()}/10
+      </div>
     </div>`;
 
+  // Implants chip + panel events. The search only touches its own results box —
+  // never a full re-render — so typing keeps focus.
+  bays.querySelector('[data-impchip]')?.addEventListener('click', () => {
+    _fitState.implantsOpen = !_fitState.implantsOpen;
+    if (_fitState.implantsOpen) { _fitState.droneBayOpen = false; _fitState.fighterBayOpen = false; }   // one corner panel at a time
+    _fitRenderCanvas();
+    if (_fitState.implantsOpen) document.getElementById('fwImpSearch')?.focus();
+  });
+  const impPanel = bays.querySelector('#fwImplants');
+  if (impPanel) {
+    impPanel.querySelectorAll('[data-imprm]').forEach(b => b.addEventListener('click', () => {
+      _fitState.implants[Number(b.dataset.imprm)] = null;
+      _fitRenderAll();
+    }));
+    impPanel.querySelector('#fwImpClear')?.addEventListener('click', () => {
+      _fitState.implants = new Array(10).fill(null);
+      _fitRenderAll();
+    });
+    const inp = impPanel.querySelector('#fwImpSearch');
+    const res = impPanel.querySelector('#fwImpResults');
+    let impTimer = null;
+    inp.addEventListener('input', () => {
+      _fitState._impQ = inp.value;
+      clearTimeout(impTimer);
+      impTimer = setTimeout(async () => {
+        const q = inp.value.trim();
+        if (q.length < 2) { res.innerHTML = ''; return; }
+        const hits = await window.eveAPI.fitSearch(q, 'implant', 30).catch(() => []);
+        if (inp.value.trim() !== q) return;                      // stale response
+        res.innerHTML = hits.length ? hits.map(h => `
+            <div class="fit-result" data-impadd="${h.id}" title="Click to socket">
+              <img src="https://images.evetech.net/types/${h.id}/icon?size=32" alt="" loading="lazy"/>
+              <span class="fit-result-name">${_fitEsc(h.name)}</span>
+            </div>`).join('')
+          : `<div class="fit-hint" style="padding:6px;">No implants match.</div>`;
+        res.querySelectorAll('[data-impadd]').forEach(r => r.addEventListener('click', () => _fitAddImplant(Number(r.dataset.impadd))));
+      }, 220);
+    });
+    // Panel re-renders wipe the results box — restore the last search silently.
+    if ((inp.value || '').trim().length >= 2) inp.dispatchEvent(new Event('input'));
+  }
+
   bays.querySelectorAll('[data-baychip]').forEach(chipEl => {
-    chipEl.addEventListener('click', () => { _fitState.droneBayOpen = !_fitState.droneBayOpen; _fitRenderCanvas(); });
+    chipEl.addEventListener('click', () => {
+      _fitState.droneBayOpen = !_fitState.droneBayOpen;
+      if (_fitState.droneBayOpen) { _fitState.implantsOpen = false; _fitState.fighterBayOpen = false; }
+      _fitRenderCanvas();
+    });
     chipEl.addEventListener('dragover', (e) => { e.preventDefault(); chipEl.classList.add('fw-drop'); });
     chipEl.addEventListener('dragleave', () => chipEl.classList.remove('fw-drop'));
     chipEl.addEventListener('drop', (e) => {
@@ -1427,6 +2186,49 @@ function _fitRenderCanvas() {
     });
   }
 
+  // Fighter LAUNCH TUBES — wedge cells hanging just below the bottom of the
+  // ring (outside the band), one per tube, matching the slot-wedge look.
+  const tubeCount = hull.fighter?.tubes || 0;
+  if (tubeCount > 0) {
+    const rT = FIT_WHEEL.slotR + 70;
+    const half = 5 * (tubeCount - 1);
+    const angles = _fitArcAngles({ from: 180 - half, to: 180 + half, spacing: 10 }, tubeCount);
+    const capsTitle = [hull.fighter.light ? `${hull.fighter.light} light` : '',
+      hull.fighter.support ? `${hull.fighter.support} support` : '',
+      hull.fighter.heavy ? `${hull.fighter.heavy} heavy` : ''].filter(Boolean).join(' / ');
+    angles.forEach((deg, i) => {
+      const [x, y] = _fitPolar(deg, rT);
+      const t = (_fitState.fighters || [])[i];
+      const pos = `left:${x}px;top:${y}px;transform:translate(-50%,-50%) rotate(${deg.toFixed(1)}deg);`;
+      const upright = `transform:rotate(${(-deg).toFixed(1)}deg);`;
+      if (t) {
+        const type = _fitFighterType(t.f) || 'light';
+        const sqMax = t.f?.attrs?.[2215] || 1;
+        cells += `
+          <div class="fw-slot fw-tube ${t.active ? 'state-active' : 'state-offline'}" style="${pos}" data-tube="${i}"
+               title="Tube ${i + 1} — ${_fitEsc(t.name)} ×${t.units}/${sqMax} (${type}${t.active ? ', launched' : ', held in bay'}) · ${_fitNum(_fitFighterTubeDps(t))} dps incl. salvo. Click to ${t.active ? 'hold' : 'launch'} · right-click for units.">
+            <span class="fw-wedge"></span>
+            <img class="fw-icon" style="${upright}" src="https://images.evetech.net/types/${t.id}/icon?size=64" alt="" draggable="false"/>
+            <span class="fw-tube-units fw-tube-${type}" style="${upright}">${t.units}</span>
+            <button class="fw-x" style="${upright}" data-tuberm="${i}" title="Clear tube">✕</button>
+          </div>`;
+      } else {
+        cells += `
+          <div class="fw-slot empty fw-tube" style="${pos}" data-tube="${i}"
+               title="Empty launch tube ${i + 1} — drag a fighter here (${capsTitle} squadrons max)">
+            <span class="fw-wedge"></span>
+            <span class="material-symbols-outlined fw-tube-ico" style="${upright}">flight</span>
+          </div>`;
+      }
+    });
+  }
+  // Tubes overflow the 720px wheel box (they hang below the ring). Reserve the
+  // space with a MARGIN — changing the box height would shift every %-positioned
+  // layer (porthole, ring svg, centre bars) down relative to the px-positioned
+  // slot cells.
+  wheel.style.height = '';
+  wheel.style.marginBottom = tubeCount > 0 ? '90px' : '';
+
   const pct = (u, t) => t ? Math.min(100, (u / t) * 100) : 0;
   const calUsed  = _fitCalUsed();
   const calTotal = hull.output.calibration || 0;
@@ -1455,12 +2257,45 @@ function _fitRenderCanvas() {
 
   _fitRenderBays(hull);
 
-  // ── Interactions ── (locked wedges are inert)
-  wheel.querySelectorAll('.fw-slot:not(.locked)').forEach(el => {
+  // ── Tube interactions ── click = launch/hold, right-click = units menu,
+  // drop a fighter = load/replace, ✕ = clear.
+  wheel.querySelectorAll('.fw-tube').forEach(el => {
+    const i = Number(el.dataset.tube);
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.fw-x')) return;
+      const t = _fitState.fighters[i];
+      if (t) { t.active = !t.active; _fitRenderAll(); }
+    });
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); _fitShowTubeMenu(i, e.clientX, e.clientY); });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('fw-drop'); });
+    el.addEventListener('dragleave', () => el.classList.remove('fw-drop'));
+    el.addEventListener('drop', async (e) => {
+      e.preventDefault(); el.classList.remove('fw-drop');
+      const payload = e.dataTransfer.getData('text/plain') || '';
+      if (!payload.startsWith('new:')) return;
+      const id = Number(payload.slice(4));
+      const facts = (await window.eveAPI.fitGetItems([id]).catch(() => ({})))[id];
+      if (!facts) return;
+      if (facts.categoryId !== 87) { _fitFlash('Only fighters go in launch tubes.'); return; }
+      if (_fitState.fighters[i]) _fitState.fighters[i] = null;   // replace this tube's squadron
+      _fitAddFighter(facts, i);
+    });
+  });
+  wheel.querySelectorAll('[data-tuberm]').forEach(btn => btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _fitState.fighters[Number(btn.dataset.tuberm)] = null;
+    _fitRenderAll();
+  }));
+
+  // ── Interactions ── (locked wedges are inert; tubes handled above)
+  wheel.querySelectorAll('.fw-slot:not(.locked):not(.fw-tube)').forEach(el => {
     const slot = el.dataset.slot, idx = Number(el.dataset.idx);
     el.addEventListener('click', (e) => {
       if (e.target.closest('.fw-x')) return;
       if (el.classList.contains('empty')) return;
+      // Shift+click a fitted module → duplicate it (loaded charge included)
+      // into the next free slot of the same rack.
+      if (e.shiftKey) { _fitCloneSlot(slot, idx); return; }
       const cur = _fitState.selected;
       _fitState.selected = (cur && cur.slot === slot && cur.idx === idx) ? null : { slot, idx };
       _fitRenderAll();
@@ -1571,6 +2406,42 @@ function _fitShowTip(el, slot, idx) {
 // Empty slot: filter the browser for that slot type.
 function _fitCloseSlotMenu() { document.getElementById('fitCtxMenu')?.remove(); }
 
+// Right-click menu for a fighter launch tube: adjust squadron units, launch/hold, clear.
+function _fitShowTubeMenu(i, x, y) {
+  _fitCloseSlotMenu();
+  const t = _fitState.fighters[i];
+  const menu = document.createElement('div');
+  menu.id = 'fitCtxMenu';
+  if (!t) {
+    menu.innerHTML = `<div class="fit-ctx-head">Empty launch tube ${i + 1}</div>
+      <div class="fit-ctx-item" style="cursor:default;">Drag a fighter here from Charges &amp; Drones.</div>`;
+  } else {
+    const sqMax = t.f?.attrs?.[2215] || 1;
+    menu.innerHTML = `
+      <div class="fit-ctx-head">Tube ${i + 1} — ${_fitEsc(t.name)}</div>
+      <button class="fit-ctx-item" data-act="minus">− unit (${t.units}/${sqMax})</button>
+      <button class="fit-ctx-item" data-act="plus">＋ unit (${t.units}/${sqMax})</button>
+      <button class="fit-ctx-item" data-act="toggle">${t.active ? 'Hold in bay (remove from DPS)' : 'Launch squadron'}</button>
+      <button class="fit-ctx-item fit-ctx-danger" data-act="clear">✕ Clear tube</button>`;
+  }
+  menu.style.left = x + 'px'; menu.style.top = y + 'px';
+  document.body.appendChild(menu);
+  const r = menu.getBoundingClientRect();
+  if (r.right  > window.innerWidth)  menu.style.left = Math.max(8, window.innerWidth  - r.width  - 8) + 'px';
+  if (r.bottom > window.innerHeight) menu.style.top  = Math.max(8, window.innerHeight - r.height - 8) + 'px';
+  menu.addEventListener('click', (e) => {
+    e.stopPropagation();                     // keep the once-outside-click closer from eating the rebuilt menu
+    const act = e.target.closest('[data-act]');
+    if (!act || !t) return;
+    if (act.dataset.act === 'minus')  { _fitTubeUnits(i, -1); _fitShowTubeMenu(i, x, y); return; }
+    if (act.dataset.act === 'plus')   { _fitTubeUnits(i, +1); _fitShowTubeMenu(i, x, y); return; }
+    _fitCloseSlotMenu();
+    if (act.dataset.act === 'toggle') { t.active = !t.active; _fitRenderAll(); }
+    if (act.dataset.act === 'clear')  { _fitState.fighters[i] = null; _fitRenderAll(); }
+  });
+  setTimeout(() => document.addEventListener('click', (e) => { if (!menu.contains(e.target)) _fitCloseSlotMenu(); }, { once: true }), 0);
+}
+
 function _fitShowSlotMenu(slot, idx, x, y) {
   _fitCloseSlotMenu();
   const m = _fitState.modules[slot]?.[idx];
@@ -1666,7 +2537,18 @@ function _fitRenderStats() {
   const eff  = _fitEffOutputs();
   const effT = _fitEffSlots();            // hardpoints incl. subsystem grants
   const off  = _fitComputeOffense();
-  const D    = _fitShipDerived();         // live: modules + states + heat applied
+  // Base stats vs command-burst-boosted stats: the base number is displayed and
+  // the boost contribution rides along as a green "+x" (in-game style).
+  const buffs = _fitActiveBuffs();
+  const boosted = Object.keys(buffs).length > 0;
+  const D  = _fitShipDerived();           // live: modules + states + heat applied
+  const DB = boosted ? _fitShipDerived(buffs) : D;
+  const cap = _fitCapSim(D);
+  const gd = (base, up, fmt = _fitNum) => {
+    const d = up - base;
+    if (Math.abs(d) < (Math.abs(base) > 100 ? 0.5 : 0.05)) return '';
+    return `<span class="fit-boost-delta">${d > 0 ? '+' : '−'}${fmt(Math.abs(d))}</span>`;
+  };
   const sim  = _fitSimCache || _fitWeaponSim().concat(_fitDroneSim());
 
   const bar = (label, used, total, unit) => {
@@ -1685,19 +2567,27 @@ function _fitRenderStats() {
       <span><span class="fit-series-dot" style="background:${FIT_CHART_COLORS[i % FIT_CHART_COLORS.length]}"></span>
         ${g.count}× ${_fitEsc(g.name)}${g.hot ? ' <span class="fit-hot">HOT</span>' : ''}</span>
       <span>${g.kind === 'turret' ? `${_fitKm(g.optimal)} + ${_fitKm(g.falloff)}`
-        : g.kind === 'fighter' ? 'on-grid' : `≈ ${_fitKm(g.range)}`}${(g.kind === 'drone' || g.kind === 'fighter') ? ` · ${_fitNum(g.vel)} m/s` : ''} · ${_fitNum(g.dps)} dps</span>
+        : g.kind === 'fighter' ? (g.abilityRange ? `${_fitKm(g.abilityRange)} · on-grid` : 'on-grid') : `≈ ${_fitKm(g.range)}`}${(g.kind === 'drone' || g.kind === 'fighter') ? ` · ${_fitNum(g.vel)} m/s` : ''} · ${_fitNum(g.dps)} dps${g.kind === 'fighter' && g.name.endsWith('salvo') ? ` · ${_fitNum(g.volley)} volley` : ''}</span>
     </div>`).join('');
 
   // Drone/fighter bay summary card (bandwidth / tubes / control range / stacks).
   const droneBay   = _fitEffDrone().bay;
   const fighterBay = hull.fighter?.bay || 0;
-  const droneRows = _fitState.drones.map(d => {
+  const droneRows = _fitState.drones.filter(d => !_fitIsFighter(d)).map(d => {
     const a = d.f?.attrs || {};
-    const fighter = _fitIsFighter(d);
-    const sim1 = sim.find(g => (g.kind === 'drone' || g.kind === 'fighter') && g.name === d.name);
+    const sim1 = sim.find(g => g.kind === 'drone' && g.name === d.name);
     return `<div class="fit-mini">
-      <span>${d.active}${fighter ? ' sq' : ''}/${d.qty}× ${_fitEsc(d.name)}</span>
-      <span>${sim1 ? `${_fitNum(sim1.dps)} dps · ` : ''}${_fitNum(a[37] || 0)} m/s${fighter ? '' : ` · ${_fitKm(a[54] || 0)}+${_fitKm(a[158] || 0)}`}</span>
+      <span>${d.active}/${d.qty}× ${_fitEsc(d.name)}</span>
+      <span>${sim1 ? `${_fitNum(sim1.dps)} dps · ` : ''}${_fitNum(a[37] || 0)} m/s · ${_fitKm(a[54] || 0)}+${_fitKm(a[158] || 0)}</span>
+    </div>`;
+  }).join('');
+  const fighterRows = (_fitState.fighters || []).map((t, i) => {
+    if (!t) return '';
+    const a = t.f?.attrs || {};
+    const dps = t.active ? _fitFighterTubeDps(t) : 0;
+    return `<div class="fit-mini">
+      <span>Tube ${i + 1} · ${t.units}× ${_fitEsc(t.name)}${t.active ? '' : ' (in bay)'}</span>
+      <span>${dps ? `${_fitNum(dps)} dps · ` : ''}${_fitNum(a[37] || 0)} m/s</span>
     </div>`;
   }).join('');
 
@@ -1722,78 +2612,179 @@ function _fitRenderStats() {
         <div id="fitChartLegend" class="fit-chart-legend"></div>
         <label class="fit-heat-toggle"><input type="checkbox" id="fitHeatPreview" ${_fitState.heatPreview ? 'checked' : ''}> Preview everything overheated</label>
         ${wrows}`
-      : `<div class="fit-note-line">Fit weapons (and load charges) to simulate optimal, falloff and applied DPS vs range — including ammo, tracking mods, scripts, rigs and heat.</div>`}
+      : `<div class="fit-note-line">Fit weapons (and load charges) to simulate optimal, falloff and applied DPS vs range — including ammo, tracking mods, scripts, rigs, heat, hull bonuses and implants.</div>`}
     </div>
 
     <!-- Offense -->
     <div class="fit-stats-card">
       <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">crisis_alert</span> OFFENSE <span class="fit-note">${_fitEsc(_fitSkillLabel())}</span></div>
       <div class="fit-big">${_fitNum(off.dps)} <span class="fit-big-unit">dps</span></div>
-      ${line('Volley', `${_fitNum(off.volley)} hp`)}
-      ${off.dps === 0 ? `<div class="fit-note-line">Fit turrets/launchers, set them active, and load charges to see weapon DPS.</div>` : ''}
+      ${(() => {
+        if (off.dps === 0) return `<div class="fit-note-line">Fit turrets/launchers, set them active, and load charges to see weapon DPS.</div>`;
+        // Damage composition by type + by source.
+        const byType = { em: 0, th: 0, kin: 0, exp: 0 };
+        const bySrc  = { turret: 0, missile: 0, drone: 0, fighter: 0 };
+        for (const g of sim) {
+          bySrc[g.kind] = (bySrc[g.kind] || 0) + g.dps;
+          const s = g.split || { em: 0.25, th: 0.25, kin: 0.25, exp: 0.25 };
+          for (const t of ['em', 'th', 'kin', 'exp']) byType[t] += g.dps * s[t];
+        }
+        const tPct = (t) => Math.round((byType[t] / off.dps) * 100);
+        const bar = `<div class="fit-dmg-bar">${['em', 'th', 'kin', 'exp']
+          .filter(t => byType[t] > 0.5)
+          .map(t => `<span class="fit-res-${t}" style="flex:${byType[t].toFixed(1)}" title="${t.toUpperCase()} ${tPct(t)}%"></span>`).join('')}</div>
+          <div class="fit-dmg-legend">${[['em', 'EM'], ['th', 'Th'], ['kin', 'Kin'], ['exp', 'Exp']]
+            .filter(([t]) => byType[t] > 0.5).map(([t, l]) => `${l} ${tPct(t)}%`).join(' · ')}</div>`;
+        const srcLines = [['turret', 'Turrets'], ['missile', 'Launchers'], ['drone', 'Drones'], ['fighter', 'Fighters']]
+          .filter(([k]) => bySrc[k] > 0.5)
+          .map(([k, l]) => line(l, `${_fitNum(bySrc[k])} dps`)).join('');
+        // Applied damage vs the chosen target's BASE resists, weighted by our
+        // actual damage-type mix, per layer.
+        const T = _fitState.target;
+        let tgtHtml;
+        if (T) {
+          const appl = (res) => {
+            let dps = 0, vol = 0;
+            for (const g of sim) {
+              const s = g.split || { em: 0.25, th: 0.25, kin: 0.25, exp: 0.25 };
+              const f = (res.em ?? 1) * s.em + (res.th ?? 1) * s.th + (res.kin ?? 1) * s.kin + (res.exp ?? 1) * s.exp;
+              dps += g.dps * f; vol += g.volley * f;
+            }
+            return { dps, vol };
+          };
+          const rows = [['shield', T.base.shieldRes], ['armor', T.base.armorRes], ['hull', T.base.hullRes]].map(([l, res]) => {
+            const A = appl(res);
+            return line(`vs ${l}`, `${_fitNum(A.dps)} dps · ${_fitNum(A.vol)} volley <span class="fit-note">(−${Math.round((1 - A.dps / off.dps) * 100)}%)</span>`);
+          }).join('');
+          tgtHtml = `
+            ${line('Target', `${_fitEsc(T.name)} <button id="fitTgtClear" class="fit-tgt-clear" title="Clear target">✕</button>`)}
+            ${rows}
+            <div class="fit-note-line">Against the target's BASE resists (no modules/skills) — resist-weighted only, tracking/sig not applied.</div>`;
+        } else {
+          tgtHtml = `
+            <input id="fitTgtSearch" class="field-input fit-tgt-search" placeholder="Apply vs target — search a hull…" autocomplete="off"/>
+            <div id="fitTgtResults"></div>`;
+        }
+        return `${bar}${srcLines}${line('Volley', `${_fitNum(off.volley)} hp`)}${tgtHtml}`;
+      })()}
     </div>
 
     <!-- Drones / fighters -->
     ${droneBay > 0 || fighterBay > 0 ? `<div class="fit-stats-card">
-      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">${fighterBay ? 'flight' : 'smart_toy'}</span> ${fighterBay ? 'FIGHTERS' : 'DRONES'} ${droneBay && fighterBay ? '&amp; DRONES' : ''} <span class="fit-note">${fighterBay ? 'squadrons' : _fitEsc(_fitSkillLabel())}</span></div>
+      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">${fighterBay ? 'flight' : 'smart_toy'}</span> ${fighterBay ? 'FIGHTERS' : 'DRONES'} ${droneBay && fighterBay ? '&amp; DRONES' : ''} <span class="fit-note">${fighterBay ? 'launch tubes' : _fitEsc(_fitSkillLabel())}</span></div>
       ${droneBay ? bar('Bandwidth', _fitDroneActiveBw(), _fitEffDrone().bandwidth, 'Mbit') : ''}
       <div class="fit-mini-grid">
         ${droneBay ? line('Drone bay', `${_fitNum(_fitDroneUsedM3())} / ${_fitNum(droneBay)} m³`) : ''}
         ${fighterBay ? line('Fighter bay', `${_fitNum(_fitFighterUsedM3())} / ${_fitNum(fighterBay)} m³`) : ''}
-        ${fighterBay ? line('Launch tubes', `${_fitFighterActiveSq()} / ${hull.fighter.tubes}`) : ''}
+        ${fighterBay ? line('Launch tubes', `${(_fitState.fighters || []).filter(Boolean).length} / ${hull.fighter.tubes}`) : ''}
+        ${fighterBay && hull.fighter.light   ? line('Light slots',   `${_fitFighterTypeCount('light')} / ${hull.fighter.light}`)     : ''}
+        ${fighterBay && hull.fighter.support ? line('Support slots', `${_fitFighterTypeCount('support')} / ${hull.fighter.support}`) : ''}
+        ${fighterBay && hull.fighter.heavy   ? line('Heavy slots',   `${_fitFighterTypeCount('heavy')} / ${hull.fighter.heavy}`)     : ''}
         ${droneBay ? line('Control range', _fitKm(_fitDroneCtrlRange())) : ''}
         ${droneBay ? line('In space', `${_fitDroneActiveN()} / ${_fitDroneCap()}`) : ''}
       </div>
-      ${droneRows || `<div class="fit-note-line">Add ${fighterBay ? 'fighters' : 'drones'} from the Charges &amp; Drones tab — set them active in the bay (bottom-left of the wheel) to count toward DPS and the range chart.</div>`}
+      ${fighterRows}${droneRows}
+      ${!fighterRows && !droneRows ? `<div class="fit-note-line">${fighterBay
+        ? 'Load fighters into launch tubes (Charges &amp; Drones tab → drag onto the tubes chip, bottom-left of the wheel). Launched squadrons count toward DPS.'
+        : 'Add drones from the Charges &amp; Drones tab — set them active in the bay (bottom-left of the wheel) to count toward DPS and the range chart.'}</div>` : ''}
     </div>` : ''}
 
     <!-- Capacitor -->
     <div class="fit-stats-card">
-      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">bolt</span> CAPACITOR <span class="fit-note">incl. modules</span></div>
+      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">bolt</span> CAPACITOR <span class="fit-note">incl. modules, boosters &amp; implants</span></div>
       <div class="fit-cap">
         <svg viewBox="0 0 56 56" class="fit-cap-ring"><circle cx="28" cy="28" r="23" class="fit-cap-bg"/><circle cx="28" cy="28" r="23" class="fit-cap-fg"/></svg>
         <div class="fit-cap-info">
           <div class="fit-cap-gj">${_fitNum(D.capCap)} GJ</div>
-          <div class="fit-cap-sub">${_fitNum(D.rechargeSec)} s recharge</div>
-          <div class="fit-cap-sub">Peak +${_fitNum(D.peakRegen)} GJ/s</div>
+          <div class="fit-cap-sub">${_fitNum(D.rechargeSec)} s recharge · peak +${_fitNum(D.peakRegen)} GJ/s</div>
+          <div class="fit-cap-sub">use −${_fitNum(cap.drain)} GJ/s${cap.inject ? ` · inject +${_fitNum(cap.inject)} GJ/s` : ''}</div>
+          <div class="fit-cap-stab ${cap.stable ? 'ok' : 'warn'}">${
+            cap.drain === 0 ? 'No active cap use'
+            : cap.stable ? `Stable at ${cap.stableAt}%`
+            : `Lasts ${_fitDur(cap.lastsSec)}`}</div>
         </div>
       </div>
-      <div class="fit-note-line">Cap stability under load needs the active-module sim — coming.</div>
+      ${cap.drain === 0 ? `<div class="fit-note-line">Set modules active (double-click) to simulate cap under load — guns, reps, prop mods and Cap Boosters (load charges) all count.</div>` : ''}
     </div>
 
     <!-- Defense -->
     <div class="fit-stats-card">
-      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">shield</span> DEFENSE <span class="fit-note">incl. modules &amp; heat</span></div>
-      <div class="fit-big">${_fitNum(D.ehp)} <span class="fit-big-unit">ehp</span></div>
+      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">shield</span> DEFENSE <span class="fit-note">incl. modules, heat &amp; reps</span></div>
+      <div class="fit-big">${_fitNum(D.ehp)}${gd(D.ehp, DB.ehp)} <span class="fit-big-unit">ehp</span></div>
       <div class="fit-res-head"><span></span>${['EM', 'Th', 'Kin', 'Exp'].map(x => `<span>${x}</span>`).join('')}</div>
-      ${_fitLayerRow('Shield', D.shieldHp, D.shieldRes)}
-      ${_fitLayerRow('Armor', D.armorHp, D.armorRes)}
-      ${_fitLayerRow('Structure', D.structHp, D.hullRes)}
+      ${_fitLayerRow('Shield', D.shieldHp, DB.shieldRes, gd(D.shieldHp, DB.shieldHp),
+        [DB.rep.boost ? `boost ${_fitNum(DB.rep.boost)} hp/s${gd(D.rep.boost, DB.rep.boost)}` : '',
+         `regen ${_fitNum(DB.rep.passive)} hp/s peak${gd(D.rep.passive, DB.rep.passive)}`].filter(Boolean).join(' · '))}
+      ${_fitLayerRow('Armor', D.armorHp, DB.armorRes, gd(D.armorHp, DB.armorHp),
+        DB.rep.armor ? `rep ${_fitNum(DB.rep.armor)} hp/s${gd(D.rep.armor, DB.rep.armor)}` : '')}
+      ${_fitLayerRow('Structure', D.structHp, D.hullRes, '',
+        DB.rep.hull ? `rep ${_fitNum(DB.rep.hull)} hp/s` : '')}
+    </div>
+
+    <!-- Command bursts -->
+    <div class="fit-stats-card">
+      <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">podcasts</span> COMMAND BURSTS <span class="fit-note">strongest source wins</span></div>
+      ${_fitOwnBursts().map(bb => line(`${_fitEsc(bb.name)}`, `${_fitEsc(bb.chargeName)}`)).join('')}
+      ${line('Incoming links', FIT_LINK_LABELS[_fitState.links] || 'None')}
+      ${!boosted ? `<div class="fit-note-line">Fit a Command Burst with a charge (set it active), or pick incoming links in the top bar — boosts appear as green + bonuses across the stats.</div>` : ''}
     </div>
 
     <!-- Targeting -->
     <div class="fit-stats-card">
       <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">my_location</span> TARGETING <span class="fit-note">incl. modules</span></div>
-      ${line('Lock range', `${_fitNum(D.lockRange / 1000)} km`)}
-      ${line('Scan res', `${_fitNum(D.scanRes)} mm`)}
-      ${line(`${hull.targeting.sensorType} str`, `${_fitNum(D.sensorStrength)} pts`)}
+      ${line('Lock range', `${_fitNum(D.lockRange / 1000)} km${gd(D.lockRange / 1000, DB.lockRange / 1000)}`)}
+      ${line('Scan res', `${_fitNum(D.scanRes)} mm${gd(D.scanRes, DB.scanRes)}`)}
+      ${line(`${hull.targeting.sensorType} str`, `${_fitNum(D.sensorStrength)} pts${gd(D.sensorStrength, DB.sensorStrength)}`)}
       ${line('Max targets', `${D.maxTargets}`)}
     </div>
 
     <!-- Navigation -->
     <div class="fit-stats-card">
       <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">navigation</span> NAVIGATION <span class="fit-note">incl. modules</span></div>
-      ${line('Max velocity', `${_fitNum(D.maxVel)} m/s`)}
-      ${line('Align time', `${_fitNum(D.align)} s`)}
+      ${line('Max velocity', `${_fitNum(D.maxVel)} m/s${gd(D.maxVel, DB.maxVel)}`)}
+      ${line('Align time', `${_fitNum(D.align)} s${gd(D.align, DB.align)}`)}
       ${line('Warp speed', `${_fitNum(D.warp)} AU/s`)}
       ${line('Mass', `${_fitNum(D.mass / 1000)} t`)}
-      ${line('Sig radius', `${_fitNum(D.sig)} m`)}
+      ${line('Sig radius', `${_fitNum(D.sig)} m${gd(D.sig, DB.sig)}`)}
     </div>`;
 
   const heat = el.querySelector('#fitHeatPreview');
   if (heat) heat.addEventListener('change', () => { _fitState.heatPreview = heat.checked; _fitRenderAll(); });
 
+  // Target picker (Offense card) — search touches only its own results box.
+  const tgtIn = el.querySelector('#fitTgtSearch');
+  if (tgtIn) {
+    const tRes = el.querySelector('#fitTgtResults');
+    let tTimer = null;
+    tgtIn.addEventListener('input', () => {
+      clearTimeout(tTimer);
+      tTimer = setTimeout(async () => {
+        const q = tgtIn.value.trim();
+        if (q.length < 2) { tRes.innerHTML = ''; return; }
+        const hits = await window.eveAPI.fitSearch(q, 'ship', 12).catch(() => []);
+        if (tgtIn.value.trim() !== q) return;
+        tRes.innerHTML = hits.length ? hits.map(h => `
+            <div class="fit-result" data-tgt="${h.id}">
+              <img src="https://images.evetech.net/types/${h.id}/icon?size=32" alt="" loading="lazy"/>
+              <span class="fit-result-name">${_fitEsc(h.name)}</span>
+              <span class="fit-result-grp">${_fitEsc(h.groupName || '')}</span>
+            </div>`).join('')
+          : `<div class="fit-hint" style="padding:6px;">No hulls match.</div>`;
+        tRes.querySelectorAll('[data-tgt]').forEach(r => r.addEventListener('click', () => _fitSetTarget(Number(r.dataset.tgt))));
+      }, 220);
+    });
+  }
+  el.querySelector('#fitTgtClear')?.addEventListener('click', () => { _fitState.target = null; _fitRenderStats(); });
+
   if (sim.length) requestAnimationFrame(() => _fitDrawRangeChart(sim));
+}
+
+// Load a hull as the applied-damage reference target (base resists only).
+async function _fitSetTarget(typeId) {
+  const hull = await window.eveAPI.fitGetHull(typeId).catch(() => null);
+  if (!hull) { _fitFlash('Could not load that hull.'); return; }
+  _fitState.target = { id: hull.id, name: hull.name, base: hull.base };
+  _fitRenderStats();
 }
 
 // ─── Applied-DPS-vs-range chart ────────────────────────────────────────────────
@@ -1908,11 +2899,11 @@ function _fitResistCells(res) {
       </span>`;
   }).join('');
 }
-function _fitLayerRow(label, hp, res) {
+function _fitLayerRow(label, hp, res, delta = '', sub = '') {
   return `<div class="fit-layer">
-      <span class="fit-layer-name">${label}<span class="fit-layer-hp">${_fitNum(hp)}</span></span>
+      <span class="fit-layer-name">${label}<span class="fit-layer-hp">${_fitNum(hp)}${delta}</span></span>
       ${_fitResistCells(res)}
-    </div>`;
+    </div>${sub ? `<div class="fit-rep-line">${sub}</div>` : ''}`;
 }
 function _fitLayerEHP(hp, res) {
   const vals = [res.em, res.th, res.kin, res.exp].filter(v => v != null);
@@ -1931,20 +2922,26 @@ function _fitLayerEHP(hp, res) {
 //   20+567 prop velocity · 554 sig % · 1076 velocity % · 169 agility %
 //   309 lock range % · 566 scan res % · 235 targets · 1027-30 sensor str %
 //   67 cap flat · 147 cap mult · 144 cap recharge-time mult
-function _fitShipDerived() {
+function _fitShipDerived(buffs = null) {
   const hull = _fitState.hull;
   const b = hull.base, nav = hull.nav, tgt = hull.targeting;
+  // Command-burst buff fraction (0 when computing the unboosted baseline).
+  const bf = (id) => (buffs && buffs[id] ? buffs[id] : 0) / 100;
 
   // Bonus chains (fractions, stacking-penalized) and flat adds.
   const chains = {};   // key → [fraction,…]
   const add = (key, frac) => { if (frac) (chains[key] || (chains[key] = [])).push(frac); };
   const flat = { shield: 0, armor: 0, cap: 0, mass: 0, sig: 0, targets: 0, vel: 0 };
 
-  // Ship resonance attr ids per layer/damage (same ids modules like DCU carry).
+  // Resonance-multiplier attr ids per layer/damage on MODULES. Shield/armor use
+  // the ship-style ids (Damage Controls, Reactive Armor Hardeners carry those),
+  // but module HULL bonuses live on 974-977 (hullEmDamageResonance…) — the
+  // 113-family is kept for completeness. A DC II's 0.6 × the universal 0.67 hull
+  // base ≈ the familiar 60% structure resist.
   const RES_IDS = {
-    shield: { em: 271, th: 274, kin: 273, exp: 272 },
-    armor:  { em: 267, th: 270, kin: 269, exp: 268 },
-    hull:   { em: 113, th: 110, kin: 109, exp: 111 },
+    shield: { em: [271], th: [274], kin: [273], exp: [272] },
+    armor:  { em: [267], th: [270], kin: [269], exp: [268] },
+    hull:   { em: [113, 974], th: [110, 977], kin: [109, 976], exp: [111, 975] },
   };
   // resistanceBonus attrs (negative %): em 984, exp 985, kin 986, th 987.
   const RB = { em: 984, exp: 985, kin: 986, th: 987 };
@@ -1969,10 +2966,12 @@ function _fitShipDerived() {
 
     // Fitting-level effects — apply while online, even on activatables
     // (plate/prop-mod mass, MWD cap penalty, extender HP+sig are "fitted" costs).
+    // Extender/plate HP adds are scaled by module-HP hull traits ("+100% Shield
+    // Extender hitpoints" role bonuses on Raven/Machariel/etc).
     if (a[796]) flat.mass += a[796];
-    if (a[72])  flat.shield += a[72];
+    if (a[72])  flat.shield += a[72] * _fitModHpMult(m.f);
     if (a[983]) flat.sig += a[983];
-    if (a[1159]) flat.armor += a[1159];
+    if (a[1159]) flat.armor += a[1159] * _fitModHpMult(m.f);
     if (a[67])  flat.cap += a[67];
     if (a[235]) flat.targets += a[235];
     if (a[146]) add('shieldMult', a[146] - 1);
@@ -1991,8 +2990,10 @@ function _fitShipDerived() {
       if (a[id]) add(`res:${layer}:${d}`, (-a[id] / 100) * heatK);
     }
     for (const [ly, ids] of Object.entries(RES_IDS)) {
-      for (const [d, id] of Object.entries(ids)) {
-        if (a[id] != null && a[id] !== 1) add(`res:${ly}:${d}`, 1 - a[id]);
+      for (const [d, idList] of Object.entries(ids)) {
+        for (const id of idList) {
+          if (a[id] != null && a[id] !== 1) add(`res:${ly}:${d}`, 1 - a[id]);
+        }
       }
     }
 
@@ -2031,47 +3032,167 @@ function _fitShipDerived() {
     return out;
   };
 
-  // Skills: Shield Management / Hull Upgrades / Mechanics (+5%/lvl to each layer).
-  const shieldHp = (b.shieldHp + flat.shield) * mult('shieldMult') * _fitSkMult('shieldMgmt', 5);
-  const armorHp  = (b.armorHp + flat.armor) * mult('armorMult')    * _fitSkMult('hullUp', 5);
-  const structHp = b.structureHp * mult('structMult')              * _fitSkMult('mechanics', 5);
-  const shieldRes = resOf('shield', b.shieldRes);
-  const armorRes  = resOf('armor',  b.armorRes);
-  const hullRes   = resOf('hull',   b.hullRes);
+  // Skills (Shield Management / Hull Upgrades / Mechanics +5%/lvl), hull-trait
+  // HP bonuses ("15% bonus to armor hitpoints" per level) and HP implants.
+  const I = _fitImplantBonuses();
+  const shieldHp = (b.shieldHp + flat.shield) * mult('shieldMult') * _fitSkMult('shieldMgmt', 5)
+                   * _fitTraitLayerMult('hp', 'shield') * I.shieldHp * (1 + bf(12));
+  const armorHp  = (b.armorHp + flat.armor) * mult('armorMult')    * _fitSkMult('hullUp', 5)
+                   * _fitTraitLayerMult('hp', 'armor') * I.armorHp * (1 + bf(15));
+  const structHp = b.structureHp * mult('structMult')              * _fitSkMult('mechanics', 5)
+                   * _fitTraitLayerMult('hp', 'struct') * I.hullHp;
+  // Resonances: module chains (stacking-penalized), hull resist traits, then
+  // Shield/Armor Harmonizing burst buffs (all plain multipliers).
+  const buffRes = (res, frac) => {
+    if (frac) for (const t of _FIT_DT_ALL) if (res[t] != null) res[t] *= 1 - frac;
+    return res;
+  };
+  const shieldRes = buffRes(_fitTraitRes('shield', resOf('shield', b.shieldRes)), bf(10));
+  const armorRes  = buffRes(_fitTraitRes('armor',  resOf('armor',  b.armorRes)), bf(13));
+  const hullRes   = _fitTraitRes('hull',   resOf('hull',   b.hullRes));
   const ehp = _fitLayerEHP(shieldHp, shieldRes) + _fitLayerEHP(armorHp, armorRes) + _fitLayerEHP(structHp, hullRes);
 
-  // Navigation: base × velocity mods × Navigation skill, then active prop-mod
-  // thrust (v ×= 1 + sf% · thrust/mass, sf boosted by Acceleration Control).
+  // Navigation: base × velocity mods × Navigation skill × hull velocity traits ×
+  // implants, then active prop-mod thrust (v ×= 1 + sf% · thrust/mass; sf boosted
+  // by Acceleration Control, AB/MWD hull traits and Zor's-style implants).
   const mass = (nav.mass || 0) + flat.mass;
-  let maxVel = ((nav.maxVel || 0) + flat.vel) * mult('vel') * _fitSkMult('nav', 5);
+  let maxVel = ((nav.maxVel || 0) + flat.vel) * mult('vel') * _fitSkMult('nav', 5)
+               * _fitTraitMult('shipVel') * I.vel;
   let sigChain = chains['sig'] || [];
   const accelK = _fitSkMult('accel', 5);
   for (const m of _fitAllMods()) {
     const a = m.f?.attrs || {};
     if (!(a[20] && a[567])) continue;
     if (m.state !== 'active' && m.state !== 'overheated') continue;
-    const sf = a[20] * accelK * (m.state === 'overheated' && a[1223] ? 1 + a[1223] / 100 : 1);
+    const propRs = _fitRsSet(m.f);
+    let sf = a[20] * accelK * I.propBoost * _fitTraitMult('propBoost', propRs) * (1 + bf(22))
+             * (m.state === 'overheated' && a[1223] ? 1 + a[1223] / 100 : 1);
     maxVel *= 1 + (sf / 100) * (a[567] / (mass || 1));
-    if (a[554]) sigChain.push(a[554] / 100);       // MWD signature bloom while running
+    if (a[554]) {
+      // MWD signature bloom — hull traits can shrink the penalty (Cerberus −50%).
+      let pen = a[554] / 100;
+      for (const rec of _fitTraitRecords()) {
+        if (rec.q === 'mwdSigPen' && _fitTraitMatches(rec, propRs, null)) pen *= 1 - (rec.pct * _fitTraitLvl(rec)) / 100;
+      }
+      sigChain.push(pen);
+    }
   }
   chains['sig'] = sigChain;
-  const agility = (nav.agility || 0) * mult('agi') * _fitSkMult('evasive', -5);
-  const sig = ((nav.sig || 0) + flat.sig) * mult('sig');
+  const agility = (nav.agility || 0) * mult('agi') * _fitSkMult('evasive', -5) * I.agi * (1 - bf(60));
+  const sig = ((nav.sig || 0) + flat.sig) * mult('sig') * I.sig * (1 - bf(20));
   const align = (mass && agility) ? (Math.log(4) * agility * mass) / 1e6 : 0;
 
-  const capCap = (b.capacitor + flat.cap) * mult('capMult') * _fitSkMult('capMgmt', 5);
-  const rechargeSec = ((b.rechargeMs || 0) * mult('capTime') * _fitSkMult('capSys', -5)) / 1000;
+  const capCap = (b.capacitor + flat.cap) * mult('capMult') * _fitSkMult('capMgmt', 5)
+                 * _fitTraitMult('cap') * I.cap;
+  const rechargeSec = ((b.rechargeMs || 0) * mult('capTime') * _fitSkMult('capSys', -5)
+                 * _fitTraitMult('capTime') * I.capTime) / 1000;
   const peakRegen = rechargeSec > 0 ? (2.5 * capCap) / rechargeSec : 0;
+
+  // ── Repair rates (HP/s) ────────────────────────────────────────────────────
+  // Active shield boost (boosters + ancillary), passive shield regen, active
+  // armor reps (+ancillary ×paste), active hull reps. Heat speeds cycles
+  // (attr 1206) AND pumps amounts (1231/1230); SBAs / Aux Nano Pumps stack-
+  // penalize; hull rep-amount traits, implants, and Active Shielding / Rapid
+  // Repair burst buffs (11/14, cycle-time cuts) all included.
+  const rep = { boost: 0, passive: 0, armor: 0, hull: 0 };
+  const sbaChain = [], armorAmpChain = [], boostDurChain = [], repDurChain = [];
+  for (const m of _fitAllMods()) {
+    if (m.state === 'offline') continue;
+    const a = m.f?.attrs || {};
+    if (a[548] && !a[68]) sbaChain.push(a[548] / 100);                 // Shield Boost Amplifier
+    if (m._slot !== 'rig') continue;
+    const g = (m.f?.groupName || '').toLowerCase();
+    if (a[806]) armorAmpChain.push(a[806] / 100);                      // Aux Nano Pump
+    if (a[312]) (g.includes('shield') ? boostDurChain : repDurChain).push(a[312] / 100);   // Solidifier / Nanobot Accelerator
+  }
+  for (const m of _fitAllMods()) {
+    if (m.state !== 'active' && m.state !== 'overheated') continue;
+    const a = m.f?.attrs || {};
+    const hot = m.state === 'overheated';
+    const heatDur = hot && a[1206] ? 1 + a[1206] / 100 : 1;            // −15% cycle when hot
+    if (a[68] && a[73] && (m.f.groupId === 40 || m.f.groupId === 1156)) {
+      const amt = a[68] * _fitStackChain(sbaChain) * _fitTraitMult('repAmount', _fitRsSet(m.f))
+                  * I.shieldBoostAmt * (hot && a[1231] ? 1 + a[1231] / 100 : 1);
+      const dur = a[73] * _fitStackChain(boostDurChain) * heatDur * (1 - bf(11));
+      if (dur > 0) rep.boost += (amt / dur) * 1000;
+    }
+    if (a[84] && a[73] && (m.f.groupId === 62 || m.f.groupId === 1199)) {
+      const paste = m.f.groupId === 1199 && m.charge && a[1886] ? a[1886] : 1;   // AAR ×3 with Nanite Paste
+      const amt = a[84] * paste * _fitStackChain(armorAmpChain) * _fitTraitMult('repAmount', _fitRsSet(m.f))
+                  * I.armorRepAmt * (hot && a[1230] ? 1 + a[1230] / 100 : 1);
+      const dur = a[73] * _fitStackChain(repDurChain) * _fitSkMult('repSys', -5) * I.repDur * heatDur * (1 - bf(14));
+      if (dur > 0) rep.armor += (amt / dur) * 1000;
+    }
+    if (a[83] && a[73] && m.f.groupId === 63) {
+      const dur = a[73] * _fitSkMult('repSys', -5) * I.repDur * heatDur;
+      if (dur > 0) rep.hull += (a[83] / dur) * 1000;
+    }
+  }
+  // Passive shield regen — peak ≈ 2.5 × shield HP / recharge time. SPRs, flux
+  // coils and purger rigs (attr 338, stack-penalized) + Shield Operation −5%/lvl.
+  const srChain = [];
+  for (const m of _fitAllMods()) {
+    if (m.state !== 'offline' && m.f?.attrs?.[338]) srChain.push(m.f.attrs[338] / 100);
+  }
+  const shieldRechargeSec = ((b.shieldRechargeMs || 0) * _fitStackChain(srChain) * _fitSkMult('shieldOp', -5)) / 1000;
+  rep.passive = shieldRechargeSec > 0 ? (2.5 * shieldHp) / shieldRechargeSec : 0;
 
   return {
     shieldHp, armorHp, structHp, shieldRes, armorRes, hullRes, ehp,
-    mass, maxVel, agility, sig, align, warp: nav.warpMult,
+    mass, maxVel, agility, sig, align,
+    warp: (nav.warpMult || 0) * _fitTraitMult('warp') * I.warp,
     capCap, rechargeSec, peakRegen,
-    lockRange: (tgt.lockRange || 0) * mult('lock') * _fitSkMult('lrt', 5),
-    scanRes: (tgt.scanRes || 0) * mult('scanres')  * _fitSkMult('sigAn', 5),
-    sensorStrength: (tgt.sensorStrength || 0) * mult('sensor'),
+    rep, shieldRechargeSec,
+    lockRange: (tgt.lockRange || 0) * mult('lock') * _fitSkMult('lrt', 5) * I.lock * (1 + bf(16)),
+    scanRes: (tgt.scanRes || 0) * mult('scanres')  * _fitSkMult('sigAn', 5) * I.scanres * (1 + bf(26)),
+    sensorStrength: ((tgt.sensorStrength || 0) * mult('sensor') * I.sensor + I.sensorFlat) * (1 + bf(18)),
     maxTargets: (tgt.maxTargets || 0) + flat.targets,
   };
+}
+
+// ─── Capacitor simulation ────────────────────────────────────────────────────
+// Active-module cap drain (weapons cycle on their rate of fire, everything else
+// on duration — heat speeds both), Cap Booster injection from the loaded charge,
+// then the EVE recharge curve dC/dt = (2·Cmax/τ)(√x − x), τ = rechargeTime/5:
+// stable when peak regen covers the net drain (equilibrium at x = s², where
+// s = (1+√(1−4k))/2 and k = net·τ / 2Cmax), otherwise integrate to empty.
+function _fitCapSim(D) {
+  let drain = 0, inject = 0;
+  for (const m of _fitAllMods()) {
+    if (m.state !== 'active' && m.state !== 'overheated') continue;
+    const f = m.f || {}, a = f.attrs || {};
+    const hot = m.state === 'overheated';
+    let cyc = f.hardpoint ? (f.rof || 0) : (a[73] || 0);
+    if (!cyc) continue;
+    if (hot && a[1206]) cyc *= 1 + a[1206] / 100;
+    // Cap Booster: injects its charge's capacitorBonus every cycle, cap-free.
+    if (f.groupId === 76 && m.charge?.f?.attrs?.[67]) {
+      inject += m.charge.f.attrs[67] / (cyc / 1000);
+      continue;
+    }
+    let need = a[6] || 0;
+    if (!need) continue;                                       // missiles, passives…
+    if (f.hardpoint === 'turret') need *= _fitSkMult('ctrlBursts', -5);
+    if (a[20] && a[567]) need *= _fitRsSet(f).has(FIT_SK.hsm) ? _fitSkMult('hsm', -5) : _fitSkMult('fuelCons', -10);
+    if (f.groupId === 40 || f.groupId === 1156) need *= _fitSkMult('shieldComp', -2);
+    if (f.groupId === 1156 && m.charge) need = 0;              // ASB runs cap-free on charges
+    if (need) drain += need / (cyc / 1000);
+  }
+  const net = drain - inject;
+  const out = { drain, inject, net };
+  const Cmax = D.capCap, tau = (D.rechargeSec || 1) / 5;
+  if (Cmax <= 0 || net <= 0) return { ...out, stable: true, stableAt: 100 };
+  const k = (net * tau) / (2 * Cmax);
+  if (k <= 0.25) {
+    const s = (1 + Math.sqrt(1 - 4 * k)) / 2;
+    return { ...out, stable: true, stableAt: Math.round(s * s * 100) };
+  }
+  let x = 1, t = 0;
+  while (x > 0 && t < 7200) {
+    x += ((2 / tau) * (Math.sqrt(x) - x) - net / Cmax) * 1;
+    t += 1;
+  }
+  return { ...out, stable: false, lastsSec: t };
 }
 
 // Offense now comes from the sim (damage mods, heat, stacking, drones included).
@@ -2110,9 +3231,14 @@ function _fitToEFT() {
       if (m) lines.push(m.charge ? `${m.name}, ${m.charge.name}` : m.name);
     }
   }
-  if (_fitState.drones.length) {
+  const fighterTubes = (_fitState.fighters || []).filter(Boolean);
+  if (_fitState.drones.length || fighterTubes.length) {
     lines.push('');
     for (const d of _fitState.drones) lines.push(`${d.name} x${d.qty}`);
+    // Merge tubes of the same fighter into one EFT quantity line.
+    const fq = new Map();
+    for (const t of fighterTubes) fq.set(t.name, (fq.get(t.name) || 0) + t.units);
+    for (const [n, q] of fq) lines.push(`${n} x${q}`);
   }
   return lines.join('\n');
 }
@@ -2307,13 +3433,88 @@ async function _fitSaveToGame() {
       if (m.charge) items.push({ typeId: m.charge.id, flag: base[slot] + i, quantity: 1 });
     });
   }
-  // Bays: drones → DroneBay flag 87, fighters → FighterBay flag 158.
-  for (const d of _fitState.drones) items.push({ typeId: d.id, flag: _fitIsFighter(d) ? 158 : 87, quantity: d.qty });
+  // Bays: drones → DroneBay flag 87, fighter tubes → FighterBay flag 158.
+  for (const d of _fitState.drones) if (!_fitIsFighter(d)) items.push({ typeId: d.id, flag: 87, quantity: d.qty });
+  for (const t of (_fitState.fighters || [])) if (t) items.push({ typeId: t.id, flag: 158, quantity: t.units });
   const fit = { name: _fitState.fitName || 'EVE Carbon Fit', description: 'Created in EVE Carbon', shipTypeId: _fitState.hull.id, items };
   _fitFlash('Saving to game…');
   const res = await window.eveAPI.fitSaveFitting(charId, fit).catch(e => ({ ok: false, error: e.message }));
   if (res.needsReauth) { _fitFlash('Re-authenticate this character to grant fittings write access.'); return; }
   _fitFlash(res.ok ? 'Saved to game — check Fittings in the EVE client.' : (res.error || 'Save failed.'));
+}
+
+// ─── Local fits — saved inside EVE Carbon, no ESI involved ────────────────────
+// localStorage 'fitLocalFits': [{ id, name, hullId, hullName, racks, drones, saved }].
+// racks/drones use the _fitPersist snapshot shape, so _fitApplySnapshot rebuilds
+// them. They survive ESI outages and show under their hull in Hulls & Fits.
+function _fitLocalFits() {
+  try { const a = JSON.parse(localStorage.getItem('fitLocalFits') || '[]'); return Array.isArray(a) ? a : []; }
+  catch (_) { return []; }
+}
+function _fitLocalFitsStore(list) {
+  try { localStorage.setItem('fitLocalFits', JSON.stringify(list)); } catch (_) {}
+}
+
+function _fitSaveLocal() {
+  if (!_fitState.hull) { _fitFlash('Load a hull first.'); return; }
+  const panel = document.getElementById('fitImportPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div class="fit-import-title">Save this fit in EVE Carbon</div>
+    <input id="fitLocalName" class="field-input" value="${_fitEsc(_fitState.fitName || '')}" placeholder="Fit name" autocomplete="off"/>
+    <div class="fit-import-actions">
+      <button id="fitLocalGo" class="fit-btn fit-btn-accent">Save</button>
+      <button id="fitLocalCancel" class="fit-btn">Cancel</button>
+    </div>`;
+  const input = panel.querySelector('#fitLocalName');
+  input.focus(); input.select();
+  const doSave = () => {
+    const name = input.value.trim() || `${_fitState.hull.name} Fit`;
+    const racks = {};
+    for (const key of Object.keys(_fitState.modules)) {
+      racks[key] = _fitState.modules[key].map(m => m
+        ? { id: m.id, state: m.state, c: m.charge ? { id: m.charge.id, name: m.charge.name } : null }
+        : null);
+    }
+    const drones = _fitState.drones.map(d => ({ id: d.id, qty: d.qty, active: d.active }));
+    const fighters = (_fitState.fighters || []).map(t => t ? { id: t.id, units: t.units, active: t.active ? 1 : 0 } : null);
+    const implants = _fitState.implants.map(i => i ? { id: i.id, name: i.name } : null);
+    const list = _fitLocalFits();
+    const entry = {
+      id: String(Date.now()), name, hullId: _fitState.hull.id, hullName: _fitState.hull.name,
+      racks, drones, fighters, implants, saved: new Date().toISOString(),
+    };
+    // Saving under an existing name on the same hull overwrites that fit.
+    const i = list.findIndex(f => f.hullId === entry.hullId && f.name.toLowerCase() === name.toLowerCase());
+    if (i >= 0) { entry.id = list[i].id; list[i] = entry; } else { list.push(entry); }
+    _fitLocalFitsStore(list);
+    _fitState.fitName = name;
+    _fitPersist();
+    panel.style.display = 'none';
+    _fitRenderBrowser();                          // appears under its hull in Hulls & Fits
+    _fitFlash(i >= 0 ? `Updated "${name}".` : `Saved "${name}".`);
+  };
+  panel.querySelector('#fitLocalCancel').addEventListener('click', () => { panel.style.display = 'none'; });
+  panel.querySelector('#fitLocalGo').addEventListener('click', doSave);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); });
+}
+
+async function _fitLoadLocalFit(id) {
+  const f = _fitLocalFits().find(x => String(x.id) === String(id));
+  if (!f) return;
+  const ok = await _fitApplySnapshot({ hullId: f.hullId, fitName: f.name, racks: f.racks, drones: f.drones, fighters: f.fighters, implants: f.implants });
+  _fitFlash(ok ? `Loaded "${f.name}".` : 'Could not rebuild this fit — hull missing from the SDE?');
+}
+
+function _fitDeleteLocalFit(id) {
+  const list = _fitLocalFits();
+  const f = list.find(x => String(x.id) === String(id));
+  if (!f) return;
+  if (!window.confirm(`Delete the saved fit "${f.name}"?`)) return;
+  _fitLocalFitsStore(list.filter(x => String(x.id) !== String(id)));
+  _fitRenderBrowser();
+  _fitFlash(`Deleted "${f.name}".`);
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -2324,6 +3525,11 @@ function _fitNum(n) {
 function _fitKm(m) {
   const km = (Number(m) || 0) / 1000;
   return km >= 100 ? `${Math.round(km)} km` : `${(Math.round(km * 10) / 10)} km`;
+}
+function _fitDur(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m ? `${m}m ${s}s` : `${s}s`;
 }
 function _fitFlash(msg) {
   const head = document.getElementById('fitHullName');

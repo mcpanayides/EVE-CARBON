@@ -778,7 +778,7 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
 const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: 'subsystem' };
 // 'module' includes subsystems; 'charge' includes drones AND fighters (cat 87) —
 // one browser tab covers everything that goes in a bay.
-const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32] };
+const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32], implant: [20] };
 
 // Per-type fitting facts used by the renderer to place & cost a module.
 async function _fitItemFacts(typeId) {
@@ -828,9 +828,19 @@ async function _fitItemFacts(typeId) {
   const allAttrRows = await sdeDb.all(
     `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes WHERE typeID = ?`, [typeId]);
   const attrs = {}; allAttrRows.forEach(r => { attrs[r.attributeID] = r.v; });
+  // Subsystems carry the T3 hull's trait bonuses (invTraits rows keyed by the
+  // subsystem skill); implants need their effect names so the renderer can scope
+  // their bonuses (e.g. "…RequiringGunnery" → turrets only).
+  let traits = null;
+  if (row.categoryID === 32) {
+    traits = await sdeDb.all(
+      `SELECT skillID, bonus, unitID, bonusText FROM invTraits WHERE typeID = ?`, [typeId]).catch(() => []);
+  }
   return {
     id: row.typeID, name: row.typeName, groupName: row.groupName,
     groupId: row.groupID, categoryId: row.categoryID, attrs,
+    effects: effs.map(e => e.effectName),
+    traits,
     volume: row.volume || 0,   // m³ (drone-bay accounting)
     slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
     dmgMult: a[64] || 0, rof: a[51] || 0,
@@ -898,9 +908,9 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
     const attrRows = await sdeDb.all(
       `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
         WHERE typeID = ? AND attributeID IN (
-          14,13,12,1137,1367,102,101,48,11,263,265,9,482,55,
+          14,13,12,1137,1367,102,101,48,11,263,265,9,482,55,479,
           271,274,273,272,267,270,269,268,113,110,109,111,
-          76,564,192,208,209,210,211,37,70,600,552,1132,283,1271,2055,2216)`, [typeId]);
+          76,564,192,208,209,210,211,37,70,600,552,1132,283,1271,2055,2216,2217,2218,2219)`, [typeId]);
     const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
 
     // Sensor strength = the single non-zero sensor type (ships have exactly one).
@@ -929,10 +939,13 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
       output: { cpu: a[48] || 0, pg: a[11] || 0, calibration: a[1132] || 0 },
       cargo: row.capacity || 0,                                        // cargo hold m³
       drone: { bay: a[283] || 0, bandwidth: a[1271] || 0 },            // drone bay m³ / Mbit
-      fighter: { bay: a[2055] || 0, tubes: a[2216] || 0 },             // fighter bay m³ / launch tubes
+      // Fighter bay m³ / launch tubes / squadron-slot limits by fighter type.
+      fighter: { bay: a[2055] || 0, tubes: a[2216] || 0, light: a[2217] || 0, support: a[2218] || 0, heavy: a[2219] || 0 },
       base: {
         shieldHp: a[263] || 0, armorHp: a[265] || 0, structureHp: a[9] || 0,
         capacitor: a[482] || 0, rechargeMs: a[55] || 0,
+        shieldRechargeMs: a[479] || 0,                                 // passive shield regen
+
         // resonances (lower = more resist). Order em, therm, kin, exp.
         shieldRes: { em: a[271], th: a[274], kin: a[273], exp: a[272] },
         armorRes:  { em: a[267], th: a[270], kin: a[269], exp: a[268] },
@@ -940,6 +953,12 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
       },
       targeting: { lockRange: a[76] || 0, scanRes: a[564] || 0, maxTargets: a[192] || 0, sensorType, sensorStrength },
       nav: { maxVel: a[37] || 0, mass: row.mass || 0, agility: a[70] || 0, warpMult: a[600] || 0, sig: a[552] || 0 },
+      // Hull trait bonuses (invTraits): skillID -1 = role bonus (flat), otherwise
+      // %-per-level of that skill. bonusText's showinfo links carry the skill ids
+      // the affected weapons/charges/drones/modules must require — the renderer's
+      // trait engine matches on those.
+      traits: await sdeDb.all(
+        `SELECT skillID, bonus, unitID, bonusText FROM invTraits WHERE typeID = ?`, [typeId]).catch(() => []),
     };
   } catch (e) { console.warn('[fit-get-hull]', e.message); return null; }
 });

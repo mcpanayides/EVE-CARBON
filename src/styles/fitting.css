@@ -51,6 +51,51 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .ft-body { padding-left: 14px; border-left: 1px solid var(--border); margin-left: 10px; }
 .ft-fit { padding-left: 26px; color: var(--accent); font-size: 11.5px; }
 .ft-fit:hover { background: var(--bg-hover); }
+/* Fits saved locally in EVE Carbon (vs ⚙ game fits fetched over ESI). */
+.ft-fit-local .material-symbols-outlined { font-size: 14px; color: var(--text-3); flex-shrink: 0; }
+.ft-fit-del {
+  margin-left: auto; background: none; border: none; color: var(--text-3);
+  font-size: 10px; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 3px;
+  display: none;
+}
+.ft-fit-local:hover .ft-fit-del { display: block; }
+.ft-fit-del:hover { color: #e0564b; }
+/* Notice at the top of Hulls & Fits when the ESI fits fetch fails. */
+.fit-hint-warn { color: #e0a34b; text-align: left; padding: 6px 8px 2px; font-size: 11px; }
+/* Section divider in ship-search results between hull matches and fit-name matches. */
+.ft-fit-sec {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+  color: var(--text-3); padding: 8px 6px 2px; border-top: 1px solid var(--border); margin-top: 6px;
+}
+
+/* Offense: damage-type composition bar + target picker. */
+.fit-dmg-bar {
+  display: flex; height: 8px; border-radius: 4px; overflow: hidden;
+  border: 1px solid var(--border); margin: -2px 0 3px;
+}
+.fit-dmg-legend { font-size: 11px; font-family: var(--mono); color: var(--text-3); margin-bottom: 6px; }
+.fit-tgt-search { width: 100%; font-size: 11px; margin-top: 8px; }
+#fitTgtResults { max-height: 170px; overflow-y: auto; margin-top: 4px; }
+#fitTgtResults .fit-result { padding: 3px 4px; font-size: 11px; }
+.fit-tgt-clear {
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 10px; padding: 0 3px;
+}
+.fit-tgt-clear:hover { color: #e0564b; }
+
+/* Capacitor stability line. */
+.fit-cap-stab { font-size: 11px; font-family: var(--mono); font-weight: 700; margin-top: 2px; }
+.fit-cap-stab.ok   { color: #4ecb71; }
+.fit-cap-stab.warn { color: #e0a34b; }
+
+/* Command-burst boost contribution — green "+x" beside the base value. */
+.fit-boost-delta { color: #4ecb71; font-family: var(--mono); font-size: 12px; margin-left: 5px; white-space: nowrap; }
+/* Repair-rate line under a defense layer row (boost / regen / rep hp/s). */
+.fit-rep-line {
+  display: flex; justify-content: flex-end; gap: 10px;
+  font-size: 12px; color: var(--text-3); font-family: var(--mono);
+  margin: -3px 0 5px; padding-right: 2px;
+}
 .fit-result {
   display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px;
   cursor: pointer; font-size: 12px; color: var(--text-1);
@@ -150,6 +195,33 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   box-shadow: 0 8px 26px rgba(0,0,0,0.6); overflow: hidden;
   max-height: 330px; overflow-y: auto;
 }
+/* Fighter launch-tube wedges — hang below the bottom of the ring, styled like
+   slot wedges. Launched = green glow (state-active), held = dim (state-offline). */
+.fw-tube-units {
+  position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px;
+  border-radius: 50%; background: #0b0d12; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 700; z-index: 2;
+}
+.fw-tube-ico { font-size: 22px; color: var(--text-3); position: relative; z-index: 1; }
+.fw-tube-light   { color: #57c7ff; border-color: rgba(87,199,255,0.5); }
+.fw-tube-support { color: #4ecb71; border-color: rgba(78,203,113,0.5); }
+.fw-tube-heavy   { color: #e0a34b; border-color: rgba(224,163,75,0.5); }
+
+/* Implants panel (shares the drone-bay shell). */
+.fw-imp-slotn {
+  width: 16px; flex-shrink: 0; text-align: right;
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+.fw-imp-empty .fw-db-name { color: var(--text-3); font-style: italic; }
+.fw-imp-search { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.fw-imp-search .field-input { width: 100%; font-size: 11px; }
+.fw-imp-results { max-height: 150px; overflow-y: auto; margin-top: 4px; }
+.fw-imp-results .fit-result { padding: 3px 4px; font-size: 11px; }
+.fw-imp-clear {
+  background: none; border: none; color: #e0564b; cursor: pointer;
+  font-size: 10px; padding: 0 2px; text-decoration: underline;
+}
 .fw-db-head {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
   padding: 7px 10px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em;
@@ -200,7 +272,11 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   position: absolute; width: 56px; height: 65px;
   background: none; border: none;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
+  z-index: 1;   /* occupied slots paint above empty/locked wedges so charges aren't covered */
 }
+.fw-slot.empty, .fw-slot.locked { z-index: 0; }
+.fw-slot:has(.fw-charge) { z-index: 2; }   /* loaded charge overflows the cell — keep it on top */
+.fw-slot:hover { z-index: 3; }
 .fw-wedge {
   position: absolute; inset: 0; z-index: 0; border-radius: 5px;
   clip-path: polygon(5% 0%, 95% 0%, 87% 100%, 13% 100%);
@@ -244,8 +320,9 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 
 /* Loaded charge — a small circle in the slot's bottom-right corner (in-game style). */
 .fw-charge {
-  position: absolute; right: -7px; bottom: -7px; width: 20px !important; height: 20px !important;
-  border: 1px solid rgba(150,160,176,0.5); border-radius: 50% !important; background: var(--bg-deep);
+  position: absolute; right: -7px; bottom: -7px; width: 35px !important; height: 35px !important;
+  border: 1px solid rgba(32, 32, 32, 0.85); border-radius: 50% !important;
+  background: #424244;   /* opaque — var(--bg-deep) is 85% alpha and lets the module icon bleed through */
   object-fit: cover;
 }
 .fw-x {
@@ -403,7 +480,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-res-head span:first-child { text-align: left; }
 .fit-layer { margin-bottom: 4px; }
 .fit-layer-name { display: flex; flex-direction: column; font-size: 11px; color: var(--text-2); }
-.fit-layer-hp { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.fit-layer-hp { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
 /* Resist cells = mini bars filling 0→100% (0% resist = empty track, EVE style). */
 .fit-res-cell {
   position: relative; display: block; height: 18px; border-radius: 3px;
@@ -412,7 +489,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-res-fill { position: absolute; inset: 0 auto 0 0; border-radius: 2px; }
 .fit-res-val {
   position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
-  height: 100%; font-size: 9.5px; font-family: var(--mono); font-weight: 700;
+  height: 100%; font-size: 11.5px; font-family: var(--mono); font-weight: 700;
   color: var(--text-1); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
 }
 .fit-res-em  { background: #2f6fb0; }

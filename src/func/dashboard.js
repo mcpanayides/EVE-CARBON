@@ -302,6 +302,10 @@ function _makeDashItemEl({ id, x, y, w, h }) {
           ${def.icon ? `<span class="material-symbols-outlined dashboard-widget-icon">${def.icon}</span>` : ''}
           <span class="dashboard-widget-title-text">${def.title}</span>
           <span class="dnd-grip">⠿</span>
+          <button class="dashboard-widget-popout" title="Pop out as floating widget"
+                  onclick="popOutDashboardWidget('${id}')">
+            <span class="material-symbols-outlined">open_in_new</span>
+          </button>
           <button class="dashboard-widget-remove" title="Remove widget"
                   onclick="removeDashboardWidget('${id}')">✕</button>
         </div>
@@ -361,13 +365,14 @@ function initDashboardGrid() {
     float: false,   // gravity-pack widgets to the top — no empty rows / top gap
     handle: '.dnd-handle',
     resizable: { handles: 'e, se, s, sw, w' },
-    draggable: { handle: '.dnd-handle', cancel: '.dashboard-widget-remove' },
+    draggable: { handle: '.dnd-handle', cancel: '.dashboard-widget-remove,.dashboard-widget-popout' },
   }, gridEl);
 
   _dashGrid.on('change',  _saveDashLayout);
   _dashGrid.on('added',   _saveDashLayout);
   _dashGrid.on('removed', _saveDashLayout);
 
+  _initWidgetPopouts();   // restore stranded pop-outs + bind IPC (once)
   _refreshAddWidgetMenu();
   // Resolve Goon status async, then re-refresh so the Beehive widget appears in the
   // "add widget" menu only for Goons.
@@ -410,6 +415,158 @@ function resetDashboardLayout() {
   if (_dashGrid) { _dashGrid.destroy(false); _dashGrid = null; }  // keep the grid DOM node
   initDashboardGrid();
   loadDashboard();
+}
+
+// ─── Widget pop-outs (floating desktop widgets) ───────────────────────────────
+// Popping a widget out moves its live .dashboard-panel into a hidden off-screen
+// host so loadDashboard() and the live refreshers keep filling it, then opens a
+// small glass BrowserWindow (main.js) that mirrors the widget's HTML. Canvas
+// charts are snapshotted to PNG for the mirror. Closing the popout (its pop-in
+// button or the OS close) restores the widget to the grid at its old spot.
+
+const POPPED_KEY = 'dashboardPoppedWidgets';
+
+function _getPopped() {
+  try { return JSON.parse(localStorage.getItem(POPPED_KEY) || '{}') || {}; }
+  catch (_) { return {}; }
+}
+function _setPopped(map) {
+  try { localStorage.setItem(POPPED_KEY, JSON.stringify(map)); } catch (_) {}
+}
+
+// Hidden live host — off-screen but laid out (fixed width, not display:none)
+// so charts and container queries still size correctly.
+function _getPopoutHost() {
+  let host = document.getElementById('dashPopoutHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'dashPopoutHost';
+    host.style.cssText =
+      'position:fixed; left:-10000px; top:0; width:440px; opacity:0; pointer-events:none; z-index:-1;';
+    document.body.appendChild(host);
+  }
+  return host;
+}
+
+function _popHolder(id) {
+  const esc = (window.CSS && CSS.escape) ? CSS.escape(id) : id;
+  return _getPopoutHost().querySelector(`[data-pop-id="${esc}"]`);
+}
+
+// Mirror HTML for a popped widget: body content with live canvases swapped for
+// PNG snapshots (canvas pixels don't survive innerHTML serialisation).
+function _widgetMirrorHtml(panel) {
+  const body = panel?.querySelector('.dashboard-widget-body');
+  if (!body) return '';
+  const clone = body.cloneNode(true);
+  const live  = body.querySelectorAll('canvas');
+  clone.querySelectorAll('canvas').forEach((c, i) => {
+    try {
+      const img = document.createElement('img');
+      img.src = live[i].toDataURL('image/png');
+      img.style.cssText = 'width:100%; height:auto; display:block;';
+      c.replaceWith(img);
+    } catch (_) { c.remove(); }
+  });
+  return clone.innerHTML;
+}
+
+function _pushWidgetContent(id) {
+  const holder = _popHolder(id);
+  const def    = _widgetDef(id);
+  if (!holder || !def) return;
+  const html = _widgetMirrorHtml(holder.querySelector('.dashboard-panel'));
+  window.eveAPI?.widgetPopoutContent?.({ id, title: def.title, html })?.catch?.(() => {});
+}
+
+function _pushAllPopped() {
+  Object.keys(_getPopped()).forEach(_pushWidgetContent);
+}
+
+// Observer catches normal DOM re-renders; the slow timer catches canvas-only
+// repaints (Chart.js draws without touching the DOM).
+let _popObserver = null;
+let _popTimer    = null;
+function _ensurePopoutPlumbing() {
+  if (!_popObserver) {
+    _popObserver = new MutationObserver(() => {
+      clearTimeout(_popObserver._t);
+      _popObserver._t = setTimeout(_pushAllPopped, 250);
+    });
+    _popObserver.observe(_getPopoutHost(), { childList: true, subtree: true, characterData: true });
+  }
+  if (!_popTimer) _popTimer = setInterval(_pushAllPopped, 30_000);
+}
+
+async function popOutDashboardWidget(id) {
+  const def = _widgetDef(id);
+  if (!def || !_dashGrid) return;
+  const node = _dashGrid.engine.nodes.find(n => _nodeWidgetId(n) === id);
+  if (!node) return;
+
+  // Capture px size + grid spot BEFORE detaching
+  const rect  = node.el.getBoundingClientRect();
+  const spot  = { x: node.x, y: node.y, w: node.w, h: node.h };
+  const panel = node.el.querySelector('.dashboard-panel');
+  if (!panel) return;
+
+  // Move (not clone) the live panel so renderers keep finding it by id /
+  // data-widget-base and chart instances stay alive.
+  const holder = document.createElement('div');
+  holder.dataset.popId = id;
+  holder.appendChild(panel);
+  _getPopoutHost().appendChild(holder);
+
+  const popped = _getPopped();
+  popped[id] = spot;
+  _setPopped(popped);
+
+  _dashGrid.removeWidget(node.el);
+  _saveDashLayout();
+  _ensurePopoutPlumbing();
+
+  try {
+    await window.eveAPI?.widgetPopoutOpen?.({
+      id, title: def.title, w: Math.round(rect.width), h: Math.round(rect.height),
+    });
+  } catch (_) { /* window failed — pop straight back in */ }
+  _pushWidgetContent(id);
+}
+
+// Return a popped widget to the grid (popout closed by button or OS ✕).
+// skipLoad is used during startup restoration, where the caller's own
+// loadDashboard() pass will fill the widgets.
+function _popInDashboardWidget(id, skipLoad = false) {
+  const popped = _getPopped();
+  const spot   = popped[id] || null;
+  delete popped[id];
+  _setPopped(popped);
+
+  const holder = _popHolder(id);
+  if (!_dashGrid || !_widgetDef(id))    { holder?.remove(); return; }
+  if (_activeWidgetIds().includes(id))  { holder?.remove(); return; }  // already back
+
+  const el = _makeDashItemEl({ id, ...(spot || {}) });
+  // Keep the live panel (its state and charts) instead of the fresh skeleton
+  const livePanel = holder?.querySelector('.dashboard-panel');
+  if (livePanel) el.querySelector('.dashboard-panel')?.replaceWith(livePanel);
+  document.getElementById('dashboardGrid')?.appendChild(el);
+  _dashGrid.makeWidget(el);
+  holder?.remove();
+  _saveDashLayout();
+  if (!livePanel && !skipLoad) loadDashboard();   // fresh skeleton needs a data fill
+}
+
+// Register IPC listeners once, and restore widgets that were still popped out
+// when the app last quit (popout windows don't survive a restart).
+let _popBound = false;
+function _initWidgetPopouts() {
+  if (!_popBound) {
+    _popBound = true;
+    window.eveAPI?.onWidgetPoppedIn?.((id) => _popInDashboardWidget(id));
+    window.eveAPI?.onWidgetPopoutReady?.((id) => _pushWidgetContent(id));
+  }
+  Object.keys(_getPopped()).forEach(id => _popInDashboardWidget(id, true));
 }
 
 // ── “+ Add Widget” dropdown menu ─────────────────────────────────────────────

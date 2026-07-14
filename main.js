@@ -254,6 +254,36 @@ ipcHandle('list-backgrounds', async () => {
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 });
 
+// ─── Reeded glass / acrylic IPC ──────────────────────────────────────────────
+// glass-supported  → renderer asks whether the OS can do acrylic at all.
+// glass-set-material → runtime toggle from Settings ('acrylic' | 'none').
+ipcHandle('glass-supported', async () => acrylicSupported());
+
+// System accent colour (Windows accent / macOS highlight) → '#rrggbb' or null.
+// Lets the glass tint follow the OS colourway instead of a hand-picked colour.
+ipcHandle('glass-get-accent', async () => {
+  try {
+    const { systemPreferences } = require('electron');
+    const hex = systemPreferences.getAccentColor?.();   // 'rrggbbaa'
+    return hex ? `#${hex.slice(0, 6)}` : null;
+  } catch {
+    return null;
+  }
+});
+
+ipcHandle('glass-set-material', async (_e, material) => {
+  if (!acrylicSupported()) return { success: false, error: 'Acrylic requires Windows 11 22H2+' };
+  if (!mainWindow || mainWindow.isDestroyed()) return { success: false, error: 'No window' };
+  try {
+    const on = material === 'acrylic';
+    mainWindow.setBackgroundMaterial(on ? 'acrylic' : 'none');
+    mainWindow.setBackgroundColor(on ? '#00000000' : '#070b14');
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcHandle('pick-background', async () => {
   const { dialog } = require('electron');
   const result = await dialog.showOpenDialog({
@@ -1775,6 +1805,80 @@ let pendingPingAlertData = null;  // stored BEFORE window creation so the pull I
 // Registered here so it is available as soon as createPingAlertWindow could be called.
 ipcHandle('jabber-get-ping-alert-data', () => pendingPingAlertData);
 
+// ─── Dashboard widget pop-outs ────────────────────────────────────────────────
+// Each dashboard widget can float as its own small glass window. The dashboard
+// keeps rendering the widget in a hidden host and streams its HTML here; the
+// popout is a dumb mirror. Closing a popout (button or OS close) notifies the
+// dashboard so the widget pops back into the grid.
+const widgetPopouts = new Map();   // widgetId → BrowserWindow
+
+ipcHandle('widget-popout-open', (_e, { id, title, w, h }) => {
+  if (!id) return { success: false, error: 'No widget id' };
+  const existing = widgetPopouts.get(id);
+  if (existing && !existing.isDestroyed()) { existing.focus(); return { success: true }; }
+
+  const win = new BrowserWindow({
+    width:      Math.round(Math.max(280, Math.min(w || 420, 1000))),
+    height:     Math.round(Math.max(200, Math.min((h || 320) + 40, 1000))),  // + titlebar
+    minWidth:   240,
+    minHeight:  160,
+    resizable:  true,
+    skipTaskbar: false,
+    transparent: false,
+    ...(acrylicSupported()
+      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+      : { frame: false, backgroundColor: '#070b14' }),
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    webPreferences: {
+      preload:          path.join(__dirname, 'src', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, 'src', 'html', 'widget-window.html'),
+               { query: { id, title: title || 'WIDGET' } });
+  widgetPopouts.set(id, win);
+
+  win.on('closed', () => {
+    widgetPopouts.delete(id);
+    // Any close (pop-in button or OS ✕) returns the widget to the dashboard
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('widget-popped-in', id);
+    }
+  });
+  return { success: true };
+});
+
+// Pop-in button inside the popout → close (the closed handler does the rest)
+ipcHandle('widget-popout-close', (_e, id) => {
+  const win = widgetPopouts.get(id);
+  if (win && !win.isDestroyed()) win.close();
+  return { success: true };
+});
+
+// Popout finished loading → ask the dashboard for a first content push
+ipcHandle('widget-popout-ready', (_e, id) => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('widget-popout-ready', id);
+  }
+  return { success: true };
+});
+
+// Fresh widget HTML from the dashboard, relayed to the matching popout
+ipcHandle('widget-popout-content', (_e, { id, html, title }) => {
+  const win = widgetPopouts.get(id);
+  if (win && !win.isDestroyed()) win.webContents.send('widget-content', { id, html, title });
+  return { success: true };
+});
+
+// Always-on-top pin toggle from the popout titlebar
+ipcHandle('widget-popout-pin', (_e, { id, pinned }) => {
+  const win = widgetPopouts.get(id);
+  if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!pinned, 'screen-saver');
+  return { success: true };
+});
+
 function createPingAlertWindow(msg) {
   // Store the payload BEFORE creating the window so that if the renderer's
   // getPingAlertData() invoke resolves before did-finish-load fires the push,
@@ -1802,9 +1906,15 @@ function createPingAlertWindow(msg) {
     fullscreenable:  false,
     alwaysOnTop:     true,
     skipTaskbar:     false,
-    frame:           false,
     transparent:     false,
-    backgroundColor: '#070b14',
+    show:            false,   // created hidden — shown INACTIVE below (see note)
+    // Acrylic doesn't render on frame:false windows — titleBarStyle:'hidden'
+    // gives the same chromeless look and lets the material work (this is why
+    // the main window's glass worked and this popup's didn't). Solid-color
+    // frameless fallback for pre-22H2 Windows.
+    ...(acrylicSupported()
+      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+      : { frame: false, backgroundColor: '#070b14' }),
     icon:            path.join(__dirname, 'assets', 'icon.ico'),
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
@@ -1813,10 +1923,20 @@ function createPingAlertWindow(msg) {
     },
   });
  
-  // Set always-on-top at the highest level (screen-saver) so it floats over
-  // other applications, not just other Electron windows.
-  win.setAlwaysOnTop(true, 'screen-saver');
- 
+  // ── GAME-SAFETY: never steal foreground focus ────────────────────────────
+  // Electron's default show() force-activates the window. If a D3D game holds
+  // the display in exclusive fullscreen, that forced foreground change yanks
+  // the game out of its display mode → device-lost → some titles (CoD,
+  // Battlefield, anything anticheat-wrapped) hard-crash instead of recovering.
+  // showInactive() draws the alert without touching the game's focus or swap
+  // chain; flashFrame() pulses the taskbar so it still gets noticed. We also
+  // stay in the NORMAL topmost band (options alwaysOnTop) instead of the old
+  // 'screen-saver' level, which aggravated the forced mode switch.
+  win.once('ready-to-show', () => {
+    win.showInactive();
+    win.flashFrame(true);
+  });
+
   win.loadFile(path.join(__dirname, 'src', 'html', 'ping-alert.html'));
  
   // Push the payload once the renderer is ready -- belt-and-suspenders alongside
@@ -1874,13 +1994,28 @@ function applyMinimizeToTray(enabled) {
   }
 }
 
+// ─── Acrylic glass (spatial UI) ───────────────────────────────────────────────
+// backgroundMaterial:'acrylic' is a Windows 11 22H2+ DWM effect: the OS blurs
+// whatever is behind the window (desktop, other apps) and composites it under
+// our transparent web content — this is what lets the reeded-glass CSS show the
+// desktop through. Win10 (build < 22000) ignores it, so we keep the solid
+// background there and the renderer falls back to the classic dark theme.
+function acrylicSupported() {
+  if (process.platform !== 'win32') return false;
+  const build = parseInt(require('os').release().split('.')[2] || '0', 10);
+  return build >= 22621; // 22H2 — earlier Win11 builds have broken acrylic resize
+}
+
 function createWindow() {
+  const glass = acrylicSupported();
   const win = new BrowserWindow({
     width: 1800,
     height: 1200,
     minWidth: 900,
     minHeight: 640,
-    backgroundColor: '#070b14',
+    // Fully transparent bg lets the OS acrylic material show through the page.
+    backgroundColor: glass ? '#00000000' : '#070b14',
+    ...(glass ? { backgroundMaterial: 'acrylic' } : {}),
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#070b14', symbolColor: '#ab7ab8', height: 32 },
     icon: path.join(__dirname, 'assets', 'icon.ico'),

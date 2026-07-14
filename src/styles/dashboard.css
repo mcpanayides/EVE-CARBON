@@ -543,6 +543,15 @@
 .dashboard-panel:hover .dashboard-widget-remove { opacity: 1; }
 .dashboard-widget-remove:hover { color: var(--danger); }
 
+/* Pop-out button — floats the widget as its own desktop window */
+.dashboard-widget-popout     { color: var(--text-3); background: none; border: none; cursor: pointer;
+                               display: flex; align-items: center; line-height: 1;
+                               padding: 2px 4px; border-radius: 4px;
+                               opacity: 0; transition: opacity 0.15s, color 0.15s; }
+.dashboard-widget-popout .material-symbols-outlined { font-size: 13px; }
+.dashboard-panel:hover .dashboard-widget-popout { opacity: 1; }
+.dashboard-widget-popout:hover { color: var(--accent); }
+
 /* Gridstack drag/resize visuals themed to match Carbon */
 .grid-stack-item.ui-draggable-dragging .dashboard-panel { outline: 2px dashed var(--accent); }
 .grid-stack > .grid-stack-item > .ui-resizable-handle { filter: none; }
@@ -1146,4 +1155,128 @@
 @keyframes beehiveRedFlash {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240,72,72,0); }
   50%      { box-shadow: 0 0 0 3px rgba(240,72,72,0.85); background: rgba(240,72,72,0.08); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SPATIAL REEDED-GLASS DASHBOARD — active only under body.glass-on
+   (the default; toggled in Settings → Background). Everything above
+   remains the fallback look when glass is off / unsupported.
+
+   Design language:
+   · Panels float: large radii, deep soft shadows, 1px rim light,
+     inset top specular — glass slabs hovering over the acrylic.
+   · backdrop-filter adds local blur/saturation so app content passing
+     behind a panel (glows, hatch, other widgets mid-drag) also melts
+     into the glass, not just the desktop.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* (Flute stripe overlays removed — the rib lines added noise over dense data.
+   The banner keeps its original subtle hatch ::after from the base rules.) */
+
+/* ── Floating glass widget panels ── */
+body.glass-on .dashboard-panel {
+  position: relative;
+  background-color: rgba(var(--glass-tint-rgb), var(--glass-tint-alpha));
+  /* Same -45° hatch as the welcome banner, across the whole card face */
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      var(--hatch-card-color) 0px,
+      var(--hatch-card-color) 0.5px,
+      transparent             0.5px,
+      transparent             4px
+    );
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  box-shadow:
+    0 12px 40px var(--glass-shadow),
+    0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 var(--glass-specular),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.04);
+  padding: 14px 16px;
+}
+/* Panel content rides above the flute overlay */
+body.glass-on .dashboard-panel > * { position: relative; z-index: 1; }
+
+/* Hovered/dragged panels lift closer to the viewer */
+body.glass-on .grid-stack-item.ui-draggable-dragging .dashboard-panel {
+  outline: none;
+  border-color: var(--accent-40);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 24px var(--accent-12),
+    inset 0 1px 0 var(--glass-specular);
+}
+
+/* ── Welcome banner — the hero glass slab ── */
+body.glass-on .dashboard-welcome-banner {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.85));
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--accent-25);
+  border-radius: 20px;
+  box-shadow:
+    0 16px 48px var(--glass-shadow),
+    0 0 30px var(--glow-banner),
+    inset 0 1px 0 var(--glass-specular);
+}
+/* The banner's ::after was the hatch overlay — in glass mode it becomes the
+   flute sheet (rule above); keep the crimson ::before tint as-is. */
+
+/* Portrait & ship columns: round off the outer corners they own */
+body.glass-on .banner-portrait-col { border-radius: 20px 0 0 20px; }
+body.glass-on .banner-ship-col     { border-radius: 0 20px 20px 0; }
+
+/* ── Inner surfaces (KPI cards, chart wrap, char bars) — thinner glass ──
+   The old dot-grid texture (radial-gradient) fought the glass blur; the hatch
+   now lives on the parent card, so these read as clean recessed wells. */
+body.glass-on .dash-wealth-kpi,
+body.glass-on .dash-wealth-chart-wrap,
+body.glass-on .dash-char-bars,
+body.glass-on .dash-pi-count,
+body.glass-on .jw-card,
+body.glass-on .cw-card {
+  background-color: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.55));
+  background-image: none;      /* kill the dotted pattern */
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* ── Add-widget dropdown floats as a glass sheet too ── */
+body.glass-on .dashboard-add-widget-menu {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.25));
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 var(--glass-specular);
+}
+
+/* ── Toolbar buttons pick up the glass material ── */
+body.glass-on .dashboard-add-widget-btn,
+body.glass-on .dashboard-reset-layout-btn {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.6));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-edge);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── Gridstack placeholder matches the glass radius ── */
+body.glass-on .grid-stack .grid-stack-placeholder > .placeholder-content {
+  background: rgba(255, 255, 255, 0.04);
+  border: 2px dashed var(--accent-40);
+  border-radius: 18px;
+}
+
+/* Sticky table headers inside glass panels can't be opaque cards anymore */
+body.glass-on .active-jobs-list thead tr {
+  background: rgba(var(--glass-tint-rgb), 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }

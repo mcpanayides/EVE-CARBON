@@ -97,6 +97,21 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Background images
   listBackgrounds: () => ipcRenderer.invoke('list-backgrounds'),
   pickBackground:  () => ipcRenderer.invoke('pick-background'),
+
+  // Reeded glass / Windows acrylic
+  glassSupported:   ()         => ipcRenderer.invoke('glass-supported'),
+  glassSetMaterial: (material) => ipcRenderer.invoke('glass-set-material', material),
+  glassGetAccent:   ()         => ipcRenderer.invoke('glass-get-accent'),
+
+  // Dashboard widget pop-outs (floating desktop widgets)
+  widgetPopoutOpen:    (opts) => ipcRenderer.invoke('widget-popout-open', opts),
+  widgetPopoutClose:   (id)   => ipcRenderer.invoke('widget-popout-close', id),
+  widgetPopoutReady:   (id)   => ipcRenderer.invoke('widget-popout-ready', id),
+  widgetPopoutContent: (data) => ipcRenderer.invoke('widget-popout-content', data),
+  widgetPopoutPin:     (data) => ipcRenderer.invoke('widget-popout-pin', data),
+  onWidgetContent:     (cb)   => ipcRenderer.on('widget-content',      (_e, data) => cb(data)),
+  onWidgetPoppedIn:    (cb)   => ipcRenderer.on('widget-popped-in',    (_e, id)   => cb(id)),
+  onWidgetPopoutReady: (cb)   => ipcRenderer.on('widget-popout-ready', (_e, id)   => cb(id)),
   getAssets:     (charId) => ipcRenderer.invoke('get-assets', charId),
   getAllAssets:   ()       => ipcRenderer.invoke('get-all-assets'),
 

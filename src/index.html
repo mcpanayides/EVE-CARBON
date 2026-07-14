@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="./styles/fc.css"/>
   <link rel="stylesheet" href="./styles/fitting.css"/>
   <link rel="stylesheet" href="./styles/forums.css"/>
+  <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/12.5.0/gridstack.min.css"/>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
@@ -50,6 +51,36 @@
 
 <!-- ── User background wallpaper (behind all UI; hidden until one is chosen) ─ -->
 <div id="appBackground" aria-hidden="true"><div id="appBackgroundOverlay"></div></div>
+
+<!-- ── Reeded glass flutes — full-window vertical ribs over the acrylic layer ─ -->
+<div id="appGlassFlutes" aria-hidden="true"></div>
+
+<!-- Apply saved glass state BEFORE first paint so acrylic never flashes solid -->
+<script>
+(function () {
+  try {
+    var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
+    if (!g || g.enabled !== false) {   /* glass is the default look */
+      document.body.classList.add('glass-on');
+      var r = document.documentElement.style;
+      g = g || {};
+      /* _surfaceRgb/_glowRgb are the resolved tint colours persisted by
+         applyGlass() — applying them here prevents any colour flash before
+         initGlass() re-resolves the system accent. */
+      if (g._surfaceRgb)          r.setProperty('--glass-tint-rgb',  g._surfaceRgb);
+      if (g.tintAlpha != null)    r.setProperty('--glass-tint-alpha', g.tintAlpha);
+      if (g.bgAlpha != null)      r.setProperty('--glass-bg-alpha',   g.bgAlpha);
+      if (g._glowRgb) {
+        var glows = { '--glow-body-a1':0.42, '--glow-body-a2':0.22, '--glow-body-a3':0.07,
+                      '--glow-body-b1':0.08, '--glow-body-b2':0.14,
+                      '--glow-main-1':0.50,  '--glow-main-2':0.32,  '--glow-main-3':0.08,
+                      '--glow-sec-1':0.08,   '--glow-sec-2':0.26 };
+        for (var k in glows) r.setProperty(k, 'rgba(' + g._glowRgb + ', ' + glows[k] + ')');
+      }
+    }
+  } catch (e) {}
+})();
+</script>
 
 <!-- ── Ambient glow ──────────────────────────────────────────────────────── -->
 <div class="concord-bg-glow concord-glow-main"      aria-hidden="true"></div>
@@ -255,7 +286,9 @@
         <button class="settings-menu-btn"          data-settings-tab="industry">GEZ Tracker</button>
         <button class="settings-menu-btn"          data-settings-tab="calendar">Calendar</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
-        <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
+        <!-- Colour Palette tab retired — the glass tint (Background tab) is the
+             single colour control now. Code kept intact; unhide to restore. -->
+        <button class="settings-menu-btn"          data-settings-tab="palette" style="display:none;">Colour Palette</button>
         <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
       </div>
       <!-- General tab -->
@@ -712,6 +745,50 @@
             <div class="ui-settings-row" style="margin-top:16px; display:block;">
               <label>Dim background <span id="bgDimValue" style="color:var(--text-3);font-family:var(--mono);">35%</span></label>
               <input id="bgDimSlider" type="range" min="0" max="85" value="35" style="width:100%; margin-top:6px;" />
+            </div>
+          </div>
+
+          <!-- ── Reeded glass (spatial UI) ─────────────────────────────── -->
+          <div class="settings-panel-block" style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+            <div class="settings-panel-title">Glass</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:12px;">
+              Turns the interface into frosted glass. On Windows 11 the desktop behind the app
+              shows through, blurred by the system acrylic — no wallpaper needed. One tint
+              colours everything — the glass surfaces and the ambient glows — and by default
+              it follows your operating system's accent colour.
+              <span id="glassSupportNote" style="display:none; color:var(--warning);">
+                Your OS doesn't support acrylic — the glass look still applies, over the app's own background.
+              </span>
+            </div>
+
+            <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-bottom:14px;">
+              <input id="glassEnabledToggle" type="checkbox" checked />
+              <span style="font-size:13px; color:var(--text-1);">Enable reeded glass</span>
+            </label>
+
+            <div id="glassControls" style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <label style="font-size:12px; color:var(--text-2); min-width:110px;">Tint</label>
+                <select id="glassTintMode" class="field-input"
+                        style="width:170px; font-size:12px; padding:6px 8px; border-radius:8px;">
+                  <option value="system">System accent colour</option>
+                  <option value="custom">Custom colour</option>
+                </select>
+                <span id="glassCustomWrap" style="display:none; align-items:center; gap:10px;">
+                  <input id="glassTintPicker" type="color" value="#8a4dbe"
+                         style="width:44px; height:28px; padding:0; border:1px solid var(--border);
+                                border-radius:6px; background:none; cursor:pointer;" />
+                  <span id="glassTintHex" style="font-size:11px; font-family:var(--mono); color:var(--text-3);">#8A4DBE</span>
+                </span>
+              </div>
+              <div class="ui-settings-row" style="display:block;">
+                <label>Panel opacity <span id="glassTintAlphaVal" style="color:var(--text-3);font-family:var(--mono);">52%</span></label>
+                <input id="glassTintAlphaSlider" type="range" min="15" max="90" value="52" style="width:100%; margin-top:6px;" />
+              </div>
+              <div class="ui-settings-row" style="display:block;">
+                <label>Desktop wash <span id="glassBgAlphaVal" style="color:var(--text-3);font-family:var(--mono);">42%</span></label>
+                <input id="glassBgAlphaSlider" type="range" min="0" max="85" value="42" style="width:100%; margin-top:6px;" />
+              </div>
             </div>
           </div>
         </div>

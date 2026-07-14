@@ -399,46 +399,185 @@
   text-align:  right;
 }
 
-/* ── View All Pins toggle ───────────────────────────────────────── */
-.pi-pins-toggle {
-  display:        flex;
-  align-items:    center;
-  gap:            5px;
-  width:          100%;
+/* ── Card footer: status strip + View Details button ────────────── */
+.pi-card-footer {
+  display:     flex;
+  align-items: stretch;
+  border-top:  1px solid var(--border-1, var(--border-b));
+  margin-top:  auto;              /* pins footer to the card bottom */
+}
+
+.pi-card-footer .pi-status {
+  flex:       1;
+  min-width:  0;
+  border-top: none;               /* footer owns the divider */
+}
+
+.pi-details-btn {
+  flex-shrink:    0;
   background:     transparent;
   border:         none;
-  border-top:     1px solid var(--border-b, rgba(255,255,255,0.06));
+  border-left:    1px solid var(--border-1, var(--border-b));
   color:          var(--text-3);
   font-size:      10px;
   font-family:    var(--mono);
-  letter-spacing: 0.06em;
-  padding:        5px 12px;
+  font-weight:    600;
+  letter-spacing: 0.08em;
+  padding:        0 14px;
   cursor:         pointer;
-  text-align:     left;
-  transition:     background 0.12s ease, color 0.12s ease;
+  white-space:    nowrap;
+  transition:     background 0.15s ease, color 0.15s ease;
 }
 
-.pi-pins-toggle::before {
-  content:     '▶';
-  font-size:   8px;
-  transition:  transform 0.15s ease;
+.pi-details-btn:hover {
+  background: var(--accent-08, rgba(192,57,43,0.08));
+  color:      var(--accent);
+}
+
+/* ── Planet detail panel (opened by View Details) ───────────────── */
+.pi-detail-modal {
+  width:          min(680px, 94vw);
+  max-height:     90vh;
+  display:        flex;
+  flex-direction: column;
+  overflow:       hidden;
+  padding:        0;
+}
+
+/* Hero — blown-up planet render (animated clip slot later) */
+.pi-detail-hero {
+  position:    relative;
+  height:      240px;
   flex-shrink: 0;
+  overflow:    hidden;
+  background:  radial-gradient(ellipse at center, rgba(20,24,40,0.6) 0%, rgba(4,5,10,0.9) 80%);
 }
 
-.pi-pins-toggle.open::before { transform: rotate(90deg); }
-
-.pi-pins-toggle:hover {
-  background: rgba(255,255,255,0.03);
-  color:      var(--text-2);
+.pi-detail-img {
+  width:           100%;
+  height:          100%;
+  object-fit:      cover;
+  object-position: center;
+  display:         block;
 }
 
-/* ── Pins detail panel ──────────────────────────────────────────── */
-.pi-pins-detail {
-  border-top:  1px solid var(--border-b, rgba(255,255,255,0.06));
-  padding:     6px 10px 8px;
-  background:  rgba(0,0,0,0.15);
+/* Bottom shade so the name overlay always reads */
+.pi-detail-hero-shade {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, transparent 45%);
+  pointer-events: none;
 }
 
+.pi-detail-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pi-detail-hero-text {
+  position: absolute; left: 20px; right: 20px; bottom: 14px;
+}
+
+.pi-detail-name {
+  font-size:      22px;
+  font-weight:    700;
+  color:          #fff;
+  letter-spacing: 0.03em;
+  text-shadow:    0 2px 12px rgba(0,0,0,0.8);
+}
+
+.pi-detail-sub {
+  font-size:      11px;
+  color:          var(--text-2);
+  font-family:    var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top:     3px;
+}
+
+/* Body */
+.pi-detail-body {
+  padding:        16px 20px 20px;
+  overflow-y:     auto;
+  display:        flex;
+  flex-direction: column;
+  gap:            12px;
+}
+
+.pi-detail-status {
+  border:        1px solid var(--border-e);
+  border-radius: 10px;
+  padding:       8px 12px;
+}
+
+.pi-detail-stats {
+  display:               grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:                   10px;
+}
+
+.pi-detail-stat {
+  background:    var(--bg-card-deep);
+  border:        1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding:       10px 12px;
+}
+
+.pi-detail-stat-label {
+  font-size:      9px;
+  font-family:    var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color:          var(--text-3);
+  margin-bottom:  5px;
+}
+
+.pi-detail-stat-value {
+  font-size:   13px;
+  font-weight: 600;
+  color:       var(--text-1);
+}
+
+.pi-detail-char { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pi-detail-char img {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--border); object-fit: cover; flex-shrink: 0;
+}
+.pi-detail-char span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pi-detail-section-label {
+  font-size:      9px;
+  font-family:    var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color:          var(--text-3);
+  margin-top:     4px;
+  padding-bottom: 5px;
+  border-bottom:  1px solid var(--border-e);
+}
+
+.pi-detail-empty {
+  font-size:   11px;
+  color:       var(--text-3);
+  font-family: var(--mono);
+  padding:     6px 0;
+}
+
+.pi-detail-pins .pi-pin-row  { min-height: 26px; }
+.pi-detail-pins .pi-pin-icon { width: 24px; height: 24px; }
+.pi-detail-pins .pi-pin-name { font-size: 11px; }
+
+@media (max-width: 560px) {
+  .pi-detail-stats { grid-template-columns: 1fr; }
+}
+
+/* ── Pins list (shared by the detail panel) ─────────────────────── */
 .pi-pins-list {
   display:        flex;
   flex-direction: column;

@@ -20,6 +20,34 @@ let _piJumpCache     = {};
 let _piOriginSysId   = null;
 let _piOriginSysName = '';
 const _piPinsMap     = new Map();  // planet_id → raw ESI pins[]
+let _piPlanetNames   = {};         // planet_id → real celestial name ("Zoohen III")
+
+// ─── Resolve real planet names from ESI ───────────────────────────────────────
+// planet_id is a celestial ID — the SDE type tables can't name it, and deriving
+// a numeral from the ID is wrong (that's where "Planet 98" came from). ESI's
+// /universe/planets/{id}/ returns the true name; names never change, so cache
+// them on disk for a year.
+async function resolvePlanetNames(planetIds) {
+  try { _piPlanetNames = (await window.eveAPI.cacheGet('pi-planet-names')) || {}; }
+  catch { _piPlanetNames = {}; }
+
+  const missing = [...new Set(planetIds)].filter(id => id && !_piPlanetNames[id]);
+  if (missing.length === 0) return;
+
+  await Promise.allSettled(missing.map(async id => {
+    try {
+      const res = await fetch(
+        `https://esi.evetech.net/latest/universe/planets/${id}/?datasource=tranquility`
+      );
+      if (res.ok) {
+        const j = await res.json();
+        if (j?.name) _piPlanetNames[id] = j.name;
+      }
+    } catch { /* leave unresolved — falls back to system name */ }
+  }));
+
+  try { await window.eveAPI.cacheSet('pi-planet-names', _piPlanetNames, 365); } catch {}
+}
 
 // ─── Auto-sync all characters' PI data, then re-render ───────────────────────
 // Fired on entry to the PI page (see navigateToPage). Staleness-gated to 15 min so
@@ -85,6 +113,11 @@ async function loadPlanetaryInteraction() {
         </div>`;
       return;
     }
+
+    // Resolve real planet names (cached — only hits ESI for new colonies)
+    await resolvePlanetNames(
+      _piAllCharData.flatMap(c => c.colonies.map(col => col.planet_id))
+    );
 
     // Reference system for range filter — prefer selectedCharacterId
     const refAcct = accounts.find(a =>
@@ -320,8 +353,8 @@ function applyPIFilters() {
   // Flatten every character's colonies into one grid. Each card already shows
   // the owning character's portrait pip, so no per-character grouping is needed.
   const cards = filtered
-    .flatMap(({ portraitUrl, charName, colonies }) =>
-      colonies.map(col => buildColonyCard(col, portraitUrl, charName)))
+    .flatMap(({ charId, portraitUrl, charName, colonies }) =>
+      colonies.map(col => buildColonyCard(col, portraitUrl, charName, charId)))
     .join('');
   body.innerHTML = `<div class="pi-grid">${cards}</div>`;
 }
@@ -353,54 +386,33 @@ function getColonyStatus(colony) {
   return { cls: 'idle', text: 'Idle / Waiting' };
 }
 
-// ─── Toggle the "View All Pins" detail panel on a colony card ────────────────
-async function togglePinsDetail(btn) {
-  const card   = btn.closest('.pi-card');
-  const detail = card?.querySelector('.pi-pins-detail');
-  if (!detail) return;
-
-  const isOpen = !detail.hidden;
-  if (isOpen) {
-    detail.hidden = true;
-    btn.classList.remove('open');
-    return;
+// ─── Facilities list HTML (grouped pins) for the detail panel ─────────────────
+async function buildPinsListHtml(planetId) {
+  const pins = _piPinsMap.get(planetId) || [];
+  if (pins.length === 0) {
+    return '<div class="pi-detail-empty">No facility data — resync PI to populate.</div>';
   }
 
-  // Already rendered — just show
-  if (detail.dataset.loaded) {
-    detail.hidden = false;
-    btn.classList.add('open');
-    return;
-  }
-
-  // First open — resolve type names then render
-  btn.textContent = 'Loading pins…';
-  const planetId = parseInt(btn.dataset.planet, 10);
-  const pins     = _piPinsMap.get(planetId) || [];
-
-  // Group by type_id, preserving an example pin for contents/expiry
+  // Group by type_id, tracking soonest expiry
   const groups = new Map();
   for (const pin of pins) {
-    if (!groups.has(pin.type_id)) {
-      groups.set(pin.type_id, { count: 0, expiryMs: null, hasContents: false });
-    }
+    if (!groups.has(pin.type_id)) groups.set(pin.type_id, { count: 0, expiryMs: null });
     const g = groups.get(pin.type_id);
     g.count++;
     if (pin.expiry_time) {
       const t = new Date(pin.expiry_time).getTime();
       if (!g.expiryMs || t < g.expiryMs) g.expiryMs = t;
     }
-    if (pin.contents?.length) g.hasContents = true;
   }
 
-  // Fetch SDE names for all unique type IDs
+  // Resolve SDE names for all unique type IDs
   const nameMap = {};
   await Promise.all([...groups.keys()].map(async typeId => {
     const name = await window.eveAPI.sdeGetName(typeId).catch(() => null);
     nameMap[typeId] = name || `Type ${typeId}`;
   }));
 
-  // Sort: most common first, then alphabetically
+  // Most common first, then alphabetically
   const sorted = [...groups.entries()].sort((a, b) =>
     b[1].count - a[1].count || nameMap[a[0]].localeCompare(nameMap[b[0]])
   );
@@ -412,7 +424,7 @@ async function togglePinsDetail(btn) {
     const iconUrl = `https://images.evetech.net/types/${typeId}/icon?size=32`;
     let   extra   = '';
     if (g.expiryMs) {
-      const diffMs  = g.expiryMs - now;
+      const diffMs = g.expiryMs - now;
       if (diffMs > 0) {
         const hrs  = Math.floor(diffMs / 3_600_000);
         const mins = Math.floor((diffMs % 3_600_000) / 60_000);
@@ -428,13 +440,107 @@ async function togglePinsDetail(btn) {
         <span class="pi-pin-count">×${g.count}</span>
       </div>`;
   }
+  return `<div class="pi-pins-list">${html}</div>`;
+}
 
-  detail.innerHTML = `<div class="pi-pins-list">${html}</div>`;
-  detail.dataset.loaded = '1';
-  detail.hidden = false;
-  btn.classList.add('open');
-  const cnt = parseInt(btn.dataset.count, 10);
-  btn.textContent = `${cnt} Pins`;
+// ─── Planet detail panel — big planet visual + full colony breakdown ──────────
+// Opened by the "View Details" button on a colony card. The hero image uses the
+// full-size type render (placeholder until the animated clips arrive).
+function _piEscListener(e) { if (e.key === 'Escape') closePIDetail(); }
+
+function closePIDetail() {
+  const back = document.getElementById('piDetailBackdrop');
+  if (back) back.style.display = 'none';
+  document.removeEventListener('keydown', _piEscListener);
+}
+
+async function openPIDetail(planetId, charId) {
+  const charData = _piAllCharData.find(c => String(c.charId) === String(charId));
+  const colony   = charData?.colonies.find(c => c.planet_id === planetId);
+  if (!colony) return;
+
+  const typeKey    = (colony.planet_type || '').toLowerCase().trim();
+  const typeId     = PI_PLANET_TYPE_IDS[typeKey] || 2016;
+  const renderUrl  = `https://images.evetech.net/types/${typeId}/render?size=512`;
+  const iconUrl    = `https://images.evetech.net/types/${typeId}/icon?size=64`;
+  const planetName = getPlanetLabel(colony);
+  const planetType = colony.planet_type
+    ? colony.planet_type.charAt(0).toUpperCase() + colony.planet_type.slice(1).toLowerCase()
+    : 'Unknown Type';
+
+  const { cls: statusClass, text: statusText } = getColonyStatus(colony);
+  const jumps    = getJumps(colony.solar_system_id);
+  const jumpText = jumps === null ? '' : jumps === 0 ? ' · Here' : ` · ${jumps} jump${jumps !== 1 ? 's' : ''}`;
+
+  // Create the backdrop once, reuse it after
+  let back = document.getElementById('piDetailBackdrop');
+  if (!back) {
+    back = document.createElement('div');
+    back.id        = 'piDetailBackdrop';
+    back.className = 'modal-backdrop';
+    back.style.cssText = 'display:none; position:fixed; inset:0;';
+    back.addEventListener('click', e => { if (e.target === back) closePIDetail(); });
+    document.body.appendChild(back);
+  }
+
+  back.innerHTML = `
+    <div class="modal pi-detail-modal">
+
+      <!-- Hero: blown-up planet render with name overlay -->
+      <div class="pi-detail-hero">
+        <img class="pi-detail-img" src="${renderUrl}"
+             onerror="this.onerror=null;this.src='${iconUrl}'" alt="${escHtml(planetType)}">
+        <div class="pi-detail-hero-shade"></div>
+        <button class="icon-btn pi-detail-close" onclick="closePIDetail()" title="Close">✕</button>
+        <div class="pi-detail-hero-text">
+          <div class="pi-detail-name">${escHtml(planetName)}</div>
+          <div class="pi-detail-sub">${escHtml(planetType)} · ${escHtml(colony.solar_system_name || 'Unknown System')}${jumpText}</div>
+        </div>
+      </div>
+
+      <div class="pi-detail-body">
+
+        <!-- Status strip -->
+        <div class="pi-status ${statusClass} pi-detail-status">${statusText}</div>
+
+        <!-- Stat blocks -->
+        <div class="pi-detail-stats">
+          <div class="pi-detail-stat">
+            <div class="pi-detail-stat-label">Character</div>
+            <div class="pi-detail-stat-value pi-detail-char">
+              <img src="${charData.portraitUrl}" alt="" onerror="this.style.display='none'">
+              <span>${escHtml(charData.charName)}</span>
+            </div>
+          </div>
+          <div class="pi-detail-stat">
+            <div class="pi-detail-stat-label">Command Center</div>
+            <div class="pi-detail-stat-value">Level ${colony.upgrade_level || 0}</div>
+          </div>
+          <div class="pi-detail-stat">
+            <div class="pi-detail-stat-label">Installations</div>
+            <div class="pi-detail-stat-value">${colony.num_pins || 0} Pins</div>
+          </div>
+        </div>
+
+        <!-- Storage -->
+        <div class="pi-detail-section-label">Storage</div>
+        ${buildStorageBars(colony.storage) || '<div class="pi-detail-empty">No storage facilities.</div>'}
+
+        <!-- Facilities -->
+        <div class="pi-detail-section-label">Facilities</div>
+        <div class="pi-detail-pins" id="piDetailPins">
+          <div class="loading-row">Loading facilities…</div>
+        </div>
+
+      </div>
+    </div>`;
+
+  back.style.display = 'flex';
+  document.addEventListener('keydown', _piEscListener);
+
+  // Fill the facilities list asynchronously (SDE name lookups)
+  const pinsEl = document.getElementById('piDetailPins');
+  if (pinsEl) pinsEl.innerHTML = await buildPinsListHtml(planetId);
 }
 
 // ─── Build storage fill bars for a colony card ────────────────────────────────
@@ -463,9 +569,10 @@ function buildStorageBars(storage) {
   return `<div class="pi-bars-block">${rows}</div>`;
 }
 // ─── Build a single colony card ───────────────────────────────────────────────
-// Layout mirrors the blueprint card:
-//   [planet icon + portrait overlay] | [name / type / bars] | [badges]
-function buildColonyCard(colony, portraitUrl, charName) {
+// Clean spatial card: [planet icon + portrait pip] | [name / type / bars] with
+// a footer of status + View Details. All the deep info (CC level, facilities,
+// extractors) lives in the detail panel — openPIDetail().
+function buildColonyCard(colony, portraitUrl, charName, charId) {
   const { cls: statusClass, text: statusText } = getColonyStatus(colony);
 
   const typeKey     = (colony.planet_type || '').toLowerCase().trim();
@@ -489,18 +596,10 @@ function buildColonyCard(colony, portraitUrl, charName) {
     ? `<span class="pi-jump-badge ${jumpCls}">${jumpText}</span>`
     : '';
 
-  // Inline stat pills beneath the title (pins · system) — compact, no grid
-  const statPills = `
-    <div class="pi-inline-stats">
-      <span class="pi-inline-stat">${colony.num_pins || 0} Pins</span>
-      <span class="pi-inline-sep">·</span>
-      <span class="pi-inline-stat">${escHtml(colony.solar_system_name || 'Unknown')}</span>
-    </div>`;
-
   return `
     <div class="pi-card">
 
-      <!-- ── Top row: icon · info · badges ───────────────────────────────── -->
+      <!-- ── Top row: icon · info · jump badge ───────────────────────────── -->
       <div class="pi-card-row">
 
         <!-- Planet icon with owner portrait overlay (blueprint-style) -->
@@ -515,44 +614,37 @@ function buildColonyCard(colony, portraitUrl, charName) {
                onerror="this.style.display='none'">
         </div>
 
-        <!-- Name, type, inline stats, then bars -->
+        <!-- Name, type, system, then storage bars -->
         <div class="pi-card-body">
           <div class="pi-card-name">${escHtml(planetLabel)}</div>
-          <div class="pi-card-type">${escHtml(planetType)}</div>
-          ${statPills}
+          <div class="pi-card-type">${escHtml(planetType)} · ${escHtml(colony.solar_system_name || 'Unknown')}</div>
           ${buildStorageBars(colony.storage)}
         </div>
 
-        <!-- Badges: CC level + jump distance stacked top-right -->
         <div class="pi-card-meta">
-          <span class="pi-cc-badge">CC Lvl ${colony.upgrade_level || 0}</span>
           ${jumpHtml}
         </div>
 
       </div>
 
-      <!-- ── View All Pins toggle ─────────────────────────────────────────── -->
-      ${colony.num_pins > 0 ? `
-        <button class="pi-pins-toggle"
-                data-planet="${colony.planet_id}"
-                data-count="${colony.num_pins}"
-                onclick="togglePinsDetail(this)">▶ ${colony.num_pins} Pins</button>
-        <div class="pi-pins-detail" hidden></div>
-      ` : ''}
-
-      <!-- ── Status bar ───────────────────────────────────────────────────── -->
-      <div class="pi-status ${statusClass}">${statusText}</div>
+      <!-- ── Footer: status + details ─────────────────────────────────────── -->
+      <div class="pi-card-footer">
+        <div class="pi-status ${statusClass}">${statusText}</div>
+        <button class="pi-details-btn"
+                onclick="openPIDetail(${colony.planet_id}, '${charId}')">
+          View Details ›
+        </button>
+      </div>
 
     </div>
   `;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Real celestial name from ESI (resolved + cached at load). Falls back to the
+// system name if ESI hasn't answered — never invents a planet numeral.
 function getPlanetLabel(colony) {
-  const system = colony.solar_system_name || 'Unknown System';
-  const num    = colony.planet_id ? (colony.planet_id % 100) : null;
-  const roman  = ['','I','II','III','IV','V','VI','VII','VIII','IX','X',
-                  'XI','XII','XIII','XIV','XV','XVI'];
-  const suffix = (num && num >= 1 && num <= 16) ? roman[num] : (num || '?');
-  return `${system} ${suffix}`;
+  const esiName = colony.planet_id ? _piPlanetNames[colony.planet_id] : null;
+  if (esiName) return esiName;
+  return colony.solar_system_name || 'Unknown Planet';
 }

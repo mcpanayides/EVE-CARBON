@@ -134,6 +134,21 @@
   /* .concord-glow-secondary — mid-screen secondary glow */
   --glow-sec-1:     rgba(4, 26, 100, 0.1);
   --glow-sec-2:     rgba(41, 68, 126, 0.329);
+
+  /* ── REEDED GLASS / SPATIAL UI ───────────────────────────────────────────────
+     The window itself is transparent (Windows acrylic blurs the desktop behind
+     it — see main.js). These tokens drive the see-through tint and the reeded
+     (fluted) glass overlay. All are user-tunable from Settings → Background
+     and overridden inline on :root at startup from localStorage 'eve-glass'.  */
+  --glass-tint-rgb:      8, 8, 12;              /* tint colour of all glass surfaces */
+  --glass-bg-alpha:      0.42;                  /* body wash over the raw acrylic     */
+  --glass-tint-alpha:    0.52;                  /* panel/card surface opacity         */
+  --flute-width:         8px;                   /* pitch of one vertical glass rib    */
+  --flute-highlight:     rgba(255, 255, 255, 0.055); /* specular edge of each rib     */
+  --flute-shadow:        rgba(0, 0, 0, 0.16);   /* concave centre of each rib         */
+  --glass-edge:          rgba(255, 255, 255, 0.09);  /* 1px panel rim light            */
+  --glass-specular:      rgba(255, 255, 255, 0.14);  /* inset top highlight            */
+  --glass-shadow:        rgba(0, 0, 0, 0.45);   /* floating panel depth shadow        */
 }
 
 /* ── RESET ── */
@@ -221,6 +236,28 @@ body::after {
   position: absolute; inset: 0;
   background: #000; opacity: 0;   /* opacity driven by the dim slider */
   pointer-events: none;
+}
+
+/* ── REEDED GLASS MODE ──────────────────────────────────────────────────────────
+   body.glass-on: the page background becomes a translucent wash so the OS
+   acrylic (blurred desktop) shows through, and #appGlassFlutes lays a sheet of
+   vertical glass ribs across the whole window. Each rib is one repeat of the
+   gradient: a bright specular line on its left edge, falling into a soft
+   concave shadow at its centre, then a faint counter-highlight — which is what
+   reads as fluted/reeded glass over the blur. */
+body.glass-on {
+  background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alpha));
+}
+
+/* Flute stripe overlay retired — the vertical rib lines fought the dense UI
+   instead of reading as glass. The layer stays in the DOM (harmless, hidden)
+   in case a subtler treatment returns later. */
+#appGlassFlutes { display: none; }
+
+/* In glass mode the heavy opaque hatch pattern fights the flutes — drop it and
+   let the acrylic + flute layer carry the texture instead. */
+body.glass-on {
+  background-image: none;
 }
 
 /* Background settings — preset thumbnail grid */

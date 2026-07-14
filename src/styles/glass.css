@@ -1,0 +1,193 @@
+/* ══════════════════════════════════════════════════════════════════
+   glass.css — APP-WIDE SPATIAL GLASS
+   Loaded last; every rule is scoped to body.glass-on (the default,
+   toggled in Settings → Background → Glass). Turning glass off
+   restores the classic Carbon look untouched.
+
+   Strategy: almost every surface in the app paints with the shared
+   background tokens (--bg-panel, --bg-card, …), so tier one remaps
+   those tokens to translucent glass — instantly re-skinning every
+   page (assets, industry, market, wallets, characters, PI, map,
+   jabber, forums, FC, calendar, fitting). Tier two adds the physical
+   glass properties — backdrop blur, radii, rim light, specular — to
+   the structural containers only, so GPU cost stays sane: inner
+   cards inherit the blur of the panel they sit on.
+
+   Opacity ladder (relative to --glass-tint-alpha, default 0.52):
+     modals / toasts      +0.30   most opaque — always readable
+     chrome (title, side) +0.22   app frame reads as solid slabs
+     page panels          +0.08   the working surface
+     cards                 1.00×  standard glass
+     deep cards            0.75×  recessed wells
+     inputs                0.60×  thinnest — sit inside panels
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Gridstack wraps every dashboard widget in a square overflow:hidden cell,
+   which clips the panel's rounded drop shadow into a square "ghost" halo.
+   The panel clips its own content, so the wrapper can let shadows breathe. */
+body.glass-on .grid-stack-item-content {
+  overflow: visible;
+}
+
+/* ── TIER 1: token remap — re-skins every page at once ─────────────────────── */
+body.glass-on {
+  /* Consistent rounding app-wide: everything still on the old sharp 2px token
+     (wallet cards, KPI tiles, filter bars, inputs…) rounds to match the glass */
+  --radius: 10px;
+
+  --bg-deep:       rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.22));
+  --bg-panel:      rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.08));
+  --bg-card:       rgba(var(--glass-tint-rgb), var(--glass-tint-alpha));
+  --bg-card-deep:  rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.75));
+  --bg-input:      rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.60));
+  --bg-modal:      rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.10));
+  --toast-bg:      rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.30));
+  --bg-surface:    rgba(var(--glass-tint-rgb), var(--glass-tint-alpha));
+  --bg-banner-end: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.85));
+  --bg-hover:      rgba(255, 255, 255, 0.055);
+}
+
+/* ── TIER 2: physical glass on structural containers ───────────────────────── */
+
+/* App chrome — titlebar and sidebar read as one continuous glass frame */
+body.glass-on .titlebar {
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-bottom: 1px solid var(--glass-edge);
+}
+body.glass-on .sidebar {
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border-right: 1px solid var(--glass-edge);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
+}
+body.glass-on .app-console {
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+/* Page panels — the generic .panel used across assets, industry, market,
+   wallets, characters, PI, map, jabber, forums, FC, calendar, fitting.
+   Carries the same -45° hatch as the welcome banner across the card face. */
+body.glass-on .panel {
+  backdrop-filter: blur(14px) saturate(145%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      var(--hatch-card-color) 0px,
+      var(--hatch-card-color) 0.5px,
+      transparent             0.5px,
+      transparent             4px
+    );
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 var(--glass-specular);
+}
+/* #navPagesContainer is a .panel that wraps EVERY page — without this the
+   hatch paints across the whole page behind the widgets, showing in the gaps
+   between cards. The wrapper stays glass, but the hatch belongs to the cards. */
+body.glass-on .pages-panel {
+  background-image: none;
+}
+
+/* Settings blocks inside the drawer — cards on glass, no extra blur needed
+   (they sit on the already-blurred modal) */
+body.glass-on .settings-panel-block {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── MODALS — settings drawer, donate, bug report, attributions, updates,
+      wallet journal, materials … everything on .modal / .bug-modal ────────── */
+body.glass-on .modal,
+body.glass-on .bug-modal {
+  background: var(--bg-modal);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-top-color: var(--accent-25);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 var(--glass-specular);
+}
+/* Opaque inner headers follow the shell's rounded top corners (the shells keep
+   their own overflow behaviour — the bug modal scrolls, so no clipping here) */
+body.glass-on .modal-header,
+body.glass-on .bug-modal-header {
+  border-radius: 18px 18px 0 0;
+}
+/* Wallet journal builds its shell with inline styles on the id */
+body.glass-on #walletJournalModal {
+  background: var(--bg-modal) !important;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid var(--glass-edge) !important;
+  border-radius: 18px !important;
+}
+/* Blur the world behind a modal rather than blacking it out — the modal's own
+   28px blur does the separating, so the dim can stay light and the glass reads */
+body.glass-on .modal-backdrop {
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+/* Wallet journal backdrop is inline-styled at 75% black — needs the hammer */
+body.glass-on #walletJournalBackdrop {
+  background: rgba(0, 0, 0, 0.22) !important;
+}
+
+/* ── FLOATING ELEMENTS — toasts, bug FAB ───────────────────────────────────── */
+body.glass-on .toast {
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--glass-specular);
+}
+body.glass-on .bug-fab {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.15));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── FORM CONTROLS — thin glass wells inside panels ────────────────────────── */
+body.glass-on input[type="text"],
+body.glass-on input[type="number"],
+body.glass-on input[type="password"],
+body.glass-on input[type="search"],
+body.glass-on select,
+body.glass-on textarea {
+  border-radius: 8px;
+}
+
+/* Native <select> popup lists (Job Watch picker, wallet picker, theme picker…)
+   are drawn by the OS outside the page, so they can't be translucent — the
+   glass tokens leak in as an unreadable washed-out gray. Give the popup solid
+   Carbon colours instead; the closed control itself stays glass. */
+body.glass-on select option,
+body.glass-on select optgroup {
+  background-color: #0b0b0f;      /* solid — OS popups can't do glass */
+  color: var(--text-1);
+}
+body.glass-on select option:checked,
+body.glass-on select option:hover {
+  background-color: #1d1d26;
+  color: #ffffff;
+}
+
+/* ── TABLES — sticky headers can't be fully transparent over scrolling rows ── */
+body.glass-on thead tr {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── SCROLL SURFACES that used near-black fills now breathe a little ───────── */
+body.glass-on ::-webkit-scrollbar-track { background: transparent; }

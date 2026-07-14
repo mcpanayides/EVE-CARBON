@@ -467,9 +467,54 @@
     .pap-peacetime{ background: rgba(52,120,210,0.12); color: #6aabf7;  border: 1px solid rgba(52,120,210,0.30); }
     .pap-sig      { background: rgba(39,174,96,0.10);  color: var(--success); border: 1px solid rgba(39,174,96,0.28); }
     .pap-none     { background: var(--accent-04);      color: var(--text-4);  border: 1px solid var(--border-e); }
+
+    /* ── SPATIAL GLASS MODE ─────────────────────────────────────────────────
+       Added by the inline script below when the OS supports acrylic and the
+       user's glass setting (localStorage 'eve-glass', shared with the main
+       window) is on. The window itself is acrylic (main.js), so the body
+       becomes a light wash and the alert card floats as a glass slab. */
+    body.glass-on {
+      background-color: rgba(8, 8, 12, 0.40);
+    }
+    body.glass-on .window {
+      background: rgba(8, 8, 12, 0.50);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      backdrop-filter: blur(22px) saturate(150%);
+      -webkit-backdrop-filter: blur(22px) saturate(150%);
+      box-shadow:
+        0 16px 48px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    body.glass-on .shell {
+      border-radius: 16px;   /* outer glow ring follows the glass radius */
+    }
   </style>
 </head>
 <body>
+  <!-- Enable glass unless the user turned it off in Settings (same 'eve-glass'
+       key as the main window). Applied synchronously so there's no flash of the
+       solid style; over the Win10 solid fallback it still reads fine. -->
+  <script>
+  (function () {
+    try {
+      var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
+      if (!g || g.enabled !== false) {
+        document.body.classList.add('glass-on');
+        /* Ambient glows follow the same resolved tint as the main window */
+        if (g && g._glowRgb) {
+          var r = document.documentElement.style;
+          var glows = { '--glow-body-a1':0.42, '--glow-body-a2':0.22, '--glow-body-a3':0.07,
+                        '--glow-body-b1':0.08, '--glow-body-b2':0.14,
+                        '--glow-main-1':0.50,  '--glow-main-2':0.32,  '--glow-main-3':0.08,
+                        '--glow-sec-1':0.08,   '--glow-sec-2':0.26 };
+          for (var k in glows) r.setProperty(k, 'rgba(' + g._glowRgb + ', ' + glows[k] + ')');
+        }
+      }
+    } catch (e) {}
+  })();
+  </script>
+
   <div class="concord-bg-glow concord-glow-main"></div>
   <div class="concord-bg-glow concord-glow-secondary"></div>
 

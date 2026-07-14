@@ -13,7 +13,7 @@ function setSettingsTab(tab) {
   if (tab === 'jumpgates')  populateJumpgatesSettings();
   if (tab === 'database')   populateDatabaseSettings();
   if (tab === 'palette')    populatePaletteSettings();
-  if (tab === 'background') populateBackgroundSettings();
+  if (tab === 'background') { populateBackgroundSettings(); populateGlassSettings(); }
 }
 
 // ─── General Settings Tab ──────────────────────────────────────────────────────
@@ -280,6 +280,150 @@ async function populateBackgroundSettings() {
     applyBackground(null, cur.dim != null ? cur.dim : 35);
     _renderBgGrid(grid, list, null);
   };
+}
+
+// ─── Reeded glass (spatial UI) ────────────────────────────────────────────────
+// Persisted in localStorage as { enabled, tintRgb, tintAlpha, bgAlpha, fluteWidth }.
+// A bootstrap script in index.html applies the saved state before first paint;
+// everything here is the live Settings wiring. The OS-level acrylic material is
+// toggled over IPC (main.js); the CSS layer works standalone as a fallback.
+const GLASS_STORAGE_KEY = 'eve-glass';
+// tintMode: 'system' follows the OS accent colour (Windows/macOS colourway);
+// 'custom' uses the colour picker. One tint drives everything: glass surfaces
+// (darkened) AND the ambient radial glows (full strength).
+const GLASS_DEFAULTS = { enabled: true, tintMode: 'system', tintRgb: '138, 77, 190', tintAlpha: 0.52, bgAlpha: 0.42 };
+
+// The ambient glow variables that follow the tint in glass mode
+const GLASS_GLOW_ALPHAS = {
+  '--glow-body-a1': 0.42, '--glow-body-a2': 0.22, '--glow-body-a3': 0.07,
+  '--glow-body-b1': 0.08, '--glow-body-b2': 0.14,
+  '--glow-main-1':  0.50, '--glow-main-2':  0.32, '--glow-main-3':  0.08,
+  '--glow-sec-1':   0.08, '--glow-sec-2':   0.26,
+};
+
+function _getGlassSettings() {
+  try { return { ...GLASS_DEFAULTS, ...(JSON.parse(localStorage.getItem(GLASS_STORAGE_KEY) || 'null') || {}) }; }
+  catch (_) { return { ...GLASS_DEFAULTS }; }
+}
+function _saveGlassSettings(s) {
+  try { localStorage.setItem(GLASS_STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+}
+
+async function applyGlass(s) {
+  const root = document.documentElement.style;
+  document.body.classList.toggle('glass-on', !!s.enabled);
+
+  // Resolve the tint: OS accent colour, or the custom pick
+  let rgb = _rgbStrToArr(s.tintRgb) || [138, 77, 190];
+  if (s.tintMode !== 'custom') {
+    try {
+      const accent = await window.eveAPI?.glassGetAccent?.();
+      const arr = accent && _rgbStrToArr(_hexToRgbStr(accent));
+      if (arr) rgb = arr;
+    } catch { /* fall back to stored colour */ }
+  }
+
+  // Surfaces get the tint darkened way down (glass stays dark, hue shows);
+  // the ambient glows get it at full saturation.
+  const glowRgb    = rgb.join(', ');
+  const surfaceRgb = rgb.map(v => Math.max(5, Math.round(v * 0.16))).join(', ');
+
+  document.body.classList.remove('glass-light');   // retired experiment — clean up
+  root.setProperty('--glass-tint-rgb',   surfaceRgb);
+  root.setProperty('--glass-tint-alpha', String(s.tintAlpha));
+  root.setProperty('--glass-bg-alpha',   String(s.bgAlpha));
+
+  // Ambient radial glows follow the tint in glass mode; cleared when glass is
+  // off so the classic theme colours return.
+  Object.entries(GLASS_GLOW_ALPHAS).forEach(([v, a]) => {
+    if (s.enabled) root.setProperty(v, `rgba(${glowRgb}, ${a})`);
+    else           root.removeProperty(v);
+  });
+
+  // Persist the resolved colours so the pre-paint bootstrap (index.html) and
+  // the ping-alert window can apply them instantly without an IPC round-trip.
+  try {
+    localStorage.setItem(GLASS_STORAGE_KEY,
+      JSON.stringify({ ...s, _surfaceRgb: surfaceRgb, _glowRgb: glowRgb }));
+  } catch {}
+
+  // OS acrylic on/off — fire-and-forget; unsupported platforms just report so.
+  window.eveAPI?.glassSetMaterial?.(s.enabled ? 'acrylic' : 'none').catch(() => {});
+}
+
+function _rgbStrToArr(rgb) {
+  const m = String(rgb || '').match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+
+function _hexToRgbStr(hex) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
+  return `${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}`;
+}
+function _rgbStrToHex(rgb) {
+  const m = String(rgb).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (!m) return '#08080c';
+  return '#' + [m[1], m[2], m[3]].map(v => (+v).toString(16).padStart(2, '0')).join('');
+}
+
+async function populateGlassSettings() {
+  const toggle    = document.getElementById('glassEnabledToggle');
+  const controls  = document.getElementById('glassControls');
+  const modeSel   = document.getElementById('glassTintMode');
+  const customWrap= document.getElementById('glassCustomWrap');
+  const tintPick  = document.getElementById('glassTintPicker');
+  const tintHex   = document.getElementById('glassTintHex');
+  const aSlider   = document.getElementById('glassTintAlphaSlider');
+  const aVal      = document.getElementById('glassTintAlphaVal');
+  const bSlider   = document.getElementById('glassBgAlphaSlider');
+  const bVal      = document.getElementById('glassBgAlphaVal');
+  const note      = document.getElementById('glassSupportNote');
+  if (!toggle) return;
+
+  // Surface the acrylic capability so Win10 users know what they're getting.
+  try {
+    const ok = await window.eveAPI?.glassSupported?.();
+    if (note && ok === false) note.style.display = 'inline';
+  } catch (_) {}
+
+  const s = _getGlassSettings();
+
+  const syncVisibility = (cur) => {
+    if (controls)   controls.style.opacity  = cur.enabled ? '1' : '0.4';
+    if (customWrap) customWrap.style.display = (cur.tintMode === 'custom') ? 'inline-flex' : 'none';
+  };
+
+  toggle.checked = !!s.enabled;
+  if (modeSel)  modeSel.value = s.tintMode || 'system';
+  if (tintPick) tintPick.value = _rgbStrToHex(s.tintRgb);
+  if (tintHex)  tintHex.textContent = _rgbStrToHex(s.tintRgb).toUpperCase();
+  if (aSlider) { aSlider.value = Math.round(s.tintAlpha * 100); if (aVal) aVal.textContent = `${aSlider.value}%`; }
+  if (bSlider) { bSlider.value = Math.round(s.bgAlpha * 100);   if (bVal) bVal.textContent = `${bSlider.value}%`; }
+  syncVisibility(s);
+
+  const update = (patch) => {
+    const cur = { ..._getGlassSettings(), ...patch };
+    _saveGlassSettings(cur);
+    applyGlass(cur);
+    syncVisibility(cur);
+  };
+
+  toggle.onchange = () => update({ enabled: toggle.checked });
+  if (modeSel) modeSel.onchange = () => update({ tintMode: modeSel.value });
+  if (tintPick) tintPick.oninput = () => {
+    const rgb = _hexToRgbStr(tintPick.value);
+    if (!rgb) return;
+    if (tintHex) tintHex.textContent = tintPick.value.toUpperCase();
+    update({ tintRgb: rgb, tintMode: 'custom' });
+  };
+  if (aSlider) aSlider.oninput = () => { if (aVal) aVal.textContent = `${aSlider.value}%`; update({ tintAlpha: aSlider.value / 100 }); };
+  if (bSlider) bSlider.oninput = () => { if (bVal) bVal.textContent = `${bSlider.value}%`; update({ bgAlpha: bSlider.value / 100 }); };
+}
+
+// Re-assert the saved material at startup (the window opens with acrylic on by
+// default — this syncs it with the user's saved preference, e.g. glass off).
+function initGlass() {
+  applyGlass(_getGlassSettings());
 }
 
 function bindUISettings() {

@@ -32,6 +32,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   bindPaletteEvents();
   initTheme();
   initBackground();
+  initGlass();
   bindNavigation();
   bindIndustrySubNav();
 

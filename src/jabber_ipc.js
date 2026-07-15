@@ -19,20 +19,23 @@ let beehiveStatus = { status: 'unknown', text: '', changedAt: null };
 let beehiveNick = null;          // nick we joined with — needed for self-ping / re-join
 let beehiveRecheckTimer = null;
 
-// Classify the Beehive MOTD into a traffic light. The status lives on the "Beehive
-// is currently ___" line — classify THAT (most reliable). Only if it's missing do we
-// scan the whole MOTD, and then only for unambiguous whole words, so body text like
-// "Red Loot Buyback" can't force a false RED. Yellow is checked before green so an
-// "online, spooling" state reads yellow. Fail-safe: anything unrecognised → RED.
-//   green  = online / running / active / up          (good to go)
+// Classify the Beehive MOTD into a traffic light. The real MOTD carries an explicit
+// "Status: Green" line (e.g. "FC: K Cee \n Status: Green \n Doctrine: SIR …") —
+// classify THAT when present, else an older "Beehive is currently ___" sentence.
+// Only if both are missing do we scan the whole MOTD, and then only for unambiguous
+// whole words, so body text like "Red Loot Buyback" can't force a false RED.
+// Yellow is checked before green so an "online, spooling" state reads yellow.
+// Fail-safe: anything unrecognised → RED (incl. "stand down", which is red, not yellow).
+//   green  = green / online / running / active / up  (good to go)
 //   yellow = spooling (spinning up) / holding / winding down / finishing
-//   red    = offline / everything else
-const _BEEHIVE_YELLOW = /spool|spinning up|holding|winding|finishing|wrapping|stand[-\s]?down|\bhold\b|\byellow\b|\bamber\b/;
+//   red    = red / offline / stand down / everything else
+const _BEEHIVE_YELLOW = /spool|spinning up|holding|winding|finishing|wrapping|\bhold\b|\byellow\b|\bamber\b/;
 const _BEEHIVE_GREEN  = /\bonline\b|\brunning\b|\bactive\b|\blive\b|\bopen\b|\bup\b|\bgo\b|\bready\b|good to go|\bgreen\b/;
 
 function parseBeehiveStatus(motd) {
   const t = (motd || '').toLowerCase();
-  const line = (t.match(/beehive is\s+(?:currently\s+)?([^\n.!]*)/) || [])[1];
+  const line = (t.match(/^[ \t]*status[ \t]*[:=-][ \t]*([^\n.!]*)/m) || [])[1]
+            ?? (t.match(/beehive is\s+(?:currently\s+)?([^\n.!]*)/)  || [])[1];
 
   if (line != null) {                          // explicit status line — trust it
     if (_BEEHIVE_YELLOW.test(line)) return 'yellow';
@@ -271,4 +274,4 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
   });
 }
 
-module.exports = { registerJabberHandlers, broadcastToRenderers };
+module.exports = { registerJabberHandlers, broadcastToRenderers, parseBeehiveStatus };

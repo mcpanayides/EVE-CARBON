@@ -608,9 +608,10 @@ function hideAddWidgetMenu() {
 
 // ── Beehive status widget (GoonFleet only) ────────────────────────────────────
 // Live beacon status read from the Beehive room MOTD (see jabber_ipc.js). Shown
-// only for Goons; fail-safe RED whenever green/yellow isn't positively confirmed.
+// only for Goons. RED means an actual MOTD said stand down; no MOTD (disconnected,
+// room not joined) renders as UNKNOWN — never as a false "down".
 let _beehiveGoon     = false;
-let _beehiveLast     = { status: 'red', text: '', changedAt: null };
+let _beehiveLast     = { status: 'unknown', text: '', changedAt: null };
 let _beehiveSubBound = false;
 
 // Goon detection: the Jabber service or forum URL already stored in the app config.
@@ -629,15 +630,16 @@ function _beehiveMeta(status) {
   switch (status) {
     case 'green':  return { color: '#3fb950', label: 'RUNNING',    sub: 'Up and running — good to go' };
     case 'yellow': return { color: '#e3b341', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
-    default:       return { color: '#f04848', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+    case 'red':    return { color: '#f04848', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+    default:       return { color: '#8b949e', label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
   }
 }
 
 function renderBeehiveWidget() {
   const el = document.getElementById('dashboardBeehiveWidget');
   if (!el) return;
-  const st     = _beehiveLast || { status: 'red' };
-  const status = st.status || 'red';
+  const st     = _beehiveLast || { status: 'unknown' };
+  const status = st.status || 'unknown';
   const m      = _beehiveMeta(status);
   const when   = st.changedAt ? new Date(st.changedAt).toLocaleString() : '—';
   const esc    = (typeof escHtml === 'function') ? escHtml : (s => s);
@@ -667,7 +669,9 @@ async function initBeehiveWidget() {
       const prev = _beehiveLast && _beehiveLast.status;
       if (payload) _beehiveLast = payload;
       renderBeehiveWidget();
-      if (_beehiveLast.status === 'red' && prev && prev !== 'red') _beehiveRedAlert();
+      // Alarm only on a real running/holding → red transition, not on disconnects
+      // (→ unknown) or on first learning the state.
+      if (_beehiveLast.status === 'red' && (prev === 'green' || prev === 'yellow')) _beehiveRedAlert();
     });
   }
   try { const s = await window.eveAPI.getBeehiveStatus(); if (s) _beehiveLast = s; } catch (_) {}

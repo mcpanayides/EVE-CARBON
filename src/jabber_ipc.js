@@ -10,10 +10,14 @@ let jabberConnectionActive = false;
 
 // ── Beehive beacon status ─────────────────────────────────────────────────────
 // Derived from the MOTD (MUC subject) of the GoonFleet "Beehive" room. Drives a
-// dashboard widget. Fail-safe: RED (stand down) whenever we can't positively
-// confirm green/yellow — disconnected, room not joined, or MOTD unrecognised.
+// dashboard widget. RED only when an actual MOTD reads as stand-down; when we
+// have no MOTD at all (disconnected, room not joined) the status is UNKNOWN —
+// we can't claim the Beehive is down, only that we can't see it.
 const BEEHIVE_ROOM = 'Beehive@conference.goonfleet.com';
-let beehiveStatus = { status: 'red', text: '', changedAt: null };
+const BEEHIVE_RECHECK_MS = 60 * 1000;   // occupancy/MOTD self-check cadence
+let beehiveStatus = { status: 'unknown', text: '', changedAt: null };
+let beehiveNick = null;          // nick we joined with — needed for self-ping / re-join
+let beehiveRecheckTimer = null;
 
 // Classify the Beehive MOTD into a traffic light. The status lives on the "Beehive
 // is currently ___" line — classify THAT (most reliable). Only if it's missing do we
@@ -42,14 +46,52 @@ function parseBeehiveStatus(motd) {
 }
 
 function updateBeehiveStatus(motd) {
-  beehiveStatus = { status: parseBeehiveStatus(motd), text: motd || '', changedAt: new Date().toISOString() };
+  const text   = motd || '';
+  const status = text.trim() ? parseBeehiveStatus(text) : 'unknown';   // blank MOTD proves nothing
+  // Re-delivered identical MOTDs (minutely recheck, re-join) keep the original timestamp.
+  if (status === beehiveStatus.status && text === beehiveStatus.text) return;
+  beehiveStatus = { status, text, changedAt: new Date().toISOString() };
   broadcastToRenderers('beehive-status', beehiveStatus);
 }
 
-// Back to the fail-safe when we lose the room (disconnect / offline).
+// Back to UNKNOWN when we lose the room (disconnect / offline) — no MOTD, no claim.
 function resetBeehiveStatus() {
-  beehiveStatus = { status: 'red', text: '', changedAt: new Date().toISOString() };
+  beehiveStatus = { status: 'unknown', text: '', changedAt: null };
   broadcastToRenderers('beehive-status', beehiveStatus);
+}
+
+// (Re-)join the Beehive MUC. The server re-sends the room subject (MOTD) on every
+// join, so this doubles as a status refresh. history maxstanzas=0 skips old chatter.
+async function joinBeehiveRoom() {
+  if (!jabberClient || !beehiveNick) return;
+  const { xml } = await getXmppClient();
+  await jabberClient.send(xml('presence', { to: `${BEEHIVE_ROOM}/${beehiveNick}` },
+    xml('x', { xmlns: 'http://jabber.org/protocol/muc' }, xml('history', { maxstanzas: '0' }))));
+}
+
+// Once a minute: MUC self-ping (XEP-0410) to confirm we're still an occupant. The
+// subject is push-only — if the join failed or we got dropped without an 'offline'
+// event, no update ever arrives and the widget silently goes stale. On any ping
+// failure, re-join; the server then re-sends the subject and the status refreshes.
+function startBeehiveRecheck() {
+  stopBeehiveRecheck();
+  beehiveRecheckTimer = setInterval(async () => {
+    if (!jabberClient || !jabberConnectionActive || !beehiveNick) return;
+    try {
+      const { xml } = await getXmppClient();
+      await jabberClient.iqCaller.request(
+        xml('iq', { type: 'get', to: `${BEEHIVE_ROOM}/${beehiveNick}` },
+          xml('ping', { xmlns: 'urn:xmpp:ping' })),
+        15 * 1000);
+    } catch (_) {
+      try { await joinBeehiveRoom(); }
+      catch (e) { console.warn('[jabber] Beehive re-join failed:', e.message || e); }
+    }
+  }, BEEHIVE_RECHECK_MS);
+}
+
+function stopBeehiveRecheck() {
+  if (beehiveRecheckTimer) { clearInterval(beehiveRecheckTimer); beehiveRecheckTimer = null; }
 }
 
 let xmppLibrary = null;
@@ -84,6 +126,7 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
 
       if (jabberClient) {
         jabberConnectionActive = false;
+        stopBeehiveRecheck();
         const oldClient = jabberClient;
         jabberClient = null; // Null before stop so stale events don't route through
         try { await oldClient.stop(); } catch (_) {}
@@ -100,7 +143,8 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
 
       jabberClient.on('offline', () => {
         jabberConnectionActive = false;
-        resetBeehiveStatus();   // lost the room → fail-safe RED
+        stopBeehiveRecheck();
+        resetBeehiveStatus();   // lost the room → status unknown
         broadcastToRenderers('jabber-status', { status: 'offline', message: 'Disconnected' });
       });
 
@@ -109,21 +153,29 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
         broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${address.toString()}` });
 
         // Join the Beehive MUC (GoonFleet only) so its MOTD (subject) reaches us.
-        // history maxstanzas=0 avoids replaying old room chatter; the subject still
-        // arrives on join and on every change.
+        // The subject arrives on join and on every change; the minutely recheck
+        // repairs a failed/lost join.
         if (/goonfleet/i.test(domain) || /goonfleet/i.test(service)) {
+          beehiveNick = username || address.local || 'evecarbon';
           try {
-            const { xml } = await getXmppClient();
-            const nick = username || address.local || 'evecarbon';
-            await jabberClient.send(xml('presence', { to: `${BEEHIVE_ROOM}/${nick}` },
-              xml('x', { xmlns: 'http://jabber.org/protocol/muc' }, xml('history', { maxstanzas: '0' }))));
+            await joinBeehiveRoom();
           } catch (e) {
             console.warn('[jabber] Beehive MUC join failed:', e.message || e);
           }
+          startBeehiveRecheck();
+        } else {
+          beehiveNick = null;
         }
       });
 
       jabberClient.on('stanza', async (stanza) => {
+        // A rejected Beehive join comes back as a presence error — log it instead of
+        // dropping it silently, so a never-arriving MOTD is diagnosable.
+        if (stanza.is('presence') && stanza.attrs.type === 'error'
+            && (stanza.attrs.from || '').toLowerCase().startsWith(BEEHIVE_ROOM.toLowerCase())) {
+          console.warn('[jabber] Beehive MUC join rejected:', stanza.toString());
+          return;
+        }
         if (!stanza.is('message')) return;
 
         // Beehive room: its MOTD (subject) drives the status widget. Never route the
@@ -175,7 +227,8 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
       jabberClient = null; // Null first so no new events route through
       try { await clientToStop.stop(); } catch (_) {}
     }
-    resetBeehiveStatus();   // fail-safe RED while disconnected
+    stopBeehiveRecheck();
+    resetBeehiveStatus();   // status unknown while disconnected
     return true;
   });
 

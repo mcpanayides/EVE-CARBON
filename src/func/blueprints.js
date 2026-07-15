@@ -1010,13 +1010,7 @@ async function openBlueprintDetail(bp) {
           <div style="height:100%;width:40%;background:var(--accent);animation:bpLoadSlide 1.2s ease-in-out infinite;"></div>
         </div>
       </div>
-    </div>
-    <style>
-      @keyframes bpLoadSlide {
-        0%   { margin-left:-40%; }
-        100% { margin-left:140%; }
-      }
-    </style>`;
+    </div>`;
 
   document.getElementById('backToBpLib')?.addEventListener('click', () => {
     resultsDiv.style.display   = 'none';

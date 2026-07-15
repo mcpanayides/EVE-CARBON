@@ -10,13 +10,11 @@
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
   /* ── BACKGROUNDS ─────────────────────────────────────────────────────────── */
-  --bg-surface:       rgba(9, 9, 9, 0.85);     /* KPI cards, chart wrap, char-bars, jobs table header */
-  --bg-banner-end:    rgba(17, 4, 4, 0.85);    /* banner gradient end (dark crimson tint) */
+  /* --bg-surface / --bg-banner-end / --text-name are theme tokens — see styles/theme-*.css */
   --bg-ship-name:     rgba(8, 8, 8, 0.88);     /* ship name footer strip              */
   --bg-ship-empty:    rgba(8, 8, 8, 0.40);     /* empty ship column background        */
 
   /* ── TEXT — extended scale for banner & dashboard ────────────────────────── */
-  --text-name:        #d8d8d8;                 /* character welcome name (brighter than text-1) */
   --text-a:           #5a5a5a;                 /* org name text                       */
   --text-b:           #2e2e2e;                 /* org name separator                  */
   --text-c:           #383838;                 /* banner stat labels, extra-col labels */
@@ -29,14 +27,7 @@
   --text-j:           #222222;                 /* ship placeholder icon colour        */
   --text-stat-value:  rgba(160, 160, 160, 0.53); /* legacy .dashboard-stat-value      */
 
-  /* ── ACCENT ALPHA VARIANTS (dashboard additions) ─────────────────────────── */
-  /* Complements --accent-03/05/06/08/25/30/40 already in base.css */
-  --accent-04:        rgba(192, 57, 43, 0.04); /* banner tint overlay, jobs row hover  */
-  --accent-10:        rgba(192, 57, 43, 0.10); /* sec-nullsec breadcrumb bg           */
-  --accent-12:        rgba(192, 57, 43, 0.12); /* banner outer box-shadow             */
-  --accent-15:        rgba(192, 57, 43, 0.15); /* portrait inset edge glow            */
-  --accent-20:        rgba(192, 57, 43, 0.20); /* KPI card border-top                 */
-  --accent-50:        rgba(255, 25, 0, 0.5); /* implant icon hover border           */
+  /* Accent alpha variants (--accent-04…50) are theme tokens — see styles/theme-*.css */
 
   /* ── GLOW — banner & portrait ────────────────────────────────────────────── */
   --glow-banner:      rgba(160, 20, 10, 0.12); /* banner outer box-shadow glow        */
@@ -70,8 +61,7 @@
 
   /* ── WEALTH BAR ──────────────────────────────────────────────────────────── */
   --bar-fill-end:     #8b1a10;                 /* char wealth bar gradient end (dark crimson) */
-  --assets:         #ab7ab8;                  /* asset-type label colour         */
-  --liquidisk:      #4ec9b0;                  /* liquid ISK value colour         */
+  /* --assets / --liquidisk are theme tokens — see styles/theme-*.css */
 }
 
 /* ── WELCOME BANNER — three-column layout: portrait | identity+stats | ship ── */

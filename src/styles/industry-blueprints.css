@@ -4,6 +4,12 @@
                                 dropdowns, category browse
    ══════════════════════════════════════════════════════════════════ */
 
+/* ── Blueprint detail loading bar (blueprints.js / materials.js) ─── */
+@keyframes bpLoadSlide {
+  0%   { margin-left: -40%; }
+  100% { margin-left: 140%; }
+}
+
 /* ── Blueprint skeleton shimmer ──────────────────────────────────── */
 @keyframes bp-shimmer {
   0%   { background-position: -200% 0; }

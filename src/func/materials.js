@@ -434,13 +434,7 @@ function renderBpSearchDetail(container, itemName, blueprintTypeId, productTypeI
       </div>
       <div id="bpSearchTree" style="display:none;"></div>
 
-    </div>
-    <style>
-      @keyframes bpLoadSlide {
-        0%   { margin-left:-40%; }
-        100% { margin-left:140%; }
-      }
-    </style>`;
+    </div>`;
 
   // ── Initial render ────────────────────────────────────────────────────────
   _bpSearchUpdate(container, baseMats, prices, productQty, 0, 1);

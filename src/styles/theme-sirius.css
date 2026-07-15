@@ -1,0 +1,115 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   EVE Carbon theme — Sirius
+   Generated theme file: one CSS custom property per colour token.
+   The @-metadata comments below are parsed by theme_ipc.js — keep them.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* @id: Sirius */
+/* @name: Sirius */
+/* @description: Clean star-white theme with vivid blue accents. Every surface is bright; blue takes the role that crimson holds in Carbon. */
+/* @author: Ms Moirai */
+/* @roles: {"accent":"blue","danger":"red","success":"green","warning":"orange","info":"baby_blue"} */
+/* @swatches: {"red":"#c0392b","teal":"#0d9488","purple":"#7c3aed","pink":"#be185d","baby_blue":"#2563eb","green":"#15803d","yellow":"#b45309","orange":"#c2410c","gold":"#b45309","indigo":"#4338ca","cyan":"#0891b2","blue":"#1a73e8","background":"#f0f4f8","panel":"#888888","text":"#0d1117","border":"#888888"} */
+
+:root {
+  --teal-success-bg: rgba(13,148,136,0.18);
+  --teal-success-border: rgba(13,148,136,0.3);
+  --danger-bg: rgba(231,76,60,0.14);
+  --danger-border: rgba(231,76,60,0.25);
+  --accent: #1a73e8;
+  --accent-dim: #1557b0;
+  --accent-glow: rgba(26,115,232,0.22);
+  --accent-03: rgba(26,115,232,0.03);
+  --accent-04: rgba(26,115,232,0.04);
+  --accent-05: rgba(26,115,232,0.05);
+  --accent-06: rgba(26,115,232,0.06);
+  --accent-08: rgba(26,115,232,0.08);
+  --accent-10: rgba(26,115,232,0.1);
+  --accent-12: rgba(26,115,232,0.12);
+  --accent-15: rgba(26,115,232,0.15);
+  --accent-20: rgba(26,115,232,0.2);
+  --accent-25: rgba(26,115,232,0.25);
+  --accent-30: rgba(26,115,232,0.3);
+  --accent-40: rgba(26,115,232,0.4);
+  --accent-50: rgba(26,115,232,0.5);
+  --glow-color: rgba(26,115,232,0.22);
+  --glow-color-2: #1a73e8;
+  --success: #15803d;
+  --danger: #e74c3c;
+  --warning: #d97706;
+  --status-online: #16a34a;
+  --status-offline: #e74c3c;
+  --teal: #0d9488;
+  --teal-glow: rgba(13,148,136,0.30);
+  --liquidisk: #0d9488;
+  --assets: #8b5cf6;
+  --newbie: #0d9488;
+  --hisec: #1a6fdb;
+  --lowsec: #b45309;
+  --nullsec: #c0392b;
+  --lawless: #3730a3;
+  --teal-bg: rgba(13,148,136,0.12);
+  --teal-border: rgba(13,148,136,0.35);
+  --teal-text: #14b8a6;
+  --indigo-bg: rgba(67,56,202,0.12);
+  --indigo-border: rgba(67,56,202,0.32);
+  --indigo-text: #4f46e5;
+  --green-bg: rgba(21,128,61,0.12);
+  --green-border: rgba(21,128,61,0.35);
+  --green-text: #16a34a;
+  --tier-top: #1a73e8;
+  --tier-2: #4338ca;
+  --tier-1: #c2410c;
+  --tier-0: #0d9488;
+  --esi-green: rgba(22,163,74,0.25);
+  --esi-green-dim: rgba(22,163,74,0.10);
+  --nav-active-bg: rgba(26,115,232,0.12);
+  --bg: #f0f4f8;
+  --bg-body: #f0f4f8;
+  --bg-deep: rgba(224,234,248,0.95);
+  --bg-panel: rgba(255,255,255,0.97);
+  --bg-card: rgba(240,246,255,0.97);
+  --bg-card-deep: rgba(230,240,255,0.97);
+  --bg-input: rgba(255,255,255,0.95);
+  --bg-modal: rgba(248,252,255,0.99);
+  --bg-hover: rgba(26,115,232,0.07);
+  --bg-hover-subtle: rgba(26,115,232,0.03);
+  --bg-code: #eef2f7;
+  --toast-bg: rgba(248,252,255,0.98);
+  --bg-surface: rgba(240,246,255,0.97);
+  --bg-banner-end: rgba(220,235,255,0.95);
+  --backdrop: rgba(36,41,47,0.75);
+  --text-1: #0d1117;
+  --text-2: #24292f;
+  --text-3: #57606a;
+  --text-4: #6e7781;
+  --text-5: #8c959f;
+  --text-6: #afb8c1;
+  --text-7: #d0d7de;
+  --text-8: #656d76;
+  --text-9: #656d76;
+  --text-input: #24292f;
+  --text-on-accent: #ffffff;
+  --text-name: #0d1117;
+  --border: rgba(0,0,0,0.12);
+  --border-b: rgba(26,115,232,0.25);
+  --border-c: rgba(26,115,232,0.25);
+  --border-d: rgba(26,115,232,0.15);
+  --border-e: #d0d7de;
+  --shadow-dark: rgba(0,0,0,0.10);
+  --shadow-darker: rgba(0,0,0,0.30);
+  --shadow-black-12: rgba(0,0,0,0.12);
+  --spinner-track: rgba(26,115,232,0.08);
+  --hatch-color: rgba(0,0,0,0.018);
+  --hatch-card-color: rgba(0,0,0,0.010);
+  --dot-color: rgba(0,0,0,0.03);
+  --glow-body-a1: rgba(26,115,232,0.20);
+  --glow-body-a2: rgba(100,149,237,0.12);
+  --glow-body-a3: rgba(26,115,232,0.04);
+  --glow-body-b1: rgba(59,130,246,0.08);
+  --glow-body-b2: rgba(37,99,235,0.06);
+  --glow-main-1: rgba(26,115,232,0.25);
+  --glow-main-2: rgba(100,149,237,0.15);
+  --glow-main-3: rgba(26,115,232,0.04);
+  --glow-sec-1: rgba(59,130,246,0.06);
+  --glow-sec-2: rgba(37,99,235,0.10);
+}

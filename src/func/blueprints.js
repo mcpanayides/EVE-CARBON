@@ -2367,25 +2367,15 @@ async function renderActiveJobsPage(container) {
             ).join('');
       }
 
-      // Fetch jobs from all characters concurrently
-      // character_id is NOT in the ESI response body — must be injected from the request context
-      const allRaw = [];
-      await Promise.allSettled(accounts.map(async acc => {
-        try {
-          const jobs = await window.eveAPI.getCharacterActiveJobs(acc.characterId);
-          if (Array.isArray(jobs)) {
-            jobs.forEach(j => allRaw.push({
-              ...j,
-              character_id: acc.characterId,
-              _charName:    acc.characterName || `Char ${acc.characterId}`,
-            }));
-          }
-        } catch (_) {}
-      }));
+      // Personal + corporation jobs for every character, deduped by job_id and
+      // tagged with character_id / _charName / is_corp_job — shared helper in
+      // dashboard.js (corp access is probed in the main process; characters
+      // without the scope or Factory Manager role contribute nothing).
+      const activeRaw = await fetchAllActiveIndustryJobs(accounts);
 
       // Resolve type names for all blueprint + product IDs
       const typeIds = [...new Set(
-        allRaw.flatMap(j => [j.blueprint_type_id, j.product_type_id].filter(Boolean))
+        activeRaw.flatMap(j => [j.blueprint_type_id, j.product_type_id].filter(Boolean))
       )];
       const nameMap = {};
       if (typeIds.length) {
@@ -2398,8 +2388,6 @@ async function renderActiveJobsPage(container) {
           try { const n = await window.eveAPI.sdeGetName(id); if (n) nameMap[id] = n; } catch (_) {}
         }));
       }
-
-      const activeRaw = allRaw.filter(j => ['active','ready','paused'].includes(j.status));
 
       // Resolve system names via SDE (offline, no ESI dependency)
       const sysIds = [...new Set(activeRaw.map(j => j.solar_system_id).filter(Boolean))];
@@ -2580,6 +2568,7 @@ async function renderActiveJobsPage(container) {
           <div style="display:flex;align-items:center;gap:7px;">
             ${charPortrait}
             <span style="color:var(--text-1);font-size:12px;">${escHtml(job._charName)}</span>
+            ${job.is_corp_job ? '<span class="aj-corp-badge">CORP</span>' : ''}
           </div>
         </td>
         <td style="padding:10px 8px;max-width:260px;">

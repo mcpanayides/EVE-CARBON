@@ -7,7 +7,7 @@ const envPath = app.isPackaged
 require('dotenv').config({ path: envPath, quiet: true }); // quiet: suppress dotenv's startup tip line
 
 // ── Now safe to require everything else ────────────────────────────────────────
-const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage } = require('electron');
+const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage } = require('electron');
 const https = require('https');
 const http  = require('http');
 const crypto = require('crypto');
@@ -132,7 +132,7 @@ const SCOPES         = [
   'esi-assets.read_assets.v1',                  // assets
   'esi-corporations.read_blueprints.v1',        // corp blueprints
   'esi-industry.read_character_jobs.v1',        // character industry jobs
-  'esi-industry.read_corporation_jobs.v1',      // corp industry jobs (only returns jobs where the character is the installer, not all corp jobs)
+  'esi-industry.read_corporation_jobs.v1',      // corp industry jobs (all corp jobs — but ESI also requires the in-game Factory Manager role, else 403)
   'esi-wallet.read_character_wallet.v1',        // wallet balance
   'esi-clones.read_clones.v1',                  // home location + jump clones + implants
   'esi-clones.read_implants.v1',                // implants 
@@ -215,6 +215,26 @@ function initPaths() {
   try { fs.mkdirSync(userPacksDir, { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userThemesDir,{ recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userBackgroundsDir, { recursive: true }); } catch (e) { /* ignore */ }
+}
+
+// ─── App icon ─────────────────────────────────────────────────────────────────
+// Resolve the .ico at runtime instead of hard-coding one path. Packaged builds
+// ship assets/ beside the asar (extraResources in package.json — note that the
+// buildResources dir "assets" is EXCLUDED from the asar by electron-builder, so
+// an asar-relative assets path never exists when packaged). Dev reads the repo
+// folder; build/icon.ico (packed inside the asar) is the last-resort copy so
+// windows and the tray are never left iconless.
+function appIconPath() {
+  const candidates = [
+    ...(app.isPackaged ? [path.join(process.resourcesPath || __dirname, 'assets', 'icon.ico')] : []),
+    path.join(__dirname, 'assets', 'icon.ico'),
+    path.join(__dirname, 'build', 'icon.ico'),
+  ];
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p; } catch (_) {}
+  }
+  console.error('[icon] no app icon found — checked:', candidates.join(' | '));
+  return null;
 }
 
 // ─── IPC: Background images ───────────────────────────────────────────────────
@@ -1272,6 +1292,7 @@ app.whenReady().then(async () => {
     loadDB,
     getValidToken,
     httpGet,
+    httpGetFull,
     resolveNames,
     readCache,
     writeCache,
@@ -1828,7 +1849,7 @@ ipcHandle('widget-popout-open', (_e, { id, title, w, h }) => {
     ...(acrylicSupported()
       ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
       : { frame: false, backgroundColor: '#070b14' }),
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: appIconPath() || undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
@@ -1915,7 +1936,7 @@ function createPingAlertWindow(msg) {
     ...(acrylicSupported()
       ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
       : { frame: false, backgroundColor: '#070b14' }),
-    icon:            path.join(__dirname, 'assets', 'icon.ico'),
+    icon:            appIconPath() || undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
@@ -1965,7 +1986,10 @@ function showMainWindow() {
 
 function createTray() {
   if (tray) return tray;
-  tray = new Tray(path.join(__dirname, 'assets', 'icon.ico'));
+  // A missing .ico must never break minimize-to-tray: fall back to a blank image
+  // (menu and click-to-restore still work) rather than letting new Tray() throw.
+  const iconPath = appIconPath();
+  tray = new Tray(iconPath || nativeImage.createEmpty());
   tray.setToolTip('EVE Carbon');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show EVE Carbon', click: showMainWindow },
@@ -2018,7 +2042,7 @@ function createWindow() {
     ...(glass ? { backgroundMaterial: 'acrylic' } : {}),
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#070b14', symbolColor: '#ab7ab8', height: 32 },
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: appIconPath() || undefined,
     webPreferences: {
       preload: path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,

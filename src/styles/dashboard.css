@@ -731,6 +731,16 @@
 .aj-cell-item { white-space: nowrap; }
 .aj-cell-item span { color: var(--text-1); }
 
+/* Corp-job tag — shown beside the installer wherever corp jobs are listed
+   (active-jobs widget, job watch, Industry → Active Jobs table). */
+.aj-corp-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 3px;
+  font-family: var(--mono, monospace); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.08em; vertical-align: middle;
+  color: #d29922; background: rgba(210, 153, 34, 0.12);
+  border: 1px solid rgba(210, 153, 34, 0.35);
+}
+
 /* ── Active market orders widget (reuses the active-jobs table) ── */
 .mo-side            { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
                       padding: 1px 7px; border-radius: 3px; white-space: nowrap; }

@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Jobs
   getCharacterJobs:       (characterId) => ipcRenderer.invoke('get-character-jobs', characterId),
   getCharacterActiveJobs:    (characterId)             => ipcRenderer.invoke('get-character-active-jobs', characterId),
+  getCorpActiveJobs:         (characterId)             => ipcRenderer.invoke('get-corp-active-jobs', characterId),
   setAutopilotDestination:   (characterId, systemId)   => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
   setAutopilotRoute:         (characterId, systemIds)  => ipcRenderer.invoke('set-autopilot-route', { characterId, systemIds }),
 

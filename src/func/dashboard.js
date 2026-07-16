@@ -678,23 +678,55 @@ async function initBeehiveWidget() {
   renderBeehiveWidget();
 }
 
+// Personal + corporation active jobs (active / ready / paused) for every
+// account, deduped by job_id. Shared by the Active Industry Jobs widget, the
+// Job Watch widget, and the Industry page's Active Jobs tab (blueprints.js).
+// Corp jobs — where the token's scope and the in-game Factory Manager role
+// allow; the main process returns [] otherwise, so no-access accounts just skip
+// — are tagged is_corp_job and attributed to their installer, falling back to
+// the resolved installer name for corp members who aren't local accounts. A job
+// a character installed for their corp appears in BOTH feeds; the personal copy
+// wins so attribution stays first-person.
+async function fetchAllActiveIndustryJobs(accounts) {
+  const byId = new Map();
+  const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
+  for (const acc of accounts) {
+    try {
+      const list = await window.eveAPI.getCharacterActiveJobs(acc.characterId);
+      (Array.isArray(list) ? list : []).forEach(j => byId.set(j.job_id, {
+        ...j,
+        character_id: acc.characterId,
+        _charName:    acc.characterName || `Char ${acc.characterId}`,
+      }));
+    } catch (_) {}
+    await new Promise(r => setTimeout(r, 80));
+  }
+  for (const acc of accounts) {
+    let list = [];
+    try { list = await window.eveAPI.getCorpActiveJobs(acc.characterId) || []; } catch (_) {}
+    for (const j of (Array.isArray(list) ? list : [])) {
+      if (byId.has(j.job_id)) continue;   // personal copy already listed
+      const installer = String(j.installer_id || '');
+      byId.set(j.job_id, {
+        ...j,
+        character_id: j.installer_id || acc.characterId,
+        _charName:    accountMap[installer]?.characterName || j.installer_name || 'Corp member',
+      });
+    }
+    await new Promise(r => setTimeout(r, 80));
+  }
+  return [...byId.values()]
+    .filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+}
+
 // Fetch + render the Active Industry Jobs widget (active / ready / paused jobs
-// across all characters). Live ESI per character — extracted so it can be re-run
-// after a background sync warms the tokens (see refreshDashboardLiveWidgets).
+// across all characters + their corps). Live ESI per character — extracted so it
+// can be re-run after a background sync warms the tokens (see refreshDashboardLiveWidgets).
 async function renderDashboardActiveJobs(accounts) {
   const container = document.getElementById('dashboardActiveJobsTable');
   if (!container) return;
   try {
-    const tag = (id, list) => (list || []).map(j => ({ ...j, character_id: id }));
-    const responses = [];
-    for (const acc of accounts) {
-      try {
-        responses.push(tag(acc.characterId, await window.eveAPI.getCharacterActiveJobs(acc.characterId)));
-      } catch { responses.push([]); }
-      await new Promise(r => setTimeout(r, 80));
-    }
-    const allJobs    = responses.flat();
-    const activeJobs = allJobs.filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+    const activeJobs = await fetchAllActiveIndustryJobs(accounts);
     renderActiveJobsWidget(container, activeJobs, accounts);
   } catch (e) {
     console.error('[dashboard] Active jobs widget failed:', e);
@@ -1737,7 +1769,8 @@ async function renderActiveJobsWidget(container, jobs, accounts) {
   });
 
   const rows = sorted.map(job => {
-    const charName   = accountMap[String(job.character_id)]?.characterName || `Char ${job.character_id}`;
+    const charName   = accountMap[String(job.character_id)]?.characterName || job._charName || `Char ${job.character_id}`;
+    const corpBadge  = job.is_corp_job ? '<span class="aj-corp-badge">CORP</span>' : '';
     const itemTypeId = job.product_type_id || job.blueprint_type_id || null;
     const itemName   = (itemTypeId && typeNames[itemTypeId]) || (itemTypeId ? `Type ${itemTypeId}` : 'Unknown');
     const sysName    = (job.solar_system_id && sysNames[job.solar_system_id])
@@ -1788,7 +1821,7 @@ async function renderActiveJobsWidget(container, jobs, accounts) {
     }
 
     return `<tr>
-      <td class="aj-cell-char">${charPortrait}${escHtml(charName)}</td>
+      <td class="aj-cell-char">${charPortrait}${escHtml(charName)}${corpBadge}</td>
       <td class="aj-cell-item">${itemIcon}<span>${escHtml(itemName)}</span></td>
       <td><span class="aj-activity-badge ${act.cls}">${act.label}</span></td>
       ${progressCell}
@@ -2589,15 +2622,8 @@ async function _renderAllJobWatch(accounts) {
   if (!panels.length) return;
 
   const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
-  const jobs = [];
-  for (const acc of accounts) {
-    try {
-      const list = await window.eveAPI.getCharacterActiveJobs(acc.characterId);
-      if (Array.isArray(list)) list.forEach(j => jobs.push({ ...j, character_id: acc.characterId }));
-    } catch (_) {}
-    await new Promise(r => setTimeout(r, 60));
-  }
-  const active = jobs.filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+  // Personal + corp jobs (deduped, corp-tagged) via the shared helper.
+  const active = await fetchAllActiveIndustryJobs(accounts);
   // Deterministic order (soonest-done first) so the dropdown and the auto-default
   // are stable across re-renders — ESI's job order is not guaranteed.
   active.sort((a, b) => (new Date(a.end_date) - new Date(b.end_date)) || (Number(a.job_id) - Number(b.job_id)));
@@ -2633,7 +2659,8 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
   const options = active.map(j => {
     const acc = accountMap[String(j.character_id)] || {};
     const sel = String(j.job_id) === String(selectedId) ? 'selected' : '';
-    return `<option value="${j.job_id}" ${sel}>${escHtml(labelFor(j))} · ${escHtml(acc.characterName || '')}</option>`;
+    const who = acc.characterName || j._charName || '';
+    return `<option value="${j.job_id}" ${sel}>${j.is_corp_job ? '[CORP] ' : ''}${escHtml(labelFor(j))} · ${escHtml(who)}</option>`;
   }).join('');
 
   const acc   = accountMap[String(job.character_id)] || {};
@@ -2665,7 +2692,7 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
         <div class="jw-head-info">
           <div class="jw-name" title="${escHtml(name)}">${escHtml(name)}</div>
           <div class="jw-sub"><span class="aj-activity-badge ${act.cls}">${act.label}</span>${runs ? ` · ${runs}` : ''}</div>
-          <div class="jw-char">${escHtml(acc.characterName || '')}</div>
+          <div class="jw-char">${escHtml(acc.characterName || job._charName || '')}${job.is_corp_job ? ' <span class="aj-corp-badge">CORP</span>' : ''}</div>
         </div>
       </div>
       <div class="jw-progress"><div class="jw-progress-fill" style="width:${pct.toFixed(2)}%"></div></div>

@@ -10,6 +10,7 @@ const ESI_BASE = 'https://esi.evetech.net';
  * @param {function} deps.loadDB           - loads the JSON database
  * @param {function} deps.getValidToken    - returns a valid ESI access token for a characterId
  * @param {function} deps.httpGet          - authenticated HTTP GET helper
+ * @param {function} deps.httpGetFull      - like httpGet but also returns the X-Pages header
  * @param {function} deps.resolveNames     - resolves typeIds/systemIds to name map
  * @param {function} deps.readCache        - reads from persistent cache
  * @param {function} deps.writeCache       - writes to persistent cache
@@ -20,6 +21,7 @@ function registerCharacterHandlers({
   loadDB,
   getValidToken,
   httpGet,
+  httpGetFull,
   resolveNames,
   readCache,
   writeCache,
@@ -200,6 +202,93 @@ function registerCharacterHandlers({
         if (stale) return stale;
       }
       console.warn('Failed to load active jobs:', e.message || e);
+      return [];
+    }
+  });
+
+  // ─── IPC: Corporation industry jobs (ESI, active) ────────────────────────────
+  // Corp-hangar research/manufacturing jobs for the character's corporation, for
+  // the active-jobs surfaces (Industry tab + dashboard widgets). ESI gates this
+  // behind the esi-industry.read_corporation_jobs.v1 scope on the token AND the
+  // in-game Factory Manager role; both are probed gracefully so characters
+  // without corp access just contribute nothing:
+  //   • scope missing from the token → skip silently, no ESI call at all
+  //   • ESI 403 (no role)            → remember per-corp for 6h so the widget
+  //     refresh loop doesn't drain the shared ESI error budget
+  // Cached per-corporation (5 min + 30-day stale) so same-corp alts share one
+  // fetch — the renderer may call this once per account at no extra ESI cost.
+  ipcHandle('get-corp-active-jobs', async (_, characterId) => {
+    const CORP_JOBS_SCOPE = 'esi-industry.read_corporation_jobs.v1';
+    let corporationId = null;
+    try {
+      const token = await getValidToken(characterId);
+
+      // Scope probe — the ESI access token is a JWT listing granted scopes in `scp`.
+      let scopes = [];
+      try {
+        const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+        scopes = Array.isArray(claims.scp) ? claims.scp : (claims.scp ? [claims.scp] : []);
+      } catch (_) { /* unparseable token → treat as no scope */ }
+      if (!scopes.includes(CORP_JOBS_SCOPE)) return [];
+
+      // Character → corporation (public info; corp moves are rare, cache 24h).
+      const corpKey = `corp_of_${characterId}`;
+      corporationId = readCache(corpKey);
+      if (!corporationId) {
+        const info = await httpGet(
+          `${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
+          { Authorization: `Bearer ${token}` }
+        );
+        corporationId = info && info.corporation_id;
+        if (!corporationId) return [];
+        writeCache(corpKey, corporationId, 1);   // 24 hours
+      }
+
+      if (readCache(`jobs_corp_noaccess_${corporationId}`)) return [];
+      const cacheKey = `jobs_corp_active_${corporationId}`;
+      const cached   = readCache(cacheKey);
+      if (cached) return cached;
+
+      // Paginated endpoint — follow X-Pages so a busy industry corp isn't cut off.
+      const jobs = [];
+      let page = 1, xPages = 1;
+      do {
+        const { data, xPages: xp } = await httpGetFull(
+          `${ESI_BASE}/latest/corporations/${corporationId}/industry/jobs/?datasource=tranquility&page=${page}`,
+          { Authorization: `Bearer ${token}` }
+        );
+        if (Array.isArray(data)) jobs.push(...data);
+        xPages = xp || 1;
+        page++;
+      } while (page <= xPages && page <= 20);
+
+      // Resolve system + installer names in one batch (/universe/names takes both).
+      const systemIds    = [...new Set(jobs.filter(j => j.solar_system_id).map(j => j.solar_system_id))];
+      const installerIds = [...new Set(jobs.filter(j => j.installer_id).map(j => j.installer_id))];
+      const allIds       = [...systemIds, ...installerIds];
+      const nameMap      = allIds.length ? await resolveNames(allIds) : {};
+      const result = jobs.map(job => ({
+        ...job,
+        is_corp_job:       true,
+        corporation_id:    corporationId,
+        solar_system_name: nameMap[job.solar_system_id] || `System ${job.solar_system_id || 'Unknown'}`,
+        installer_name:    nameMap[job.installer_id] || null,
+      }));
+
+      writeCache(cacheKey, result, 5 / 1440);      // 5-minute cache
+      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback for 429s
+      return result;
+    } catch (e) {
+      if (/^HTTP 403\b/.test(e.message || '')) {
+        // Scope present but no Factory Manager role — back off for 6 hours.
+        if (corporationId) writeCache(`jobs_corp_noaccess_${corporationId}`, true, 0.25);
+        return [];
+      }
+      if (e.isRateLimit && corporationId) {
+        const stale = readCache(`jobs_corp_active_${corporationId}_stale`);
+        if (stale) return stale;
+      }
+      console.warn('Failed to load corp jobs:', e.message || e);
       return [];
     }
   });

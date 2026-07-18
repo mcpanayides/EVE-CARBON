@@ -43,6 +43,7 @@ const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
+const { initPresence, pokePresence, getPresenceCount } = require('./src/presence');
 
 // Global reference to the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -107,7 +108,9 @@ process.on('uncaughtException', (err) => {
 // ─── Config ───────────────────────────────────────────────────────────────────
 const SSO_AUTH_URL   = 'https://login.eveonline.com/v2/oauth/authorize/';
 const SSO_TOKEN_URL  = 'https://login.eveonline.com/v2/oauth/token';
-const SSO_VERIFY_URL = 'https://login.eveonline.com/oauth/verify';
+// v2 verify — the unversioned /oauth/verify is legacy; CCP's 2026 "spring
+// cleaning" names /v2/oauth/verify as the drop-in replacement (same payload).
+const SSO_VERIFY_URL = 'https://login.eveonline.com/v2/oauth/verify';
 const ESI_BASE       = 'https://esi.evetech.net';
 // Terminal logs are UTF-8; a Windows console in a non-UTF-8 code page renders
 // glyphs like — ✓ ✗ … as mojibake (тАФ / тЬУ …). Strip to ASCII for stdout logs
@@ -425,9 +428,13 @@ ipcMain.handle('save-jump-bridges', (_, arr) => {
 // app.getLoginItemSettings() is the source of truth. minimizeToTray is ours,
 // persisted in config.json.
 ipcMain.handle('get-app-preferences', () => {
-  let minimizeToTray = false;
-  try { const cfg = loadConfig(); minimizeToTray = !!(cfg.app && cfg.app.minimizeToTray); } catch (_) {}
-  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray };
+  let minimizeToTray = false, presenceEnabled = true;
+  try {
+    const cfg = loadConfig();
+    minimizeToTray  = !!(cfg.app && cfg.app.minimizeToTray);
+    presenceEnabled = !(cfg.app && cfg.app.presenceEnabled === false);   // default on
+  } catch (_) {}
+  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray, presenceEnabled };
 });
 
 ipcMain.handle('set-launch-at-login', (_, enabled) => {
@@ -454,6 +461,17 @@ ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
   applyMinimizeToTray(cfg.app.minimizeToTray);
   return cfg.app.minimizeToTray;
 });
+
+// ── Anonymous presence counter (status-bar "N online") — see src/presence.js ──
+ipcMain.handle('set-presence-enabled', (_, enabled) => {
+  const cfg = loadConfig();
+  cfg.app = cfg.app || {};
+  cfg.app.presenceEnabled = !!enabled;
+  saveConfig(cfg);
+  pokePresence();   // ping (or clear the counter) immediately, not in 5 minutes
+  return cfg.app.presenceEnabled;
+});
+ipcMain.handle('presence-get-count', () => getPresenceCount());
 
 // Trade-fee profile for the Ore/Ice/Gas calculators: Accounting + Broker
 // Relations skill levels and NPC standings (keyed by from_id). Returns nulls if
@@ -1266,6 +1284,22 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;   // second instance is quitting — don't init/open
   initPaths();
+
+  // Anonymous "N online" heartbeat — off unless PRESENCE_URL is configured
+  // (see infra/presence-worker) and the user hasn't opted out in Settings.
+  initPresence({
+    url: process.env.PRESENCE_URL || '',
+    isEnabled: () => {
+      try { const cfg = loadConfig(); return !(cfg.app && cfg.app.presenceEnabled === false); }
+      catch (_) { return true; }
+    },
+    broadcast: (channel, payload) => {
+      BrowserWindow.getAllWindows().forEach(win => {
+        if (!win.isDestroyed()) win.webContents.send(channel, payload);
+      });
+    },
+  });
+
   await initSde();
   try {
     await charInfoDb.initCharacterDb(appDataDir);

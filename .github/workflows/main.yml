@@ -30,6 +30,7 @@ jobs:
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
+          echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
 
       - name: Fetch SDE
         run: node scripts/fetch-sde.js
@@ -93,6 +94,7 @@ jobs:
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
+          echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
 
       - name: Fetch SDE
         run: node scripts/fetch-sde.js

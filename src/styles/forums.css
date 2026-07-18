@@ -27,7 +27,7 @@
 .forum-tb-spacer       { flex: 1; }
 .forum-status-dot      { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-4, #666);
                          box-shadow: 0 0 0 1px rgba(0,0,0,0.25); }
-.forum-status-dot.online  { background: var(--success, #27ae60); }
+.forum-status-dot.online  { background: var(--success, var(--pal-green)); }
 .forum-status-dot.offline { background: var(--text-4, #666); }
 .forum-status-label    { font-size: 10px; font-family: var(--mono); letter-spacing: 0.06em; color: var(--text-3);
                          margin: 0 8px 0 6px; flex-shrink: 0; }

@@ -628,10 +628,10 @@ async function _checkBeehiveGoon() {
 
 function _beehiveMeta(status) {
   switch (status) {
-    case 'green':  return { color: '#3fb950', label: 'RUNNING',    sub: 'Up and running — good to go' };
-    case 'yellow': return { color: '#e3b341', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
-    case 'red':    return { color: '#f04848', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
-    default:       return { color: '#8b949e', label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
+    case 'green':  return { color: 'var(--pal-green)', label: 'RUNNING',    sub: 'Up and running — good to go' };
+    case 'yellow': return { color: 'var(--pal-gold)',  label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
+    case 'red':    return { color: 'var(--pal-red)',   label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+    default:       return { color: 'var(--text-3)',    label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
   }
 }
 
@@ -821,11 +821,11 @@ async function loadDashboard() {
       const charSecColor = (s) => {
         const n = parseFloat(s);
         if (isNaN(n)) return 'var(--text-2)';
-        if (n >= 5.0) return '#4ada8a';
-        if (n >= 0.1) return '#0b7edb';
-        if (n == 0.0) return '#5f5f5f';
-        if (n <= 0.0) return '#db0b0b';
-        return '#e45c5c';
+        if (n >= 5.0) return 'var(--pal-green)';
+        if (n >= 0.1) return 'var(--pal-blue)';
+        if (n == 0.0) return 'var(--text-3)';
+        if (n <= 0.0) return 'var(--pal-red)';
+        return 'var(--pal-red)';
       };
 
 
@@ -843,8 +843,8 @@ async function loadDashboard() {
       if (!g) return null;
       const gLower = String(g).toLowerCase();
       // Using 'color' for both text and border
-      if (gLower === 'male')   return { color: '#67ace4', label: 'Male' };
-      if (gLower === 'female') return { color: '#e47baf', label: 'Female' };
+      if (gLower === 'male')   return { color: 'var(--pal-blue)', label: 'Male' };
+      if (gLower === 'female') return { color: 'var(--pal-pink)', label: 'Female' };
       return { color: 'var(--text-3)', label: g };
     };
 
@@ -966,7 +966,14 @@ async function loadDashboard() {
               </div>
               <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${escHtml(currentSystem || '—')}</span></div>
               <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span style="color:var(--text-3);font-size:11px;">Calculating…</span></span></div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span class="banner-loading-note">Calculating…</span></span></div>
+            </div>
+          </div>
+          <div class="banner-killboard-col" id="bannerKillboardCol" style="display:none;"
+               title="Open on zKillboard">
+            <div class="banner-extra-section">
+              <div class="banner-extra-label">Killboard</div>
+              <div id="bannerKillboardGrid"></div>
             </div>
           </div>
           <div class="banner-extra-col">
@@ -981,6 +988,50 @@ async function loadDashboard() {
           </div>
         </div>
         ${shipColHtml}`;
+    }
+
+    // Fill the banner's zKillboard column (all-time PvP counts + ranks — the
+    // same numbers as the character's zKill "Alltime" row). Stays hidden unless
+    // zKill returns a real PvP record, so quiet characters keep a clean banner.
+    // Clicking the section opens the character's zKillboard page.
+    async function loadBannerKillboard(charId) {
+      const col  = document.getElementById('bannerKillboardCol');
+      const grid = document.getElementById('bannerKillboardGrid');
+      if (!col || !grid) return;
+      let s = null;
+      try { s = await window.eveAPI.getZkillStats(charId); } catch (_) {}
+      if (!s || (!s.shipsDestroyed && !s.shipsLost)) return;
+      const num  = n => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString() : '—';
+      const eff  = (s.shipsDestroyed + s.shipsLost) > 0
+        ? ((s.shipsDestroyed / (s.shipsDestroyed + s.shipsLost)) * 100).toFixed(1) + '%'
+        : '—';
+      // Trend arrows (movement over zKill's ~week rank history) — same ticker
+      // arrows + colours as the wallet balances widget (↗ up / ↘ down).
+      const arrow = t => t > 0 ? ' <span class="banner-kb-trend up">↗</span>'
+                   : t < 0 ? ' <span class="banner-kb-trend down">↘</span>' : '';
+      const chip  = (rank, trend) => (typeof rank === 'number')
+        ? `<span class="banner-kb-rank">#${rank.toLocaleString()}${arrow(trend)}</span>` : '';
+      const overallCell = p => (p && typeof p.overall === 'number')
+        ? `#${p.overall.toLocaleString()}${arrow(p.trend && p.trend.overall)}`
+        : '—';
+      const at = (s.periods && s.periods.alltime) || null;
+      const rc = (s.periods && s.periods.recent)  || null;
+      const wk = (s.periods && s.periods.weekly)  || null;
+      grid.innerHTML = `
+        <div class="banner-stat-row"><span class="banner-stat-label">Destroyed</span>
+          <span class="banner-stat-value"><span class="banner-kb-pos">${num(s.shipsDestroyed)}</span>${chip(at && at.shipsDestroyed, at && at.trend.shipsDestroyed)}</span></div>
+        <div class="banner-stat-row"><span class="banner-stat-label">Lost</span>
+          <span class="banner-stat-value"><span class="banner-kb-neg">${num(s.shipsLost)}</span>${chip(at && at.shipsLost, at && at.trend.shipsLost)}</span></div>
+        <div class="banner-stat-row"><span class="banner-stat-label">Efficiency</span>
+          <span class="banner-stat-value">${eff}${arrow(at && at.trend && at.trend.efficiency)}</span></div>
+        <div class="banner-stat-row"><span class="banner-stat-label">Rank · All</span>
+          <span class="banner-stat-value banner-kb-overall">${overallCell(at)}</span></div>
+        <div class="banner-stat-row"><span class="banner-stat-label">Rank · 90d</span>
+          <span class="banner-stat-value banner-kb-overall">${overallCell(rc)}</span></div>
+        <div class="banner-stat-row"><span class="banner-stat-label">Rank · 7d</span>
+          <span class="banner-stat-value banner-kb-overall">${overallCell(wk)}</span></div>`;
+      col.style.display = 'flex';
+      col.onclick = () => { try { window.eveAPI.openExternalUrl(`https://zkillboard.com/character/${charId}/`); } catch (_) {} };
     }
 
     // Build/paint the banner from the local DB. Called immediately for a fast
@@ -1109,6 +1160,9 @@ async function loadDashboard() {
 
       // Check if alliance holds sov with active incursions — fire-and-forget
       renderAllianceIncursionAlert(info.alliance_id).catch(() => {});
+
+      // zKillboard column — fire-and-forget (1h-cached in main, instant repaint)
+      loadBannerKillboard(mainAccount.characterId).catch(() => {});
     }
 
     try {
@@ -1200,7 +1254,8 @@ async function loadDashboard() {
       renderWealthWidgets({ accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading: loading });
       const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
       if (welcomeNWEl) {
-        welcomeNWEl.innerHTML = `<span style="color:var(--text-1);">${formatISK(grandTotal)}</span>`;
+        // Colour comes from .banner-stat-value (--value-bright) — no inline style.
+        welcomeNWEl.textContent = formatISK(grandTotal);
       }
       return { totalByChar, overallValue, grandTotal };
     }
@@ -1453,7 +1508,7 @@ function _renderWealthKPIs(container, d) {
       <div class="dash-wealth-kpi"><div class="dash-kpi-label">TOTAL NET WORTH</div><div class="dash-kpi-value">${formatISK(d.grandTotal)}</div><div class="dash-kpi-sub">Assets + Liquid ISK</div></div>
       <div class="dash-wealth-kpi"><div class="dash-kpi-label">LIQUID ISK</div><div class="dash-kpi-value liquidisk">${formatISK(d.totalWallet)}</div><div class="dash-kpi-sub">Wallet balance</div></div>
       <div class="dash-wealth-kpi"><div class="dash-kpi-label">ASSET VALUE</div>
-        <div class="dash-kpi-value accent-purple">${d.assetsLoading ? '<span style="font-size:13px;color:var(--text-3);font-family:var(--mono);">Calculating...</span>' : formatISK(d.overallValue)}</div>
+        <div class="dash-kpi-value accent-purple">${d.assetsLoading ? '<span class="dash-kpi-loading">Calculating...</span>' : formatISK(d.overallValue)}</div>
         <div class="dash-kpi-sub">Jita sell estimate</div>
       </div>
     </div>`;
@@ -1512,7 +1567,9 @@ function _renderWealthGrowth(container, d, compact = false) {
   const { top } = _wealthCharData(d);
 
   const getCSSVar     = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const CHAR_COLORS   = ['--accent','--assets','--liquidisk','--warning','--danger','--tier-0'].map(getCSSVar);
+  // Character series follow the consolidated chart palette (styles/palette.css);
+  // --chart-1 is reserved for the Total line below.
+  const CHAR_COLORS   = ['--chart-2','--chart-3','--chart-4','--chart-5','--chart-6','--chart-7'].map(getCSSVar);
   const growthFactors = [0.41,0.48,0.54,0.59,0.63,0.68,0.74,0.80,0.87,0.92,0.96,1.0];
 
   // Character lines: solid, no dots
@@ -1523,14 +1580,16 @@ function _renderWealthGrowth(container, d, compact = false) {
     borderWidth: 1.5, borderDash: [], pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0.3,
   }));
 
-  // Total line: neon red, solid, dot at every point
+  // Total line: the palette's red (--chart-1), solid, dot at every point
   if (top.length > 1) {
-    const TOTAL_RED = '#ff2010';
+    const TOTAL_RED  = getCSSVar('--chart-1') || '#ff2010';
+    const TOTAL_GLOW = (window.ThemeVars && TOTAL_RED.startsWith('#'))
+      ? window.ThemeVars.hexToRgba(TOTAL_RED, 0.45) : 'rgba(255,32,16,0.45)';
     charDatasets.push({
       label: 'Total',
       data: growthFactors.map(f => Math.round(d.grandTotal * f)),
       borderColor: TOTAL_RED, borderWidth: 2, borderDash: [],
-      pointBackgroundColor: TOTAL_RED, pointBorderColor: 'rgba(255,32,16,0.45)', pointBorderWidth: 3,
+      pointBackgroundColor: TOTAL_RED, pointBorderColor: TOTAL_GLOW, pointBorderWidth: 3,
       pointRadius: 4, pointHoverRadius: 7, fill: false, tension: 0.3, _isTotal: true,
     });
   }
@@ -1808,7 +1867,7 @@ async function renderActiveJobsWidget(container, jobs, accounts) {
       const pct     = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
       const left    = Math.max(0, end - now);
       // Colour: green when almost done, accent/red otherwise
-      const fillCol = pct >= 90 ? '#4ecbb0' : pct >= 50 ? 'var(--accent)' : '#c0392b';
+      const fillCol = pct >= 90 ? 'var(--pal-teal)' : pct >= 50 ? 'var(--accent)' : 'var(--pal-red)';
       progressCell  = `
         <td>
           <div class="aj-progress-wrap">
@@ -1954,7 +2013,7 @@ async function renderDashboardPIWidget(container, accounts) {
         <div class="dash-pi-count-label">EXTRACTING</div>
       </div>
       <div class="dash-pi-count">
-        <div class="dash-pi-count-num" style="color:${nWarning > 0 ? '#e3a84d' : 'var(--text-3)'};">${nWarning}</div>
+        <div class="dash-pi-count-num" style="color:${nWarning > 0 ? 'var(--pal-gold)' : 'var(--text-3)'};">${nWarning}</div>
         <div class="dash-pi-count-label">STORAGE FULL</div>
       </div>
       <div class="dash-pi-count">
@@ -1983,9 +2042,9 @@ function _piDashNav() {
 // ─── Alliance-space incursion alert widget ────────────────────────────────────
 
 function _incSecColor(sec) {
-  if (sec <= 0.0)  return '#ff4444';
-  if (sec <  0.5)  return '#ffaa00';
-  return '#44cc88';
+  if (sec <= 0.0)  return 'var(--pal-red)';
+  if (sec <  0.5)  return 'var(--pal-gold)';
+  return 'var(--pal-green)';
 }
 
 function _incStateClass(state) {

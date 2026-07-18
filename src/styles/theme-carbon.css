@@ -77,12 +77,23 @@
   --tier-1:         #d19a66;                  /* tier-1 rank label               */
   --tier-0:         #4ec9b0;                  /* tier-0 rank label               */
 
+  /* ── DATA PALETTE — the eight consolidated hues (see styles/palette.css).
+     Every chart/KPI/badge colour references these; retune here per theme. ── */
+  --pal-red:        #e0564b;
+  --pal-green:      #4ada8a;
+  --pal-teal:       #4ecbb0;
+  --pal-gold:       #e3b341;
+  --pal-purple:     #ab7ab8;
+  --pal-blue:       #4a9fd4;
+  --pal-pink:       #e47baf;
+  --pal-orange:     #f58c42;
+
   /* ── STATUS ──────────────────────────────────────────────────────────────── */
-  --success:        #27ae60;                  /* toast.success, console success, code text, status-online */
-  --danger:         #e74c3c;                  /* toast.error, console error, status-offline */
-  --warning:        #e67e22;                  /* toast.warning, console warning  */
-  --assets:         #ab7ab8;                  /* asset-type label colour         */
-  --liquidisk:      #4ec9b0;                  /* liquid ISK value colour         */
+  --success:        var(--pal-green);         /* toast.success, console success, code text, status-online */
+  --danger:         var(--pal-red);           /* toast.error, console error, status-offline */
+  --warning:        var(--pal-orange);        /* toast.warning, console warning  */
+  --assets:         var(--pal-purple);        /* asset-type label colour         */
+  --liquidisk:      var(--pal-teal);          /* liquid ISK value colour         */
   --status-online:  #3ddc84;                  /* green dot — character online    */
   --status-offline: #d0263d;                  /* red dot — character offline     */
 

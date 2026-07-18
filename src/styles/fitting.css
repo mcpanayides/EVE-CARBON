@@ -59,9 +59,9 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   display: none;
 }
 .ft-fit-local:hover .ft-fit-del { display: block; }
-.ft-fit-del:hover { color: #e0564b; }
+.ft-fit-del:hover { color: var(--pal-red); }
 /* Notice at the top of Hulls & Fits when the ESI fits fetch fails. */
-.fit-hint-warn { color: #e0a34b; text-align: left; padding: 6px 8px 2px; font-size: 11px; }
+.fit-hint-warn { color: var(--pal-gold); text-align: left; padding: 6px 8px 2px; font-size: 11px; }
 /* Section divider in ship-search results between hull matches and fit-name matches. */
 .ft-fit-sec {
   font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
@@ -81,15 +81,15 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   background: none; border: none; color: var(--text-3); cursor: pointer;
   font-size: 10px; padding: 0 3px;
 }
-.fit-tgt-clear:hover { color: #e0564b; }
+.fit-tgt-clear:hover { color: var(--pal-red); }
 
 /* Capacitor stability line. */
 .fit-cap-stab { font-size: 11px; font-family: var(--mono); font-weight: 700; margin-top: 2px; }
-.fit-cap-stab.ok   { color: #4ecb71; }
-.fit-cap-stab.warn { color: #e0a34b; }
+.fit-cap-stab.ok   { color: var(--pal-green); }
+.fit-cap-stab.warn { color: var(--pal-gold); }
 
 /* Command-burst boost contribution — green "+x" beside the base value. */
-.fit-boost-delta { color: #4ecb71; font-family: var(--mono); font-size: 12px; margin-left: 5px; white-space: nowrap; }
+.fit-boost-delta { color: var(--pal-green); font-family: var(--mono); font-size: 12px; margin-left: 5px; white-space: nowrap; }
 /* Repair-rate line under a defense layer row (boost / regen / rep hp/s). */
 .fit-rep-line {
   display: flex; justify-content: flex-end; gap: 10px;
@@ -205,8 +205,8 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fw-tube-ico { font-size: 22px; color: var(--text-3); position: relative; z-index: 1; }
 .fw-tube-light   { color: #57c7ff; border-color: rgba(87,199,255,0.5); }
-.fw-tube-support { color: #4ecb71; border-color: rgba(78,203,113,0.5); }
-.fw-tube-heavy   { color: #e0a34b; border-color: rgba(224,163,75,0.5); }
+.fw-tube-support { color: var(--pal-green); border-color: rgba(78,203,113,0.5); }
+.fw-tube-heavy   { color: var(--pal-gold); border-color: rgba(224,163,75,0.5); }
 
 /* Implants panel (shares the drone-bay shell). */
 .fw-imp-slotn {
@@ -219,7 +219,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-imp-results { max-height: 150px; overflow-y: auto; margin-top: 4px; }
 .fw-imp-results .fit-result { padding: 3px 4px; font-size: 11px; }
 .fw-imp-clear {
-  background: none; border: none; color: #e0564b; cursor: pointer;
+  background: none; border: none; color: var(--pal-red); cursor: pointer;
   font-size: 10px; padding: 0 2px; text-decoration: underline;
 }
 .fw-db-head {
@@ -238,14 +238,14 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-db-qty  { color: var(--text-3); font-family: var(--mono); font-size: 10px; }
 .fw-db-stats { font-size: 9.5px; color: var(--text-3); font-family: var(--mono); margin-top: 2px; }
 .fw-db-active { display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
-.fw-db-active span.on { color: #4ecb71; font-weight: 700; }
+.fw-db-active span.on { color: var(--pal-green); font-weight: 700; }
 .fw-db-btn {
   width: 18px; height: 18px; line-height: 1; padding: 0; background: var(--bg-deep);
   border: 1px solid var(--border); border-radius: 4px; color: var(--text-2); cursor: pointer; font-size: 11px;
 }
 .fw-db-btn:hover { color: var(--text-1); border-color: var(--accent); }
 .fw-db-x { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 11px; padding: 2px 4px; }
-.fw-db-x:hover { color: #e0564b; }
+.fw-db-x:hover { color: var(--pal-red); }
 .fw-db-empty { padding: 12px; font-size: 11px; color: var(--text-3); text-align: center; }
 .fw-db-hint  { padding: 6px 10px; font-size: 9px; color: var(--text-3); font-style: italic; }
 
@@ -261,7 +261,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-mini-bar span { font-family: var(--mono); font-size: 9px; color: var(--text-3); width: 26px; }
 .fw-mini-track { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-deep); overflow: hidden; }
 .fw-mini-fill { height: 100%; background: var(--accent); }
-.fw-mini-fill.over { background: #e0564b; }
+.fw-mini-fill.over { background: var(--pal-red); }
 
 /* Wheel slot cells — rotated wedge slices following the ring. The cell rotates
    to its ring angle; the .fw-wedge layer is a TRAPEZOID (wider at the outer
@@ -303,13 +303,13 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-slot.state-active  { filter: drop-shadow(0 0 5px rgba(78,203,113,0.9)); }
 .fw-slot.state-active .fw-wedge { background: rgba(23,38,28,0.96); }
 .fw-slot.state-overheated {
-  filter: drop-shadow(0 0 4px #ff3b30) drop-shadow(0 0 10px rgba(255,59,48,0.9));
+  filter: drop-shadow(0 0 4px var(--pal-red)) drop-shadow(0 0 10px rgba(255,59,48,0.9));
   animation: fwHeatPulse 1s ease-in-out infinite;
 }
 .fw-slot.state-overheated .fw-wedge { background: rgba(46,21,18,0.97); }
 @keyframes fwHeatPulse {
-  0%, 100% { filter: drop-shadow(0 0 4px #ff3b30) drop-shadow(0 0 10px rgba(255,59,48,0.9)); }
-  50%      { filter: drop-shadow(0 0 7px #ff5b50) drop-shadow(0 0 18px rgba(255,59,48,1)); }
+  0%, 100% { filter: drop-shadow(0 0 4px var(--pal-red)) drop-shadow(0 0 10px rgba(255,59,48,0.9)); }
+  50%      { filter: drop-shadow(0 0 7px var(--pal-red)) drop-shadow(0 0 18px rgba(255,59,48,1)); }
 }
 /* Occupied slot adjacent to an overheated module — heat bleeds into it. */
 .fw-slot.fw-heat-adjacent { filter: drop-shadow(0 0 6px rgba(255,120,60,0.55)); }
@@ -331,7 +331,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   font-size: 10px; line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center;
 }
 .fw-slot:hover .fw-x { display: flex; }
-.fw-x:hover { color: #e0564b; border-color: #e0564b; }
+.fw-x:hover { color: var(--pal-red); border-color: var(--pal-red); }
 
 /* Wheel tooltip */
 .fw-tip {
@@ -349,12 +349,12 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fw-tip-k { font-size: 10px; color: var(--text-3); }
 .fw-tip-v { font-size: 10.5px; font-family: var(--mono); font-weight: 600; color: var(--text-1); text-align: right; }
-.fw-tip-v.hot { color: #ff5b50; }
+.fw-tip-v.hot { color: var(--pal-red); }
 .fw-tip-v.dim { color: var(--text-3); font-weight: 400; font-style: italic; }
 .fw-tip-offline    { color: #5d6b78; }
-.fw-tip-online     { color: #3a78c2; }
-.fw-tip-active     { color: #4ecb71; }
-.fw-tip-overheated { color: #ff3b30; }
+.fw-tip-online     { color: var(--pal-blue); }
+.fw-tip-active     { color: var(--pal-green); }
+.fw-tip-overheated { color: var(--pal-red); }
 
 /* ── Slot context menu (right-click) ── */
 #fitCtxMenu {
@@ -374,9 +374,9 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   color: var(--text-3); cursor: pointer;
 }
 .fit-ctx-state.st-offline.on    { color: #aab4bd; border-color: #5d6b78; }
-.fit-ctx-state.st-online.on     { color: #6ea8e8; border-color: #3a78c2; }
-.fit-ctx-state.st-active.on     { color: #4ecb71; border-color: #4ecb71; }
-.fit-ctx-state.st-overheated.on { color: #ff3b30; border-color: #ff3b30; box-shadow: 0 0 8px rgba(255,59,48,0.4); }
+.fit-ctx-state.st-online.on     { color: #6ea8e8; border-color: var(--pal-blue); }
+.fit-ctx-state.st-active.on     { color: var(--pal-green); border-color: var(--pal-green); }
+.fit-ctx-state.st-overheated.on { color: var(--pal-red); border-color: var(--pal-red); box-shadow: 0 0 8px rgba(255,59,48,0.4); }
 .fit-ctx-state:hover { color: var(--text-1); }
 .fit-ctx-sec {
   padding: 6px 12px 3px; font-size: 9px; letter-spacing: 0.1em; color: var(--text-3);
@@ -394,7 +394,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-ctx-item:hover { background: var(--bg-hover); }
 .fit-ctx-item img { width: 20px; height: 20px; border-radius: 3px; flex-shrink: 0; }
 .fit-ctx-charge { border-top: none; padding: 4px 12px 4px 18px; }
-.fit-ctx-danger { color: #e0564b; }
+.fit-ctx-danger { color: var(--pal-red); }
 
 /* ── Weapon range chart ── */
 #fitRangeChart { width: 100%; display: block; margin-bottom: 6px; cursor: crosshair; }
@@ -406,8 +406,8 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--text-2);
   font-family: var(--mono); margin: 4px 0 8px; cursor: pointer;
 }
-.fit-heat-toggle input { accent-color: #e07b2e; cursor: pointer; }
-.fit-weapon-row .fit-hot { color: #e07b2e; font-weight: 700; font-size: 9px; }
+.fit-heat-toggle input { accent-color: var(--pal-orange); cursor: pointer; }
+.fit-weapon-row .fit-hot { color: var(--pal-orange); font-weight: 700; font-size: 9px; }
 /* Column resize handle between the browser and the wheel. */
 .fit-col-handle {
   cursor: col-resize; background: transparent; position: relative;
@@ -442,10 +442,10 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 
 .fit-stat-row { margin-bottom: 10px; }
 .fit-stat-top { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--text-2); margin-bottom: 4px; }
-.fit-stat-row.over .fit-stat-top { color: #e0564b; }
+.fit-stat-row.over .fit-stat-top { color: var(--pal-red); }
 .fit-bar { height: 6px; border-radius: 3px; background: var(--bg-deep); overflow: hidden; }
 .fit-bar-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
-.fit-bar-fill.over { background: #e0564b; }
+.fit-bar-fill.over { background: var(--pal-red); }
 
 .fit-mini-grid { margin-top: 6px; }
 .fit-mini {
@@ -453,7 +453,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   color: var(--text-2); padding: 3px 0; border-bottom: 1px solid var(--border);
 }
 .fit-mini:last-child { border-bottom: none; }
-.fit-mini.over, .fit-over { color: #e0564b; }
+.fit-mini.over, .fit-over { color: var(--pal-red); }
 
 .fit-stats-title { display: flex; align-items: center; gap: 6px; }
 .fit-sec-ico { font-size: 14px; color: var(--accent); }

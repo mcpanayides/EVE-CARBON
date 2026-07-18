@@ -19,12 +19,28 @@
   --glass-tint-rgb:      8, 8, 12;              /* tint colour of all glass surfaces */
   --glass-bg-alpha:      0.42;                  /* body wash over the raw acrylic     */
   --glass-tint-alpha:    0.52;                  /* panel/card surface opacity         */
+  --glass-blur-scale:    1;                     /* frost blur multiplier (Settings → Background) */
   --flute-width:         8px;                   /* pitch of one vertical glass rib    */
   --flute-highlight:     rgba(255, 255, 255, 0.055); /* specular edge of each rib     */
   --flute-shadow:        rgba(0, 0, 0, 0.16);   /* concave centre of each rib         */
   --glass-edge:          rgba(255, 255, 255, 0.09);  /* 1px panel rim light            */
   --glass-specular:      rgba(255, 255, 255, 0.14);  /* inset top highlight            */
   --glass-shadow:        rgba(0, 0, 0, 0.45);   /* floating panel depth shadow        */
+}
+
+/* ── Status-bar presence counter (anonymous "N ONLINE" ticker) ── */
+.presence-status {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0; margin-right: 8px;
+}
+.presence-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--pal-green);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.presence-label {
+  font-size: 9px; font-family: var(--mono); letter-spacing: 0.08em;
+  color: var(--text-7);
 }
 
 /* ── RESET ── */
@@ -504,12 +520,24 @@ input[type="range"] { accent-color: var(--accent); }
 .nav-btn.active { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
 
 .nav-icon          { font-size: 16px; min-width: 20px; text-align: center; flex-shrink: 0; }
+/* Brand-logo nav icons (e.g. Discord) — inline SVGs sized to match the
+   Material Symbols icons and tinted via currentColor. */
+.nav-icon-svg      { width: 18px; height: 18px; fill: currentColor; display: block; margin: 0 auto; }
 .nav-icon-portrait { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 2px solid var(--teal); flex-shrink: 0; min-width: 22px; box-shadow: 0 0 6px var(--teal-glow); }
 .nav-active-char-name { flex: 1; text-align: left; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--teal); font-weight: 600; }
 .nav-label  { flex: 1; text-align: left; }
 .nav-status { display: flex; align-items: center; justify-content: flex-end; min-width: 18px; margin-left: auto; }
 
 .status-light   { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--status-offline); box-shadow: 0 0 0 1px var(--shadow-black-12); transition: background 0.2s ease; }
+/* Player count beside the EVE service-status light (existing tokens only) */
+.eve-status-count { font-size: 10px; font-family: var(--mono); color: var(--text-3); letter-spacing: 0.03em; margin-right: 6px; }
+
+/* ── EVE Server Status modal (embedded status page; existing tokens only) ── */
+.eve-status-modal        { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; width: min(1100px, 92vw); height: 86vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px var(--shadow-darker); }
+.eve-status-modal-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg-card-deep); flex-shrink: 0; color: var(--text-2); }
+.eve-status-modal-title  { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; color: var(--text-2); }
+.eve-status-modal-body   { flex: 1; min-height: 0; display: flex; }
+.eve-status-modal-body webview { flex: 1; width: 100%; height: 100%; }
 .status-online  { background: var(--status-online); }
 .status-offline { background: var(--status-offline); }
 

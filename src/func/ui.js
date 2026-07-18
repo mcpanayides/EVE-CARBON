@@ -21,15 +21,29 @@ function setSettingsTab(tab) {
 // (no SAVE needed): launch-at-login is written to the OS, minimize-to-tray is
 // persisted in config and the main process creates/removes the tray icon.
 async function populateGeneralSettings() {
-  const startToggle = document.getElementById('startWithWindowsToggle');
-  const trayToggle  = document.getElementById('minimizeToTrayToggle');
+  const startToggle    = document.getElementById('startWithWindowsToggle');
+  const trayToggle     = document.getElementById('minimizeToTrayToggle');
+  const presenceToggle = document.getElementById('presenceToggle');
   if (!startToggle || !trayToggle) return;
 
   try {
     const prefs = await window.eveAPI.getAppPreferences();
     startToggle.checked = !!prefs.launchAtLogin;
     trayToggle.checked  = !!prefs.minimizeToTray;
+    if (presenceToggle) presenceToggle.checked = prefs.presenceEnabled !== false;
   } catch (_) { /* leave unchecked if prefs can't be read */ }
+
+  if (presenceToggle) presenceToggle.onchange = async () => {
+    try {
+      const enabled = await window.eveAPI.setPresenceEnabled(presenceToggle.checked);
+      presenceToggle.checked = !!enabled;
+      showToast(enabled ? 'You now count toward the anonymous online ticker.'
+                        : 'Online presence sharing disabled.', 'success');
+    } catch (e) {
+      presenceToggle.checked = !presenceToggle.checked;
+      showToast(`Couldn't update presence setting: ${e.message}`, 'error');
+    }
+  };
 
   startToggle.onchange = async () => {
     try {
@@ -55,6 +69,99 @@ async function populateGeneralSettings() {
     }
   };
 }
+
+// ─── EVE service status (nav) ───────────────────────────────────────────────────
+// Green dot + live player count from ESI's public Tranquility status endpoint,
+// mirroring the Jabber nav light. Red when the server is unreachable (downtime)
+// or in VIP mode. Clicking opens CCP's status page.
+const EVE_STATUS_PAGE = 'https://status.eveonline.com';
+
+function openEveStatusPage() {
+  try { window.eveAPI.openExternalUrl(EVE_STATUS_PAGE); } catch (_) {}
+}
+
+// In-app modal (forums/fleet-fight pattern): status page embedded in a webview,
+// with reload + pop-out-to-browser. Keeps the user in the app when possible.
+function openEveStatusModal() {
+  const bd = document.getElementById('eveStatusBackdrop');
+  const wv = document.getElementById('eveStatusWebview');
+  if (!bd) { openEveStatusPage(); return; }   // markup missing — browser fallback
+  if (wv && !wv.getAttribute('src')) wv.setAttribute('src', EVE_STATUS_PAGE);
+  bd.style.display = 'flex';
+}
+
+function closeEveStatusModal() {
+  const bd = document.getElementById('eveStatusBackdrop');
+  if (bd) bd.style.display = 'none';
+}
+
+function eveStatusModalNav(action) {
+  if (action === 'external') { openEveStatusPage(); return; }
+  const wv = document.getElementById('eveStatusWebview');
+  if (action === 'reload' && wv) { try { wv.reload(); } catch (_) {} }
+}
+
+async function _pollEveStatus() {
+  const light = document.getElementById('eveStatusLight');
+  const count = document.getElementById('eveStatusCount');
+  if (!light) return;
+  try {
+    const res = await fetch('https://esi.evetech.net/latest/status/?datasource=tranquility',
+                            { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const s  = await res.json();
+    const up = !s.vip;   // VIP mode = staff-only — treat as down for players
+    light.classList.toggle('status-online',  up);
+    light.classList.toggle('status-offline', !up);
+    light.title = up ? 'Tranquility: online' : 'Tranquility: VIP mode (staff only)';
+    if (count) count.textContent = typeof s.players === 'number' ? s.players.toLocaleString() : '';
+  } catch (_) {
+    light.classList.remove('status-online');
+    light.classList.add('status-offline');
+    light.title = 'Tranquility: unreachable (downtime?)';
+    if (count) count.textContent = '';
+  }
+}
+
+(function initEveStatusNav() {
+  if (!document.getElementById('eveStatusLight')) return;
+  _pollEveStatus();
+  setInterval(_pollEveStatus, 60 * 1000);   // ESI caches this ~30s; 1 min is polite
+})();
+
+// ─── Discord invite (bottom nav) ────────────────────────────────────────────────
+// The nav's Discord button opens this invite in the OS browser. Set the link
+// here — leaving it empty makes the button explain itself instead of erroring.
+const DISCORD_INVITE_URL = 'https://discord.gg/KpCMBZNenD';
+
+function openDiscordInvite() {
+  if (!DISCORD_INVITE_URL) {
+    showToast('Discord invite not configured yet — set DISCORD_INVITE_URL in src/func/ui.js.', 'error');
+    return;
+  }
+  try { window.eveAPI.openExternalUrl(DISCORD_INVITE_URL); } catch (_) {}
+}
+
+// ─── Status-bar presence counter ("N ONLINE") ──────────────────────────────────
+// Fed by the main process's anonymous heartbeat (src/presence.js). Hidden when
+// the feature is unconfigured, opted out, or the endpoint is unreachable.
+function _updatePresenceCount(n) {
+  const wrap  = document.getElementById('presenceStatus');
+  const label = document.getElementById('presenceCountLabel');
+  if (!wrap || !label) return;
+  if (typeof n === 'number' && n > 0) {
+    label.textContent  = `${n.toLocaleString()} ONLINE`;
+    wrap.style.display = 'inline-flex';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+(function initPresenceCounterUI() {
+  try {
+    window.eveAPI?.on?.('presence-count', n => _updatePresenceCount(n));
+    window.eveAPI?.getPresenceCount?.().then(_updatePresenceCount).catch(() => {});
+  } catch (_) { /* preload not available (tests) */ }
+})();
 
 // ─── Jump Gates / Beacon Network Import ────────────────────────────────────────
 // Imports a pasted jump-gate list (e.g. a Webway export) into the encrypted
@@ -283,7 +390,7 @@ async function populateBackgroundSettings() {
 }
 
 // ─── Reeded glass (spatial UI) ────────────────────────────────────────────────
-// Persisted in localStorage as { enabled, tintRgb, tintAlpha, bgAlpha, fluteWidth }.
+// Persisted in localStorage as { enabled, tintRgb, tintAlpha, bgAlpha, blurScale }.
 // A bootstrap script in index.html applies the saved state before first paint;
 // everything here is the live Settings wiring. The OS-level acrylic material is
 // toggled over IPC (main.js); the CSS layer works standalone as a fallback.
@@ -291,7 +398,7 @@ const GLASS_STORAGE_KEY = 'eve-glass';
 // tintMode: 'system' follows the OS accent colour (Windows/macOS colourway);
 // 'custom' uses the colour picker. One tint drives everything: glass surfaces
 // (darkened) AND the ambient radial glows (full strength).
-const GLASS_DEFAULTS = { enabled: true, tintMode: 'system', tintRgb: '138, 77, 190', tintAlpha: 0.52, bgAlpha: 0.42 };
+const GLASS_DEFAULTS = { enabled: true, tintMode: 'system', tintRgb: '138, 77, 190', tintAlpha: 0.52, bgAlpha: 0.42, blurScale: 1 };
 
 // The ambient glow variables that follow the tint in glass mode
 const GLASS_GLOW_ALPHAS = {
@@ -332,6 +439,9 @@ async function applyGlass(s) {
   root.setProperty('--glass-tint-rgb',   surfaceRgb);
   root.setProperty('--glass-tint-alpha', String(s.tintAlpha));
   root.setProperty('--glass-bg-alpha',   String(s.bgAlpha));
+  // Frost blur multiplier — scales every glass surface's backdrop blur ladder
+  // proportionally (see --glass-blur-scale usage in glass.css / dashboard.css).
+  root.setProperty('--glass-blur-scale', String(s.blurScale != null ? s.blurScale : 1));
 
   // Ambient radial glows follow the tint in glass mode; cleared when glass is
   // off so the classic theme colours return.
@@ -377,6 +487,8 @@ async function populateGlassSettings() {
   const aVal      = document.getElementById('glassTintAlphaVal');
   const bSlider   = document.getElementById('glassBgAlphaSlider');
   const bVal      = document.getElementById('glassBgAlphaVal');
+  const kSlider   = document.getElementById('glassBlurSlider');
+  const kVal      = document.getElementById('glassBlurVal');
   const note      = document.getElementById('glassSupportNote');
   if (!toggle) return;
 
@@ -399,6 +511,7 @@ async function populateGlassSettings() {
   if (tintHex)  tintHex.textContent = _rgbStrToHex(s.tintRgb).toUpperCase();
   if (aSlider) { aSlider.value = Math.round(s.tintAlpha * 100); if (aVal) aVal.textContent = `${aSlider.value}%`; }
   if (bSlider) { bSlider.value = Math.round(s.bgAlpha * 100);   if (bVal) bVal.textContent = `${bSlider.value}%`; }
+  if (kSlider) { kSlider.value = Math.round((s.blurScale != null ? s.blurScale : 1) * 100); if (kVal) kVal.textContent = `${kSlider.value}%`; }
   syncVisibility(s);
 
   const update = (patch) => {
@@ -418,6 +531,7 @@ async function populateGlassSettings() {
   };
   if (aSlider) aSlider.oninput = () => { if (aVal) aVal.textContent = `${aSlider.value}%`; update({ tintAlpha: aSlider.value / 100 }); };
   if (bSlider) bSlider.oninput = () => { if (bVal) bVal.textContent = `${bSlider.value}%`; update({ bgAlpha: bSlider.value / 100 }); };
+  if (kSlider) kSlider.oninput = () => { if (kVal) kVal.textContent = `${kSlider.value}%`; update({ blurScale: kSlider.value / 100 }); };
 }
 
 // Re-assert the saved material at startup (the window opens with acrylic on by

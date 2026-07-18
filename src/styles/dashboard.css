@@ -14,13 +14,21 @@
   --bg-ship-name:     rgba(8, 8, 8, 0.88);     /* ship name footer strip              */
   --bg-ship-empty:    rgba(8, 8, 8, 0.40);     /* empty ship column background        */
 
+  /* ── TEXT — shared roles. REFERENCE THESE (or an alias below) everywhere.
+     Never hardcode these colours or inline-style them in JS-generated markup —
+     add/extend a class in src/styles/*.css that references a token instead.
+     --label-muted:  muted/uppercase labels app-wide (the legible light gray)
+     --value-bright: primary stat values — same colour as the net-worth figure */
+  --label-muted:      #909090;
+  --value-bright:     var(--text-1);
+
   /* ── TEXT — extended scale for banner & dashboard ────────────────────────── */
   --text-a:           #5a5a5a;                 /* org name text                       */
   --text-b:           #2e2e2e;                 /* org name separator                  */
-  --text-c:           #383838;                 /* banner stat labels, extra-col labels */
-  --text-d:           #909090;                 /* banner stat values, extra-col values */
-  --text-e:           #3d3d3d;                 /* KPI card labels, legacy stat label   */
-  --text-f:           #333333;                 /* KPI card sub-line                   */
+  --text-c:           var(--label-muted);      /* banner stat labels, extra-col labels */
+  --text-d:           var(--value-bright);     /* banner stat values, extra-col values */
+  --text-e:           var(--label-muted);      /* KPI card labels, legacy stat label   */
+  --text-f:           var(--label-muted);      /* KPI card sub-line                   */
   --text-g:           #363636;                 /* jobs table column headers           */
   --text-h:           #454545;                 /* ship name footer label              */
   --text-i:           #7a7a7a;                 /* jobs table row hover text           */
@@ -263,6 +271,35 @@
 
 .banner-home-value { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
 
+/* ── KILLBOARD COLUMN: zKillboard all-time stats + ranks ──
+   Sits between the stats column and the Bloodline/Implants column. Hidden
+   (inline style) until zKill data arrives; clicking opens the zKill page. */
+.banner-killboard-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 24px;
+  width: 250px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-e);
+  cursor: pointer;
+}
+.banner-killboard-col:hover .banner-extra-label { color: var(--accent); }
+.banner-kb-rank {
+  color: var(--text-c);
+  font-size: 9px;
+  margin-left: 8px;
+  letter-spacing: 0.04em;
+}
+/* Trend ticker — same arrows/colours as the wallet balances widget (↗/↘). */
+.banner-kb-trend      { font-size: 10px; line-height: 1; }
+.banner-kb-trend.up   { color: var(--success, var(--pal-green)); }
+.banner-kb-trend.down { color: var(--danger); }
+.banner-kb-pos        { color: var(--success, var(--pal-green)); }  /* destroyed count */
+.banner-kb-neg        { color: var(--danger); }            /* lost count      */
+.banner-kb-overall    { font-weight: 700; }                /* overall rank rows */
+.banner-loading-note  { color: var(--text-3); font-size: 11px; }
+
 /* ── EXTRA COLUMN: Bloodline + Implants ── */
 .banner-extra-col {
   display: flex;
@@ -430,6 +467,7 @@
 .dash-kpi-value.liquidisk  { color: var(--liquidisk); }
 .dash-kpi-value.accent-purple { color: var(--assets); }
 .dash-kpi-sub       { font-size: 10px; color: var(--text-f); font-family: var(--mono); }
+.dash-kpi-loading   { font-size: 13px; color: var(--text-3); font-family: var(--mono); }
 
 /* ── WEALTH CHART WRAPPER ── */
 .dash-wealth-chart-wrap  { background-color: var(--bg-panel); background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px); background-size: 6px 6px; border: 1px solid var(--border-e); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
@@ -565,10 +603,10 @@
 /* The balance cell is coloured green/red by its up/down class (the balance text,
    the diagonal arrow, and the change amount all inherit it). */
 .dash-wallet-cell            { display: inline-flex; align-items: baseline; gap: 5px; flex-shrink: 0; margin-left: 10px; }
-.dash-wallet-cell.up         { color: var(--success, #44cc88); }   /* balance went up   */
+.dash-wallet-cell.up         { color: var(--success, var(--pal-green)); }   /* balance went up   */
 .dash-wallet-cell.down       { color: var(--danger); }             /* balance went down */
 .dash-wallet-cell.flat       { color: var(--text-3); }             /* no change in 24h  */
-.dash-wallet-total-chg.up    { color: var(--success, #44cc88); }
+.dash-wallet-total-chg.up    { color: var(--success, var(--pal-green)); }
 .dash-wallet-total-chg.down  { color: var(--danger); }
 .dash-wallet-bal             { font-family: var(--mono); font-weight: 600; font-size: 13px; }
 .dash-wallet-arrow           { font-size: 11px; line-height: 1; }
@@ -615,10 +653,10 @@
                                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash-market-prices          { display: flex; gap: 12px; font-family: var(--mono); }
 .dash-market-prices > span   { min-width: 66px; text-align: right; white-space: nowrap; }
-.dash-market-sell            { color: var(--success, #44cc88); }
+.dash-market-sell            { color: var(--success, var(--pal-green)); }
 .dash-market-buy             { color: var(--text-3); }
 .dash-market-trend           { font-size: 9px; }
-.dash-market-trend.up        { color: var(--success, #44cc88); }
+.dash-market-trend.up        { color: var(--success, var(--pal-green)); }
 .dash-market-trend.down      { color: var(--danger); }
 .dash-market-remove,
 .dash-market-remove-spacer   { width: 22px; text-align: center; flex-shrink: 0; }
@@ -769,7 +807,7 @@
                       font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .jw-char            { font-size: 11px; color: var(--text-2); }
 .jw-progress        { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
-.jw-progress-fill   { height: 100%; background: linear-gradient(90deg, var(--accent), #4ecbb0);
+.jw-progress-fill   { height: 100%; background: linear-gradient(90deg, var(--accent), var(--pal-teal));
                       border-radius: 4px; transition: width 1s linear; }
 .jw-foot            { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--mono); }
 .jw-time            { font-size: 13px; font-weight: 700; color: var(--accent); }
@@ -801,10 +839,10 @@
   white-space: nowrap;
   border: 1px solid currentColor;
 }
-.aj-act-1  { color: #4ecbb0; background: rgba(78,203,176,0.08);  border-color: rgba(78,203,176,0.3);  } /* Manufacturing */
-.aj-act-3  { color: #4a9fd4; background: rgba(74,159,212,0.08);  border-color: rgba(74,159,212,0.3);  } /* TE Research   */
-.aj-act-4  { color: #ab7ab8; background: rgba(171,122,184,0.08); border-color: rgba(171,122,184,0.3); } /* ME Research   */
-.aj-act-5  { color: #9b59b6; background: rgba(155,89,182,0.08);  border-color: rgba(155,89,182,0.3);  } /* Copy         */
+.aj-act-1  { color: var(--pal-teal); background: rgba(78,203,176,0.08);  border-color: rgba(78,203,176,0.3);  } /* Manufacturing */
+.aj-act-3  { color: var(--pal-blue); background: rgba(74,159,212,0.08);  border-color: rgba(74,159,212,0.3);  } /* TE Research   */
+.aj-act-4  { color: var(--pal-purple); background: rgba(171,122,184,0.08); border-color: rgba(171,122,184,0.3); } /* ME Research   */
+.aj-act-5  { color: var(--pal-purple); background: rgba(155,89,182,0.08);  border-color: rgba(155,89,182,0.3);  } /* Copy         */
 .aj-act-7  { color: #c0392b; background: rgba(192,57,43,0.08);   border-color: rgba(192,57,43,0.3);   } /* Reverse Eng. */
 .aj-act-8  { color: #f39c12; background: rgba(243,156,18,0.08);  border-color: rgba(243,156,18,0.3);  } /* Invention    */
 .aj-act-9  { color: #16a085; background: rgba(22,160,133,0.08);  border-color: rgba(22,160,133,0.3);  } /* Reactions    */
@@ -843,7 +881,7 @@
   font-family: var(--mono);
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #4ecbb0;
+  color: var(--pal-teal);
   border: 1px solid rgba(78,203,176,0.4);
   background: rgba(78,203,176,0.08);
 }
@@ -867,7 +905,7 @@
 }
 @keyframes inc-light-pulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 6px 2px #c0392b; }
-  50%       { opacity: 0.45; box-shadow: 0 0 12px 4px #e74c3c; }
+  50%       { opacity: 0.45; box-shadow: 0 0 12px 4px var(--pal-red); }
 }
 
 .inc-alert-widget {
@@ -949,7 +987,7 @@
   font-size: 18px;
   font-weight: 700;
   font-family: var(--mono);
-  color: #4ecbb0;
+  color: var(--pal-teal);
   white-space: nowrap;
 }
 
@@ -965,7 +1003,7 @@
   font-weight: 700;
   font-family: var(--mono);
   letter-spacing: 0.1em;
-  color: #e05555;
+  color: var(--pal-red);
 }
 
 .inc-alert-subtitle {
@@ -1023,9 +1061,9 @@
   border: 1px solid currentColor;
 }
 
-.inc-state-established { color: #e05555; border-color: rgba(224,85,85,0.4); background: rgba(224,85,85,0.08); }
+.inc-state-established { color: var(--pal-red); border-color: rgba(224,85,85,0.4); background: rgba(224,85,85,0.08); }
 .inc-state-mobilizing  { color: #e09020; border-color: rgba(224,144,32,0.4); background: rgba(224,144,32,0.08); }
-.inc-state-withdrawing { color: #44cc88; border-color: rgba(68,204,136,0.4); background: rgba(68,204,136,0.08); }
+.inc-state-withdrawing { color: var(--pal-green); border-color: rgba(68,204,136,0.4); background: rgba(68,204,136,0.08); }
 
 .inc-site-icon {
   width: 28px;
@@ -1046,7 +1084,7 @@
   font-family: var(--mono);
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: #ffd700;
+  color: var(--pal-gold);
   border: 1px solid rgba(255,215,0,0.4);
   background: rgba(255,215,0,0.08);
 }
@@ -1057,7 +1095,7 @@
   background: none;
   border: 1px solid rgba(192,57,43,0.45);
   border-radius: 5px;
-  color: #e05555;
+  color: var(--pal-red);
   font-size: 11px;
   font-family: var(--mono);
   font-weight: 600;
@@ -1069,7 +1107,7 @@
 .inc-view-btn:hover {
   background: rgba(192,57,43,0.15);
   border-color: #c0392b;
-  color: #ff6666;
+  color: var(--pal-red);
 }
 
 .inc-nav-btn {
@@ -1077,7 +1115,7 @@
   background: none;
   border: 1px solid rgba(74,159,212,0.45);
   border-radius: 5px;
-  color: #4a9fd4;
+  color: var(--pal-blue);
   font-size: 11px;
   font-family: var(--mono);
   font-weight: 600;
@@ -1089,7 +1127,7 @@
 
 .inc-nav-btn:hover:not(:disabled) {
   background: rgba(74,159,212,0.15);
-  border-color: #4a9fd4;
+  border-color: var(--pal-blue);
   color: #7ec8f0;
 }
 
@@ -1110,7 +1148,7 @@
 .dash-ping-type-row     { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 .dash-ping-badge        { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
-.dash-ping-badge--director { color: #9b59b6; border-color: rgba(155,89,182,0.5); background: rgba(155,89,182,0.08); }
+.dash-ping-badge--director { color: var(--pal-purple); border-color: rgba(155,89,182,0.5); background: rgba(155,89,182,0.08); }
 .dash-ping-badge--stratop  { color: var(--accent); border-color: var(--accent-20); background: var(--accent-04); }
 .dash-ping-badge--cta      { color: var(--warning); border-color: rgba(230,126,34,0.4); background: rgba(230,126,34,0.06); }
 .dash-ping-badge--sig      { color: var(--text-4); border-color: var(--border-e); background: transparent; }
@@ -1186,8 +1224,8 @@ body.glass-on .dashboard-panel {
       transparent             0.5px,
       transparent             4px
     );
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(calc(18px * var(--glass-blur-scale, 1))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(18px * var(--glass-blur-scale, 1))) saturate(150%);
   border: 1px solid var(--glass-edge);
   border-radius: 18px;
   box-shadow:
@@ -1213,8 +1251,8 @@ body.glass-on .grid-stack-item.ui-draggable-dragging .dashboard-panel {
 /* ── Welcome banner — the hero glass slab ── */
 body.glass-on .dashboard-welcome-banner {
   background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.85));
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(calc(22px * var(--glass-blur-scale, 1))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(22px * var(--glass-blur-scale, 1))) saturate(150%);
   border: 1px solid var(--glass-edge);
   border-top-color: var(--accent-25);
   border-radius: 20px;
@@ -1249,8 +1287,8 @@ body.glass-on .cw-card {
 /* ── Add-widget dropdown floats as a glass sheet too ── */
 body.glass-on .dashboard-add-widget-menu {
   background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.25));
-  backdrop-filter: blur(24px) saturate(150%);
-  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(calc(24px * var(--glass-blur-scale, 1))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(24px * var(--glass-blur-scale, 1))) saturate(150%);
   border: 1px solid var(--glass-edge);
   border-radius: 14px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 var(--glass-specular);
@@ -1260,8 +1298,8 @@ body.glass-on .dashboard-add-widget-menu {
 body.glass-on .dashboard-add-widget-btn,
 body.glass-on .dashboard-reset-layout-btn {
   background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.6));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(calc(12px * var(--glass-blur-scale, 1)));
+  -webkit-backdrop-filter: blur(calc(12px * var(--glass-blur-scale, 1)));
   border: 1px solid var(--glass-edge);
   border-radius: 10px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -1277,6 +1315,6 @@ body.glass-on .grid-stack .grid-stack-placeholder > .placeholder-content {
 /* Sticky table headers inside glass panels can't be opaque cards anymore */
 body.glass-on .active-jobs-list thead tr {
   background: rgba(var(--glass-tint-rgb), 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(calc(8px * var(--glass-blur-scale, 1)));
+  -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale, 1)));
 }

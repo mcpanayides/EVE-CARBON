@@ -396,7 +396,7 @@ body::after {
   border-radius: var(--radius); text-transform: uppercase;
 }
 .pap-stratop  { background: var(--accent-15, rgba(192,57,43,0.15));  color: var(--danger);  border: 1px solid var(--accent-30); }
-.pap-peacetime{ background: rgba(52,120,210,0.12); color: #6aabf7;  border: 1px solid rgba(52,120,210,0.30); }
+.pap-peacetime{ background: rgba(52,120,210,0.12); color: var(--pal-blue);  border: 1px solid rgba(52,120,210,0.30); }
 .pap-sig      { background: rgba(39,174,96,0.10);  color: var(--success); border: 1px solid rgba(39,174,96,0.28); }
 .pap-none     { background: var(--accent-04);      color: var(--text-4);  border: 1px solid var(--border-e); }
 

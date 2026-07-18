@@ -2525,7 +2525,7 @@ async function renderActiveJobsPage(container) {
         const end   = new Date(job.end_date).getTime();
         const pct   = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
         const left  = Math.max(0, end - now);
-        const fillCol = pct >= 90 ? '#4ecbb0' : pct >= 50 ? 'var(--accent)' : '#c0392b';
+        const fillCol = pct >= 90 ? 'var(--pal-teal)' : pct >= 50 ? 'var(--accent)' : 'var(--pal-red)';
         progressCell = `
           <td style="padding:10px 14px;">
             <div style="display:flex;flex-direction:column;gap:4px;">

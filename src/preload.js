@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterJobs:       (characterId) => ipcRenderer.invoke('get-character-jobs', characterId),
   getCharacterActiveJobs:    (characterId)             => ipcRenderer.invoke('get-character-active-jobs', characterId),
   getCorpActiveJobs:         (characterId)             => ipcRenderer.invoke('get-corp-active-jobs', characterId),
+  getZkillStats:             (characterId)             => ipcRenderer.invoke('get-zkill-stats', characterId),
   setAutopilotDestination:   (characterId, systemId)   => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
   setAutopilotRoute:         (characterId, systemIds)  => ipcRenderer.invoke('set-autopilot-route', { characterId, systemIds }),
 
@@ -147,6 +148,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAppPreferences: ()        => ipcRenderer.invoke('get-app-preferences'),
   setLaunchAtLogin:  (enabled) => ipcRenderer.invoke('set-launch-at-login', enabled),
   setMinimizeToTray: (enabled) => ipcRenderer.invoke('set-minimize-to-tray', enabled),
+  setPresenceEnabled: (enabled) => ipcRenderer.invoke('set-presence-enabled', enabled),
+  getPresenceCount:   ()        => ipcRenderer.invoke('presence-get-count'),
 
   // Ping file watcher
   watchPingFile:   (path) => ipcRenderer.invoke('watch-ping-file', path),
@@ -244,6 +247,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
       'jabber-status',
       'jabber-message',
       'beehive-status',
+      'presence-count',
       'ping-file-updated',
       'ping-alert-data',
       'repair-progress',

@@ -1,0 +1,44 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   palette.css — THE consolidated data palette.
+
+   Eight hues drive every chart series, KPI value, badge, ticker and status
+   colour across the app. Nothing outside this file (and the theme files that
+   override it) should hardcode one of these hues — reference the token:
+
+     --pal-red     losses, danger, incursion alerts, TOTAL NET WORTH value
+     --pal-green   gains, success, RUNNING/online states
+     --pal-teal    liquid ISK, progress-almost-done
+     --pal-gold    warnings, holding states, PI storage-full
+     --pal-purple  asset values
+     --pal-blue    info, male badge, hisec-ish accents
+     --pal-pink    chart series, female badge
+     --pal-orange  chart series, secondary warnings
+
+   Load order: AFTER base.css, BEFORE the #themeStylesheet link. These are the
+   DEFAULTS (tuned to the Carbon look); built-in and user themes override the
+   --pal-* tokens to re-colour the whole app. The theme generator
+   (src/shared/theme-vars.js) emits them from the user's swatches, so the
+   Settings palette editor re-paints everything that references these.
+
+   Chart series order (used by the wealth-growth lines and journal donut):
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --pal-red:    #e0564b;
+  --pal-green:  #4ada8a;
+  --pal-teal:   #4ecbb0;
+  --pal-gold:   #e3b341;
+  --pal-purple: #ab7ab8;
+  --pal-blue:   #4a9fd4;
+  --pal-pink:   #e47baf;
+  --pal-orange: #f58c42;
+
+  /* Chart series — resolved by JS via getComputedStyle for canvas charts. */
+  --chart-1: var(--pal-red);
+  --chart-2: var(--pal-teal);
+  --chart-3: var(--pal-purple);
+  --chart-4: var(--pal-gold);
+  --chart-5: var(--pal-green);
+  --chart-6: var(--pal-blue);
+  --chart-7: var(--pal-pink);
+  --chart-8: var(--pal-orange);
+}

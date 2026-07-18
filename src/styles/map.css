@@ -143,8 +143,8 @@
 
 .map-toggle-btn.active {
   background: rgba(255, 215, 0, 0.12);
-  border-color: #ffd700;
-  color: #ffd700;
+  border-color: var(--pal-gold);
+  color: var(--pal-gold);
 }
 
 /* ── Search ──────────────────────────────────────────────────────────────── */
@@ -466,7 +466,7 @@
   padding: 12px 16px; border-bottom: 1px solid var(--border);
   font-size: 13px; font-weight: 700; color: var(--text-1);
 }
-.jp-status { font-size: 11px; font-weight: 400; color: var(--warning, #e6c84a); font-family: var(--mono); margin-left: 12px; }
+.jp-status { font-size: 11px; font-weight: 400; color: var(--warning, var(--pal-gold)); font-family: var(--mono); margin-left: 12px; }
 .jp-modal-body { flex: 1; display: flex; min-height: 0; }
 
 /* Left form column */

@@ -54,8 +54,8 @@
 .bp-lib-title   { font-size: 14px; font-weight: 600; color: var(--text-1); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bp-lib-meta    { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--text-3); font-size: 11px; font-family: var(--mono); }
 .bp-lib-chip    { display: inline-flex; align-items: center; justify-content: center; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: var(--text-2); font-size: 11px; font-weight: 600; }
-.bp-lib-chip.bp-lib-chip-run { color: #4ada8a; border-color: rgba(74,218,138,0.25); }
-.bp-lib-chip.bp-lib-chip-bpo { color: #ab7ab8; border-color: rgba(171,122,184,0.25); }
+.bp-lib-chip.bp-lib-chip-run { color: var(--pal-green); border-color: rgba(74,218,138,0.25); }
+.bp-lib-chip.bp-lib-chip-bpo { color: var(--pal-purple); border-color: rgba(171,122,184,0.25); }
 .bp-lib-right   { display: flex; align-items: center; gap: 12px; }
 .bp-lib-portrait { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); }
 
@@ -68,13 +68,13 @@
 .bp-stat-label  { font-size: 11px; color: var(--text-2); min-width: 30px; text-align: left; }
 .bp-stat-track  { width: 60px; height: 10px; background: rgba(255,255,255,0.03); border-radius: 999px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.04); }
 .bp-stat-fill   { position: absolute; top: 0; left: 0; height: 100%; width: 0%; transition: width 2s ease; }
-.bp-stat-fill.me { background: linear-gradient(90deg, #2c6b2a, #51e923); }
+.bp-stat-fill.me { background: linear-gradient(90deg, #2c6b2a, var(--pal-green)); }
 .bp-stat-fill.te { background: linear-gradient(90deg, #0f6b74, #00e5ff); }
 
 /* ── BP CARD INDICATORS ── */
 .card-indicator-row { position: absolute; top: 8px; left: 8px; display: flex; align-items: center; gap: 6px; }
 .card-tier-dot      { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 0 10px rgba(0,0,0,0.25); }
-.card-tier-dot.tech2   { background: #ffcc00; box-shadow: 0 0 10px rgba(255,204,0,0.35); }
+.card-tier-dot.tech2   { background: var(--pal-gold); box-shadow: 0 0 10px rgba(255,204,0,0.35); }
 .card-tier-dot.faction { background: #1f7a2f; box-shadow: 0 0 8px rgba(31,122,47,0.45); }
 .card-perfect-dot   { width: 12px; height: 12px; background: var(--tier-2); border-radius: 50%; box-shadow: 0 0 12px rgba(143,115,216,0.6); border: 2px solid rgba(255,255,255,0.03); }
 
@@ -110,10 +110,10 @@
 .bp-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
 .bp-pill.no-dot::before { display: none; }
 .bp-pill.perfect { color: #c79bff; background: rgba(167,115,216,0.16); cursor: pointer; }
-.bp-pill.me      { color: #51e923; background: rgba(81,233,35,0.13); }
+.bp-pill.me      { color: var(--pal-green); background: rgba(81,233,35,0.13); }
 .bp-pill.te      { color: #00e5ff; background: rgba(0,229,255,0.13); }
-.bp-pill.tech2   { color: #ffcc00; background: rgba(255,204,0,0.12); }
-.bp-pill.faction { color: #4ada8a; background: rgba(74,218,138,0.12); }
+.bp-pill.tech2   { color: var(--pal-gold); background: rgba(255,204,0,0.12); }
+.bp-pill.faction { color: var(--pal-green); background: rgba(74,218,138,0.12); }
 .bp-pill.cat     { color: var(--text-2); background: rgba(255,255,255,0.05); }
 
 /* Head: thumb + title + sub */

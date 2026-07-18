@@ -328,6 +328,89 @@ function registerCharacterHandlers({
     }
   });
 
+  // ─── IPC: zKillboard PvP stats (public API, no auth) ─────────────────────
+  // Compact all-time stats + ranks for the dashboard banner. zKill asks
+  // consumers to cache aggressively — ranks only recalculate daily, so 1 hour
+  // fresh + a long stale fallback keeps us polite and the banner instant.
+  // Returns null when the character has no killboard presence or zKill is
+  // unreachable; the banner section simply stays hidden.
+  ipcHandle('get-zkill-stats', async (_, characterId) => {
+    const cacheKey = `zkill_stats_v3_${characterId}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
+    try {
+      const raw = await httpGet(`https://zkillboard.com/api/stats/characterID/${characterId}/`);
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+
+      // Rank trend: current rank vs the oldest snapshot in zKill's rankHistory
+      // window (~the past week). Lower rank number = better placing.
+      //   +1 climbing · -1 falling · 0 flat/unknown
+      const trendOf = (cur, prev) =>
+        (typeof cur !== 'number' || typeof prev !== 'number' || cur === prev) ? 0 : (cur < prev ? 1 : -1);
+
+      // One period ("alltime" | "recent" 90d | "weekly" 7d) → compact ranks +
+      // trends, or null when zKill has no ranking for it (e.g. no kills this week
+      // — zKill then encodes the period as an empty array).
+      const periodOf = (name) => {
+        const p     = raw.rankings && raw.rankings[name] && raw.rankings[name].all;
+        const ranks = p && p.ranks;
+        if (!ranks || typeof ranks.overall !== 'number') return null;
+        let prevRanks = null, prevMetrics = null;
+        const hist = raw.rankHistory && raw.rankHistory[name] && raw.rankHistory[name].all;
+        if (hist && typeof hist === 'object' && !Array.isArray(hist)) {
+          const days = Object.keys(hist).sort();
+          if (days.length) {
+            const oldest = hist[days[0]] || {};
+            prevRanks   = oldest.ranks   || null;
+            prevMetrics = oldest.metrics || null;
+          }
+        }
+        // Ship efficiency at display precision (0.1%) — the trend arrow should
+        // only appear when the figure the user actually sees has moved.
+        const effOf = m => (m && (m.shipsDestroyed || 0) + (m.shipsLost || 0) > 0)
+          ? Math.round(((m.shipsDestroyed || 0) / ((m.shipsDestroyed || 0) + (m.shipsLost || 0))) * 1000) / 10
+          : null;
+        const eff = effOf(p.metrics), prevEff = effOf(prevMetrics);
+        return {
+          overall:        ranks.overall,
+          shipsDestroyed: ranks.shipsDestroyed ?? null,
+          shipsLost:      ranks.shipsLost ?? null,
+          efficiency:     eff,
+          trend: {
+            overall:        trendOf(ranks.overall,        prevRanks && prevRanks.overall),
+            shipsDestroyed: trendOf(ranks.shipsDestroyed, prevRanks && prevRanks.shipsDestroyed),
+            shipsLost:      trendOf(ranks.shipsLost,      prevRanks && prevRanks.shipsLost),
+            // Efficiency: higher = better (opposite sense to ranks, where lower wins).
+            efficiency:     (eff == null || prevEff == null || eff === prevEff) ? 0 : (eff > prevEff ? 1 : -1),
+          },
+        };
+      };
+
+      const result = {
+        shipsDestroyed: raw.shipsDestroyed || 0,
+        shipsLost:      raw.shipsLost      || 0,
+        iskDestroyed:   raw.iskDestroyed   || 0,
+        iskLost:        raw.iskLost        || 0,
+        soloKills:      raw.soloKills      || 0,
+        dangerRatio:    raw.dangerRatio ?? null,
+        gangRatio:      raw.gangRatio   ?? null,
+        periods: {
+          alltime: periodOf('alltime'),
+          recent:  periodOf('recent'),    // 90 days
+          weekly:  periodOf('weekly'),    // 7 days
+        },
+      };
+      writeCache(cacheKey, result, 1 / 24);        // 1-hour cache
+      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback
+      return result;
+    } catch (e) {
+      const stale = readCache(`${cacheKey}_stale`);
+      if (stale) return stale;
+      console.warn(`get-zkill-stats failed for ${characterId}:`, e.message || e);
+      return null;
+    }
+  });
+
   // ─── IPC: Character public info (ESI) ────────────────────────────────────
   ipcHandle('get-character-info', async (_, characterId) => {
     try {

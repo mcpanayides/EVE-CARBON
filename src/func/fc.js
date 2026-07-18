@@ -107,7 +107,7 @@ function initFcPage() {
     // (so Ctrl+R lands back on e.g. the Fitting Simulator, not Composition).
     let last = null;
     try { last = localStorage.getItem('fcLastTab'); } catch (_) {}
-    navigateFcTab(last === 'fitting' ? 'fitting' : 'composition');
+    navigateFcTab(last === 'fitting' ? 'fitting' : last === 'fleetfight' ? 'fleetfight' : 'composition');
   }
 }
 
@@ -129,7 +129,46 @@ function navigateFcTab(tab) {
     renderFleetComposition(mount);
   } else if (tab === 'fitting') {
     if (typeof renderFitting === 'function') renderFitting(mount);
+  } else if (tab === 'fleetfight') {
+    renderFleetFightNotify(mount);
   }
+}
+
+// ─── Fleet Fight Notification (CCP form, embedded) ────────────────────────────
+// CCP asks FCs to file advance notice of large/massive fleet fights so they can
+// reinforce the destination node server-side. Embedded in-app like the Forums
+// page (webview) — the form lives entirely on CCP's site; nothing is stored.
+const FLEET_FIGHT_URL = 'https://community.eveonline.com/support/fleet-fight/';
+
+function renderFleetFightNotify(mount) {
+  mount.innerHTML = `
+    <div class="fc-fleetfight" style="display:flex;flex-direction:column;height:100%;">
+      <div class="fc-control-bar" style="flex:none;">
+        <div class="fc-ff-blurb">
+          <span class="material-symbols-outlined fc-ff-icon">campaign</span>
+          <div>
+            <div class="fc-ff-title">CCP Fleet Fight Notification</div>
+            <div class="fc-ff-sub">Expecting a large or massive brawl? File this with CCP — ideally a day
+              ahead — so they can reinforce the destination node server-side.</div>
+          </div>
+        </div>
+        <span style="flex:1;"></span>
+        <button class="forum-tb-btn" title="Reload form"
+                onclick="fcFleetFightNav('reload')"><span class="material-symbols-outlined">refresh</span></button>
+        <button class="forum-tb-btn" title="Open in external browser"
+                onclick="fcFleetFightNav('external')"><span class="material-symbols-outlined">open_in_new</span></button>
+      </div>
+      <div class="forum-viewport" style="flex:1;min-height:0;">
+        <webview id="fcFleetFightWebview" partition="persist:fleetfight"
+                 src="${FLEET_FIGHT_URL}" style="width:100%;height:100%;"></webview>
+      </div>
+    </div>`;
+}
+
+function fcFleetFightNav(action) {
+  if (action === 'external') { window.eveAPI?.openExternalUrl?.(FLEET_FIGHT_URL); return; }
+  const wv = document.getElementById('fcFleetFightWebview');
+  if (action === 'reload' && wv) { try { wv.reload(); } catch (_) {} }
 }
 
 // ─── Fleet Composition tool ───────────────────────────────────────────────────

@@ -63,9 +63,9 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.jpap-stratop   { background: rgba(192,57,43,0.15);  color: #e05a4a; border: 1px solid rgba(192,57,43,0.35); }
-.jpap-peacetime { background: rgba(52,120,210,0.12); color: #6aabf7; border: 1px solid rgba(52,120,210,0.30); }
-.jpap-sig       { background: rgba(39,174,96,0.10);  color: #4ada8a; border: 1px solid rgba(39,174,96,0.28); }
+.jpap-stratop   { background: rgba(192,57,43,0.15);  color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
+.jpap-peacetime { background: rgba(52,120,210,0.12); color: var(--pal-blue); border: 1px solid rgba(52,120,210,0.30); }
+.jpap-sig       { background: rgba(39,174,96,0.10);  color: var(--pal-green); border: 1px solid rgba(39,174,96,0.28); }
 
 /* SIG column badges */
 .jsig-badge {
@@ -79,11 +79,11 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.jsig-capital   { background: rgba(220,170,0,0.12);  color: #e8c22a; border: 1px solid rgba(220,170,0,0.32); }
-.jsig-skirmish  { background: rgba(39,174,96,0.10);  color: #4ada8a; border: 1px solid rgba(39,174,96,0.28); }
-.jsig-guardbees { background: rgba(192,57,43,0.15);  color: #e05a4a; border: 1px solid rgba(192,57,43,0.35); }
+.jsig-capital   { background: rgba(220,170,0,0.12);  color: var(--pal-gold); border: 1px solid rgba(220,170,0,0.32); }
+.jsig-skirmish  { background: rgba(39,174,96,0.10);  color: var(--pal-green); border: 1px solid rgba(39,174,96,0.28); }
+.jsig-guardbees { background: rgba(192,57,43,0.15);  color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
 .jsig-gice      { background: rgba(0,180,180,0.10);  color: #3fcfcf; border: 1px solid rgba(0,180,180,0.28); }
-.jsig-coord     { background: rgba(220,170,0,0.12);  color: #e8c22a; border: 1px solid rgba(220,170,0,0.32); }
+.jsig-coord     { background: rgba(220,170,0,0.12);  color: var(--pal-gold); border: 1px solid rgba(220,170,0,0.32); }
 .jsig-other     { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--border-e); }
 
 /* ── FC portrait circle ── */
@@ -134,8 +134,8 @@
   color: #d8beff;
 }
 .jformup-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.jformup-btn.done     { color: #4ada8a; border-color: rgba(39,174,96,0.35); background: rgba(39,174,96,0.10); }
-.jformup-btn.err      { color: #e05a4a; border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.10); }
+.jformup-btn.done     { color: var(--pal-green); border-color: rgba(39,174,96,0.35); background: rgba(39,174,96,0.10); }
+.jformup-btn.err      { color: var(--pal-red); border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.10); }
 
 /* ── Comms green pill button ── */
 .jcomms-btn {
@@ -148,7 +148,7 @@
   border-radius: var(--radius);
   white-space: nowrap;
   background: rgba(74,218,138,0.12);
-  color: #4ada8a;
+  color: var(--pal-green);
   border: 1px solid rgba(74,218,138,0.32);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
@@ -160,7 +160,7 @@
 .jcomms-btn:hover {
   background: rgba(74,218,138,0.22);
   border-color: rgba(74,218,138,0.55);
-  color: #3ddc84;
+  color: var(--pal-green);
 }
 
 /* ── Inline links (comms + message columns) ── */
@@ -188,12 +188,12 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.jtgt-all       { background: rgba(192,57,43,0.15);   color: #e05a4a; border: 1px solid rgba(192,57,43,0.35); }
+.jtgt-all       { background: rgba(192,57,43,0.15);   color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
 .jtgt-incursion { background: rgba(20,120,60,0.18);   color: #3a9e5f; border: 1px solid rgba(20,120,60,0.38); }
 .jtgt-goon      { background: rgba(130,60,210,0.14);  color: #b07aee; border: 1px solid rgba(130,60,210,0.34); }
 .jtgt-locusts   { background: rgba(140,80,30,0.18);   color: #c4894a; border: 1px solid rgba(140,80,30,0.38); }
-.jtgt-fcsc      { background: rgba(192,57,43,0.15);   color: #e05a4a; border: 1px solid rgba(192,57,43,0.35); }
-.jtgt-optall    { background: rgba(52,120,210,0.12);  color: #6aabf7; border: 1px solid rgba(52,120,210,0.30); }
+.jtgt-fcsc      { background: rgba(192,57,43,0.15);   color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
+.jtgt-optall    { background: rgba(52,120,210,0.12);  color: var(--pal-blue); border: 1px solid rgba(52,120,210,0.30); }
 .jtgt-beehive   { background: rgba(210,120,20,0.14);  color: #e09840; border: 1px solid rgba(210,120,20,0.34); }
 .jtgt-other     { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--border-e); }
 

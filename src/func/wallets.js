@@ -185,10 +185,18 @@ function _titleCase(str) {
   return str.replace(/\b\w/g, c => c.toUpperCase());
 }
 
-const PALETTE = [
-  '#4ada8a','#ab7ab8','#f5c842','#e24b4a','#4ab8f5',
-  '#f58c42','#42f5c8','#f542a1','#a1f542','#8c42f5',
-];
+// Donut/legend series colours resolved from the consolidated chart palette
+// (styles/palette.css) — canvas charts need real colour values, not var() refs.
+// Resolved lazily so the active theme's overrides are already applied.
+function _walletChartPalette() {
+  const cs  = getComputedStyle(document.documentElement);
+  const get = (n, fb) => (cs.getPropertyValue(n).trim() || fb);
+  return [
+    get('--chart-5', '#4ada8a'), get('--chart-3', '#ab7ab8'), get('--chart-4', '#e3b341'),
+    get('--chart-1', '#e0564b'), get('--chart-6', '#4a9fd4'), get('--chart-8', '#f58c42'),
+    get('--chart-2', '#4ecbb0'), get('--chart-7', '#e47baf'),
+  ];
+}
 
 async function _loadJournalOverview(characterId) {
   const incomeEl  = document.getElementById('journalIncomeTotal');
@@ -237,7 +245,7 @@ async function _loadJournalOverview(characterId) {
 
     const donutLabels = topIncome.map(([l]) => l);
     const donutData   = topIncome.map(([, v]) => v);
-    const donutColors = PALETTE.slice(0, donutLabels.length);
+    const donutColors = _walletChartPalette().slice(0, donutLabels.length);
 
     // Destroy old chart instance before creating a new one
     if (_journalRingChart) { _journalRingChart.destroy(); _journalRingChart = null; }

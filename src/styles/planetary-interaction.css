@@ -326,8 +326,8 @@
   font-weight:    700;
   font-family:    var(--mono);
   letter-spacing: 0.06em;
-  color:          var(--accent, #e2c97e);
-  border:         1px solid var(--accent, #e2c97e);
+  color:          var(--accent, var(--pal-gold));
+  border:         1px solid var(--accent, var(--pal-gold));
   border-radius:  3px;
   padding:        1px 6px;
   white-space:    nowrap;
@@ -389,8 +389,8 @@
 
 .pi-bar-fill.green    { background: #4caf50; }
 .pi-bar-fill.blue     { background: #42a5f5; }
-.pi-bar-fill.high     { background: var(--warning, #ff9800); }
-.pi-bar-fill.critical { background: var(--danger,  #f44336); }
+.pi-bar-fill.high     { background: var(--warning, var(--pal-orange)); }
+.pi-bar-fill.critical { background: var(--danger,  var(--pal-red)); }
 
 .pi-bar-pct {
   font-size:   9px;
@@ -613,7 +613,7 @@
 .pi-pin-expiry {
   font-size:   9px;
   font-family: var(--mono);
-  color:       #4ada8a;
+  color:       var(--pal-green);
   flex-shrink: 0;
 }
 
@@ -651,24 +651,24 @@
 }
 
 .pi-status.active {
-  color:        #4ada8a;
+  color:        var(--pal-green);
   background:   rgba(39,174,96,0.10);
   border-color: rgba(39,174,96,0.28);
 }
 .pi-status.active::before {
-  background: #4ada8a;
-  box-shadow: 0 0 6px #4ada8a, 0 0 2px #4ada8a;
+  background: var(--pal-green);
+  box-shadow: 0 0 6px var(--pal-green), 0 0 2px var(--pal-green);
   animation:  pi-pulse 2s ease-in-out infinite;
 }
 
 .pi-status.warning {
-  color:        #e6a817;
+  color:        var(--pal-gold);
   background:   rgba(230,168,23,0.10);
   border-color: rgba(230,168,23,0.28);
 }
 .pi-status.warning::before {
-  background: #e6a817;
-  box-shadow: 0 0 6px #e6a817;
+  background: var(--pal-gold);
+  box-shadow: 0 0 6px var(--pal-gold);
 }
 
 .pi-status.idle {
@@ -682,6 +682,6 @@
 }
 
 @keyframes pi-pulse {
-  0%, 100% { opacity: 1;    box-shadow: 0 0 6px #4ada8a, 0 0 2px #4ada8a; }
-  50%       { opacity: 0.55; box-shadow: 0 0 3px #4ada8a; }
+  0%, 100% { opacity: 1;    box-shadow: 0 0 6px var(--pal-green), 0 0 2px var(--pal-green); }
+  50%       { opacity: 0.55; box-shadow: 0 0 3px var(--pal-green); }
 }

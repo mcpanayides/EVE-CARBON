@@ -160,8 +160,8 @@
   color: var(--text-2);
   opacity: 0.55;
 }
-.asset-table thead th[data-col-key]:not(.th-icon).sort-asc::after  { content: ' \25B2'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▲ */
-.asset-table thead th[data-col-key]:not(.th-icon).sort-desc::after { content: ' \25BC'; color: var(--accent, #4ecbb0); opacity: 1; } /* ▼ */
+.asset-table thead th[data-col-key]:not(.th-icon).sort-asc::after  { content: ' \25B2'; color: var(--accent, var(--pal-teal)); opacity: 1; } /* ▲ */
+.asset-table thead th[data-col-key]:not(.th-icon).sort-desc::after { content: ' \25BC'; color: var(--accent, var(--pal-teal)); opacity: 1; } /* ▼ */
 
 /* ── GROUP HEADER ROW ────────────────────────────────────────────────────────── */
 .asset-group-header {
@@ -455,7 +455,7 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
 
 .col-resize-handle:hover,
 .col-resize-handle.dragging {
-  background: var(--accent, #4ecbb0);
+  background: var(--accent, var(--pal-teal));
   opacity: 0.55;
 }
 

@@ -10,6 +10,7 @@
   <!-- Active theme (all colour tokens) — same file the main window uses.
        The pre-paint script below restores the last applied theme (shared
        localStorage 'eve-theme-css') before first paint. -->
+  <link rel="stylesheet" href="../styles/palette.css"/>
   <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-carbon.css"/>
   <link rel="stylesheet" href="../styles/ping-alert.css"/>
   <script>
@@ -35,6 +36,9 @@
       var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
       if (!g || g.enabled !== false) {
         document.body.classList.add('glass-on');
+        if (g && g.blurScale != null) {
+          document.documentElement.style.setProperty('--glass-blur-scale', g.blurScale);
+        }
         /* Ambient glows follow the same resolved tint as the main window */
         if (g && g._glowRgb) {
           var r = document.documentElement.style;

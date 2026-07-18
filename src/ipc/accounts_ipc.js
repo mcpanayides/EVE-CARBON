@@ -120,7 +120,8 @@ function registerAccountHandlers({
   // ─── Callback server (OAuth redirect handler) ───────────────────────────────
   // Exposed on callbackServerState so main.js can also close it on quit.
   const http = require('http');
-  const SSO_VERIFY_URL = 'https://login.eveonline.com/oauth/verify';
+  // v2 verify — legacy /oauth/verify is deprecated (ESI spring cleaning 2026).
+  const SSO_VERIFY_URL = 'https://login.eveonline.com/v2/oauth/verify';
 
   function startCallbackServer() {
     if (callbackServerState.server) return;

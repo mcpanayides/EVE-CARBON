@@ -76,8 +76,8 @@
   font-size: 18px; line-height: 1; padding: 2px 5px;
   color: var(--text-3); transition: color 0.15s ease, transform 0.15s ease;
 }
-.character-id-card .character-fav-btn:hover    { transform: scale(1.18); color: #e3c14d; }
-.character-id-card .character-fav-btn.is-fav    { color: #e3c14d; text-shadow: 0 0 8px rgba(227,193,77,0.45); }
+.character-id-card .character-fav-btn:hover    { transform: scale(1.18); color: var(--pal-gold); }
+.character-id-card .character-fav-btn.is-fav    { color: var(--pal-gold); text-shadow: 0 0 8px rgba(227,193,77,0.45); }
 
 .character-card-actions {
   position: absolute; top: 8px; right: 8px; z-index: 2;

@@ -100,6 +100,18 @@
       '--glow-color':      hexToRgba(a?.base, 0.22),
       '--glow-color-2':    a?.base,
 
+      // Consolidated data palette (see styles/palette.css) — drives charts,
+      // KPI values, badges and status colours app-wide. Themes re-colour the
+      // whole app by overriding these eight tokens.
+      '--pal-red':         p.red?.bright    || p.red?.base,
+      '--pal-green':       p.green?.bright  || p.green?.base,
+      '--pal-teal':        p.teal?.base,
+      '--pal-gold':        p.gold?.base     || p.yellow?.base,
+      '--pal-purple':      p.purple?.base,
+      '--pal-blue':        p.blue?.base,
+      '--pal-pink':        p.pink?.base,
+      '--pal-orange':      p.orange?.base,
+
       // Semantic status
       '--success':         p.green?.base,
       '--danger':          p.red?.bright,

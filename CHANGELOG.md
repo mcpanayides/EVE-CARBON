@@ -6,6 +6,25 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.2.0] - 2026-07-18
+### Features
+- **Killboard on the dashboard banner** — all-time zKillboard stats beside your character: ships destroyed/lost with ranks, efficiency, and overall rank for All-time / 90 days / 7 days, each with up/down trend arrows (same ticker style as the wallet widget). Click the section to open your zKill page.
+- **"N ONLINE" counter** — anonymous count of running EVE-Carbon apps in the status bar (random per-launch session ID only; opt out in Settings → General). Backed by a tiny Cloudflare worker (`infra/presence-worker`).
+- **EVE Server Status** nav button — live Tranquility player count with a green/red status light; opens CCP's status page embedded in-app, with a pop-out to your browser.
+- **Fleet Commander → Fleet Fight Notify** — CCP's fleet-fight notification form embedded in the app, so FCs can warn CCP about big brawls without leaving.
+- **Blur strength slider** (Settings → Background) — scales the frosted-glass blur of every surface from 0–200%.
+- **Discord button** in the nav — joins the EVE-Carbon Discord.
+
+### Fixes
+- **Windows tray icon / minimize-to-tray** — the `assets/` folder now ships with the installed app (it was silently excluded from packaging), fixing the "Failed to load image" error and restoring bundled background presets. Icon resolution is now self-healing with fallbacks.
+- **Desktop shortcut icon on Windows** — the shortcut's icon path was corrupted by an installer buffer overflow caused by the overlong app description; description shortened and existing shortcuts repair correctly on reinstall.
+- **Dashboard legibility** — banner labels/values and Net Worth KPI text now use shared text-role tokens (light-gray labels, bright values) instead of near-invisible dark grays.
+- **SSO verify** moved to `login.eveonline.com/v2/oauth/verify` (ESI spring-cleaning migration); no Swagger-era endpoints remain in use.
+- **Release notes** — the build pipeline now extracts the changelog section matching the released tag, so every release shows its own notes.
+
+### Under the hood
+- **Consolidated data palette** — eight `--pal-*` tokens (+ `--chart-1…8`) in `styles/palette.css` now drive every chart series, KPI value, badge and status colour; built-in themes and the Settings palette editor override them, so re-colouring the app touches one file.
+
 ## [1.1.5] - 2026-07-16
 ### Features
 - **Corporation industry jobs** — the Active Jobs list (Industry page), the Active Industry Jobs widget and the Job Watch widget now include your corporation's research/manufacturing jobs alongside personal ones. Corp jobs carry a **CORP** badge and are attributed to their installer; jobs you installed for the corp are deduplicated so they stay listed under your character.

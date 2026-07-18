@@ -37,13 +37,24 @@ jobs:
       - name: Build Windows exe
         run: npx electron-builder --win --x64 --publish never
 
-      # Release notes = only the TOP version section of CHANGELOG.md (from the
-      # first "## [" header to the next), so each release shows its own notes
-      # instead of the entire (previously stale-looking) changelog.
-      - name: Extract latest changelog section
+      # Release notes = the CHANGELOG.md section MATCHING the tag being
+      # released (## [x.y.z]), so every release gets its own notes. Falls back
+      # to the newest section only if the tag has no dedicated entry —
+      # previously this always took the top section, which stamped the same
+      # stale notes onto every release.
+      - name: Extract changelog section for this tag
         shell: bash
         run: |
-          awk '/^## \[/{c++} c==1' CHANGELOG.md > RELEASE_NOTES.md
+          TAG="${{ github.event.workflow_run.head_branch }}"
+          VER="${TAG#v}"
+          awk -v ver="$VER" '
+            /^## \[/ { on = (index($0, "## [" ver "]") == 1) }
+            on
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if ! [ -s RELEASE_NOTES.md ]; then
+            echo "No changelog section for $VER — falling back to newest section"
+            awk '/^## \[/{c++} c==1' CHANGELOG.md > RELEASE_NOTES.md
+          fi
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2

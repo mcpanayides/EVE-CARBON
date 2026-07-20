@@ -45,8 +45,10 @@ jobs:
       # stale notes onto every release.
       - name: Extract changelog section for this tag
         shell: bash
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          TAG="${{ github.event.workflow_run.head_branch }}"
+          TAG="$HEAD_BRANCH"
           VER="${TAG#v}"
           awk -v ver="$VER" '
             /^## \[/ { on = (index($0, "## [" ver "]") == 1) }

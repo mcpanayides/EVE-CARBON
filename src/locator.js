@@ -1,3 +1,4 @@
+const { APP_USER_AGENT } = require('./app_ident');
 // ─── locator.js ───────────────────────────────────────────────────────────────
 // Centralised EVE location resolver.
 //
@@ -76,7 +77,7 @@ function urlToOpts(rawUrl, extraHeaders = {}) {
     path:     u.pathname + u.search,
     method:   'GET',
     headers: {
-      'User-Agent': 'EVE-BPC-Calculator/2.0',
+      'User-Agent': APP_USER_AGENT,
       ...extraHeaders,
     },
   };
@@ -331,7 +332,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
               path:     urlObj.pathname + urlObj.search,
               method:   'POST',
               headers:  {
-                'User-Agent':     'EVE-BPC-Calculator/2.0',
+                'User-Agent':     APP_USER_AGENT,
                 'Content-Type':   'application/json',
                 'Content-Length': Buffer.byteLength(body),
                 'Accept':         'application/json',
@@ -1017,7 +1018,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
           path:     u.pathname + u.search,
           method:   'POST',
           headers:  {
-            'User-Agent':     'EVE-BPC-Calculator/2.0',
+            'User-Agent':     APP_USER_AGENT,
             'Content-Type':   'application/json',
             'Content-Length': Buffer.byteLength(payload),
             'Accept':         'application/json',

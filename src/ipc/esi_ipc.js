@@ -1,3 +1,4 @@
+const { APP_USER_AGENT } = require('../app_ident');
 ﻿const { ipcMain } = require('electron');
 
 const ESI_BASE      = 'https://esi.evetech.net';
@@ -56,7 +57,7 @@ function registerEsiHandlers({
       if (redirects > 5) return reject(new Error('Too many redirects'));
       if (!/^https:\/\//i.test(u)) return reject(new Error('Only https URLs are allowed'));
       const req = https.request(u, {
-        headers: { 'User-Agent': 'EVE-Carbon/1.0', 'Accept': 'text/csv,text/plain,*/*' }
+        headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'text/csv,text/plain,*/*' }
       }, (res) => {
         // Follow 3xx redirects (Google export → googleusercontent)
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {

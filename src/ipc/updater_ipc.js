@@ -1,3 +1,4 @@
+const { APP_USER_AGENT } = require('../app_ident');
 // ── updater_ipc.js — GitHub Releases update checker ───────────────────────────
 // Checks https://api.github.com/repos/mcpanayides/EVE-CARBON/releases/latest
 // for a newer version than the currently running app (tags must be "v"-prefixed,
@@ -36,7 +37,7 @@ function fetchJson(url, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
     const req = lib.get(url, {
-      headers: { 'User-Agent': 'EVE-Carbon-Updater/1.0', 'Accept': 'application/json' },
+      headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json' },
     }, (res) => {
       if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location && redirectsLeft > 0) {
         return resolve(fetchJson(res.headers.location, redirectsLeft - 1));
@@ -173,7 +174,7 @@ function downloadBinary(url, destPath, onProgress, redirectsLeft = 10) {
   const http  = require('http');
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https') ? https : http;
-    const req = lib.get(url, { headers: { 'User-Agent': 'EVE-Carbon-Updater/1.0' } }, res => {
+    const req = lib.get(url, { headers: { 'User-Agent': APP_USER_AGENT } }, res => {
       if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirectsLeft > 0) {
         return resolve(downloadBinary(res.headers.location, destPath, onProgress, redirectsLeft - 1));
       }

@@ -6,6 +6,12 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.2.1] - 2026-07-20
+### Fixes
+- **ESI compliance** — every outbound request (main process and renderer) now identifies the app per CCP's ESI best practices: `EVE-Carbon/<version> (contact email; +source repo)`, sent as `User-Agent` from the app and `X-User-Agent` from the browser-side renderer (Chromium drops User-Agent overrides). Previously several endpoints still sent a stale, unidentifiable `EVE-BPC-Calculator/2.0` / `EVE-Carbon/1.0` string with no contact info.
+- **ESI rate-limit hardening** — a 420 (error-limited) response now pauses *all* outbound ESI calls until the server's reset window, instead of only backing off the one request that tripped it; the app also backs off proactively when the error budget or a rate-limit bucket runs low, rather than reacting only after being throttled.
+- **Nav polish** — corrected icons on the PLEX for Good and Discord buttons.
+
 ## [1.2.0] - 2026-07-18
 ### Features
 - **Killboard on the dashboard banner** — all-time zKillboard stats beside your character: ships destroyed/lost with ranks, efficiency, and overall rank for All-time / 90 days / 7 days, each with up/down trend arrows (same ticker style as the wallet widget). Click the section to open your zKill page.

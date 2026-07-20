@@ -1,3 +1,4 @@
+const { APP_USER_AGENT } = require('../app_ident');
 const { BrowserWindow, session, net } = require('electron');
 
 // Persistent session partition for the alliance IP.Board forum. Login cookies
@@ -131,7 +132,7 @@ function registerForumHandlers({ ipcHandle }) {
     if (!/^https:\/\//i.test(u)) throw new Error('Only https URLs are allowed');
     return new Promise((resolve, reject) => {
       const request = net.request({ url: u, partition: FORUM_PARTITION, redirect: 'follow' });
-      request.setHeader('User-Agent', 'EVE-Carbon/1.0');
+      request.setHeader('User-Agent', APP_USER_AGENT);
       request.setHeader('Accept', 'text/calendar,text/plain,*/*');
       let data = '';
       request.on('response', (response) => {

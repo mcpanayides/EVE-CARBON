@@ -70,6 +70,15 @@ async function populateGeneralSettings() {
   };
 }
 
+// ─── PLEX for Good (nav) ────────────────────────────────────────────────────────
+// Deliberately NOT embedded — the page takes payment/credit-card details, and
+// that belongs in the user's real browser, not an in-app webview.
+const PLEX_FOR_GOOD_URL = 'https://www.eveonline.com/plex-for-good?campaign=plex-for-good-ever-green';
+
+function openPlexForGood() {
+  try { window.eveAPI.openExternalUrl(PLEX_FOR_GOOD_URL); } catch (_) {}
+}
+
 // ─── EVE service status (nav) ───────────────────────────────────────────────────
 // Green dot + live player count from ESI's public Tranquility status endpoint,
 // mirroring the Jabber nav light. Red when the server is unreachable (downtime)

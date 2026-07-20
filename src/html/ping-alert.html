@@ -136,6 +136,25 @@
   </div>
 
   <script>
+    // ESI identification (best practices): same X-User-Agent wrapper as the
+    // main window's utils.js — this popup fetches ESI directly too.
+    (function () {
+      const IDENT_BASE = '(miachristinapanayides@gmail.com; +https://github.com/mcpanayides/EVE-CARBON)';
+      let _xua = `EVE-Carbon/dev ${IDENT_BASE}`;
+      try { window.eveAPI?.getAppVersion?.().then(v => { if (v) _xua = `EVE-Carbon/${v} ${IDENT_BASE}`; }).catch(() => {}); } catch (_) {}
+      const _origFetch = window.fetch;
+      window.fetch = function (input, init) {
+        try {
+          const url = typeof input === 'string' ? input : (input && input.url) || '';
+          if (/esi\.evetech\.net/i.test(url)) {
+            init = init || {};
+            init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua };
+          }
+        } catch (_) {}
+        return _origFetch.call(this, input, init);
+      };
+    })();
+
     const DISMISS_SECS  = 30;
     const CIRCUMFERENCE = 2 * Math.PI * 11;
 

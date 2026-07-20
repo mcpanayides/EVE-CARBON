@@ -1,3 +1,4 @@
+const { APP_USER_AGENT } = require('../app_ident');
 ﻿const { ipcMain, BrowserWindow, shell } = require('electron');
 const crypto = require('crypto');
 
@@ -162,7 +163,7 @@ function registerAccountHandlers({
         const charInfo = await new Promise((resolve, reject) => {
           const r = https.request(
             SSO_VERIFY_URL,
-            { headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': 'EVE-BPC-Calculator/2.0', Accept: 'application/json' } },
+            { headers: { Authorization: `Bearer ${tokenData.access_token}`, 'User-Agent': APP_USER_AGENT, Accept: 'application/json' } },
             (res2) => {
               let d = '';
               res2.on('data', c => d += c);

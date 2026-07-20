@@ -206,3 +206,26 @@ function openExternal(url) {
   const a = document.createElement('a');
   a.href = url; a.target = '_blank'; a.click();
 }
+// ── ESI identification (best practices) ───────────────────────────────────────
+// Every renderer-side ESI call must identify the app. Chromium silently drops
+// User-Agent overrides, so ESI's documented fallback is the X-User-Agent
+// header. Wrapping fetch ONCE here covers every call site (dashboard, assets,
+// jabber, fleetup, cost-index, …) with app name/version + contact + source.
+(function () {
+  const IDENT_BASE = '(miachristinapanayides@gmail.com; +https://github.com/mcpanayides/EVE-CARBON)';
+  let _xua = `EVE-Carbon/dev ${IDENT_BASE}`;
+  try {
+    window.eveAPI?.getAppVersion?.().then(v => { if (v) _xua = `EVE-Carbon/${v} ${IDENT_BASE}`; }).catch(() => {});
+  } catch (_) {}
+  const _origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (/esi\.evetech\.net/i.test(url)) {
+        init = init || {};
+        init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua };
+      }
+    } catch (_) { /* never break a fetch over identification */ }
+    return _origFetch.call(this, input, init);
+  };
+})();

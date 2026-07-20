@@ -27,6 +27,7 @@ app.on('web-contents-created', (_evt, contents) => {
   } catch (_) {}
 });
 
+const { APP_USER_AGENT }      = require('./src/app_ident');
 const createLocator           = require('./src/locator');
 const charInfoDb              = require('./src/character_info_db');
 const jabberDataDb            = require('./src/jabber_data_db');
@@ -1692,19 +1693,58 @@ function saveJumpBridges(arr) {
 }
  
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
-function httpGet(url, headers = {}) {
+// ESI compliance gate (best practices + rate-limiting docs):
+//   • 420 anywhere = the legacy 100-errors/min limit tripped — ALL ESI requests
+//     are discarded until X-Esi-Error-Limit-Reset. We hard-pause instead of
+//     burning 5-token 4XXs into the bucket limiter.
+//   • When the error budget runs low (Remain ≤ 10) we pause proactively.
+//   • When a bucket (X-Ratelimit-Remaining) runs dry we back off briefly.
+let _esiBlockUntil = 0;   // ms epoch — no ESI requests before this
+
+function _esiGateWait(url) {
+  if (!/esi\.evetech\.net/i.test(String(url))) return Promise.resolve();
+  const wait = _esiBlockUntil - Date.now();
+  if (wait <= 0) return Promise.resolve();
+  return new Promise(r => setTimeout(r, Math.min(wait, 65000)));
+}
+
+function _esiNoteResponse(url, res) {
+  if (!/esi\.evetech\.net/i.test(String(url))) return;
+  const remain = parseInt(res.headers['x-esi-error-limit-remain'] ?? '', 10);
+  const reset  = parseInt(res.headers['x-esi-error-limit-reset']  ?? '', 10);
+  if (res.statusCode === 420) {
+    const pause = (isFinite(reset) ? reset : 60) + 1;
+    _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + pause * 1000);
+    console.warn(`[ESI] 420 — error-limited; pausing ALL ESI for ${pause}s`);
+    return;
+  }
+  if (isFinite(remain) && isFinite(reset) && remain <= 10 && res.statusCode >= 400) {
+    _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + (reset + 1) * 1000);
+    console.warn(`[ESI] error budget low (${remain} left) — pausing ESI ${reset}s`);
+  }
+  const rlRemain = parseInt(res.headers['x-ratelimit-remaining'] ?? '', 10);
+  if (isFinite(rlRemain) && rlRemain <= 2) {
+    _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + 10000);
+    console.warn(`[ESI] bucket nearly empty (${res.headers['x-ratelimit-group'] || 'route'}) — 10s cooloff`);
+  }
+}
+
+async function httpGet(url, headers = {}) {
+  await _esiGateWait(url);
   return new Promise((resolve, reject) => {
     const req = https.request(url, {
-      headers: { 'User-Agent': 'EVE-BPC-Calculator/2.0', 'Accept': 'application/json', ...headers }
+      headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ...headers }
     }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        if (res.statusCode === 429) {
+        _esiNoteResponse(url, res);
+        if (res.statusCode === 429 || res.statusCode === 420) {
           // Surface the Retry-After header so callers can back off correctly
-          const retryAfter = parseInt(res.headers['retry-after'] || '60', 10);
+          const retryAfter = parseInt(res.headers['retry-after'] || res.headers['x-esi-error-limit-reset'] || '60', 10);
+          if (res.statusCode === 429) _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + retryAfter * 1000);
           return reject(Object.assign(
-            new Error(`HTTP 429: ${url}`),
+            new Error(`HTTP ${res.statusCode}: ${url}`),
             { retryAfter, isRateLimit: true }
           ));
         }
@@ -1721,18 +1761,21 @@ function httpGet(url, headers = {}) {
 // Like httpGet but also returns the ESI X-Pages header.
 // Use this for paginated ESI endpoints so we never stop early.
 // Returns: { data: parsedBody, xPages: number }
-function httpGetFull(url, headers = {}) {
+async function httpGetFull(url, headers = {}) {
+  await _esiGateWait(url);
   return new Promise((resolve, reject) => {
     const req = https.request(url, {
-      headers: { 'User-Agent': 'EVE-BPC-Calculator/2.0', 'Accept': 'application/json', ...headers }
+      headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ...headers }
     }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        if (res.statusCode === 429) {
-          const retryAfter = parseInt(res.headers['retry-after'] || '60', 10);
+        _esiNoteResponse(url, res);
+        if (res.statusCode === 429 || res.statusCode === 420) {
+          const retryAfter = parseInt(res.headers['retry-after'] || res.headers['x-esi-error-limit-reset'] || '60', 10);
+          if (res.statusCode === 429) _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + retryAfter * 1000);
           return reject(Object.assign(
-            new Error(`HTTP 429: ${url}`),
+            new Error(`HTTP ${res.statusCode}: ${url}`),
             { retryAfter, isRateLimit: true }
           ));
         }
@@ -1791,7 +1834,7 @@ function httpPost(url, body, headers = {}, formEncoded = false) {
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
       headers: {
-        'User-Agent': 'EVE-BPC-Calculator/2.0',
+        'User-Agent': APP_USER_AGENT,
         'Content-Type': formEncoded ? 'application/x-www-form-urlencoded' : 'application/json',
         'Content-Length': Buffer.byteLength(postData),
         'Accept': 'application/json',
@@ -2956,7 +2999,7 @@ async function fetchRemoteSdeMd5() {
   return new Promise((resolve, reject) => {
     https.request(SDE_DUMP_URL, {
       method: 'HEAD',
-      headers: { 'User-Agent': 'EVE-Carbon/1.0' }
+      headers: { 'User-Agent': APP_USER_AGENT }
     }, (res) => {
       res.resume(); // drain
       if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
@@ -3006,7 +3049,7 @@ ipcHandle('sde-download-update', async (event) => {
       const writer  = fs.createWriteStream(tmpPath);
 
       https.request(SDE_DUMP_URL, {
-        headers: { 'User-Agent': 'EVE-Carbon/1.0' }
+        headers: { 'User-Agent': APP_USER_AGENT }
       }, (res) => {
         if (res.statusCode >= 400) {
           writer.destroy();

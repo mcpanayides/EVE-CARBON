@@ -88,9 +88,15 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
       if (skipped === latestVersion) return { hasUpdate: false, currentVersion };
 
       if (compareVersions(latestVersion, currentVersion) > 0) {
-        // Prefer a direct .exe asset download, fall back to the release page
-        const exeAsset = (data.assets || []).find(a => /\.exe$/i.test(a.name));
-        const downloadUrl = exeAsset?.browser_download_url || data.html_url || GH_RELEASES_URL;
+        // Pick the asset matching this platform's installer — was hardcoded to
+        // .exe regardless of OS, so macOS was handed the Windows installer URL.
+        // Falls back to the release page if this OS has no matching asset yet
+        // (e.g. the mac build for this release hasn't finished/uploaded).
+        const pattern = process.platform === 'darwin' ? /\.dmg$/i
+                      : process.platform === 'linux'  ? /\.AppImage$/i
+                      : /\.exe$/i;
+        const asset      = (data.assets || []).find(a => pattern.test(a.name));
+        const downloadUrl = asset?.browser_download_url || data.html_url || GH_RELEASES_URL;
         return { hasUpdate: true, latestVersion, currentVersion, downloadUrl };
       }
 
@@ -113,7 +119,9 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   // ── Auto-download installer and launch ──────────────────────────────────────
   // Windows only: streams the .exe asset directly to a temp file, reports
   // progress via 'updater-download-progress' IPC events, then spawns the
-  // NSIS installer and quits. Non-exe URLs fall back to opening the browser.
+  // NSIS installer and quits. Any non-exe URL (the .dmg on macOS, .AppImage
+  // on Linux, or a release-page fallback) opens in the browser instead —
+  // there's no equivalent silent-install flow for those installer formats.
   ipcHandle('updater-download-and-install', async (event, downloadUrl) => {
     if (!downloadUrl || !/\.exe(\?.*)?$/i.test(downloadUrl)) {
       // macOS / Linux — open browser as fallback

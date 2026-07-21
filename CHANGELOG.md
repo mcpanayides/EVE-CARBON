@@ -6,6 +6,32 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.5.0] - 2026-07-21
+### Security
+- Removed `EVE_CLIENT_SECRET` from the codebase and build entirely — the app's ESI login already uses PKCE and never sent it, but it was still being bundled in plaintext into every shipped installer. Rotated to a new EVE application/client ID as part of this.
+- Fixed a critical archive-extraction path-traversal vulnerability (swapped the unmaintained `decompress` package for `extract-zip` in the SDE download pipeline).
+- Fixed a ReDoS vulnerability in `brace-expansion` (pinned across the electron-builder toolchain) and a quadratic-CPU vulnerability in `js-yaml`.
+
+### Fixes
+- **Re-login is no longer silent or spammy** — a character whose EVE login has actually expired now shows a clear "⚠ RE-LOGIN NEEDED" badge on its card (click to re-authenticate) instead of every feature failing quietly in the background.
+- **Fixed SSO tab-spam** — a bulk resync (RESYNC ALL, or the periodic auto-refresh) that hit several characters needing new ESI permissions at once used to pop a browser SSO tab for *each one*, faster than MFA could keep up. Now flagged with the same re-login badge instead of auto-launching anything.
+- **Fixed removed characters silently reappearing** — a race between concurrent background token refreshes and a user's "remove account" click could resurrect a character moments after removal.
+- **Fixed remove/sync/favourite buttons on character cards being unclickable** — a z-index tie with the card's own hatch-texture layer was silently swallowing clicks in the top corner of every character card.
+- **Fixed the Jabber "Wipe Database" button reporting success while doing nothing** — two compounding bugs meant a wipe could silently no-op.
+- **Fixed the updater always offering the Windows `.exe`, even on macOS** — it now picks the platform-appropriate installer asset (`.dmg` on Mac, `.AppImage` on Linux).
+- Fixed SSO login failing with "redirect URL does not match" after the client rotation above.
+- Added a "Delete All Characters" bulk option as a fallback alongside per-character removal.
+- Notification toasts no longer stack up unreadably — they now write to the existing console log bar/history instead.
+
+### Features
+- **In-app Alliance Pack editor** (Settings → Jabber) — build or edit a pack's SIG/Squad groups and comms channels through a form, no YAML editing required.
+- The character-card favourite star is now an exclusive "default character" toggle — only one character can be default at a time, and it's the one auto-selected on every launch.
+- The "N ONLINE" anonymous presence counter is always on (removed the opt-out toggle) so it reflects real usage.
+
+### Under the hood
+- "Wallets" nav page renamed to "Finances".
+- Status bar reordered to Version | SDE | N ONLINE, with a separator between SDE and the presence counter.
+
 ## [1.2.1] - 2026-07-20
 ### Fixes
 - **ESI compliance** — every outbound request (main process and renderer) now identifies the app per CCP's ESI best practices: `EVE-Carbon/<version> (contact email; +source repo)`, sent as `User-Agent` from the app and `X-User-Agent` from the browser-side renderer (Chromium drops User-Agent overrides). Previously several endpoints still sent a stale, unidentifiable `EVE-BPC-Calculator/2.0` / `EVE-Carbon/1.0` string with no contact info.

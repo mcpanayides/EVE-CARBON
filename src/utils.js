@@ -81,6 +81,7 @@ function showToast(msg, type = 'info') {
   const toast = document.createElement('div');
   const color = type === 'success' ? 'var(--success)'
               : type === 'error'   ? 'var(--danger)'
+              : type === 'warning' ? 'var(--warning)'
               : 'var(--accent)';
   toast.style.cssText = `
     position:fixed; bottom:20px; right:20px; padding:10px 16px;

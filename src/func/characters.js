@@ -322,11 +322,20 @@ async function _populateCharCard(card, acc, nwCache) {
     : '<span style="color:var(--text-3);font-size:11px;">Unknown — sync this character</span>');
 }
 
+let _reauthToastShown = false; // one nudge per session, not once per loadAccounts() call
+
 async function loadAccounts() {
   try {
     const accounts = await window.eveAPI.getAccounts();
     const listDiv  = document.getElementById('accountsListNav');
     if (!listDiv) return;
+
+    const reauthCount = (accounts || []).filter(a => a.needsReauth).length;
+    if (reauthCount > 0 && !_reauthToastShown) {
+      _reauthToastShown = true;
+      showToast(`${reauthCount} character${reauthCount > 1 ? 's' : ''} need${reauthCount > 1 ? '' : 's'} to log back in — see the Characters page.`, 'warning');
+    }
+
     listDiv.innerHTML = '';
 
     if (!accounts || accounts.length === 0) {
@@ -412,6 +421,7 @@ async function loadAccounts() {
             <div class="char-cc-ship" data-cc-field="ship">…</div>
           </div>
           ${isActive ? '<div class="character-active-badge">● ACTIVE</div>' : ''}
+          ${acc.needsReauth ? '<div class="character-reauth-badge" title="Click to log back in">⚠ RE-LOGIN NEEDED</div>' : ''}
         </div>`;
 
       // Fill the async fields (DB + net-worth cache + corp/alliance names).
@@ -420,6 +430,7 @@ async function loadAccounts() {
       // Click to select (ignore the action/fav controls).
       item.addEventListener('click', (e) => {
         if (e.target.closest('.character-card-actions') || e.target.closest('.character-fav-btn')) return;
+        if (e.target.closest('.character-reauth-badge')) { window.eveAPI.startSSOLogin(); return; }
         selectCharacter(acc);
       });
 

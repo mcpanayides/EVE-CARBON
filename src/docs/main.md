@@ -184,7 +184,7 @@ Returns styled HTML success/error pages to the browser tab.
 
 ### `getValidToken(characterId)`
 
-**Purpose:** Returns a valid access token for a character. If the stored token expires within 60 seconds, it automatically refreshes it using the refresh token and updates `blueprints.json`. Throws if the account is not found.
+**Purpose:** Returns a valid access token for a character. If the stored token expires within 60 seconds, it automatically refreshes it using the refresh token and updates `blueprints.json`. Throws if the account is not found. If the refresh fails with `invalid_grant` (dead refresh token — e.g. the app's `client_id` changed, or the user revoked access), sets `account.needsReauth = true` in `blueprints.json` and throws an error tagged `{ needsReauth: true }` instead of retrying forever. `get-accounts` surfaces this flag so the Characters page can prompt a re-login; it clears itself once the account re-authenticates (the SSO callback overwrites the account entry with fresh tokens).
 
 **Connects to:** `loadDB()`, `saveDB()`, `httpPost()` → `SSO_TOKEN_URL`.
 
@@ -284,7 +284,7 @@ All IPC handlers are registered with `ipcMain.handle(channel, handler)` and are 
 
 | IPC Channel | What it does | Connects to |
 |---|---|---|
-| `get-accounts` | Returns all accounts (id, name, addedAt) from `blueprints.json` — no tokens exposed | `loadDB()` |
+| `get-accounts` | Returns all accounts (id, name, addedAt, needsReauth) from `blueprints.json` — no tokens exposed | `loadDB()` |
 | `remove-account` | Deletes account, blueprints, and assets from `blueprints.json`; removes all SQLite tables for the character | `loadDB()`, `saveDB()`, `charInfoDb.removeCharacterData()` |
 | `start-sso-login` | Generates PKCE verifier/challenge, stores state in `pendingAuth`, opens the EVE SSO URL in the system browser | `startCallbackServer()`, `generateCodeVerifier/Challenge()`, `shell.openExternal()` |
 

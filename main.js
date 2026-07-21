@@ -2022,11 +2022,30 @@ async function getValidToken(characterId) {
     refresh_token: account.refreshToken,
     client_id:     CLIENT_ID,
   }).toString();
- 
-  const tokenData = await httpPost(SSO_TOKEN_URL, formBody, {}, true);
+
+  let tokenData;
+  try {
+    tokenData = await httpPost(SSO_TOKEN_URL, formBody, {}, true);
+  } catch (e) {
+    // invalid_grant means this refresh token will never work again (e.g. the
+    // app's registered client_id changed, or the user revoked access on EVE's
+    // side) — no amount of retrying fixes it. Flag the account so the UI can
+    // prompt a re-login instead of every ESI call quietly failing forever.
+    if (/invalid_grant/.test(e.message || '')) {
+      account.needsReauth = true;
+      db.accounts[characterId] = account;
+      saveDB(db);
+      const err = new Error(`Re-authenticate ${account.characterName || characterId} — its EVE login has expired.`);
+      err.needsReauth  = true;
+      err.characterId  = characterId;
+      throw err;
+    }
+    throw e;
+  }
   account.accessToken  = tokenData.access_token;
   account.refreshToken = tokenData.refresh_token || account.refreshToken;
   account.expiresAt    = Date.now() + (tokenData.expires_in * 1000);
+  account.needsReauth  = false;
   db.accounts[characterId] = account;
   saveDB(db);
   return account.accessToken;

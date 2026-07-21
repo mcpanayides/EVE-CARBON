@@ -77,6 +77,7 @@ function registerAccountHandlers({
       characterId:   a.characterId,
       characterName: a.characterName,
       addedAt:       a.addedAt,
+      needsReauth:   !!a.needsReauth,
     }));
   });
 

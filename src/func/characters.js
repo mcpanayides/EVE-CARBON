@@ -190,12 +190,17 @@ function getFavorites() {
     return new Set((Array.isArray(arr) ? arr : []).map(String));
   } catch (e) { return new Set(); }
 }
+// Exclusive — at most one default character at a time. Clicking the current
+// default's diamond clears it; clicking any other card's diamond replaces it.
+// (Storage stays an array — with 0 or 1 entries now — so every other reader
+// of char_favorites, e.g. map.js/jump-planner.js/blueprints.js picking
+// favorites[0] as the "main" character, keeps working unchanged.)
 function toggleFavorite(id) {
-  const favs = getFavorites();
   id = String(id);
-  if (favs.has(id)) favs.delete(id); else favs.add(id);
-  try { localStorage.setItem(FAV_KEY, JSON.stringify([...favs])); } catch (e) { /* ignore */ }
-  return favs.has(id);
+  const isCurrentDefault = getFavorites().has(id);
+  const next = isCurrentDefault ? [] : [id];
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(next)); } catch (e) { /* ignore */ }
+  return !isCurrentDefault;
 }
 
 // ─── Resync all ───────────────────────────────────────────────────────────────
@@ -377,7 +382,7 @@ async function loadAccounts() {
 
       item.innerHTML = `
         <button class="character-fav-btn${isFav ? ' is-fav' : ''}" data-id="${id}"
-                title="${isFav ? 'Unfavorite' : 'Favorite — pin to top'}">${isFav ? '◆' : '◇'}</button>
+                title="${isFav ? 'Default character — click to unset' : 'Set as default character (auto-selected on launch)'}">${isFav ? '◆' : '◇'}</button>
 
         <div class="character-card-actions">
           <button class="character-sync-btn sync-btn bp-view-btn" data-id="${id}">SYNC</button>

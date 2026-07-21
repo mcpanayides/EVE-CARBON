@@ -18,8 +18,9 @@ const PAGE_HTML = {
         <div>
           <h2>Characters</h2>
           <div class="page-description">
-            The first character is selected by default on startup.
-            Drag cards to reorder your character list.
+            Click a card's ◇ to set it as your default character (◆) — it's
+            auto-selected on startup. Only one character can be default at a
+            time. Drag cards to reorder your character list.
           </div>
         </div>
         <button class="close-page-btn" onclick="closePage('characters')">✕</button>

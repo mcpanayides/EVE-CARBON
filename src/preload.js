@@ -182,6 +182,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getPacks:            ()       => ipcRenderer.invoke('get-packs'),
   importPack:          ()       => ipcRenderer.invoke('import-pack'),
   deletePack:          (id)     => ipcRenderer.invoke('delete-pack', id),
+  getPackDetail:       (id)     => ipcRenderer.invoke('get-pack-detail', id),
+  savePack:            (data)   => ipcRenderer.invoke('save-pack', data),
 
   // App metadata
   getAppVersion:       ()       => ipcRenderer.invoke('get-app-version'),

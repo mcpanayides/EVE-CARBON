@@ -1590,6 +1590,74 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Full pack contents (pack_info + groups + comms_channels) for the Pack
+  // Editor — get-packs above only returns pack_info for the dropdown list.
+  ipcHandle('get-pack-detail', async (_, packId) => {
+    const jsy = require('js-yaml');
+    let filePath;
+    if (packId?.startsWith('user:')) {
+      filePath = path.join(userPacksDir, packId.slice(5));
+    } else {
+      filePath = path.join(__dirname, 'yaml', `${packId}.yaml`);
+      if (!fs.existsSync(filePath)) filePath = path.join(__dirname, 'yaml', `${packId}.yml`);
+    }
+    try {
+      const raw  = fs.readFileSync(filePath, 'utf8');
+      const data = jsy.load(raw) || {};
+      return {
+        pack_info:      data.pack_info || {},
+        groups:         data.groups || [],
+        comms_channels: data.comms_channels || [],
+      };
+    } catch (e) {
+      return null;
+    }
+  });
+
+  // Pack Editor save — creates a new user pack, or overwrites an existing
+  // one if `id` (a 'user:...' id) is given. Built-in packs can't be
+  // overwritten this way (id must start with 'user:' to be treated as
+  // "editing"); anything else is always created as a new file.
+  ipcHandle('save-pack', async (_, { id, packInfo, groups, comms_channels }) => {
+    const jsy = require('js-yaml');
+    const name = packInfo?.name?.trim();
+    if (!name) return { success: false, error: 'Pack name is required.' };
+
+    let fileName;
+    if (id?.startsWith('user:')) {
+      fileName = id.slice(5);   // editing an existing user pack — keep its filename
+    } else {
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'pack';
+      fileName = `${slug}.yaml`;
+      let n = 2;
+      while (fs.existsSync(path.join(userPacksDir, fileName))) {
+        fileName = `${slug}_${n}.yaml`;
+        n++;
+      }
+    }
+
+    const data = {
+      pack_info: {
+        id:          fileName.replace(/\.(yaml|yml)$/, ''),
+        name,
+        alliance:    packInfo.alliance?.trim() || '',
+        description: packInfo.description?.trim() || '',
+        author:      packInfo.author?.trim() || '',
+        version:     packInfo.version?.trim() || '1.0',
+      },
+      groups:         Array.isArray(groups) ? groups : [],
+      comms_channels: Array.isArray(comms_channels) ? comms_channels : [],
+    };
+
+    try {
+      if (!fs.existsSync(userPacksDir)) fs.mkdirSync(userPacksDir, { recursive: true });
+      fs.writeFileSync(path.join(userPacksDir, fileName), jsy.dump(data), 'utf8');
+      return { success: true, id: `user:${fileName}` };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // ── Salvage Calculator — all rig blueprints with their salvage material requirements ──
   ipcHandle('salvage-get-rig-data', async () => {
     if (!sdeDb) return null;

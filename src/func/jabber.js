@@ -643,6 +643,7 @@ async function populatePackDropdown(selectedPackId) {
 function updatePackInfo(packId) {
   const infoEl    = document.getElementById('jabberPackInfo');
   const deleteBtn = document.getElementById('jabberDeletePackBtn');
+  const editBtn   = document.getElementById('jabberEditPackBtn');
   const pack      = _cachedPacks.find(p => p.id === packId);
 
   if (infoEl) {
@@ -653,8 +654,144 @@ function updatePackInfo(packId) {
     infoEl.textContent = parts.join(' · ');
   }
 
-  if (deleteBtn) {
-    deleteBtn.style.display = pack?.source === 'user' ? 'inline-block' : 'none';
+  // Built-in packs (e.g. the Goonswarm pack shipped with the app) aren't
+  // user-editable/deletable in place — only packs created/imported here are.
+  if (deleteBtn) deleteBtn.style.display = pack?.source === 'user' ? 'inline-block' : 'none';
+  if (editBtn)   editBtn.style.display   = pack?.source === 'user' ? 'inline-block' : 'none';
+}
+
+// ── Pack Editor (Settings ▸ Jabber ▸ Alliance Pack) ────────────────────────────
+// Lets a user build/edit a pack's groups + comms channels through a form
+// instead of hand-writing YAML. Saves into userData/packs/ via the same
+// mechanism as an imported pack (source:'user' — editable/deletable, unlike
+// the built-in packs shipped in yaml/).
+
+function _peGroupRowHtml(g = {}) {
+  const color = g.color || '#78909C';
+  return `
+    <div class="pack-editor-row" style="display:flex; gap:8px; align-items:center;">
+      <input type="text" class="bug-input pe-group-name" placeholder="Name (e.g. Black Hand)" style="flex:2;" value="${escHtml(g.name || '')}">
+      <input type="text" class="bug-input pe-group-display" placeholder="Display (e.g. [SIG] Black Hand)" style="flex:2;" value="${escHtml(g.display_name || '')}">
+      <select class="bug-input pe-group-type" style="flex:1;">
+        ${['ALL', 'SIG', 'Squad'].map(t => `<option value="${t}"${g.type === t ? ' selected' : ''}>${t}</option>`).join('')}
+      </select>
+      <input type="color" class="pe-group-color" value="${color}"
+             style="width:36px; height:34px; padding:2px; border-radius:6px; border:1px solid rgba(255,255,255,0.07); background:var(--bg-input); cursor:pointer;">
+      <button type="button" class="icon-btn pe-row-remove" title="Remove" style="flex-shrink:0; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:14px;">✕</button>
+    </div>`;
+}
+
+function _peCommsRowHtml(c = {}) {
+  const match = Array.isArray(c.match) ? c.match.join(', ') : (c.match || '');
+  return `
+    <div class="pack-editor-row" style="display:flex; gap:8px; align-items:center;">
+      <input type="text" class="bug-input pe-comms-name" placeholder="Name (e.g. Fleet A)" style="flex:1.5;" value="${escHtml(c.name || '')}">
+      <input type="text" class="bug-input pe-comms-match" placeholder="Match keywords, comma-separated" style="flex:2;" value="${escHtml(match)}">
+      <input type="text" class="bug-input pe-comms-url" placeholder="mumble://... or Discord invite" style="flex:2.5;" value="${escHtml(c.url || '')}">
+      <button type="button" class="icon-btn pe-row-remove" title="Remove" style="flex-shrink:0; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:14px;">✕</button>
+    </div>`;
+}
+
+function _peAddRow(listId, html) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html.trim();
+  const row = wrap.firstElementChild;
+  row.querySelector('.pe-row-remove').addEventListener('click', () => row.remove());
+  list.appendChild(row);
+}
+
+function _peGatherGroups() {
+  return Array.from(document.querySelectorAll('#packEditorGroupsList .pack-editor-row')).map(row => ({
+    name:         row.querySelector('.pe-group-name').value.trim(),
+    display_name: row.querySelector('.pe-group-display').value.trim(),
+    type:         row.querySelector('.pe-group-type').value,
+    color:        row.querySelector('.pe-group-color').value,
+  })).filter(g => g.name);
+}
+
+function _peGatherComms() {
+  return Array.from(document.querySelectorAll('#packEditorCommsList .pack-editor-row')).map(row => ({
+    name:  row.querySelector('.pe-comms-name').value.trim(),
+    match: row.querySelector('.pe-comms-match').value.split(',').map(s => s.trim()).filter(Boolean),
+    url:   row.querySelector('.pe-comms-url').value.trim(),
+  })).filter(c => c.name);
+}
+
+async function openPackEditor(editId = null) {
+  const backdrop = document.getElementById('packEditorBackdrop');
+  const title    = document.getElementById('packEditorTitle');
+  if (!backdrop) return;
+
+  document.getElementById('packEditorId').value          = editId || '';
+  document.getElementById('packEditorName').value        = '';
+  document.getElementById('packEditorAlliance').value    = '';
+  document.getElementById('packEditorDescription').value = '';
+  document.getElementById('packEditorAuthor').value      = '';
+  document.getElementById('packEditorGroupsList').innerHTML = '';
+  document.getElementById('packEditorCommsList').innerHTML  = '';
+
+  if (editId) {
+    title.textContent = 'EDIT ALLIANCE PACK';
+    try {
+      const detail = await window.eveAPI.getPackDetail(editId);
+      if (detail) {
+        const info = detail.pack_info || {};
+        document.getElementById('packEditorName').value        = info.name || '';
+        document.getElementById('packEditorAlliance').value    = info.alliance || '';
+        document.getElementById('packEditorDescription').value = info.description || '';
+        document.getElementById('packEditorAuthor').value      = info.author || '';
+        (detail.groups || []).forEach(g => _peAddRow('packEditorGroupsList', _peGroupRowHtml(g)));
+        (detail.comms_channels || []).forEach(c => _peAddRow('packEditorCommsList', _peCommsRowHtml(c)));
+      }
+    } catch (e) {
+      showToast(`Couldn't load pack for editing: ${e.message}`, 'error');
+    }
+  } else {
+    title.textContent = 'NEW ALLIANCE PACK';
+    // Seed one blank row of each so the form isn't a confusing empty box.
+    _peAddRow('packEditorGroupsList', _peGroupRowHtml());
+    _peAddRow('packEditorCommsList', _peCommsRowHtml());
+  }
+
+  backdrop.style.display = 'flex';
+}
+
+function closePackEditor() {
+  const backdrop = document.getElementById('packEditorBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
+}
+window.closePackEditor = closePackEditor;
+
+async function savePackFromEditor() {
+  const name = document.getElementById('packEditorName').value.trim();
+  if (!name) { showToast('Pack name is required.', 'error'); return; }
+
+  const packInfo = {
+    name,
+    alliance:    document.getElementById('packEditorAlliance').value.trim(),
+    description: document.getElementById('packEditorDescription').value.trim(),
+    author:      document.getElementById('packEditorAuthor').value.trim(),
+  };
+  const id = document.getElementById('packEditorId').value || null;
+
+  try {
+    const result = await window.eveAPI.savePack({
+      id,
+      packInfo,
+      groups: _peGatherGroups(),
+      comms_channels: _peGatherComms(),
+    });
+    if (!result.success) { showToast(`Save failed: ${result.error}`, 'error'); return; }
+    closePackEditor();
+    await populatePackDropdown(result.id);
+    const select = document.getElementById('jabberPackSelect');
+    if (select) select.value = result.id;
+    updatePackInfo(result.id);
+    showToast(`Pack "${name}" saved.`, 'success');
+  } catch (e) {
+    showToast(`Save error: ${e.message}`, 'error');
   }
 }
 
@@ -886,5 +1023,42 @@ function bindJabberEvents() {
         showToast(`Delete error: ${e.message}`, 'error');
       }
     });
+  }
+
+  // New / Edit / Save pack buttons (Pack Editor modal)
+  const newPackBtn = document.getElementById('jabberNewPackBtn');
+  if (newPackBtn && !newPackBtn._packBound) {
+    newPackBtn._packBound = true;
+    newPackBtn.addEventListener('click', () => openPackEditor(null));
+  }
+
+  const editPackBtn = document.getElementById('jabberEditPackBtn');
+  if (editPackBtn && !editPackBtn._packBound) {
+    editPackBtn._packBound = true;
+    editPackBtn.addEventListener('click', () => {
+      const select = document.getElementById('jabberPackSelect');
+      const packId = select?.value;
+      const pack   = _cachedPacks.find(p => p.id === packId);
+      if (!pack || pack.source !== 'user') return;
+      openPackEditor(packId);
+    });
+  }
+
+  const addGroupBtn = document.getElementById('packEditorAddGroupBtn');
+  if (addGroupBtn && !addGroupBtn._packBound) {
+    addGroupBtn._packBound = true;
+    addGroupBtn.addEventListener('click', () => _peAddRow('packEditorGroupsList', _peGroupRowHtml()));
+  }
+
+  const addCommsBtn = document.getElementById('packEditorAddCommsBtn');
+  if (addCommsBtn && !addCommsBtn._packBound) {
+    addCommsBtn._packBound = true;
+    addCommsBtn.addEventListener('click', () => _peAddRow('packEditorCommsList', _peCommsRowHtml()));
+  }
+
+  const savePackBtn = document.getElementById('packEditorSaveBtn');
+  if (savePackBtn && !savePackBtn._packBound) {
+    savePackBtn._packBound = true;
+    savePackBtn.addEventListener('click', savePackFromEditor);
   }
 }

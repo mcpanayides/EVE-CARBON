@@ -30,6 +30,10 @@ async function autoRefreshStaleCharacters(accounts) {
     const stale = [];
 
     for (const acc of accounts) {
+      // A dead refresh token can't be fixed by syncing — only a re-login
+      // clears it (getValidToken sets this once invalid_grant hits). Queuing
+      // it here just guarantees a failed sync + error toast every pass.
+      if (acc.needsReauth) continue;
       try {
         const dbData = await window.eveAPI.getCharacterData(acc.characterId);
         const syncedAt = dbData?.info?.synced_at || 0;

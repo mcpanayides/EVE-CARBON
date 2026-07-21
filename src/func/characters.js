@@ -147,12 +147,14 @@ async function _performCharacterSync(id) {
     showToast('✓ Full sync complete!', 'success');
     if (typeof loadBlueprintLibrary === 'function') await loadBlueprintLibrary();
 
-    // New ESI permissions added since this character last logged in → re-authenticate.
+    // New ESI permissions added since this character last logged in. Flag it
+    // (see the ⚠ RE-LOGIN NEEDED card badge) rather than auto-launching SSO —
+    // a bulk resync runs every character through here in sequence, and
+    // auto-opening a browser tab per character spammed a tab for every one
+    // of them before anyone could finish MFA on the first.
     if (result?.needsReauth) {
       const scopes = (result.missingScopes || []).join(', ');
-      if (typeof logToConsole === 'function') logToConsole(`New permissions required (${scopes}) — opening EVE re-authentication…`, 'info');
-      showToast('New permissions added — log in again as this character to grant them.', 'info');
-      window.eveAPI.startSSOLogin();
+      if (typeof logToConsole === 'function') logToConsole(`New permissions required (${scopes}) for ${result?.characterName || id} — re-login when convenient.`, 'info');
     }
   } catch (err) {
     ({ card, btn } = _findSyncCard(id));

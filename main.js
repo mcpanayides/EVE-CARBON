@@ -2842,9 +2842,25 @@ ipcHandle('sync-character-full', async (event, characterId) => {
   });
 
   // If the app has gained new ESI scopes since this character last authorised,
-  // flag it so the renderer can redirect the user to re-authenticate.
+  // flag needsReauth (same flag/UI path as a dead refresh token — see
+  // getValidToken) instead of auto-launching SSO here. A bulk resync (RESYNC
+  // ALL, or the periodic background auto-refresh) runs every character
+  // through this handler one after another; auto-opening a browser tab per
+  // character used to spam a tab for every one of them at once, faster than
+  // anyone can complete MFA on the first. The re-login badge lets the user
+  // re-auth them one at a time on their own schedule instead.
   const missingScopes = await getMissingScopes(characterId).catch(() => []);
-  if (missingScopes.length) { summary.needsReauth = true; summary.missingScopes = missingScopes; }
+  if (missingScopes.length) {
+    summary.needsReauth = true;
+    summary.missingScopes = missingScopes;
+    const freshDb = loadDB();
+    const freshAccount = freshDb.accounts[characterId];
+    if (freshAccount) {
+      freshAccount.needsReauth = true;
+      freshDb.accounts[characterId] = freshAccount;
+      saveDB(freshDb);
+    }
+  }
   return summary;
 });
 

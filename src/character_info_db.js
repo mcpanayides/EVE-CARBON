@@ -12,7 +12,8 @@ const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const { resolveAssetLocationChain } = require('./asset-location-walk');
 
-let charDb = null;   // shared db handle, opened once
+let charDb   = null;   // shared db handle, opened once
+let _dataDir = null;   // remembered so a failed init can be retried later
 
 // ── Write serialization ───────────────────────────────────────────────────────
 // Every write transaction shares the single `charDb` connection. Issuing
@@ -57,6 +58,7 @@ async function closeCharacterDb() {
 // ── DB init ───────────────────────────────────────────────────────────────────
 async function initCharacterDb(dataDir) {
   if (charDb) return charDb;
+  _dataDir = dataDir;
 
   // Ensure /data folder exists next to the app root (not in userData)
   if (!fs.existsSync(dataDir)) {
@@ -100,10 +102,30 @@ async function initCharacterDb(dataDir) {
   return charDb;
 }
 
+// main.js's own initCharacterDb() call at startup swallows a failure and
+// keeps running (so one broken subsystem doesn't take the whole app down) —
+// but that left charDb permanently null for the rest of the session, and
+// every sync after that crashed with a raw "Cannot read properties of null
+// (reading 'exec')" instead of a clear message. Called at the top of
+// ensureCharacterTables (the first charDb operation in every character
+// sync), this retries the original init once and throws something
+// actionable if the database still isn't available.
+async function _ensureDb() {
+  if (charDb) return;
+  if (!_dataDir) throw new Error('Character database was never initialised.');
+  try {
+    await initCharacterDb(_dataDir);
+  } catch (e) {
+    throw new Error(`Character database is unavailable (${e.message}) — try restarting EVE Carbon.`);
+  }
+  if (!charDb) throw new Error('Character database is unavailable — try restarting EVE Carbon.');
+}
+
 // ── Per-character table creation ──────────────────────────────────────────────
 // All tables are prefixed with char_{characterId}_ so multiple characters
 // live safely in the same database file.
 async function ensureCharacterTables(characterId) {
+  await _ensureDb();
   const db = charDb;
   const p  = `char_${characterId}`;
 

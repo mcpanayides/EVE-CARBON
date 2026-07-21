@@ -2032,9 +2032,18 @@ async function getValidToken(characterId) {
     // side) — no amount of retrying fixes it. Flag the account so the UI can
     // prompt a re-login instead of every ESI call quietly failing forever.
     if (/invalid_grant/.test(e.message || '')) {
-      account.needsReauth = true;
-      db.accounts[characterId] = account;
-      saveDB(db);
+      // Reload right before writing (don't reuse the `db` snapshot from
+      // before the await above) — with many characters refreshing in
+      // parallel, each holding its own stale pre-await snapshot would clobber
+      // whatever any other concurrent save (including a user's remove-account
+      // click) wrote to blueprints.json in the meantime.
+      const freshDb = loadDB();
+      const freshAccount = freshDb.accounts[characterId];
+      if (freshAccount) {
+        freshAccount.needsReauth = true;
+        freshDb.accounts[characterId] = freshAccount;
+        saveDB(freshDb);
+      }
       const err = new Error(`Re-authenticate ${account.characterName || characterId} — its EVE login has expired.`);
       err.needsReauth  = true;
       err.characterId  = characterId;
@@ -2042,13 +2051,16 @@ async function getValidToken(characterId) {
     }
     throw e;
   }
-  account.accessToken  = tokenData.access_token;
-  account.refreshToken = tokenData.refresh_token || account.refreshToken;
-  account.expiresAt    = Date.now() + (tokenData.expires_in * 1000);
-  account.needsReauth  = false;
-  db.accounts[characterId] = account;
-  saveDB(db);
-  return account.accessToken;
+  const freshDb = loadDB();
+  const freshAccount = freshDb.accounts[characterId];
+  if (!freshAccount) return tokenData.access_token; // account was removed mid-refresh — nothing left to persist
+  freshAccount.accessToken  = tokenData.access_token;
+  freshAccount.refreshToken = tokenData.refresh_token || freshAccount.refreshToken;
+  freshAccount.expiresAt    = Date.now() + (tokenData.expires_in * 1000);
+  freshAccount.needsReauth  = false;
+  freshDb.accounts[characterId] = freshAccount;
+  saveDB(freshDb);
+  return freshAccount.accessToken;
 }
  
 // ─── Window ───────────────────────────────────────────────────────────────────

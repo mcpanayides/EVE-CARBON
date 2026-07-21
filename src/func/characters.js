@@ -478,13 +478,17 @@ async function loadAccounts() {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const id = e.currentTarget.getAttribute('data-id');
-        await window.eveAPI.removeAccount(id);
-        showToast('Account removed.', 'info');
-        // Roster changed — drop session page memory so pages rebuild without
-        // the removed character next time they're opened.
-        if (typeof _pageInitialized !== 'undefined') _pageInitialized.clear();
-        loadAccounts();
-        loadBlueprintLibrary();
+        try {
+          await window.eveAPI.removeAccount(id);
+          showToast('Account removed.', 'info');
+          // Roster changed — drop session page memory so pages rebuild without
+          // the removed character next time they're opened.
+          if (typeof _pageInitialized !== 'undefined') _pageInitialized.clear();
+          loadAccounts();
+          loadBlueprintLibrary();
+        } catch (err) {
+          showToast(`Failed to remove account: ${err.message || err}`, 'error');
+        }
       });
     });
 

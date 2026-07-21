@@ -1096,6 +1096,14 @@
   const light  = document.getElementById('sdeStatusLight');
   const label  = document.getElementById('sdeStatusLabel');
 
+  // Electron throws this exact message when the window that called invoke()
+  // reloads/closes before the main process's reply can be delivered — not a
+  // real failure, just an interrupted background task. sde-check-update runs
+  // on every launch, so an interrupted update simply retries next time.
+  function _sdeUpdateWasInterrupted(e) {
+    return /reply was never sent/i.test(e?.message || '');
+  }
+
   function setSdeLight(state) {
     // state: 'checking' | 'ok' | 'outdated' | 'downloading' | 'error'
     const styles = {
@@ -1142,8 +1150,13 @@
         if (typeof showToast === 'function') showToast('Star map update failed' + (res && res.error ? `: ${res.error}` : '') + '.', 'error');
       }
     } catch (e) {
-      setSdeLight('error');
-      if (typeof showToast === 'function') showToast(`Star map update failed: ${e.message}`, 'error');
+      if (_sdeUpdateWasInterrupted(e)) {
+        // App reloaded/restarted mid-download — not a failure, just retry next launch.
+        setSdeLight('checking');
+      } else {
+        setSdeLight('error');
+        if (typeof showToast === 'function') showToast(`Star map update failed: ${e.message}`, 'error');
+      }
     } finally {
       window.eveAPI.off('sde-update-progress', onProgress);
     }
@@ -1234,9 +1247,16 @@
         if (btnIcon) { btnIcon.textContent = '⟳'; }
       }
     } catch (e) {
-      if (progressLbl) progressLbl.textContent = `Error: ${e.message}`;
-      if (progressBar) progressBar.style.background = 'var(--danger)';
-      setSdeLight('error');
+      if (_sdeUpdateWasInterrupted(e)) {
+        // App reloaded/restarted mid-download — not a real failure.
+        if (progressLbl) progressLbl.textContent = 'Interrupted by app restart — click Update again.';
+        if (statusEl)    statusEl.textContent = 'Interrupted — try again';
+        setSdeLight('checking');
+      } else {
+        if (progressLbl) progressLbl.textContent = `Error: ${e.message}`;
+        if (progressBar) progressBar.style.background = 'var(--danger)';
+        setSdeLight('error');
+      }
       if (btn) { btn.disabled = false; }
       if (btnIcon) { btnIcon.textContent = '⟳'; }
     } finally {

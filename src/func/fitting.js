@@ -3541,5 +3541,5 @@ function _fitFlash(msg) {
   _fitFlash._t = setTimeout(() => { head.textContent = head.dataset.flashOld; }, 2600);
 }
 function _fitEsc(s) {
-  return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

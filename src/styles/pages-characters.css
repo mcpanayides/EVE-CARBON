@@ -77,7 +77,12 @@
      flow drives the row height correctly. Hero corners are rounded below. */
 }
 .character-id-card .character-fav-btn {
-  position: absolute; top: 8px; left: 8px; z-index: 2;
+  /* z-index:3, not 2 — base.css's ".character-card > *" hatch-overlay rule
+     (see base.css "HATCH OVERLAY") promotes .character-card-hero to z-index:2
+     as well since it never sets its own. Tied z-index falls back to DOM order,
+     and hero comes after this button, so at 2-vs-2 hero was winning the
+     hit-test and swallowing clicks meant for this button. */
+  position: absolute; top: 8px; left: 8px; z-index: 3;
   background: none; border: none; cursor: pointer;
   font-size: 18px; line-height: 1; padding: 2px 5px;
   color: var(--text-3); transition: color 0.15s ease, transform 0.15s ease;
@@ -86,7 +91,11 @@
 .character-id-card .character-fav-btn.is-fav    { color: var(--pal-gold); text-shadow: 0 0 8px rgba(227,193,77,0.45); }
 
 .character-card-actions {
-  position: absolute; top: 8px; right: 8px; z-index: 2;
+  /* z-index:3, not 2 — see the matching comment on .character-fav-btn above.
+     This was the actual cause of "remove/sync clicks do nothing": tied at
+     z-index:2 with .character-card-hero (which inherits it from base.css's
+     hatch-overlay rule), hero — being later in the DOM — won every click. */
+  position: absolute; top: 8px; right: 8px; z-index: 3;
   display: flex; align-items: center; gap: 6px;
 }
 .character-id-card .character-sync-btn { min-width: 0; padding: 5px 12px; font-size: 11px; }

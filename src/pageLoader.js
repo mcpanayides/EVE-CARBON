@@ -181,7 +181,7 @@ const PAGE_HTML = {
          style="flex-direction:column; height:100%;">
       <div class="page-header">
         <div>
-          <h2>Wallets</h2>
+          <h2>Finances</h2>
           <div class="page-description">
             Wallet balances are read from your local database and refreshed
             automatically in the background.

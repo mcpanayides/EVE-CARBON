@@ -77,26 +77,13 @@ function countUp(el, targetValue, duration = 1200) {
   requestAnimationFrame(tick);
 }
 
+// Was a floating popup stack (bottom-right) — with several rapid-fire
+// notifications (e.g. auto-refresh failures across many characters) they
+// piled on top of each other and became unreadable. Route to the app's
+// existing console log bar/history instead, which is one line + a
+// scrollable list rather than an uncapped stack of overlapping divs.
 function showToast(msg, type = 'info') {
-  const toast = document.createElement('div');
-  const color = type === 'success' ? 'var(--success)'
-              : type === 'error'   ? 'var(--danger)'
-              : type === 'warning' ? 'var(--warning)'
-              : 'var(--accent)';
-  toast.style.cssText = `
-    position:fixed; bottom:20px; right:20px; padding:10px 16px;
-    border-radius:4px; font-family:var(--mono); font-size:12px;
-    z-index:9999; border:1px solid; background:var(--bg-card);
-    color:${color}; border-color:${color};`;
-  toast.textContent = msg;
-  let layer = document.querySelector('.toast-layer');
-  if (!layer) {
-    layer = document.createElement('div');
-    layer.className = 'toast-layer';
-    document.body.appendChild(layer);
-  }
-  layer.appendChild(toast);
-  setTimeout(() => toast.remove(), 15000);
+  if (typeof logToConsole === 'function') logToConsole(msg, type);
 }
 
 function logToConsole(message, type = 'info') {

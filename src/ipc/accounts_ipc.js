@@ -6,7 +6,9 @@ const crypto = require('crypto');
 const SSO_AUTH_URL  = 'https://login.eveonline.com/v2/oauth/authorize/';
 const SSO_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
 const CALLBACK_PORT = 12500;
-const CALLBACK_URL  = 'http://127.0.0.1:12500/auth/callback/';
+// Must match EXACTLY what is registered on the EVE developer portal for the
+// current client_id — no trailing slash.
+const CALLBACK_URL  = 'http://127.0.0.1:12500/auth/callback';
 const CLIENT_ID     = process.env.EVE_CLIENT_ID;
 
 const SCOPES = [

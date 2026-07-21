@@ -130,7 +130,8 @@ for (const _m of ['log', 'warn', 'error', 'info']) {
 const FUZZWORK_BASE  = 'https://www.fuzzwork.co.uk';
 const CALLBACK_PORT  = 12500;
 // Must match EXACTLY what is registered in the EVE developer portal
-const CALLBACK_URL = 'http://127.0.0.1:12500/auth/callback/';
+// (no trailing slash — that's what's registered for the current client_id)
+const CALLBACK_URL = 'http://127.0.0.1:12500/auth/callback';
 const CLIENT_ID      = process.env.EVE_CLIENT_ID;
 const SCOPES         = [
   'esi-characters.read_blueprints.v1',          // character blueprints + ME/PE/TE

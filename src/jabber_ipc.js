@@ -253,8 +253,12 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
       await jabberDataDb.wipeJabberDb();
       return true;
     } catch (e) {
+      // Rethrow (don't swallow to `false`) — the renderer's try/catch shows a
+      // failure toast either way, but silently resolving `false` on a real
+      // failure previously let the renderer show a false "wiped" success
+      // toast while the data was never actually cleared.
       console.error('[jabberDataDb] jabber-wipe-data failed:', e.message);
-      return false;
+      throw e;
     }
   });
 

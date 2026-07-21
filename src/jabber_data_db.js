@@ -259,7 +259,10 @@ async function getMessageById(id) {
 }
 
 async function wipeJabberDb() {
-  if (!jabberDb) return;
+  // Was silently returning success here if the DB connection wasn't ready —
+  // the caller reported "wiped" even though nothing was deleted. A wipe that
+  // does nothing must fail loudly, not report success.
+  if (!jabberDb) throw new Error('Jabber database is not initialised yet — try again in a moment.');
   await jabberDb.exec('DELETE FROM jabber_messages');
   // Reset the autoincrement sequence so IDs start fresh
   await jabberDb.exec("DELETE FROM sqlite_sequence WHERE name='jabber_messages'");

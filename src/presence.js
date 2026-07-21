@@ -7,9 +7,8 @@
 // renderer for the status-bar counter. Nothing identifying is ever sent —
 // just the UUID, which changes every launch and is never written to disk.
 //
-// Feature is silently OFF when PRESENCE_URL isn't configured, and respects the
-// "Share anonymous online presence" toggle (config.app.presenceEnabled,
-// default on) — disabled means no pings at all, not just a hidden counter.
+// Always on when PRESENCE_URL is configured — no user opt-out. Silently OFF
+// only when PRESENCE_URL isn't configured at all.
 // ──────────────────────────────────────────────────────────────────────────────
 
 const crypto = require('crypto');
@@ -20,14 +19,10 @@ const FIRST_BEAT_DELAY_MS = 10 * 1000;   // let the app settle before the first 
 let _timer = null;
 let _sessionId = null;
 let _lastCount = null;
-let _deps = null;   // { url, isEnabled(), broadcast(channel, payload) }
+let _deps = null;   // { url, broadcast(channel, payload) }
 
 async function _beat() {
   if (!_deps) return;
-  if (!_deps.isEnabled()) {
-    if (_lastCount !== null) { _lastCount = null; _deps.broadcast('presence-count', null); }
-    return;
-  }
   try {
     const res = await fetch(_deps.url, {
       method:  'POST',
@@ -61,12 +56,6 @@ function initPresence(deps) {
   setTimeout(async () => { await _beat(); _schedule(); }, FIRST_BEAT_DELAY_MS);
 }
 
-// Fire a beat right away (used when the settings toggle flips on/off so the
-// counter reacts immediately instead of waiting up to 5 minutes).
-function pokePresence() {
-  if (_deps) _beat();
-}
-
 function getPresenceCount() {
   return _lastCount;
 }
@@ -76,4 +65,4 @@ function stopPresence() {
   _timer = null;
 }
 
-module.exports = { initPresence, pokePresence, getPresenceCount, stopPresence };
+module.exports = { initPresence, getPresenceCount, stopPresence };

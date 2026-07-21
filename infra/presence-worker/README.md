@@ -34,8 +34,7 @@ PRESENCE_URL=https://eve-carbon-presence.<your-subdomain>.workers.dev/presence
 - Count window: sessions seen in the last 7 minutes (heartbeat is 5 min ± jitter).
 - Free tier: 100k requests/day ≈ ~340 users running 24/7 — real usage is far
   below that; the $5/mo Workers plan lifts it to 10M/month if ever needed.
-- Users can opt out in Settings → General → "Share anonymous online presence";
-  the app then neither pings nor shows the counter.
+- Always on when PRESENCE_URL is configured — no user-facing opt-out.
 
 ## Endpoint
 

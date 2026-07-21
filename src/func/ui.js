@@ -23,27 +23,13 @@ function setSettingsTab(tab) {
 async function populateGeneralSettings() {
   const startToggle    = document.getElementById('startWithWindowsToggle');
   const trayToggle     = document.getElementById('minimizeToTrayToggle');
-  const presenceToggle = document.getElementById('presenceToggle');
   if (!startToggle || !trayToggle) return;
 
   try {
     const prefs = await window.eveAPI.getAppPreferences();
     startToggle.checked = !!prefs.launchAtLogin;
     trayToggle.checked  = !!prefs.minimizeToTray;
-    if (presenceToggle) presenceToggle.checked = prefs.presenceEnabled !== false;
   } catch (_) { /* leave unchecked if prefs can't be read */ }
-
-  if (presenceToggle) presenceToggle.onchange = async () => {
-    try {
-      const enabled = await window.eveAPI.setPresenceEnabled(presenceToggle.checked);
-      presenceToggle.checked = !!enabled;
-      showToast(enabled ? 'You now count toward the anonymous online ticker.'
-                        : 'Online presence sharing disabled.', 'success');
-    } catch (e) {
-      presenceToggle.checked = !presenceToggle.checked;
-      showToast(`Couldn't update presence setting: ${e.message}`, 'error');
-    }
-  };
 
   startToggle.onchange = async () => {
     try {

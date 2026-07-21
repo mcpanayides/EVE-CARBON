@@ -152,7 +152,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAppPreferences: ()        => ipcRenderer.invoke('get-app-preferences'),
   setLaunchAtLogin:  (enabled) => ipcRenderer.invoke('set-launch-at-login', enabled),
   setMinimizeToTray: (enabled) => ipcRenderer.invoke('set-minimize-to-tray', enabled),
-  setPresenceEnabled: (enabled) => ipcRenderer.invoke('set-presence-enabled', enabled),
   getPresenceCount:   ()        => ipcRenderer.invoke('presence-get-count'),
 
   // Ping file watcher

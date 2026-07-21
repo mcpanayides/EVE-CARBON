@@ -46,7 +46,7 @@ const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
-const { initPresence, pokePresence, getPresenceCount } = require('./src/presence');
+const { initPresence, getPresenceCount } = require('./src/presence');
 
 // Global reference to the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -454,13 +454,12 @@ ipcMain.handle('save-jump-bridges', (_, arr) => {
 // app.getLoginItemSettings() is the source of truth. minimizeToTray is ours,
 // persisted in config.json.
 ipcMain.handle('get-app-preferences', () => {
-  let minimizeToTray = false, presenceEnabled = true;
+  let minimizeToTray = false;
   try {
     const cfg = loadConfig();
-    minimizeToTray  = !!(cfg.app && cfg.app.minimizeToTray);
-    presenceEnabled = !(cfg.app && cfg.app.presenceEnabled === false);   // default on
+    minimizeToTray = !!(cfg.app && cfg.app.minimizeToTray);
   } catch (_) {}
-  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray, presenceEnabled };
+  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray };
 });
 
 ipcMain.handle('set-launch-at-login', (_, enabled) => {
@@ -489,14 +488,7 @@ ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
 });
 
 // ── Anonymous presence counter (status-bar "N online") — see src/presence.js ──
-ipcMain.handle('set-presence-enabled', (_, enabled) => {
-  const cfg = loadConfig();
-  cfg.app = cfg.app || {};
-  cfg.app.presenceEnabled = !!enabled;
-  saveConfig(cfg);
-  pokePresence();   // ping (or clear the counter) immediately, not in 5 minutes
-  return cfg.app.presenceEnabled;
-});
+// Always on when PRESENCE_URL is configured — no user-facing opt-out.
 ipcMain.handle('presence-get-count', () => getPresenceCount());
 
 // Trade-fee profile for the Ore/Ice/Gas calculators: Accounting + Broker
@@ -1312,13 +1304,9 @@ app.whenReady().then(async () => {
   initPaths();
 
   // Anonymous "N online" heartbeat — off unless PRESENCE_URL is configured
-  // (see infra/presence-worker) and the user hasn't opted out in Settings.
+  // (see infra/presence-worker). Always on otherwise, no user opt-out.
   initPresence({
     url: process.env.PRESENCE_URL || '',
-    isEnabled: () => {
-      try { const cfg = loadConfig(); return !(cfg.app && cfg.app.presenceEnabled === false); }
-      catch (_) { return true; }
-    },
     broadcast: (channel, payload) => {
       BrowserWindow.getAllWindows().forEach(win => {
         if (!win.isDestroyed()) win.webContents.send(channel, payload);

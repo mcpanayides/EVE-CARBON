@@ -10,7 +10,7 @@ const fs     = require('fs');
 const path   = require('path');
 const os     = require('os');
 const crypto = require('crypto');
-const decompress = require('decompress');
+const extractZip = require('extract-zip');
 const { buildSdeFromJsonl } = require('./sde_build');
 
 const MANIFEST_URL = 'https://developers.eveonline.com/static-data/tranquility/latest.jsonl';
@@ -93,7 +93,7 @@ async function fetchAndBuildSde({ userAgent, outSqlitePath, onProgress }) {
 
     report('Extracting…');
     fs.mkdirSync(jsonlDir, { recursive: true });
-    await decompress(zipPath, jsonlDir);
+    await extractZip(zipPath, { dir: jsonlDir });
 
     report('Building database (this can take a minute)…');
     await buildSdeFromJsonl(jsonlDir, outSqlitePath + '.tmp', (msg) => report(`Building database… ${msg}`));

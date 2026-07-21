@@ -82,7 +82,6 @@ jobs:
       - name: Create .env file
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
-          echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
 
       - name: Fetch SDE
@@ -148,7 +147,6 @@ jobs:
       - name: Create .env file
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
-          echo "EVE_CLIENT_SECRET=${{ secrets.EVE_CLIENT_SECRET }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
 
       - name: Fetch SDE

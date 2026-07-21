@@ -12,7 +12,7 @@ This is the Electron **main process** file. It owns all privileged operations: O
 | `ESI_BASE` | Base URL for all ESI REST calls (`https://esi.evetech.net`) |
 | `FUZZWORK_BASE` | Base URL for Fuzzwork blueprint API |
 | `CALLBACK_PORT / CALLBACK_URL` | Local HTTP server that receives the OAuth redirect (`127.0.0.1:12500`) |
-| `CLIENT_ID / CLIENT_SECRET` | Loaded from `.env` via `dotenv` |
+| `CLIENT_ID` | Loaded from `.env` via `dotenv` (public identifier — no client secret is used; auth is PKCE-only) |
 | `SCOPES` | Full list of ESI OAuth scopes requested at login |
 | `pendingAuth` | In-memory map of `state → { codeVerifier, win }` for PKCE login flow |
 | `nameCache` | In-memory cache for resolved entity names and implant slot lookups |
@@ -419,7 +419,7 @@ All IPC handlers are registered with `ipcMain.handle(channel, handler)` and are 
 |---|---|---|
 | `electron` (`app`, `BrowserWindow`, `ipcMain`, `shell`) | Entire file | Electron main process APIs |
 | `sqlite3` + `sqlite` | `initSde()`, `sde-*` handlers | SDE and character SQLite databases |
-| `dotenv` | Top-level | Loads `EVE_CLIENT_ID` / `EVE_CLIENT_SECRET` from `.env` |
+| `dotenv` | Top-level | Loads `EVE_CLIENT_ID` from `.env` |
 | `@xmpp/client` | `jabber-connect` | ESM; lazy-loaded via `getXmppClient()` |
 | `./src/locator` | `getLocator()` | Shared location resolver for NPC stations and Upwell structures |
 | `./src/character_info_db` | All sync functions | SQLite helper for `character_information.db` |

@@ -132,7 +132,6 @@ const CALLBACK_PORT  = 12500;
 // Must match EXACTLY what is registered in the EVE developer portal
 const CALLBACK_URL = 'http://127.0.0.1:12500/auth/callback/';
 const CLIENT_ID      = process.env.EVE_CLIENT_ID;
-const CLIENT_SECRET  = process.env.EVE_CLIENT_SECRET;
 const SCOPES         = [
   'esi-characters.read_blueprints.v1',          // character blueprints + ME/PE/TE
   'esi-assets.read_assets.v1',                  // assets

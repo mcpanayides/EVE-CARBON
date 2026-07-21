@@ -27,7 +27,9 @@ app.on('web-contents-created', (_evt, contents) => {
   } catch (_) {}
 });
 
-const { APP_USER_AGENT }      = require('./src/app_ident');
+const { APP_USER_AGENT, ESI_COMPATIBILITY_DATE } = require('./src/app_ident');
+const resfileBackgrounds      = require('./src/resfile_backgrounds');
+const sdeFetch                = require('./src/sde_fetch');
 const createLocator           = require('./src/locator');
 const charInfoDb              = require('./src/character_info_db');
 const jabberDataDb            = require('./src/jabber_data_db');
@@ -197,7 +199,7 @@ async function initSde() {
 }
  
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir;
+let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir, resfileCacheDir, etagCacheDir;
 // Shared state for ping file watcher — passed into registerPingFileHandlers
 // so the app-quit handler can still close it without knowing the internals.
 const pingWatcherState = { watcher: null, timer: null };
@@ -207,18 +209,25 @@ function initPaths() {
   dbPath       = path.join(userDataPath, 'blueprints.json');
   configPath   = path.join(userDataPath, 'config.json');
   cacheDir     = path.join(userDataPath, 'cache');
-  // character_information.db lives in the project /data folder (beside sde.sql)
-  appDataDir   = app.isPackaged
+  // character_information.db lives in the project /data folder (beside sde.sql).
+  // EVE_CARBON_DATA_DIR overrides this — used ONLY by the e2e suite (see
+  // e2e/support/electron-app.js) so tests read/write a throwaway fixture DB
+  // instead of the real dev data/ folder. Unset for every normal launch.
+  appDataDir = process.env.EVE_CARBON_DATA_DIR || (app.isPackaged
     ? path.join(process.resourcesPath || __dirname, 'data')
-    : path.join(__dirname, 'data');
+    : path.join(__dirname, 'data'));
   userPacksDir  = path.join(userDataPath, 'packs');
   userThemesDir = path.join(userDataPath, 'themes');
   userBackgroundsDir = path.join(userDataPath, 'backgrounds');
+  resfileCacheDir    = path.join(userDataPath, 'resfile-cache');
+  etagCacheDir       = path.join(cacheDir, 'esi-etag');
   try { fs.mkdirSync(cacheDir,     { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(appDataDir,   { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userPacksDir, { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userThemesDir,{ recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userBackgroundsDir, { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(resfileCacheDir,    { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(etagCacheDir,       { recursive: true }); } catch (e) { /* ignore */ }
 }
 
 // ─── App icon ─────────────────────────────────────────────────────────────────
@@ -268,8 +277,24 @@ function _scanBackgroundDir(dir, source) {
 }
 
 ipcHandle('list-backgrounds', async () => {
+  // Resfile-sourced presets (see src/resfile_backgrounds.js) are fetched from
+  // CCP's CDN and cached under userData/resfile-cache/ on first use instead of
+  // being duplicated in the app bundle. Fetched lazily right here (not
+  // prefetched at startup — that measurably slowed early app init, see
+  // resfile_backgrounds.js) so this call can take a few seconds the very
+  // first time Settings → Background is opened; every call after that is a
+  // pure disk read. Never throws.
+  let resfilePresets = [];
+  try {
+    resfilePresets = await resfileBackgrounds.listResfileBackgrounds({
+      userAgent: APP_USER_AGENT,
+      cacheDir:  resfileCacheDir,
+    });
+  } catch (e) { console.warn('[resfile] listResfileBackgrounds failed:', e.message); }
+
   const all = [
     ..._scanBackgroundDir(_bundledBackgroundsDir(), 'preset'),
+    ...resfilePresets,
     ..._scanBackgroundDir(userBackgroundsDir, 'user'),
   ];
   // Dedupe by filename so a user copy shadows a preset of the same name.
@@ -1701,6 +1726,13 @@ function saveJumpBridges(arr) {
 //   • When a bucket (X-Ratelimit-Remaining) runs dry we back off briefly.
 let _esiBlockUntil = 0;   // ms epoch — no ESI requests before this
 
+// Pin ESI requests to a known-good compatibility date (see app_ident.js) —
+// scoped to esi.evetech.net only, same as the gate above, so it never leaks
+// onto unrelated hosts (resfile CDN, SSO, etc.) that don't understand it.
+function _esiCompatHeader(url) {
+  return /esi\.evetech\.net/i.test(String(url)) ? { 'X-Compatibility-Date': ESI_COMPATIBILITY_DATE } : {};
+}
+
 function _esiGateWait(url) {
   if (!/esi\.evetech\.net/i.test(String(url))) return Promise.resolve();
   const wait = _esiBlockUntil - Date.now();
@@ -1708,33 +1740,115 @@ function _esiGateWait(url) {
   return new Promise(r => setTimeout(r, Math.min(wait, 65000)));
 }
 
-function _esiNoteResponse(url, res) {
+// Shared by both response shapes below: Node's http.IncomingMessage
+// (res.headers['x-foo'], res.statusCode) and the Fetch API's Response
+// (res.headers.get('x-foo'), res.status) — getHeader()/statusCode abstract
+// over that so the actual gating logic is written once.
+function _esiNoteResponseCore(url, statusCode, getHeader) {
   if (!/esi\.evetech\.net/i.test(String(url))) return;
-  const remain = parseInt(res.headers['x-esi-error-limit-remain'] ?? '', 10);
-  const reset  = parseInt(res.headers['x-esi-error-limit-reset']  ?? '', 10);
-  if (res.statusCode === 420) {
+  const remain = parseInt(getHeader('x-esi-error-limit-remain') ?? '', 10);
+  const reset  = parseInt(getHeader('x-esi-error-limit-reset')  ?? '', 10);
+  if (statusCode === 420) {
     const pause = (isFinite(reset) ? reset : 60) + 1;
     _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + pause * 1000);
     console.warn(`[ESI] 420 — error-limited; pausing ALL ESI for ${pause}s`);
     return;
   }
-  if (isFinite(remain) && isFinite(reset) && remain <= 10 && res.statusCode >= 400) {
+  if (isFinite(remain) && isFinite(reset) && remain <= 10 && statusCode >= 400) {
     _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + (reset + 1) * 1000);
     console.warn(`[ESI] error budget low (${remain} left) — pausing ESI ${reset}s`);
   }
-  const rlRemain = parseInt(res.headers['x-ratelimit-remaining'] ?? '', 10);
+  const rlRemain = parseInt(getHeader('x-ratelimit-remaining') ?? '', 10);
   if (isFinite(rlRemain) && rlRemain <= 2) {
     _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + 10000);
-    console.warn(`[ESI] bucket nearly empty (${res.headers['x-ratelimit-group'] || 'route'}) — 10s cooloff`);
+    console.warn(`[ESI] bucket nearly empty (${getHeader('x-ratelimit-group') || 'route'}) — 10s cooloff`);
   }
+}
+function _esiNoteResponse(url, res) {   // Node http.IncomingMessage (httpGet/httpGetFull)
+  _esiNoteResponseCore(url, res.statusCode, (h) => res.headers[h]);
+}
+function _esiNoteFetchResponse(url, res) {   // Fetch API Response (global fetch wrapper below)
+  _esiNoteResponseCore(url, res.status, (h) => res.headers.get(h));
+}
+
+// ─── ESI conditional-request (ETag) cache ────────────────────────────────────
+// Best practices: re-fetching before `expires` "wastes resources on both
+// sides" and in the worst case "may count as circumventing the ESI caching…
+// [which] can get you banned." 3XX (304 Not Modified) responses also cost
+// only 1 token vs 2 for a full 2XX, so this is the cheap path CCP explicitly
+// wants used. Stores the raw response body alongside its ETag, keyed by a
+// hash of the full URL; sends It back as If-None-Match next time, and on a
+// 304 returns the previously-stored body instead of re-parsing an empty one.
+function _etagCachePathFor(url) {
+  const hash = crypto.createHash('sha1').update(String(url)).digest('hex');
+  return path.join(etagCacheDir || cacheDir || '.', `${hash}.json`);
+}
+function _readEtagEntry(url) {
+  try { return JSON.parse(fs.readFileSync(_etagCachePathFor(url), 'utf8')); }
+  catch { return null; }
+}
+function _writeEtagEntry(url, entry) {
+  try {
+    fs.mkdirSync(etagCacheDir || cacheDir, { recursive: true });
+    fs.writeFileSync(_etagCachePathFor(url), JSON.stringify(entry), 'utf8');
+  } catch (_) { /* best-effort — worst case we just miss the 304 discount */ }
+}
+
+// ─── Global fetch() wrapper (main process) ───────────────────────────────────
+// Several call sites (fittings, ESI open-window, character_ipc's OAuth bits)
+// call the built-in fetch() directly instead of httpGet/httpGetFull, which
+// meant they got NONE of the above — no User-Agent identification, no
+// X-Compatibility-Date, no rate/error-limit gating, no ETag caching. Wrapping
+// the global here covers every one of them in one place, exactly like the
+// renderer already does for window.fetch (see src/utils.js) — no per-call-site
+// changes needed, and any future fetch() call gets this for free too.
+const _origGlobalFetch = global.fetch;
+if (typeof _origGlobalFetch === 'function') {
+  global.fetch = async function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (!/esi\.evetech\.net/i.test(url)) return _origGlobalFetch.call(this, input, init);
+
+    await _esiGateWait(url);
+    const cached = _readEtagEntry(url);
+    const reqHeaders = { 'User-Agent': APP_USER_AGENT, ..._esiCompatHeader(url), ...(init?.headers || {}) };
+    // Only GETs are safe to serve from the ETag cache — never short-circuit a
+    // POST/PUT/DELETE, and never send a stale conditional header on a write.
+    const isGet = !init?.method || init.method.toUpperCase() === 'GET';
+    if (isGet && cached?.etag) reqHeaders['If-None-Match'] = cached.etag;
+
+    const res = await _origGlobalFetch.call(this, input, { ...(init || {}), headers: reqHeaders });
+    _esiNoteFetchResponse(url, res);
+    // Mirror httpGet/httpGetFull's explicit 429 handling: a bucket-limit 429
+    // carries Retry-After but not necessarily the X-Esi-Error-Limit-* headers
+    // _esiNoteFetchResponse already checks, so back off here too.
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || res.headers.get('x-esi-error-limit-reset') || '60', 10);
+      _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + retryAfter * 1000);
+    }
+
+    if (isGet && res.status === 304 && cached) {
+      // Fetch Response bodies are one-shot streams — hand back a fresh Response
+      // built from the cached body so callers can still call .json()/.text().
+      return new Response(cached.body, { status: 200, statusText: 'OK (cached)', headers: res.headers });
+    }
+    if (isGet && res.ok) {
+      const etag = res.headers.get('etag');
+      if (etag) {
+        const body = await res.clone().text();
+        _writeEtagEntry(url, { etag, body });
+      }
+    }
+    return res;
+  };
 }
 
 async function httpGet(url, headers = {}) {
   await _esiGateWait(url);
+  const cached = _readEtagEntry(url);
   return new Promise((resolve, reject) => {
-    const req = https.request(url, {
-      headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ...headers }
-    }, (res) => {
+    const reqHeaders = { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ..._esiCompatHeader(url), ...headers };
+    if (cached?.etag) reqHeaders['If-None-Match'] = cached.etag;
+    const req = https.request(url, { headers: reqHeaders }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
@@ -1748,7 +1862,13 @@ async function httpGet(url, headers = {}) {
             { retryAfter, isRateLimit: true }
           ));
         }
+        // Not Modified — the ETag we sent still matches, reuse the stored body
+        // instead of parsing the (deliberately empty) 304 response.
+        if (res.statusCode === 304 && cached) {
+          try { return resolve(JSON.parse(cached.body)); } catch { /* corrupt cache entry — fall through */ }
+        }
         if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
+        if (res.headers['etag']) _writeEtagEntry(url, { etag: res.headers['etag'], body: data });
         try { resolve(JSON.parse(data)); } catch { reject(new Error('JSON parse error')); }
       });
     });
@@ -1763,10 +1883,11 @@ async function httpGet(url, headers = {}) {
 // Returns: { data: parsedBody, xPages: number }
 async function httpGetFull(url, headers = {}) {
   await _esiGateWait(url);
+  const cached = _readEtagEntry(url);
   return new Promise((resolve, reject) => {
-    const req = https.request(url, {
-      headers: { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ...headers }
-    }, (res) => {
+    const reqHeaders = { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ..._esiCompatHeader(url), ...headers };
+    if (cached?.etag) reqHeaders['If-None-Match'] = cached.etag;
+    const req = https.request(url, { headers: reqHeaders }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
@@ -1779,11 +1900,16 @@ async function httpGetFull(url, headers = {}) {
             { retryAfter, isRateLimit: true }
           ));
         }
+        if (res.statusCode === 304 && cached) {
+          try { return resolve({ data: JSON.parse(cached.body), xPages: cached.xPages ?? 1 }); } catch { /* corrupt cache entry — fall through */ }
+        }
         if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
+        const xPages = parseInt(res.headers['x-pages'] || '1', 10);
+        if (res.headers['etag']) _writeEtagEntry(url, { etag: res.headers['etag'], body: data, xPages });
         try {
           resolve({
-            data:   JSON.parse(data),
-            xPages: parseInt(res.headers['x-pages'] || '1', 10),
+            data: JSON.parse(data),
+            xPages,
           });
         } catch { reject(new Error('JSON parse error')); }
       });
@@ -1825,7 +1951,13 @@ async function httpGetFullWithRetry(url, headers = {}, maxRetries = 3) {
   }
 }
 
-function httpPost(url, body, headers = {}, formEncoded = false) {
+async function httpPost(url, body, headers = {}, formEncoded = false) {
+  // Was never gated or identified with X-Compatibility-Date — fine for the
+  // SSO token endpoint (not ESI), but this is also used for real ESI POSTs
+  // (bulk name resolution, fittings), which need the same treatment as
+  // httpGet/httpGetFull. _esiGateWait/_esiCompatHeader/_esiNoteResponse are
+  // all already scoped to esi.evetech.net only, so this is a no-op for SSO.
+  await _esiGateWait(url);
   return new Promise((resolve, reject) => {
     const postData = formEncoded ? body : JSON.stringify(body);
     const urlObj = new URL(url);
@@ -1839,12 +1971,22 @@ function httpPost(url, body, headers = {}, formEncoded = false) {
         'Content-Length': Buffer.byteLength(postData),
         'Accept': 'application/json',
         'Host': urlObj.hostname,
+        ..._esiCompatHeader(url),
         ...headers
       }
     }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
+        _esiNoteResponse(url, res);
+        if (res.statusCode === 429 || res.statusCode === 420) {
+          const retryAfter = parseInt(res.headers['retry-after'] || res.headers['x-esi-error-limit-reset'] || '60', 10);
+          if (res.statusCode === 429) _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + retryAfter * 1000);
+          return reject(Object.assign(
+            new Error(`HTTP ${res.statusCode}: ${url}`),
+            { retryAfter, isRateLimit: true }
+          ));
+        }
         if (res.statusCode >= 400) return reject(new Error(`HTTP POST ${res.statusCode}: ${url} — ${data}`));
         try { resolve(JSON.parse(data)); } catch { reject(new Error('JSON parse error')); }
       });
@@ -2984,10 +3126,11 @@ async function resolveNames(ids) {
 }
  
 // ─── SDE update helpers ───────────────────────────────────────────────────────
-// Fuzzwork now ships the SDE as a gzip'd sqlite db and no longer publishes a
-// .md5 sidecar, so the up-to-date check uses the remote Last-Modified header as
-// an opaque version token (stored in sde.md5 for path compatibility).
-const SDE_DUMP_URL = 'https://www.fuzzwork.co.uk/dump/latest-sqlite.db.gz';
+// CCP now ships the SDE as a JSONL export (developers.eveonline.com/static-data
+// — Fuzzwork's sqlite dump is no longer the source). Version check uses the
+// SDE manifest's buildNumber, stored in sde.md5 for path compatibility with
+// the rest of the app. Fetch/extract/convert logic lives in src/sde_fetch.js +
+// src/sde_build.js (shared with scripts/fetch-sde.js, the CI/dev build step).
 
 function getSdeMd5Path() {
   const devPath  = path.join(__dirname, 'data', 'sde.md5');
@@ -2995,99 +3138,39 @@ function getSdeMd5Path() {
   return app.isPackaged ? prodPath : devPath;
 }
 
-async function fetchRemoteSdeMd5() {
-  return new Promise((resolve, reject) => {
-    https.request(SDE_DUMP_URL, {
-      method: 'HEAD',
-      headers: { 'User-Agent': APP_USER_AGENT }
-    }, (res) => {
-      res.resume(); // drain
-      if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
-      const token = res.headers['last-modified'] || res.headers['etag'] || null;
-      if (!token) return reject(new Error('no version header'));
-      resolve(token);
-    }).on('error', reject).end();
-  });
-}
-
 // sde-check-update → { upToDate, remoteMd5, localMd5 }
+// (field names kept as *Md5 for renderer compatibility; the value is now the
+// SDE build number, not an MD5 — see comment above.)
 ipcHandle('sde-check-update', async () => {
   try {
-    const remoteMd5 = await fetchRemoteSdeMd5();
+    const manifest = await sdeFetch.fetchManifest(APP_USER_AGENT);
+    const remoteMd5 = String(manifest.buildNumber);
     let localMd5 = null;
-    try { localMd5 = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* no local md5 yet */ }
+    try { localMd5 = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* no local version yet */ }
     return { upToDate: remoteMd5 === localMd5, remoteMd5, localMd5 };
   } catch (e) {
     return { error: e.message };
   }
 });
 
-// sde-download-update — streams the gzip dump, decompresses, replaces sde.sql,
+// sde-download-update — downloads CCP's JSONL export, converts it to sde.sql,
 // saves the version token. Sends 'sde-update-progress' push events: { stage, percent }
 ipcHandle('sde-download-update', async (event) => {
-  const sdePath  = getSdePath();
-  const md5Path  = getSdeMd5Path();
-  const win      = BrowserWindow.fromWebContents(event.sender);
-  const push     = (stage, percent) => {
+  const sdePath = getSdePath();
+  const md5Path = getSdeMd5Path();
+  const win     = BrowserWindow.fromWebContents(event.sender);
+  const push    = (stage, percent) => {
     if (win && !win.isDestroyed()) win.webContents.send('sde-update-progress', { stage, percent });
   };
 
   try {
-    push('Fetching version info…', 0);
-    const remoteMd5 = await fetchRemoteSdeMd5();
-
-    push('Downloading SDE…', 5);
-
-    // Ensure data directory exists
-    const dataDir = path.dirname(sdePath);
-    if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-    // Download + decompress using Node's https (no axios at runtime)
-    await new Promise((resolve, reject) => {
-      const zlib    = require('zlib');
-      const tmpPath = sdePath + '.tmp';
-      const writer  = fs.createWriteStream(tmpPath);
-
-      https.request(SDE_DUMP_URL, {
-        headers: { 'User-Agent': APP_USER_AGENT }
-      }, (res) => {
-        if (res.statusCode >= 400) {
-          writer.destroy();
-          return reject(new Error(`HTTP ${res.statusCode}`));
-        }
-
-        const totalBytes = parseInt(res.headers['content-length'] || '0', 10);
-        let downloaded   = 0;
-        let lastPct      = 5;
-
-        res.on('data', chunk => {
-          downloaded += chunk.length;
-          if (totalBytes > 0) {
-            const pct = Math.round(5 + (downloaded / totalBytes) * 85);
-            if (pct !== lastPct) { push('Downloading SDE…', pct); lastPct = pct; }
-          }
-        });
-
-        const gunzip = zlib.createGunzip();
-        gunzip.on('error', (e) => { try { fs.unlinkSync(tmpPath); } catch { /* ignore */ } reject(e); });
-        res.pipe(gunzip).pipe(writer);
-
-        writer.on('finish', () => {
-          // Atomically replace the live file
-          try { fs.renameSync(tmpPath, sdePath); } catch (e) {
-            fs.copyFileSync(tmpPath, sdePath);
-            try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
-          }
-          resolve();
-        });
-        writer.on('error', (e) => { try { fs.unlinkSync(tmpPath); } catch { /* ignore */ } reject(e); });
-        res.on('error', reject);
-      }).on('error', reject).end();
+    const manifest = await sdeFetch.fetchAndBuildSde({
+      userAgent: APP_USER_AGENT,
+      outSqlitePath: sdePath,
+      onProgress: (stage, pct) => push(stage, pct ?? undefined),
     });
 
-    push('Saving version info…', 92);
-    fs.writeFileSync(md5Path, remoteMd5, 'utf8');
-
+    fs.writeFileSync(md5Path, String(manifest.buildNumber), 'utf8');
     push('Done', 100);
     return { success: true };
   } catch (e) {

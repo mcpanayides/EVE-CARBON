@@ -1,12 +1,35 @@
 'use strict';
 
+const { app } = require('electron');
+const fs   = require('fs');
+const path = require('path');
+
 const ESI_BASE     = 'https://esi.evetech.net';
 const IHUB_TYPE_ID = 35833; // Infrastructure Hub — proxy for jump bridge access
 
 // In-process cache for SDE data (never changes at runtime)
 let _galaxyCache = null;
 
+// Hand-curated Modern-map layout (the in-app layout editor writes this).
+// When present it wins over the algorithmic layout wholesale.
+const _modernLayoutPath = () => path.join(app.getPath('userData'), 'modern-map-layout.json');
+
 function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb }) {
+
+  // ── Custom Modern-map layout: persist / load / reset ───────────────────────
+  ipcHandle('modern-layout-get', async () => {
+    try { return JSON.parse(fs.readFileSync(_modernLayoutPath(), 'utf8')); }
+    catch (_) { return null; }   // no custom layout saved yet
+  });
+  ipcHandle('modern-layout-save', async (_, layout) => {
+    if (!layout || typeof layout !== 'object' || !layout.systems) return false;
+    fs.writeFileSync(_modernLayoutPath(), JSON.stringify(layout));
+    return true;
+  });
+  ipcHandle('modern-layout-reset', async () => {
+    try { fs.unlinkSync(_modernLayoutPath()); } catch (_) {}
+    return true;
+  });
 
   // ── Alliance-space incursion alert (dashboard widget) ─────────────────────
   // Given the character's allianceId, returns every incursion-infested system
@@ -148,11 +171,12 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
 
     const [systems, jumps, regRows] = await Promise.all([
       db.all(
-        `SELECT solarSystemID  AS id,
+        `SELECT solarSystemID   AS id,
                 solarSystemName AS name,
                 x, y, z,
                 security        AS sec,
                 regionID        AS regionId,
+                constellationID AS constellationId,
                 factionID       AS factionId
          FROM   mapSolarSystems`
       ),

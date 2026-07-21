@@ -37,7 +37,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   startSSOLogin: ()    => ipcRenderer.invoke('start-sso-login'),
 
   // Dashboard data
-  esiFetch:              (url)                      => ipcRenderer.invoke('esi-fetch', url),
+  esiFetch:              (url, options)             => ipcRenderer.invoke('esi-fetch', url, options),
   httpGetText:           (url)                      => ipcRenderer.invoke('http-get-text', url),
   forumLogin:            (baseUrl)                  => ipcRenderer.invoke('forum-login', baseUrl),
   forumSessionStatus:    ()                         => ipcRenderer.invoke('forum-session-status'),
@@ -87,6 +87,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterActiveJobs:    (characterId)             => ipcRenderer.invoke('get-character-active-jobs', characterId),
   getCorpActiveJobs:         (characterId)             => ipcRenderer.invoke('get-corp-active-jobs', characterId),
   getZkillStats:             (characterId)             => ipcRenderer.invoke('get-zkill-stats', characterId),
+  modernLayoutGet:           ()                        => ipcRenderer.invoke('modern-layout-get'),
+  modernLayoutSave:          (layout)                  => ipcRenderer.invoke('modern-layout-save', layout),
+  modernLayoutReset:         ()                        => ipcRenderer.invoke('modern-layout-reset'),
   setAutopilotDestination:   (characterId, systemId)   => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
   setAutopilotRoute:         (characterId, systemIds)  => ipcRenderer.invoke('set-autopilot-route', { characterId, systemIds }),
 

@@ -36,7 +36,7 @@ let _selected    = null;
 let _overlay     = 'security';
 let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + IHUB diamonds) on by default
 let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
-let _viewMode    = 'classic'; // 'classic' (current look) | 'modern' (flat DOTLAN-style)
+let _viewMode    = 'modern'; // 'classic' (original look) | 'modern' (flat DOTLAN-style, default)
 
 // Modern "region view" (prototype): when set, the Modern view shows a single region
 // laid out from its gate graph (DOTLAN-style), NOT the flattened 3D galaxy.
@@ -92,12 +92,14 @@ let _whAdj       = null;   // id → [neighbour ids] via EvE-Scout wormhole conn
 let _whConns     = null;   // raw EvE-Scout connection list (metadata for the route table)
 let _whLoaded    = false;
 let _pochvenRegionId;      // region id for Pochven (Triglavian) — drawn as triangles
+let _exordiumRegionId;     // region id for Exordium (newbie space) — modern-view colour + placement
 let _sgLastPath  = null;   // last Stargate-planner route (for minimise redraw)
 let _sgAltRoutes = null;   // last computed alternative routes [{path,cost},…]
 let _sgNameIndex = null;   // lowercase system name → id (planner autocomplete)
 let _youHereId       = null;   // current character's system id ("you are here")
 
 // ── Official EVE security-status colours ──────────────────────────────────────
+// Classic view's security ramp — UNCHANGED original colours.
 function _secColor(sec) {
   if (sec === null || sec === undefined) return '#282828';
   if (sec < -0.9)  return '#282828'; // w-space / j-space
@@ -113,6 +115,26 @@ function _secColor(sec) {
   if (sec <  0.85) return '#00ef47';
   if (sec <  0.95) return '#48f0c0';
   return '#2effff';
+}
+
+// MODERN view's security ramp — CCP flat-map colour language: 1.0 blue →
+// 0.5 yellow at the hi-sec boundary → low-sec ambers/reds → nullsec a muted
+// rose/magenta (not alarm-red; null is most of the map, and rose keeps the
+// picture calm the way the in-game flattened map does). Classic is untouched.
+function _secColorModern(sec) {
+  if (sec === null || sec === undefined) return '#282828';
+  if (sec < -0.9)  return '#282828'; // w-space / j-space
+  if (sec <= 0.05) return '#b0487c'; // nullsec — rose
+  if (sec <  0.15) return '#8b2434';
+  if (sec <  0.25) return '#c02818';
+  if (sec <  0.35) return '#d4550f';
+  if (sec <  0.45) return '#e08a28';
+  if (sec <  0.55) return '#eff17a'; // 0.5 boundary — hi-sec starts
+  if (sec <  0.65) return '#a4e25e';
+  if (sec <  0.75) return '#5fd6a0';
+  if (sec <  0.85) return '#54c8f0';
+  if (sec <  0.95) return '#4a9be0';
+  return '#3a7bd5';
 }
 
 // ── Faction palette for sovereignty overlay ───────────────────────────────────
@@ -607,7 +629,32 @@ function _systemColor(s) {
     case 'fnf':         return _fnfColor(s);
     case 'incursions':  return _incSet.has(s.id) ? '#dd44aa' : '#1c1c28';
     case 'security':
-    default:            return _secColor(s.sec);
+    default:
+      if (_viewMode === 'modern') {
+        _resolveSpecialRegionIds();
+        // Pochven reads as nullsec (its raw sec of −1 would hit the grey
+        // w-space branch); Exordium is newbie space — deeper blue than 1.0.
+        if (s.regionId === _pochvenRegionId)  return '#b0487c';
+        if (s.regionId === _exordiumRegionId) return '#2456a8';
+        return _secColorModern(s.sec);
+      }
+      return _secColor(s.sec);
+  }
+}
+
+// Resolve the special region ids once (shared by classic glyphs + modern colours).
+function _resolveSpecialRegionIds() {
+  if (_pochvenRegionId === undefined) {
+    _pochvenRegionId = null;
+    for (const [rid, name] of Object.entries(_regions)) {
+      if (name === 'Pochven') { _pochvenRegionId = Number(rid); break; }
+    }
+  }
+  if (_exordiumRegionId === undefined) {
+    _exordiumRegionId = null;
+    for (const [rid, name] of Object.entries(_regions)) {
+      if (name === 'Exordium') { _exordiumRegionId = Number(rid); break; }
+    }
   }
 }
 
@@ -854,7 +901,28 @@ function _buildRegionLayout(regionId) {
 // The whole galaxy laid out with each region's clean modern cluster placed at its
 // CLASSIC centroid and rotated to the region's classic stretch direction (so the
 // overall shape still reads like the classic map). Built once, cached.
-let _galaxyModern = null;   // { gpos:Map(id→{x,z}), labels:[{regionId,name,x,z}] }
+let _galaxyModern = null;   // { gpos:Map(id→{x,z}), labels:[{regionId,name,x,z}], pitch }
+
+// ── Modern layout: hand-curated (saved) vs algorithmic ────────────────────────
+// The in-app layout editor that used to write these is gone (the layout is
+// finished — see modern-map-layout.json), but loading + applying a
+// previously-saved layout still lives here permanently: it wins over the
+// algorithm wholesale, every load, via _buildGalaxyModern() below.
+let _savedModernLayout = null;    // parsed userData layout (null = algorithmic)
+
+function _modernLayoutFromSaved(saved) {
+  try {
+    if (!saved || !saved.systems) return null;
+    const gpos = new Map();
+    for (const [id, xz] of Object.entries(saved.systems)) {
+      if (Array.isArray(xz) && xz.length === 2) gpos.set(Number(id), { x: xz[0], z: xz[1] });
+    }
+    if (!gpos.size) return null;
+    const labels = Array.isArray(saved.labels) ? saved.labels : [];
+    console.log(`[map] modern layout: using CUSTOM saved layout (${gpos.size} systems)`);
+    return { gpos, labels, pitch: Number(saved.pitch) || 22 };
+  } catch (_) { return null; }
+}
 
 // Dominant-axis angle of a point cloud (2-D PCA) — used to orient each cluster.
 function _pcaAngle(pts) {
@@ -865,36 +933,362 @@ function _pcaAngle(pts) {
   return 0.5 * Math.atan2(2 * cxz, cxx - czz);
 }
 
-function _buildGalaxyModern() {
-  if (_galaxyModern) return _galaxyModern;
-  const gpos = new Map(), labels = [];
-  const rids = Object.keys(_regionCentroids).map(Number).filter(r => r < 11000000 && _regions[r]);
-  // Nearest-neighbour centroid distance → each region's space budget.
-  const nn = new Map();
-  for (const r of rids) {
-    const c = _regionCentroids[r]; let best = Infinity;
-    for (const o of rids) { if (o === r) continue; const co = _regionCentroids[o]; const d = Math.hypot(c.wx - co.wx, c.wz - co.wz); if (d < best) best = d; }
-    nn.set(r, isFinite(best) ? best : 600);
+// Per-region force layout — the reference 2D-mode look. Springs pull EVERY
+// gate link toward one uniform rest length (so squares render as squares and
+// chains as even ladders), a spatial-hash collision pass keeps systems from
+// touching, and seeding from the true star positions keeps the drawing nearly
+// crossing-free. Returns Map(id → {x, z}) in rest-length units, centred.
+function _regionForceLayout(ids, adjAll) {
+  const out = new Map();
+  const n = ids.length;
+  if (!n) return out;
+  const index = new Map(ids.map((id, i) => [id, i]));
+
+  // Seed from true positions, scaled so the median gate edge starts near 1.
+  const px = new Float64Array(n), pz = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const s = _sysById[ids[i]];
+    px[i] = s ? s.wx : 0; pz[i] = s ? s.wz : 0;
   }
-  for (const r of rids) {
-    const { sys, pos } = _computeRegionPositions(r);
-    if (!pos.size) continue;
-    let lr = 1; for (const p of pos.values()) lr = Math.max(lr, Math.hypot(p.x, p.z));
-    const ang = _pcaAngle(sys.map(s => ({ x: s.wx, z: s.wz }))) - Math.PI / 2;   // local spine is +z
-    const cos = Math.cos(ang), sin = Math.sin(ang);
-    // Cluster radius as a fraction of the distance to the nearest region. Lower =
-    // smaller, tighter clusters with clearer gaps between regions. (Stays well under
-    // 0.5, so clusters never overlap.)
-    const REGION_FILL = 0.22;
-    const scale = (REGION_FILL * nn.get(r)) / lr;
-    const c = _regionCentroids[r];
-    for (const [id, p] of pos) {
-      const rx = p.x * cos - p.z * sin, rz = p.x * sin + p.z * cos;
-      gpos.set(id, { x: c.wx + rx * scale, z: c.wz + rz * scale });
+  const ea = [], eb = [];
+  for (let i = 0; i < n; i++) {
+    for (const v of (adjAll.get(ids[i]) || [])) {
+      const j = index.get(v);
+      if (j !== undefined && j > i) { ea.push(i); eb.push(j); }
     }
-    labels.push({ regionId: r, name: _regions[r], x: c.wx, z: c.wz });
   }
-  _galaxyModern = { gpos, labels };
+  const seedLens = ea.map((a, e) => Math.hypot(px[eb[e]] - px[a], pz[eb[e]] - pz[a])).sort((x, y) => x - y);
+  const med = seedLens.length ? (seedLens[Math.floor(seedLens.length / 2)] || 1) : 1;
+  for (let i = 0; i < n; i++) { px[i] /= med; pz[i] /= med; }
+
+  const MIND = 0.8;   // no two systems closer than 80% of an edge length
+  for (let it = 0; it < 220; it++) {
+    const step = 0.05 + 0.25 * (1 - it / 220);   // cooling
+    // Uniform-length springs (both directions: long edges contract, short expand).
+    for (let e = 0; e < ea.length; e++) {
+      const a = ea[e], b = eb[e];
+      let dx = px[b] - px[a], dz = pz[b] - pz[a];
+      const d = Math.hypot(dx, dz) || 0.001;
+      const f = ((d - 1) / d) * 0.5 * step;
+      dx *= f; dz *= f;
+      px[a] += dx; pz[a] += dz; px[b] -= dx; pz[b] -= dz;
+    }
+    // Collision repulsion via spatial hash (only neighbouring cells checked).
+    const cell = new Map();
+    for (let i = 0; i < n; i++) {
+      const k = Math.round(px[i]) + ':' + Math.round(pz[i]);
+      const bucket = cell.get(k);
+      if (bucket) bucket.push(i); else cell.set(k, [i]);
+    }
+    for (let i = 0; i < n; i++) {
+      const cx0 = Math.round(px[i]), cz0 = Math.round(pz[i]);
+      for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
+        const bucket = cell.get((cx0 + gx) + ':' + (cz0 + gz));
+        if (!bucket) continue;
+        for (const j of bucket) {
+          if (j <= i) continue;
+          let dx = px[j] - px[i], dz = pz[j] - pz[i];
+          const d = Math.hypot(dx, dz) || 0.001;
+          if (d >= MIND) continue;
+          const f = ((MIND - d) / d) * 0.5 * step;
+          dx *= f; dz *= f;
+          px[i] -= dx; pz[i] -= dz; px[j] += dx; pz[j] += dz;
+        }
+      }
+    }
+  }
+
+  // ── Rectification — the reference's "clean" look ──────────────────────────
+  // Snap every node onto the integer grid (high-degree hubs first, spiralling
+  // to the nearest free cell on collision). Gate neighbours end up 1 cell or a
+  // diagonal apart, so edges render as straight horizontals / verticals / 45°s
+  // instead of the organic squiggle the raw force layout produces.
+  const keyOf = (gx, gz) => gx + ':' + gz;
+  const taken = new Map();
+  const degree = new Array(n).fill(0);
+  for (let e = 0; e < ea.length; e++) { degree[ea[e]]++; degree[eb[e]]++; }
+  const orderIdx = [...Array(n).keys()].sort((a, b) => degree[b] - degree[a]);
+  for (const i of orderIdx) {
+    let gx = Math.round(px[i]), gz = Math.round(pz[i]);
+    if (taken.has(keyOf(gx, gz))) {
+      let found = false;
+      for (let r = 1; r <= 6 && !found; r++) {
+        for (let dx = -r; dx <= r && !found; dx++) {
+          for (let dz = -r; dz <= r && !found; dz++) {
+            if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+            if (!taken.has(keyOf(gx + dx, gz + dz))) { gx += dx; gz += dz; found = true; }
+          }
+        }
+      }
+    }
+    taken.set(keyOf(gx, gz), i);
+    px[i] = gx; pz[i] = gz;
+  }
+
+  // Greedy octilinear polish: nudge each node into a neighbouring free cell
+  // when that makes its edges shorter and closer to the 8 compass directions.
+  const inc = Array.from({ length: n }, () => []);
+  for (let e = 0; e < ea.length; e++) { inc[ea[e]].push(e); inc[eb[e]].push(e); }
+  const EIGHTH = Math.PI / 4;
+  const nodeCost = (i, x, z) => {
+    let c = 0;
+    for (const e of inc[i]) {
+      const j = ea[e] === i ? eb[e] : ea[e];
+      const dx = px[j] - x, dz = pz[j] - z;
+      const d = Math.hypot(dx, dz) || 0.001;
+      c += Math.abs(d - 1);                                        // uniform length
+      const a = Math.atan2(dz, dx);
+      c += Math.abs(a - Math.round(a / EIGHTH) * EIGHTH) * 0.8;    // octilinearity
+    }
+    return c;
+  };
+  const DIRS8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  for (let sweep = 0; sweep < 3; sweep++) {
+    for (const i of orderIdx) {
+      let bestX = px[i], bestZ = pz[i], bestC = nodeCost(i, px[i], pz[i]);
+      for (const [dx, dz] of DIRS8) {
+        const nx = px[i] + dx, nz = pz[i] + dz;
+        if (taken.has(keyOf(nx, nz))) continue;
+        const c = nodeCost(i, nx, nz);
+        if (c < bestC - 1e-6) { bestC = c; bestX = nx; bestZ = nz; }
+      }
+      if (bestX !== px[i] || bestZ !== pz[i]) {
+        taken.delete(keyOf(px[i], pz[i]));
+        taken.set(keyOf(bestX, bestZ), i);
+        px[i] = bestX; pz[i] = bestZ;
+      }
+    }
+  }
+
+  let mx = 0, mz = 0;
+  for (let i = 0; i < n; i++) { mx += px[i]; mz += pz[i]; }
+  mx /= n; mz /= n;
+  for (let i = 0; i < n; i++) out.set(ids[i], { x: px[i] - mx, z: pz[i] - mz });
+  return out;
+}
+
+// Pochven is one 27-system ring (three Triglavian clades) — the force layout
+// draws it as a wobbly loop. Present it as the iconic triangle instead:
+// Kino at the top, Niarja right, Archee left, the rest spaced evenly along
+// the sides by walking the actual gate ring. Returns Map(id → {x,z}) in world
+// units, or null when the ring/corners can't be resolved (→ force layout).
+function _pochvenTriangleLayout(sys, GRID_UNIT) {
+  const byName = new Map(sys.map(s => [String(s.name || '').trim().toLowerCase(), s]));
+  const kino = byName.get('kino'), niarja = byName.get('niarja'), archee = byName.get('archee');
+  if (!kino || !niarja || !archee) return null;
+
+  // Ring order = ANGULAR order around the region centroid. Pochven's gate
+  // graph has extra chords at the clade borders (the corner knots in the
+  // reference), which dead-end a naive graph walk — but the seed positions
+  // already form a clean ring, so geometry gives the cycle robustly.
+  let cx = 0, cz = 0;
+  for (const s of sys) { cx += s.wx; cz += s.wz; }
+  cx /= sys.length; cz /= sys.length;
+  const ordered = [...sys].sort((a, b) =>
+    Math.atan2(a.wz - cz, a.wx - cx) - Math.atan2(b.wz - cz, b.wx - cx));
+
+  let seq = ordered.map(s => s.id);
+  const rot = seq.indexOf(kino.id);
+  seq = [...seq.slice(rot), ...seq.slice(0, rot)];
+  if (seq.indexOf(niarja.id) > seq.indexOf(archee.id)) {
+    seq = [seq[0], ...seq.slice(1).reverse()];
+  }
+  const jN = seq.indexOf(niarja.id), jA = seq.indexOf(archee.id);
+  if (jN <= 0 || jA <= jN) return null;
+
+  const Rr = (sys.length / 3) * GRID_UNIT * 0.9;      // circumradius — roomy, clean sides
+  const C = [
+    { x: 0,            z: -Rr       },   // Kino — top
+    { x: Rr * 0.866,   z: Rr * 0.5  },   // Niarja — right
+    { x: -Rr * 0.866,  z: Rr * 0.5  },   // Archee — left
+  ];
+  const pos = new Map();
+  const side = (from, to, a, b, includeEnd) => {
+    const steps = to - from + (includeEnd ? 0 : 1);
+    for (let k = 0; k <= to - from; k++) {
+      const t = steps ? k / steps : 0;
+      pos.set(seq[from + k], { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+    }
+  };
+  side(0,  jN, C[0], C[1], true);                 // Kino → Niarja
+  side(jN, jA, C[1], C[2], true);                 // Niarja → Archee
+  side(jA, seq.length - 1, C[2], C[0], false);    // Archee → (short of) Kino
+
+  let mx = 0, mz = 0;
+  for (const p of pos.values()) { mx += p.x; mz += p.z; }
+  mx /= pos.size; mz /= pos.size;
+  for (const p of pos.values()) { p.x -= mx; p.z -= mz; }
+  return pos;
+}
+
+function _buildGalaxyModern() {
+  // Only trust the cache once it actually has content. _onResize() can call
+  // this (via _fitGalaxyModern) from a ResizeObserver callback that fires as
+  // soon as the map viewport gets laid out — which can happen before galaxy
+  // data (and _regionCentroids) has finished loading. Without this guard, that
+  // premature call would build an empty result and cache it permanently (the
+  // real data loading afterwards would never re-trigger a rebuild), which is
+  // exactly what a blank Modern map with no systems/regions/hint text was.
+  if (_galaxyModern && _galaxyModern.gpos.size) return _galaxyModern;
+  // A hand-curated saved layout (the in-app editor) beats the algorithm.
+  const custom = _modernLayoutFromSaved(_savedModernLayout);
+  if (custom) { _galaxyModern = custom; return _galaxyModern; }
+  console.log('[map] modern flat layout v9 — Pochven rose, Exordium newbie-blue pinned below');
+  const gpos = new Map(), labels = [];
+  // The three Jove regions are unreachable by players and render as degenerate
+  // streaks — the reference map filters them out too.
+  const JOVE = new Set(['A821-A', 'J7HZ-F', 'UUA-F4']);
+  const rids = Object.keys(_regionCentroids).map(Number)
+    .filter(r => r < 11000000 && _regions[r] && !JOVE.has(_regions[r]));
+
+  // CCP flat-map look (in-game "flattened" style):
+  //   • one dot pitch everywhere (GRID_UNIT) — a region's footprint follows its
+  //     system count, never the local crowding;
+  //   • systems arranged as per-CONSTELLATION mini-grids, packed around the
+  //     region centre, so every region reads as a knot of small tidy clumps;
+  //   • regions pushed apart until the voids between clusters are proportional
+  //     to the clusters themselves (the "islands in space" texture), with a
+  //     gentle homing pull so New Eden's overall geography survives.
+  const GRID_UNIT = 22;   // world units between adjacent systems, everywhere
+
+  // Global k-space gate adjacency (feeds every constellation mini-grid).
+  const adjAll = new Map();
+  for (const j of _jumps) {
+    const a = _sysById[j.from], b = _sysById[j.to];
+    if (!a || !b) continue;
+    if (!adjAll.has(j.from)) adjAll.set(j.from, []);
+    adjAll.get(j.from).push(j.to);
+  }
+
+  // 1) Per region: constellation clumps → local relaxation into one cluster.
+  const clusters = [];
+  for (const r of rids) {
+    const sys = _systems.filter(s => s.regionId === r && s.id < 31000000);
+    if (!sys.length) continue;
+
+    // One force layout over the whole region: every gate edge relaxes to the
+    // same length, so the region reads as a single clean circuit diagram
+    // (constellations emerge as natural knots because the seed positions and
+    // gate topology already cluster them — no explicit clump machinery).
+    // Pochven is special-cased: its 27-system gate ring renders as the iconic
+    // triangle (Kino top, Niarja right, Archee left) instead of a wobbly loop.
+    const local = new Map();
+    let rad = 1;
+    const triangle = (_regions[r] === 'Pochven') ? _pochvenTriangleLayout(sys, GRID_UNIT) : null;
+    if (_regions[r] === 'Pochven') console.log('[map] Pochven triangle:', triangle ? 'applied' : 'FELL BACK to force layout');
+    if (triangle) {
+      for (const [id, p] of triangle) {
+        local.set(id, p);
+        rad = Math.max(rad, Math.hypot(p.x, p.z));
+      }
+    } else {
+      const layout = _regionForceLayout(sys.map(s => s.id), adjAll);
+      for (const [id, p] of layout) {
+        const rx = p.x * GRID_UNIT, rz = p.z * GRID_UNIT;
+        local.set(id, { x: rx, z: rz });
+        rad = Math.max(rad, Math.hypot(rx, rz));
+      }
+    }
+    const c = _regionCentroids[r];
+    clusters.push({ r, local, rad, x: c.wx, z: c.wz, ox: c.wx, oz: c.wz });
+  }
+
+  // 2) Relaxation: separate clusters until the void between any two regions is
+  //    proportional to their size — just enough to island every region while
+  //    the clusters dominate the canvas. Mild homing keeps New Eden's shape.
+  const need = (A, B) => (A.rad + B.rad) * 0.30 + 36;
+  // Runs pair separation until a full sweep moves nothing (true convergence) or
+  // the cap is hit. Returns true when fully separated — the fixed-count version
+  // stopped mid-untangle after compaction, which is what left empire regions
+  // interleaved on screen.
+  const separate = (homing, maxIterations) => {
+    for (let it = 0; it < maxIterations; it++) {
+      let moved = false;
+      for (let i = 0; i < clusters.length; i++) {
+        for (let j = i + 1; j < clusters.length; j++) {
+          const A = clusters[i], B = clusters[j];
+          const target = need(A, B);
+          let dx = B.x - A.x, dz = B.z - A.z;
+          const d = Math.hypot(dx, dz) || 0.001;
+          if (d >= target) continue;
+          const push = ((target - d) / 2) / d;
+          dx *= push; dz *= push;
+          A.x -= dx; A.z -= dz; B.x += dx; B.z += dz;
+          moved = true;
+        }
+      }
+      if (homing) { for (const c of clusters) { c.x += (c.ox - c.x) * 0.01; c.z += (c.oz - c.z) * 0.01; } }
+      else if (!moved) return true;
+    }
+    return false;
+  };
+  separate(true, 240);    // geography-preserving spread
+
+  // 3) Compaction: pure separation leaves the cloud at its inflated initial
+  //    spread — pockets of dead air everywhere. Alternately nudge every cluster
+  //    toward the cloud's centre and re-separate; equilibrium is the tightest
+  //    packing the required gaps allow, while relative geography survives.
+  // Fewer, gentler rounds than before: aggressive compaction buried the empire
+  // core (central clusters can't move — inbound neighbours pile onto them).
+  for (let round = 0; round < 14; round++) {
+    let cx = 0, cz = 0;
+    for (const c of clusters) { cx += c.x; cz += c.z; }
+    cx /= clusters.length; cz /= clusters.length;
+    for (const c of clusters) { c.x += (cx - c.x) * 0.04; c.z += (cz - c.z) * 0.04; }
+    separate(false, 60);
+  }
+  // Final pass MUST reach zero overlap — run to convergence, generous cap.
+  separate(false, 2000);
+
+  // 4) Manual placement: Exordium (newbie space) sits directly BELOW Pochven
+  //    with a little air. Both are pinned; every other cluster yields, so the
+  //    no-overlap guarantee holds around the pair.
+  const pochIdx = clusters.findIndex(c => _regions[c.r] === 'Pochven');
+  const exoIdx  = clusters.findIndex(c => _regions[c.r] === 'Exordium');
+  if (pochIdx >= 0 && exoIdx >= 0) {
+    const P = clusters[pochIdx], E = clusters[exoIdx];
+    E.x = P.x;
+    E.z = P.z + P.rad + E.rad + 70;
+    const pinned = new Set([pochIdx, exoIdx]);
+    for (let it = 0; it < 800; it++) {
+      let moved = false;
+      for (let i = 0; i < clusters.length; i++) {
+        for (let j = i + 1; j < clusters.length; j++) {
+          if (pinned.has(i) && pinned.has(j)) continue;   // the pair keeps its manual gap
+          const A = clusters[i], B = clusters[j];
+          const target = need(A, B);
+          let dx = B.x - A.x, dz = B.z - A.z;
+          const d = Math.hypot(dx, dz) || 0.001;
+          if (d >= target) continue;
+          const push = (target - d) / d;
+          if (pinned.has(i))      { B.x += dx * push;     B.z += dz * push; }
+          else if (pinned.has(j)) { A.x -= dx * push;     A.z -= dz * push; }
+          else {
+            A.x -= dx * push / 2; A.z -= dz * push / 2;
+            B.x += dx * push / 2; B.z += dz * push / 2;
+          }
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
+  // 3) Refit the relaxed cloud into the world box and emit final positions.
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const c of clusters) {
+    minX = Math.min(minX, c.x - c.rad); maxX = Math.max(maxX, c.x + c.rad);
+    minZ = Math.min(minZ, c.z - c.rad); maxZ = Math.max(maxZ, c.z + c.rad);
+  }
+  const s = Math.min(_MAP_WORLD / ((maxX - minX) || 1), _MAP_WORLD / ((maxZ - minZ) || 1));
+  for (const c of clusters) {
+    const cx = (c.x - minX) * s, cz = (c.z - minZ) * s;
+    for (const [id, p] of c.local) gpos.set(id, { x: cx + p.x * s, z: cz + p.z * s });
+    labels.push({ regionId: c.r, name: _regions[c.r], x: cx, z: cz });
+  }
+  // Final dot pitch in world units — the renderer sizes dots from this so
+  // neighbouring systems can never merge into a blob at any refit scale.
+  _galaxyModern = { gpos, labels, pitch: GRID_UNIT * s };
   return _galaxyModern;
 }
 
@@ -919,9 +1313,193 @@ function _backToOverview() {
   _scheduleRender();
 }
 
+// ── Modern-view overlay drawers (galaxy overview + region view) ───────────────
+// Ports of the overlays classic's _render() draws (wormhole/jump-bridge arcs,
+// jump-bridge diamonds, stargate + capital routes) — feature parity for Modern,
+// which used to skip all of this. `posMap` is whichever Modern position Map the
+// caller is using (the overview's gp, or a region's layout); both are
+// Map(systemId → {x,z}) fed through the same _w2c() the classic path uses, just
+// with Modern's flattened coordinates instead of true positions. A system with
+// no entry in posMap (off in another region, or w-space not part of the current
+// layout) is simply skipped — same net effect as classic's explicit ID checks.
+function _drawModernWormholeArcs(ctx, W, H, posMap) {
+  if (!(_showWh && _whArcEdges && _whArcEdges.length)) return;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(0.8, Math.min(2.4, _zoom * 2.4));
+  ctx.strokeStyle = 'rgba(138,43,196,0.7)';
+  ctx.shadowColor = 'rgba(138,43,196,0.45)';
+  ctx.shadowBlur  = 4;
+  for (const [ida, idb] of _whArcEdges) {
+    const a = posMap.get(ida), b = posMap.get(idb);
+    if (!a || !b) continue;
+    const [ax, ay] = _w2c(a.x, a.z);
+    const [bx, by] = _w2c(b.x, b.z);
+    if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+        (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+    const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+    const arcH = Math.min(len * 0.16, 120);
+    const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+    const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(cpx, cpy, bx, by);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.lineCap = 'butt';
+}
+
+function _drawModernJumpBridgeArcs(ctx, W, H, posMap) {
+  if (!(_showJb && _savedBridges.length)) return;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(1, Math.min(3, _zoom * 3));
+  for (const [ida, idb] of _savedBridges) {
+    const a = posMap.get(ida), b = posMap.get(idb);
+    if (!a || !b) continue;
+    const [ax, ay] = _w2c(a.x, a.z);
+    const [bx, by] = _w2c(b.x, b.z);
+    if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
+        (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const arcH = Math.min(len * 0.18, 140);
+    const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+    const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(cpx, cpy, bx, by);
+    ctx.strokeStyle = 'rgba(64,220,130,0.85)';
+    ctx.shadowColor = 'rgba(64,220,130,0.55)';
+    ctx.shadowBlur  = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#40dc82';
+    const nub = Math.max(1.5, _zoom * 2.5);
+    for (const [ex, ey] of [[ax, ay], [bx, by]]) {
+      ctx.beginPath(); ctx.arc(ex, ey, nub, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.lineCap = 'butt';
+}
+
+// Stargate route (light blue) + capital jump route (pink arcs) — whichever
+// planner last produced a result, drawn exactly like classic's version.
+function _drawModernRoutes(ctx, W, H, posMap) {
+  if (_routeIds && _routeIds.length > 1) {
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(96,200,255,0.95)';
+    ctx.lineWidth   = Math.max(1.5, Math.min(4, _zoom * 4));
+    ctx.lineCap     = 'round';
+    for (let i = 1; i < _routeIds.length; i++) {
+      const a = posMap.get(_routeIds[i - 1]), b = posMap.get(_routeIds[i]);
+      if (!a || !b) continue;
+      const [ax, ay] = _w2c(a.x, a.z);
+      const [bx, by] = _w2c(b.x, b.z);
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+    }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+  if (_jumpRouteIds && _jumpRouteIds.length > 1) {
+    ctx.lineCap   = 'round';
+    ctx.lineWidth = Math.max(1.5, Math.min(4, _zoom * 4));
+    for (let i = 1; i < _jumpRouteIds.length; i++) {
+      const a = posMap.get(_jumpRouteIds[i - 1]), b = posMap.get(_jumpRouteIds[i]);
+      if (!a || !b) continue;
+      const [ax, ay] = _w2c(a.x, a.z);
+      const [bx, by] = _w2c(b.x, b.z);
+      const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
+      const arcH = Math.min(len * 0.18, 140);
+      const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
+      const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.strokeStyle = 'rgba(240,120,200,0.92)';
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  }
+}
+
+// Per-system markers drawn inline in the dot-drawing loop of both Modern
+// sub-views: the gold IHUB/jump-bridge diamond outline and the incursion ring.
+function _drawModernSystemMarkers(ctx, cx, cy, dotR, sysId) {
+  if (_showJb && _jbSet.has(sysId)) {
+    const d = dotR * 3;
+    ctx.beginPath();
+    ctx.moveTo(cx,     cy - d);
+    ctx.lineTo(cx + d, cy    );
+    ctx.lineTo(cx,     cy + d);
+    ctx.lineTo(cx - d, cy    );
+    ctx.closePath();
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth   = Math.max(0.5, dotR * 0.55);
+    ctx.stroke();
+  }
+  if (_overlay !== 'incursions' && _incSet.has(sysId)) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, dotR * 2.4, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(220,60,150,0.5)';
+    ctx.lineWidth   = Math.max(0.4, dotR * 0.5);
+    ctx.stroke();
+  }
+}
+
+// Route start/end/waypoint markers (reuses _drawRouteMarkers with a Modern
+// posOf), pending travel endpoints (start/destination set but no route
+// computed yet), and the "you are here" indicator — fresh code rather than
+// extracted from classic's _render(), so classic's existing block is never
+// touched. posMap is the caller's gp (overview) or layout (region).
+function _drawModernRouteExtras(ctx, W, H, posMap) {
+  const posOf = (s) => { const p = posMap.get(s.id); return p ? [p.x, p.z] : [s.wx, s.wz]; };
+
+  _drawRouteMarkers(ctx, W, H, _routeIds,     _routeWaypointIds,     '#60c8ff', '#9fd4ff', 7, -14, posOf);
+  _drawRouteMarkers(ctx, W, H, _jumpRouteIds, _jumpRouteWaypointIds, '#f078c8', '#ffb0e0', 9,  18, posOf);
+
+  for (const [pid, label, col] of [[_travelStart, 'start', '#4ee37a'], [_travelEnd, 'destination', '#e3a84d']]) {
+    if (!pid || (_routeIds && _routeIds.includes(pid)) || (_jumpRouteIds && _jumpRouteIds.includes(pid))) continue;
+    const s = _sysById[pid]; if (!s) continue;
+    const [wx, wz] = posOf(s);
+    const [cx, cy] = _w2c(wx, wz);
+    if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) continue;
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = col; ctx.font = 'bold 11px var(--mono, monospace)';
+    ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    ctx.fillText(`${s.name} (${label})`, cx, cy - 14);
+    ctx.shadowBlur = 0; ctx.textAlign = 'left';
+  }
+
+  if (_youHereId && _sysById[_youHereId]) {
+    const s = _sysById[_youHereId];
+    const [wx, wz] = posOf(s);
+    const [cx, cy] = _w2c(wx, wz);
+    if (cx > -30 && cx < W + 30 && cy > -30 && cy < H + 30) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.strokeStyle = '#4ecbb0';
+      ctx.lineWidth   = 2.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#4ecbb0';
+      ctx.fill();
+      ctx.fillStyle   = '#4ecbb0';
+      ctx.font        = 'bold 11px var(--mono, monospace)';
+      ctx.textAlign   = 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+      ctx.fillText('◉ YOU', cx, cy + 18);
+      ctx.shadowBlur = 0;
+      ctx.textAlign   = 'left';
+    }
+  }
+}
+
 function _renderGalaxyModern() {
   const ctx = _ctx, W = _canvas.width, H = _canvas.height;
-  ctx.fillStyle = '#0b0d12';
+  ctx.fillStyle = '#07080c';
   ctx.fillRect(0, 0, W, H);
   const g = _buildGalaxyModern(), gp = g.gpos;
   if (!gp.size) return;
@@ -929,8 +1507,15 @@ function _renderGalaxyModern() {
   const off = (ax, ay, bx, by) => (ax < -40 && bx < -40) || (ax > W + 40 && bx > W + 40) || (ay < -40 && by < -40) || (ay > H + 40 && by > H + 40);
   const lineW = Math.max(0.12, Math.min(1.1, _zoom * 22));
 
-  // Intra-region links (grey) then inter-region gates (amber).
-  ctx.strokeStyle = 'rgba(150,160,176,0.32)'; ctx.lineWidth = lineW; ctx.beginPath();
+  // Links fade with distance, sharpen with zoom (reference behaviour: quiet
+  // threads at the overview, a crisp legible circuit once you're in a region).
+  const pitchPxL   = (g.pitch || 22) * _zoom;
+  const intraAlpha = Math.max(0.14, Math.min(0.42, 0.10 + pitchPxL * 0.010));
+  const interAlpha = Math.max(0.08, Math.min(0.22, 0.06 + pitchPxL * 0.004));
+
+  // Intra-region links (subtle grey) then inter-region gates (long faint threads —
+  // CCP flat-map style, where the dots carry the picture and lines stay quiet).
+  ctx.strokeStyle = `rgba(150,160,176,${intraAlpha})`; ctx.lineWidth = lineW; ctx.beginPath();
   for (const j of _jumps) {
     const a = gp.get(j.from), b = gp.get(j.to); if (!a || !b) continue;
     const sa = _sysById[j.from], sb = _sysById[j.to]; if (!sa || !sb || sa.regionId !== sb.regionId) continue;
@@ -938,7 +1523,7 @@ function _renderGalaxyModern() {
     ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
   }
   ctx.stroke();
-  ctx.strokeStyle = 'rgba(196,140,64,0.5)'; ctx.lineWidth = Math.max(0.3, lineW * 1.2); ctx.beginPath();
+  ctx.strokeStyle = `rgba(170,190,220,${interAlpha})`; ctx.lineWidth = Math.max(0.2, lineW * 0.7); ctx.beginPath();
   for (const j of _jumps) {
     if (j.from > j.to) continue;
     const a = gp.get(j.from), b = gp.get(j.to); if (!a || !b) continue;
@@ -948,13 +1533,22 @@ function _renderGalaxyModern() {
   }
   ctx.stroke();
 
-  // System dots.
-  const dotR = Math.max(0.6, Math.min(3, _zoom * 26));
+  // Overlays ported from classic's render path — wormhole/jump-bridge arcs,
+  // then routes on top, same draw order as classic (see _render()).
+  _drawModernWormholeArcs(ctx, W, H, gp);
+  _drawModernJumpBridgeArcs(ctx, W, H, gp);
+  _drawModernRoutes(ctx, W, H, gp);
+
+  // System dots — sized from the layout's actual pitch so two neighbouring
+  // systems can never overlap into a smudge, at any zoom or refit scale.
+  const pitchPx = (g.pitch || 22) * _zoom;
+  const dotR = Math.max(0.7, Math.min(3.5, pitchPx * 0.22));
   for (const [id, p] of gp) {
     const s = _sysById[id]; if (!s) continue;
     const [cx, cy] = _w2c(p.x, p.z);
     if (cx < -8 || cx > W + 8 || cy < -8 || cy > H + 8) continue;
     ctx.beginPath(); ctx.arc(cx, cy, dotR, 0, Math.PI * 2); ctx.fillStyle = _systemColor(s); ctx.fill();
+    _drawModernSystemMarkers(ctx, cx, cy, dotR, id);
   }
 
   // Region labels at the cluster centres (highlight the one under the cursor).
@@ -969,6 +1563,10 @@ function _renderGalaxyModern() {
     ctx.shadowBlur = 0;
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  // Route markers + pending-endpoint + "you are here" — drawn last, on top of
+  // everything, same order as classic's equivalent block.
+  _drawModernRouteExtras(ctx, W, H, gp);
 
   ctx.fillStyle = 'rgba(150,160,180,0.8)'; ctx.font = '11px var(--mono, monospace)';
   ctx.fillText('Modern galaxy overview — click a region to open it', 14, H - 14);
@@ -1010,16 +1608,21 @@ function _enterRegion(regionId) {
   if (sel) sel.value = String(regionId);
 }
 
-// Leave the Modern region view and return to the Classic galaxy overview. Used by
-// external entry points (route overlays, "view on map") that operate in galaxy coords.
+// Leave a Modern region drill-down back to the CURRENT mode's galaxy-level view.
+// Used by external entry points (route overlays, "view on map", search fly-to)
+// that operate in galaxy coordinates. Used to force-switch to Classic because
+// only Classic could draw galaxy-coordinate overlays — now that Modern's
+// overview (_renderGalaxyModern) draws the same routes/jump-bridges/wormholes,
+// this just backs out of a region (which has no "whole galaxy" context of its
+// own) instead of abandoning whichever mode the user actually has open.
 function _forceGalaxyView() {
-  if (_viewMode !== 'modern' && _regionView == null) return;
-  _viewMode = 'classic';
+  if (_regionView == null) return;   // already at a galaxy-level view, either mode
   _regionView = null;
   const sel = document.getElementById('mapRegionSelect');
-  if (sel) sel.style.display = 'none';
-  document.querySelectorAll('.map-view-btn')
-    .forEach(b => b.classList.toggle('active', b.dataset.view === 'classic'));
+  if (sel) {
+    sel.style.display = (_viewMode === 'modern') ? '' : 'none';
+    sel.value = 'galaxy';
+  }
 }
 
 // Fill the region dropdown from loaded region data (known space only). Safe to call
@@ -1082,6 +1685,14 @@ function _renderRegion() {
     ctx.stroke();
   }
 
+  // Overlays ported from classic's render path — same as the galaxy overview.
+  // The per-system jump-bridge diamond isn't drawn here: it's sized for a plain
+  // dot and would sit oddly on these wider name pills, so the arcs + routes
+  // (unaffected by that) are the parity that matters in a region view.
+  _drawModernWormholeArcs(ctx, W, H, layout);
+  _drawModernJumpBridgeArcs(ctx, W, H, layout);
+  _drawModernRoutes(ctx, W, H, layout);
+
   // System pills (fixed screen size, DOTLAN-like name labels).
   const fs = 11;
   ctx.font = `${fs}px var(--mono, monospace)`;
@@ -1138,6 +1749,10 @@ function _renderRegion() {
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
+
+  // Route markers + pending-endpoint + "you are here" — drawn last (bar the
+  // title/back-link below), same order as classic's equivalent block.
+  _drawModernRouteExtras(ctx, W, H, layout);
 
   // Title + back link + hint.
   ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
@@ -1338,12 +1953,7 @@ function _render() {
   }
 
   // Identify Pochven (Triglavian) once so those systems can render as triangles.
-  if (_pochvenRegionId === undefined) {
-    _pochvenRegionId = null;
-    for (const [rid, name] of Object.entries(_regions)) {
-      if (name === 'Pochven') { _pochvenRegionId = Number(rid); break; }
-    }
-  }
+  _resolveSpecialRegionIds();
 
   // ── System glyphs ──────────────────────────────────────────────────────────
   for (const s of _systems) {
@@ -1529,14 +2139,21 @@ function _render() {
 // Draw start/end/waypoint markers for a route overlay in the given colours.
 // endR / labelDy let the two overlays nest (pink ring outside blue) and stagger
 // their labels so a shared start/end isn't an unreadable overlap.
-function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy) {
+// posOf(system) -> [wx,wz] defaults to classic's true position, so the
+// existing classic call site (inside _render(), unchanged) behaves exactly as
+// before. Modern's render functions pass their own posMap-backed lookup —
+// see _renderGalaxyModern()/_renderRegion() — to reuse this instead of a
+// second copy of the marker-drawing logic.
+function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, posOf) {
   if (!ids || !ids.length) return;
+  posOf = posOf || ((s) => [s.wx, s.wz]);
   endR = endR || 7;
   labelDy = (labelDy == null) ? -14 : labelDy;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ids.forEach((id, i) => {
     const s = _sysById[id]; if (!s) return;
-    const [cx, cy] = _w2c(s.wx, s.wz);
+    const [wx, wz] = posOf(s);
+    const [cx, cy] = _w2c(wx, wz);
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
     const isEnd = (i === 0 || i === ids.length - 1);
     const isWaypoint = !isEnd && wpSet && wpSet.has(id);
@@ -1804,12 +2421,27 @@ async function mapGoToSystem(name) {
   return false;
 }
 
+// World coords for a system in whichever galaxy-level view is currently active
+// — true classic position, or the Modern overview's flattened position. Used
+// by galaxy-level entry points (fly-to, fit-to-systems) so they land in the
+// right spot regardless of which mode the user has open. Callers of these are
+// expected to have already left any Modern region drill-down (_forceGalaxyView),
+// so the overview's gpos is always the right Modern lookup here.
+function _worldPos(system) {
+  if (_viewMode === 'modern') {
+    const p = _buildGalaxyModern().gpos.get(system.id);
+    if (p) return [p.x, p.z];
+  }
+  return [system.wx, system.wz];
+}
+
 function _flyTo(system) {
   if (!_canvas) return;
   const targetZoom = Math.max(_zoom, 0.5);
   // Centre on the system at targetZoom
   _zoom = targetZoom;
-  const [cx, cy] = _w2c(system.wx, system.wz);
+  const [wx, wz] = _worldPos(system);
+  const [cx, cy] = _w2c(wx, wz);
   _panX += _canvas.width  / 2 - cx;
   _panY += _canvas.height / 2 - cy;
   _scheduleRender();
@@ -1933,7 +2565,7 @@ function _initCanvas() {
   const vp = document.getElementById('mapViewport');
   if (vp) new ResizeObserver(() => _onResize()).observe(vp);
 
-  // Pan (drag)
+  // Pan (drag).
   _canvas.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     _dragging = true;
@@ -2086,7 +2718,7 @@ function _onResize() {
   _canvas.height = Math.floor(rect.height) || 300;
 
   if (!_loaded || prevW === 0 || prevH === 0) {
-    _fitGalaxy();
+    if (_viewMode === 'modern') _fitGalaxyModern(); else _fitGalaxy();
   } else {
     // Keep the galaxy centre stable across resize
     _panX += (_canvas.width  - prevW) / 2;
@@ -2777,6 +3409,9 @@ async function initMapPage() {
   _initToolbar();
   _initSearch();
   _updateLegend();
+  // Hand-curated layout (if the user saved one) — must be in hand before the
+  // first Modern render so it wins over the algorithm.
+  try { _savedModernLayout = await window.eveAPI.modernLayoutGet(); } catch (_) { _savedModernLayout = null; }
 
   if (loadingEl) loadingEl.style.display = 'flex';
   if (canvasEl)  canvasEl.style.display  = 'none';
@@ -2870,7 +3505,8 @@ function _fitToSystems(ids) {
   if (!_canvas) return;
   const pts = (ids || []).map(id => _sysById[id]).filter(Boolean);
   if (!pts.length) return;
-  const xs = pts.map(p => p.wx), zs = pts.map(p => p.wz);
+  const coords = pts.map(_worldPos);
+  const xs = coords.map(c => c[0]), zs = coords.map(c => c[1]);
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minZ = Math.min(...zs), maxZ = Math.max(...zs);
   const pad = 90;

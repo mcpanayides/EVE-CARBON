@@ -36,12 +36,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   bindNavigation();
   bindIndustrySubNav();
 
-  // Auto-navigate: restore the page the user was on before the reload (Ctrl+R),
-  // falling back to dashboard if characters exist, otherwise the characters page.
+  // Auto-navigate: restore the page the user was on before a same-session reload
+  // (Ctrl+R) — sessionStorage, so this never fires on an actual app launch, only
+  // a reload within the same window session. Dashboard is always the home page
+  // otherwise, falling back to the characters page if no characters exist.
   const accounts = await window.eveAPI.getAccounts().catch(() => []);
   if (accounts && accounts.length > 0) {
     let last = null;
-    try { last = localStorage.getItem('lastPage'); } catch (_) {}
+    try { last = sessionStorage.getItem('lastPage'); } catch (_) {}
     navigateToPage(last && document.getElementById(`page-${last}`) ? last : 'dashboard');
   } else {
     navigateToPage('characters');

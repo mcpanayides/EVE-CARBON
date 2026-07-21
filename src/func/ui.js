@@ -764,8 +764,10 @@ function navigateToPage(page) {
   currentPage = page;
 
   // Remember where the user is so a reload (Ctrl+R) reopens this page instead of
-  // bouncing back to the dashboard. Only persist real pages.
-  if (selectedPage) { try { localStorage.setItem('lastPage', page); } catch (_) {} }
+  // bouncing back to the dashboard. sessionStorage (not localStorage): it should
+  // survive a same-session reload but NOT a full app relaunch — Dashboard is the
+  // home page every time you actually open the app. Only persist real pages.
+  if (selectedPage) { try { sessionStorage.setItem('lastPage', page); } catch (_) {} }
 
   // Leaving the fleet page pauses its poll loop — the tracking setup is kept so
   // returning resumes exactly where you were (see _fcOnPageHidden/_fcOnPageShown).

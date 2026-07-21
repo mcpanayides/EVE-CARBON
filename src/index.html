@@ -28,14 +28,24 @@
   <link rel="stylesheet" href="./styles/forums.css"/>
   <link rel="stylesheet" href="./styles/industry-cost-index.css"/>
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/12.5.0/gridstack.min.css"/>
+  <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
+       comment on the script tag below for why. -->
+  <link rel="stylesheet" href="./vendor/gridstack/gridstack.min.css"/>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
           integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"
           crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/12.5.0/gridstack-all.js"
-          integrity="sha384-k0sHNlenMbs/Jh79dN1Geiwr1lX2ctJQ02BPTeQS3MIAikWKmwXb1LmKkzTQoB9h"
-          crossorigin="anonymous"></script>
+  <!-- Vendored locally instead of cdnjs + SRI. That combination broke twice in
+       practice: once when cdnjs's "immutable" versioned file silently changed
+       content out from under the pinned hash, and again for any install whose
+       Chromium HTTP cache had already cached the file BEFORE that hash got
+       fixed — cdnjs serves this path with a long/immutable Cache-Control, so
+       the browser keeps serving its stale cached copy forever and never
+       re-validates against origin; the stale copy then fails the (correctly
+       updated) SRI check and gets blocked outright, silently disabling the
+       whole dashboard widget grid. A same-origin local file was never cached
+       under the old CDN URL, so this sidesteps both failure modes for good. -->
+  <script src="./vendor/gridstack/gridstack-all.js"></script>
 
   <!-- Point #themeStylesheet at the active theme BEFORE first paint (no flash).
        'eve-theme-css' is written by palette.js: {file} = built-in theme in

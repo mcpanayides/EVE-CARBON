@@ -443,9 +443,15 @@ async function filterByJumpRange(systems, anchorId, maxJumps) {
     await Promise.all(batch.map(async destId => {
       const key = `${anchorId}:${destId}`;
       try {
-        const route = await window.eveAPI.esiFetch(
-          `https://esi.evetech.net/latest/route/${anchorId}/${destId}/?datasource=tranquility&flag=shortest`
+        // /route/ moved from GET (?flag=shortest, bare array response) to POST
+        // ({preference:"Shorter"} body, {route:[...]} response) — see
+        // developers.eveonline.com/blog/route-to-the-future-upgrading-the-route-route
+        // and the current OpenAPI spec's RouteRequestBody schema.
+        const result = await window.eveAPI.esiFetch(
+          `https://esi.evetech.net/route/${anchorId}/${destId}/?datasource=tranquility`,
+          { method: 'POST', body: { preference: 'Shorter' } }
         );
+        const route = result?.route;
         const hops = Array.isArray(route) ? route.length - 1 : Infinity;
         _routeCache.set(key, hops);
         if (hops <= maxJumps) inRange.add(destId);

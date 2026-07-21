@@ -14,8 +14,15 @@ concurrency:
 permissions:
   contents: read
 
-# Stages run in strict order via `needs`: lint → test → coverage → build.
-# A later stage only starts once the earlier one is green.
+# Stages: lint → test → coverage → build. A later stage only starts once its
+# dependency is green.
+#
+# The end-to-end suite (e2e/) deliberately does NOT run here — it used to, but
+# spinning up a real Electron app on every push/PR was slow and not something
+# we want blocking routine iteration. It now runs exactly once per release,
+# as the test-gate job in main.yml (the tag-triggered build-and-publish
+# workflow) — a red e2e run there blocks the build/publish steps the same way
+# it blocked `build` here before. Run it locally any time with `npm run test:e2e`.
 jobs:
   # ── Stage 1: lint (syntax) + dependency audit ───────────────────────────────
   lint:
@@ -69,7 +76,7 @@ jobs:
       - name: Coverage report
         run: npm run coverage
 
-  # ── Stage 4: build matrix (only if coverage passed) ─────────────────────────
+  # ── Stage 4: build matrix (only if coverage passed) ──────────────────────────
   build:
     name: Build (${{ matrix.os }})
     needs: coverage

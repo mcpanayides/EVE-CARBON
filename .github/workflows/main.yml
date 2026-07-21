@@ -7,8 +7,61 @@ on:
       - completed
 
 jobs:
+  # ── Test gate: lint + unit tests + the real-app e2e suite ───────────────────
+  # Runs once; both build jobs below wait on it and only proceed if it's green.
+  # windows-latest (not ubuntu) because the e2e suite drives the actual
+  # Electron app and needs a real interactive desktop session to open windows
+  # in — see e2e/support/electron-app.js and ci.yml's own e2e job for the
+  # same reasoning.
+  test-gate:
+    name: Test gate (lint + unit + e2e)
+    runs-on: windows-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Full install (not --ignore-scripts): postinstall rebuilds the native
+      # sqlite3 module for Electron, which the e2e suite launches for real.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # e2e fixtures are DB-backed, but the app still opens sde.sql at
+      # startup (initSde()) — needs the real SDE, not an empty stub.
+      - name: Fetch SDE
+        run: node scripts/fetch-sde.js
+
+      - name: Create .env
+        shell: bash
+        run: cp .env.example .env
+
+      - name: End-to-end tests (real Electron app)
+        run: npm run test:e2e
+
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-test-results
+          path: test-results/
+          retention-days: 7
+
   build-windows:
     runs-on: windows-latest
+    needs: test-gate
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write

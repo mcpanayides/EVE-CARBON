@@ -211,6 +211,11 @@ function openExternal(url) {
 // User-Agent overrides, so ESI's documented fallback is the X-User-Agent
 // header. Wrapping fetch ONCE here covers every call site (dashboard, assets,
 // jabber, fleetup, cost-index, …) with app name/version + contact + source.
+// Pinned the same way as the main process (see src/app_ident.js) — a
+// deliberately-tested ESI behaviour snapshot, not "whatever today is". Bump
+// both together after testing against newer ESI behaviour.
+const ESI_COMPATIBILITY_DATE = '2026-07-20';
+
 (function () {
   const IDENT_BASE = '(miachristinapanayides@gmail.com; +https://github.com/mcpanayides/EVE-CARBON)';
   let _xua = `EVE-Carbon/dev ${IDENT_BASE}`;
@@ -223,7 +228,7 @@ function openExternal(url) {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
       if (/esi\.evetech\.net/i.test(url)) {
         init = init || {};
-        init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua };
+        init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua, 'X-Compatibility-Date': ESI_COMPATIBILITY_DATE };
       }
     } catch (_) { /* never break a fetch over identification */ }
     return _origFetch.call(this, input, init);

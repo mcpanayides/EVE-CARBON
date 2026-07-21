@@ -10,6 +10,7 @@
     "lint": "node scripts/lint.js",
     "test": "node --test",
     "coverage": "node --test --experimental-test-coverage",
+    "test:e2e": "playwright test",
     "fetch-sde": "node scripts/fetch-sde.js",
     "build-win": "npm run fetch-sde && electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
@@ -79,6 +80,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
+    "@playwright/test": "^1.61.1",
     "electron": "^42.0.0",
     "electron-builder": "^26.8.1"
   },

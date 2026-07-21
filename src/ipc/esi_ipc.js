@@ -44,7 +44,12 @@ function registerEsiHandlers({
 }) {
 
   // ─── IPC: Generic ESI proxy (unauthenticated) ─────────────────────────────
-  ipcHandle('esi-fetch', async (_, url) => {
+  // options.method/'body' let callers hit POST-only routes (e.g. the new
+  // /route/ endpoint — see cost-index.js) through the same gated/identified
+  // path as everything else, without every call site needing its own POST
+  // plumbing. Omit options (or pass a GET) for the original bare-URL behaviour.
+  ipcHandle('esi-fetch', async (_, url, options) => {
+    if (options?.method === 'POST') return httpPost(url, options.body ?? {});
     return httpGet(url);
   });
 

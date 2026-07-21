@@ -31,6 +31,12 @@ tmp_electron_extracted/
 .cache/
 **/node_modules/.cache/
 
+# Playwright e2e (e2e/) output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 logs/
 *.log
 npm-debug.log*

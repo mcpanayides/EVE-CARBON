@@ -44,6 +44,16 @@ async function withTx(fn) {
   }
 }
 
+// Closes the shared handle so a second initCharacterDb() (a different dataDir,
+// e.g. the e2e suite re-seeding between specs) opens cleanly instead of
+// returning the first call's connection. No-op if never opened.
+async function closeCharacterDb() {
+  if (!charDb) return;
+  const db = charDb;
+  charDb = null;
+  await db.close();
+}
+
 // ── DB init ───────────────────────────────────────────────────────────────────
 async function initCharacterDb(dataDir) {
   if (charDb) return charDb;
@@ -1235,6 +1245,7 @@ async function getStandings(characterId) {
 
 module.exports = {
   initCharacterDb,
+  closeCharacterDb,
   ensureCharacterTables,
   replaceTradeProfile,
   getTradeProfile,

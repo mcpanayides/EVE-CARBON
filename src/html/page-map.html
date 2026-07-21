@@ -15,17 +15,17 @@
         <button class="map-overlay-btn" data-overlay="incursions">Incursions</button>
       </div>
 
-      <!-- View style (Classic / Modern) — TEMPORARILY HIDDEN. The Modern view is a
-           work-in-progress (DOTLAN-style per-region + galaxy overview). All the code
-           behind it is intact; unhide this group + the region picker to bring it back. -->
-      <div class="map-overlay-group" style="display:none;">
+      <!-- View style (Classic / Modern). Modern = CCP-style flattened galaxy with
+           uniform-pitch region clusters (see _buildGalaxyModern in map.js) plus the
+           DOTLAN-style per-region view via the region picker. -->
+      <div class="map-overlay-group">
         <span class="map-group-label">VIEW</span>
-        <button class="map-view-btn active" data-view="classic" title="The whole-galaxy overview">Classic</button>
-        <button class="map-view-btn" data-view="modern" title="DOTLAN-style per-region view — layout derived from gate connections">Modern</button>
+        <button class="map-view-btn" data-view="classic" title="The whole-galaxy overview (true positions)">Classic</button>
+        <button class="map-view-btn active" data-view="modern" title="Flattened galaxy — every region as a tidy cluster; pick a region for the detailed layout">Modern</button>
       </div>
 
-      <!-- Region picker (Modern view only) — hidden with the VIEW toggle above -->
-      <select id="mapRegionSelect" class="map-region-select" title="Pick a region to lay out (Modern view)" style="display:none;"></select>
+      <!-- Region picker — the Modern-view JS shows/hides this as the view switches -->
+      <select id="mapRegionSelect" class="map-region-select" title="Pick a region to lay out (Modern view)"></select>
 
       <!-- Jump bridge toggle -->
       <button class="map-toggle-btn" id="mapJbToggle" title="Show your jump-bridge network (green arcs) and IHUB systems">

@@ -191,11 +191,17 @@ async function prefetchJumpDistances(originSysId, charData) {
       const key = `${originSysId}:${destId}`;
       if (_piJumpCache[key] !== undefined) return;
       try {
+        // /route/ moved from GET (bare array response) to POST (JSON body,
+        // {route:[...]} response) — see developers.eveonline.com/blog/
+        // route-to-the-future-upgrading-the-route-route. X-User-Agent and
+        // X-Compatibility-Date are added automatically by the fetch wrapper
+        // in src/utils.js.
         const res = await fetch(
-          `https://esi.evetech.net/latest/route/${originSysId}/${destId}/?datasource=tranquility`
+          `https://esi.evetech.net/route/${originSysId}/${destId}/?datasource=tranquility`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
         );
         _piJumpCache[key] = res.ok
-          ? (await res.json()).length - 1
+          ? (await res.json()).route.length - 1
           : null;
       } catch { _piJumpCache[key] = null; }
     })

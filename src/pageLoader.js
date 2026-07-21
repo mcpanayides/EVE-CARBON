@@ -61,6 +61,9 @@ const PAGE_HTML = {
         <button class="add-character-btn" id="addCharacterNavBtn" title="Add character">
           + ADD CHARACTER
         </button>
+        <button class="delete-all-characters-btn" id="deleteAllCharactersBtn" title="Remove every character from this app">
+          ✕ DELETE ALL CHARACTERS
+        </button>
       </div>
 
       <div id="accountsListNav" class="accounts-grid">

@@ -39,6 +39,12 @@
 .resync-all-btn       { background: var(--bg-deep); border: 1px solid var(--border-b); border-radius: 4px; color: var(--text-2); cursor: pointer; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; transition: all 0.2s ease; white-space: nowrap; }
 .resync-all-btn:hover { background: var(--accent-08); border-color: var(--accent-40); color: var(--accent); }
 
+/* Escape hatch while the per-card remove button's click target is being
+   debugged — deletes every account directly via IPC, no per-card click
+   needed. Danger-styled since it's a bulk destructive action. */
+.delete-all-characters-btn       { background: var(--danger-bg, rgba(244,71,71,0.10)); border: 1px solid var(--danger); border-radius: 4px; color: var(--danger); cursor: pointer; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; transition: all 0.2s ease; white-space: nowrap; }
+.delete-all-characters-btn:hover { background: var(--danger-bg, rgba(244,71,71,0.20)); }
+
 /* ── CHARACTER GRID ── */
 /* flex:1 + min-height:0 make the grid the scroll container (it's a flex child of
    .nav-page, which is overflow:hidden) so the LIST scrolls instead of the cards

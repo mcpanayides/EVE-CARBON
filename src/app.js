@@ -165,6 +165,24 @@ function bindEvents() {
     if (typeof resyncAllCharacters === 'function') resyncAllCharacters();
   });
 
+  // Delete all characters — bulk escape hatch alongside the per-card remove button
+  const deleteAllBtn = document.getElementById('deleteAllCharactersBtn');
+  if (deleteAllBtn) deleteAllBtn.addEventListener('click', async () => {
+    if (!confirm('Remove ALL characters from this app?\n\n'
+      + 'This clears every saved account, its cached blueprints/assets, and its '
+      + 'local character data. It does not affect anything on the EVE servers — '
+      + 'you can re-add characters any time via EVE SSO.')) return;
+    try {
+      const r = await window.eveAPI.removeAllAccounts();
+      showToast(`Removed ${r.removed} character(s).`, 'info');
+      if (typeof _pageInitialized !== 'undefined') _pageInitialized.clear();
+      loadAccounts();
+      loadBlueprintLibrary();
+    } catch (e) {
+      showToast(`Failed to remove all characters: ${e.message || e}`, 'error');
+    }
+  });
+
   // Close dropdown on outside click
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.search-wrap')) {

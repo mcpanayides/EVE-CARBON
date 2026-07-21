@@ -93,6 +93,23 @@ function registerAccountHandlers({
     return true;
   });
 
+  // ─── IPC: Remove ALL accounts ───────────────────────────────────────────────
+  // Escape hatch (Characters ▸ DELETE ALL CHARACTERS) — bulk version of
+  // remove-account above, for when removing accounts one at a time isn't
+  // working. Same per-account cleanup, just looped over every account.
+  ipcHandle('remove-all-accounts', async () => {
+    const db = loadDB();
+    const ids = Object.keys(db.accounts);
+    db.accounts = {};
+    db.blueprints = {};
+    db.assets = {};
+    saveDB(db);
+    for (const characterId of ids) {
+      try { await charInfoDb.removeCharacterData(characterId); } catch (e) { /* ignore */ }
+    }
+    return { removed: ids.length };
+  });
+
   // ─── IPC: Start SSO login ───────────────────────────────────────────────────
   ipcHandle('start-sso-login', (event) => {
     // Ensure the local OAuth callback server is running

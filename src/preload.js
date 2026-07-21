@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Accounts
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
   removeAccount: (id)  => ipcRenderer.invoke('remove-account', id),
+  removeAllAccounts: () => ipcRenderer.invoke('remove-all-accounts'),
   startSSOLogin: ()    => ipcRenderer.invoke('start-sso-login'),
 
   // Dashboard data

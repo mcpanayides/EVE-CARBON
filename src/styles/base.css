@@ -33,6 +33,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   flex-shrink: 0; margin-right: 8px;
 }
+.console-statusbar-sep { color: var(--text-6); margin-right: 2px; }
 .presence-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--pal-green);

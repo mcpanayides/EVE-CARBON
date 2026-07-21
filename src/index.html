@@ -1019,11 +1019,6 @@
                    color:var(--text-7);flex-shrink:0;margin-right:6px;
                    transition:color 0.3s ease;">v—</span>
     </button>
-    <span id="presenceStatus" class="presence-status" style="display:none;"
-          title="EVE-Carbon apps running right now (anonymous count — toggle in Settings › General)">
-      <span class="presence-dot"></span>
-      <span class="presence-label" id="presenceCountLabel">—</span>
-    </span>
     <span id="sdeStatusLight"
           title="SDE: checking…"
           style="
@@ -1046,6 +1041,12 @@
             margin-right:8px;
             transition:color 0.3s ease;
           ">SDE</span>
+    <span id="presenceStatus" class="presence-status" style="display:none;"
+          title="EVE-Carbon apps running right now (anonymous count)">
+      <span class="console-statusbar-sep">|</span>
+      <span class="presence-dot"></span>
+      <span class="presence-label" id="presenceCountLabel">—</span>
+    </span>
     <button class="console-toggle" id="consoleToggleBtn" title="Expand/collapse console log">▲</button>
   </div>
   <div class="console-log" id="consoleLog"></div>

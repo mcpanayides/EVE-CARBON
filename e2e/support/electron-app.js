@@ -58,6 +58,16 @@ const test = base.test.extend({
   window: async ({ electronApp }, use) => {
     const window = await electronApp.firstWindow();
     await window.waitForLoadState('domcontentloaded');
+    // Pin a realistic desktop viewport. The app opens at 1800×1200, but a CI
+    // runner's smaller virtual display clamps the real window narrow — which
+    // collapses the banner's width-flexed columns (min-width:0, flex:1) to zero
+    // and makes fully-rendered elements read as "hidden" to Playwright, even
+    // though they painted correctly. Forcing the content size makes specs render
+    // the same as on a real desktop, regardless of the runner's display size.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) win.setContentSize(1600, 1000);
+    }).catch(() => {});
     await use(window);
   },
 });

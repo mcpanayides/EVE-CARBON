@@ -21,8 +21,12 @@ test('welcome banner shows the fixture character name', async ({ window }) => {
 
 test('net worth widget reflects the seeded wallet snapshot (not stuck loading)', async ({ window }) => {
   const value = window.locator('#welcomeNetWorthValue');
-  await expect(value).toBeVisible();
-  // Give the async net-worth calc time to settle, then confirm it isn't stuck
-  // on the initial "Calculating…" placeholder forever.
+  await expect(value).toBeAttached();
+  // Assert on content, not geometry: the figure is computed asynchronously, so
+  // confirm it settles to a real ISK value and isn't stuck on the initial
+  // "Calculating…" placeholder. (toBeVisible would be flaky here — the banner's
+  // width-flexed stat column can collapse to a zero-width box on a narrow
+  // window even when the value rendered correctly.)
   await expect(value).not.toContainText('Calculating', { timeout: 20_000 });
+  await expect(value).toContainText('ISK', { timeout: 20_000 });
 });

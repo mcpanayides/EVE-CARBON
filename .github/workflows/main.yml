@@ -19,12 +19,12 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload e2e failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-e2e-test-results
           path: test-results/
@@ -67,17 +67,22 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
+      # Full install (not --ignore-scripts): the "Fetch SDE" step below runs
+      # scripts/fetch-sde.js in plain Node, which requires the native sqlite3
+      # binary that npm's install scripts fetch (an N-API prebuilt that serves
+      # both Node and Electron). --ignore-scripts skipped it, so Fetch SDE
+      # crashed with exit 1 and no installer was ever built.
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci
 
       - name: Create .env file
         run: |
@@ -132,17 +137,22 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
+      # Full install (not --ignore-scripts): the "Fetch SDE" step below runs
+      # scripts/fetch-sde.js in plain Node, which requires the native sqlite3
+      # binary that npm's install scripts fetch (an N-API prebuilt that serves
+      # both Node and Electron). --ignore-scripts skipped it, so Fetch SDE
+      # crashed with exit 1 and no installer was ever built.
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci
 
       - name: Create .env file
         run: |

@@ -809,7 +809,25 @@ async function refreshDashboardLiveWidgets() {
 //   • Market escrow → /characters/{id}/orders/  serialised, 1 char at a time
 //   • Contract escrow removed — endpoint was causing all the 429s and adds
 //     minimal value; escrow from buy orders already covers the main case.
+
+// Welcome-banner net-worth figure. The value is computed asynchronously (wallet
+// + asset revalue) while the banner itself is painted asynchronously (paintBanner
+// awaits a DB read), so either can finish first. We keep the last computed figure
+// here and (re)apply it whenever the span is (re)created — closing the race that
+// otherwise left the banner stuck on "Calculating…" (the computed value landing on
+// a not-yet-painted span, with no retry when market prices were slow/unavailable).
+let _welcomeNetWorthText = null;
+function _applyWelcomeNetWorth(text) {
+  if (text != null) _welcomeNetWorthText = text;
+  const el = document.getElementById('welcomeNetWorthValue');
+  if (el && _welcomeNetWorthText != null) el.textContent = _welcomeNetWorthText;
+}
+
 async function _renderNetWorthSection(accounts, mainAccount) {
+    // Clear any figure from a previous load/character so a stale value can't show
+    // as this main's net worth; Step 2 below repopulates it (liquid ISK) at once.
+    _welcomeNetWorthText = null;
+
     // ── Serialised ESI helper ────────────────────────────────────────────────
     // Runs `fn` for each account one-at-a-time. On a 429 it backs off for
     // retryAfterMs (default 12 s) before retrying once, then gives up.
@@ -858,11 +876,12 @@ async function _renderNetWorthSection(accounts, mainAccount) {
       const { totalByChar, overallValue } = assembleTotals(perChar);
       const grandTotal = totalWallet + overallValue;
       renderWealthWidgets({ accounts, totalWallet, overallValue, grandTotal, totalByChar, walletByChar, assetsLoading: loading });
-      const welcomeNWEl = document.getElementById('welcomeNetWorthValue');
-      if (welcomeNWEl) {
-        // Colour comes from .banner-stat-value (--value-bright) — no inline style.
-        welcomeNWEl.textContent = formatISK(grandTotal);
-      }
+      // Store + apply so the figure survives the banner-paint race: if the span
+      // doesn't exist yet, the value is kept and applied when the banner paints.
+      // Colour comes from .banner-stat-value (--value-bright) — no inline style.
+      // A cold cache renders liquid ISK first, then refines to the full total once
+      // assets are priced — better than an eternal "Calculating…" if prices stall.
+      _applyWelcomeNetWorth(formatISK(grandTotal));
       return { totalByChar, overallValue, grandTotal };
     }
 
@@ -1277,10 +1296,7 @@ async function loadDashboard() {
     // Build/paint the banner from the local DB. Called immediately for a fast
     // paint, then again after a live status refresh so ship / location / implants
     // are the latest ESI pull on every load.
-    async function paintBanner(preserveNetWorth) {
-      const prevNW = preserveNetWorth
-        ? (document.getElementById('welcomeNetWorthValue')?.innerHTML || null) : null;
-
+    async function paintBanner() {
       // ── DB READ: single call, all tables ────────────────────────────────
       const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
       if (!dbData?.info) {
@@ -1391,12 +1407,10 @@ async function loadDashboard() {
 
       logToConsole('Welcome banner loaded from local DB.', 'info');
 
-      // Preserve the already-computed net worth across a repaint so it doesn't flash
-      // back to "Calculating…".
-      if (prevNW != null) {
-        const nwEl = document.getElementById('welcomeNetWorthValue');
-        if (nwEl) nwEl.innerHTML = prevNW;
-      }
+      // Re-apply the already-computed net worth to the freshly-painted span so it
+      // doesn't flash back to "Calculating…" — and so a value computed before this
+      // paint (the banner-paint race) lands instead of being lost.
+      _applyWelcomeNetWorth(null);
 
       // Check if alliance holds sov with active incursions — fire-and-forget
       renderAllianceIncursionAlert(info.alliance_id).catch(() => {});
@@ -1407,12 +1421,12 @@ async function loadDashboard() {
 
     try {
       if (!mainAccount) return;
-      await paintBanner(false);   // instant paint from the local DB
+      await paintBanner();   // instant paint from the local DB
 
       // Live-refresh location / ship / active implants on every load (bypasses the
       // implant stale-gate), then repaint just the banner with the fresh data.
       window.eveAPI.syncCharacterStatus(mainAccount.characterId)
-        .then(() => paintBanner(true))
+        .then(() => paintBanner())
         .catch(() => {});
     } catch (e) {
       console.warn('[dashboard] Banner render failed:', e.message);

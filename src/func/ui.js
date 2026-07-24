@@ -691,6 +691,8 @@ function _initPageForFirstVisit(page) {
     case 'calendar':   return renderCalendar();
     case 'fc':         return initFcPage();
     case 'forums':     return initForumsPage();
+    case 'mail':       return initMailPage();
+    case 'killboard':  return initKillboardPage();
   }
 }
 
@@ -829,8 +831,11 @@ function updateNavCharacterBtn(account) {
     btn.title = `Active: ${account.characterName}`;
   } else {
     const icon = document.createElement('span');
-    icon.className = 'nav-icon material-symbols-outlined';
-    icon.textContent = 'person';
+    icon.className = 'nav-icon';
+    // EVE neocom character-sheet icon (the #eve-charactersheet sprite symbol in
+    // index.html) so the Characters button stays consistent with the other
+    // EVE-domain nav icons when no character is active.
+    icon.innerHTML = '<svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-charactersheet"/></svg>';
     const label = document.createElement('span');
     label.className = 'nav-label';
     label.textContent = 'Characters';

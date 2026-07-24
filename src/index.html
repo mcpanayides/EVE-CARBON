@@ -27,6 +27,9 @@
   <link rel="stylesheet" href="./styles/fitting.css"/>
   <link rel="stylesheet" href="./styles/forums.css"/>
   <link rel="stylesheet" href="./styles/industry-cost-index.css"/>
+  <link rel="stylesheet" href="./styles/mail.css"/>
+  <link rel="stylesheet" href="./styles/appraisal.css"/>
+  <link rel="stylesheet" href="./styles/killboard.css"/>
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
   <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
        comment on the script tag below for why. -->
@@ -64,6 +67,274 @@
   </script>
 </head>
 <body>
+<!-- EVE Online neocom icons. Property of CCP hf.; used under CCP's third-party
+     developer policy. Vectorised by PhobiaCide / Incomplete-Infinity (2023):
+     https://github.com/Incomplete-Infinity/eve-icons  Themeable via currentColor. -->
+<svg class="eve-icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol viewBox="0 0 128 128" id="eve-charactersheet">
+  <clipPath id="eve-charactersheet-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".6" clip-path="url(#eve-charactersheet-A)">
+  <clipPath id="eve-charactersheet-B">
+  <path d="M35.892 100.188h54.755V36.91H35.892z"/>
+  </clipPath>
+  <g clip-path="url(#eve-charactersheet-B)">
+  <clipPath id="eve-charactersheet-C">
+  <path d="M70.667 98.998c-.676-.202-1.823-.377-2.797-1.485s-1.016-.749-.729-3.84.777-4.012.716-7.982l.102-3.52a25.36 25.36 0 0 0 .287-2.702c.01-.339.252-.824.524-1.398L66.475 73.4c-.859-1.013-1.902-2.578-2.149-3.683s-.706-1.167-1.043-1.167-.8.061-1.045 1.167-1.289 2.67-2.148 3.683c-.41.483-1.385 2.32-2.353 4.169.44 2.935.449 4.01.113 5.292-.662 2.531-1.129 4.518.079 9.232s.301 4.682.301 5.275.324.971.162 1.511-.107 1.309 1.843 1.309 1.956-.01 1.247-1.398-.708-.92-.708-1.609-.424-1.937-.254-4.163.747-4.257.747-5.506-.347-3.192.165-4.278.709-1.525.963-4.197l1.145-7.904.387 7.904c0 1.629.273 2.462.355 3.628.055.752-.297 1.7-.519 2.911-.683 3.723.446 4.372.446 5.619s.314 1.746.484 3.972c0 0-.061 1.63-.357 2.548s-.607 2.323.351 2.323 2.117-.216 3.196-.094l1.135.102 2.371-.459c-.074-.227-.301-.462-.722-.589m13.314-59.234c-1.17.738-5.4 1.129-6.783 2.022s-1.316.83-2.761 1.442-2.127.282-3.819.035c-1.196-.174-2.242.34-2.76.658 1.583.013 3.55.571 4.757 1.358 1.383.902 2.316.689 3.737.997 2.128-1.322 3.727-1.399 5.562-2.479 1.945-1.146 2.831-2.055 3.214-2.241s.682-.28 1.206-.347 1.15-.14 1.861-.467 2.169-.822 2.169-1.093c0-.231.065-.49.283-.758l-1.929-1.971c-.993.267-2.088.845-2.599 1.135-.786.447-.97.97-2.138 1.709m-47.78-.115a1.17 1.17 0 0 0-.309-.789l1.912-1.95c1.004.261 2.123.85 2.642 1.145.784.447.969.97 2.139 1.709s4.619 1.129 6.004 2.022 2.094.83 3.54 1.442 2.126.282 3.818.035c1.196-.174 2.242.34 2.76.658-1.582.013-3.55.571-4.757 1.358-1.191.776-2.597.726-3.892.893-2.166-1.345-4.392-2.098-6.187-3.155l-2.433-1.461c-.384-.188-.683-.28-1.206-.347s-1.151-.14-1.862-.467-2.169-.822-2.169-1.093"/>
+  </clipPath>
+  <g clip-path="url(#eve-charactersheet-C)">
+  <rect x="35" y="36" width="56" height="65" class="shape"/>
+  </g>
+  </g>
+  </g>
+  <clipPath id="eve-charactersheet-D">
+  <path d="M23.5 40.221v46.765l40.499 23.383L104.5 86.986V40.221L63.999 16.838zm12.392-1.361l1.912-1.95c6.621-6.315 15.579-10.2 25.452-10.2s18.84 3.889 25.462 10.21c.667.633 1.31 1.29 1.928 1.971 2.006 2.222 3.735 4.679 5.149 7.318a7.42 7.42 0 0 0-1.457-.132s-.928-.368-2.321-.368c-1.63 0-1.505 1.013-2.825 1.013s-7.749-.798-11.093-.307c0 0-.185.214-1.659-.122-.031-.008-.058-.011-.088-.018-1.422-.307-2.354-.094-3.737-.996-1.207-.787-3.175-1.345-4.757-1.358-.257-.005-.514.008-.769.038-1.657.214-1.842-.828-1.72-2.088s.354-1.195.354-1.195.562.207.729-1.062-.409-1.16-.409-1.16.218-3.644-2.76-3.644-2.762 3.644-2.762 3.644-.576-.111-.407 1.16.727 1.062.727 1.062.231-.063.354 1.195-.06 2.302-1.718 2.088a5.78 5.78 0 0 0-.77-.038c-1.582.013-3.55.571-4.756 1.358-1.191.776-2.599.726-3.893.893-.239.029-.477.069-.713.121-1.474.336-1.658.122-1.658.122-3.347-.491-8.79.307-10.111.307s-1.197-1.013-2.824-1.013c-1.394 0-2.324.368-2.324.368-.897 0-1.449.126-1.802.31 1.436-2.718 3.205-5.247 5.266-7.527m-9.529 24.743c-.007-5.588 1.26-11.104 3.706-16.128.149.454 1.056 1.074 1.698 1.429.678.374.995.273 2.095.273 1.787 0 3.313-.153 4.267-.153s4.185.788 9.682.553c1.006-.043 1.869.015 2.624.073.69.052 1.291.105 1.828.081 2.214-.099 3.1-.491 3.1-.491.643.123 2.364 4.696 2.781 7.029s-.143 2.795-.019 4.36-.398 2.876-.398 2.876c-.819 4.339-2.994 5.483-3.894 9.743-2.055 9.737-3.395 7.648-4.725 12.549-1.99 7.333-2.272 8.22-2.731 9.116-.269.523-.591.799-.95.991-11.366-6.287-19.064-18.392-19.064-32.301m69.416-14.699c.315-.174.693-.414 1.018-.665 2.213 4.82 3.356 10.061 3.352 15.364 0 13.073-6.805 24.549-17.059 31.102-.139-.012-.278-.036-.413-.072-.719-.21-2.844-.404-3.302-1.301s-.812-1.756-2.277-6.146c-.83-2.493-2.391-5.58-3.155-7.987-.418-1.316-.174-2.204-.902-5.645-.897-4.261-3.385-5.71-4.202-10.049 0 0-.521-1.31-.398-2.876s-.437-2.026-.018-4.36 2.134-6.906 2.78-7.029c0 0 .885.392 3.1.491.537.024 1.137-.028 1.827-.081.756-.058 1.619-.116 2.626-.073 5.496.235 9.71-.553 10.663-.553s2.479.153 4.267.153l.916.012c.449 0 .736-.042 1.177-.285M47.963 97.176c.042-.086.091-.166.123-.259.247-.707.215-1.044.492-1.32s.276-1.29.675-1.996 2.118-4.053 2.825-4.943 1.228-1.934 1.749-3.838.952-2.333 1.504-2.885c.289-.29 1.344-2.335 2.406-4.366.968-1.849 1.943-3.686 2.353-4.168.859-1.014 1.902-2.58 2.148-3.684s.708-1.167 1.045-1.167.798.062 1.043 1.167 1.29 2.67 2.149 3.684c.478.563 1.375 2.655 2.296 4.671.732 1.606 1.481 3.164 2.044 3.863.49.609.54 1.167.956 3.095.857 3.976 1.848 3.106 2.999 5.09.409.702 2.478 4.323 2.541 4.708.174 1.075.005 2.02.426 2.715-2.049.873-4.174 1.557-6.348 2.043a36.36 36.36 0 0 1-2.371.46 37.1 37.1 0 0 1-5.762.451c-5.277.004-10.493-1.128-15.293-3.321"/>
+  </clipPath>
+  <g clip-path="url(#eve-charactersheet-D)">
+  <rect x="23" y="16" width="82" height="95" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-industry">
+  <clipPath id="eve-industry-A">
+  <path d="M91.869 89.182h-6.812v-15.57h6.812zm-11.679 0h-6.814v-15.57h6.814zm13.024-25.387v-7.368l-21.572 7.368v-7.368l-21.578 7.368-3.29-34.796H37.23l-3.293 34.796-5.402 5.405v29.799h70.083V69.2z" fill-rule="evenodd"/>
+  </clipPath>
+  <g clip-path="url(#eve-industry-A)">
+  <rect x="28" y="29" width="71" height="70" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-assets">
+  <clipPath id="eve-assets-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".8" clip-path="url(#eve-assets-A)">
+  <clipPath id="eve-assets-B">
+  <path d="M51.825 94.375h51.2V28h-51.2z"/>
+  </clipPath>
+  <g clip-path="url(#eve-assets-B)">
+  <clipPath id="eve-assets-C">
+  <path d="M103.025 28l-9.119 9.121v57.254l9.119-9.121zM58.826 76.178c-3.867-.002-7.001-3.137-7.001-7.004a7 7 0 1 1 14.001 0 7 7 0 0 1-7 7.004"/>
+  </clipPath>
+  <g clip-path="url(#eve-assets-C)">
+  <rect x="51" y="28" width="53" height="67" class="shape"/>
+  </g>
+  </g>
+  </g>
+  <clipPath id="eve-assets-D">
+  <path d="M42.745 24.254l-9.121 9.121h57.253L100 24.254zM28.001 38.347V100h4.362v4.662h11.051V100H71.25v4.662h11.051V100h7.353V38.347zm5 5.001h51.653V95H33.001zm24.075 8.509v7.635a9.76 9.76 0 0 0-3.858 1.597l-5.397-5.394-2.475 2.471 5.396 5.397a9.77 9.77 0 0 0-1.597 3.861h-7.634v3.5h7.634a9.74 9.74 0 0 0 1.597 3.861l-5.396 5.394 2.475 2.477 5.395-5.396c1.158.802 2.474 1.347 3.86 1.597v7.631h3.5v-7.631c1.387-.25 2.704-.794 3.863-1.597l5.396 5.396 2.474-2.477-5.395-5.394a9.78 9.78 0 0 0 1.595-3.861h7.636v-3.5h-7.636a9.79 9.79 0 0 0-1.597-3.861l5.397-5.397-2.474-2.471-5.398 5.394c-1.157-.805-2.474-1.35-3.861-1.597v-7.635zm-5.25 17.317a7 7 0 0 1 7-6.996 7 7 0 0 1 4.951 11.948 7 7 0 0 1-4.951 2.052c-3.865 0-7-3.137-7-7.004"/>
+  </clipPath>
+  <g clip-path="url(#eve-assets-D)">
+  <rect x="28" y="24" width="72" height="81" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-wallet">
+  <clipPath id="eve-wallet-A">
+  <path d="M38.615 30.959c-.333 6.949-.823 13.451-1.455 19.338h3.184l.993-3.182c.943-3.316 2.063-5.942 3.33-7.805.576-.919 1.481-1.605 2.676-2.008 1.136-.384 3.106-.572 6.017-.572h22.095l-18.34 27.018H42.527v6.422h10.224l-19.99 29.445v3.344h58.874l1.375-8.851 2.229-10.895h-3.475c-1.354 4.269-2.898 7.652-4.59 10.062-1.237 1.739-2.568 2.895-3.964 3.434-1.368.531-4.114.787-8.387.787H51.025L69.656 70.17h14.625v-6.422H74.038L93.98 34.503v-3.544z"/>
+  </clipPath>
+  <g clip-path="url(#eve-wallet-A)">
+  <rect x="32" y="30" width="64" height="73" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-fleet">
+  <clipPath id="eve-fleet-A">
+  <path d="M63.999 42.076V28.648l-36 15.075V57.15zm0 21.102V49.752l-36 15.07V78.25zm-36 36.174V85.924l36-15.072v13.427z"/>
+  </clipPath>
+  <g clip-path="url(#eve-fleet-A)">
+  <rect x="28" y="28" width="36" height="72" class="shape"/>
+  </g>
+  <clipPath id="eve-fleet-B">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".6" clip-path="url(#eve-fleet-B)">
+  <clipPath id="eve-fleet-C">
+  <path d="M64 99.352h36V28.648H63.999z"/>
+  </clipPath>
+  <g clip-path="url(#eve-fleet-C)">
+  <clipPath id="eve-fleet-D">
+  <path d="M100.001 43.723L63.999 28.648v13.428l36.002 15.074zm0 21.099l-36.002-15.07v13.426l36.002 15.072zm0 34.53L63.999 84.279V70.852l36.002 15.072z"/>
+  </clipPath>
+  <g clip-path="url(#eve-fleet-D)">
+  <rect x="64" y="28" width="36" height="72" class="shape"/>
+  </g>
+  </g>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-map">
+  <clipPath id="eve-map-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".6" clip-path="url(#eve-map-A)">
+  <clipPath id="eve-map-B">
+  <path d="M36.626 88.674h65.917V40.41H36.626z"/>
+  </clipPath>
+  <g clip-path="url(#eve-map-B)">
+  <clipPath id="eve-map-C">
+  <path d="M85.564 50.035c-.922.746-2.018 1.244-3.186 1.447l16.983 37.192c.892-.791 2-1.297 3.182-1.451zM71.198 62.799c1.184.142 2.299.636 3.201 1.416l5.622-12.719a6.92 6.92 0 0 1-3.202-1.412zm-6.715 5.879l-23.359 6.801 7.092 1.58 17.244-5.024a5.97 5.97 0 0 1-.981-3.285c0-.024.004-.049.004-.072m1.566-3.966a5.96 5.96 0 0 1 3.011-1.784L55.707 40.41a7.9 7.9 0 0 1-3.007 1.791zM38.037 73.16l-1.411-6.351 9.284-25.483a7.97 7.97 0 0 0 3.288 1.199z"/>
+  </clipPath>
+  <g clip-path="url(#eve-map-C)">
+  <rect x="36" y="40" width="67" height="49" class="shape"/>
+  </g>
+  </g>
+  </g>
+  <clipPath id="eve-map-D">
+  <path d="M42.226 34.598a7.99 7.99 0 0 0 3.684 6.728 7.97 7.97 0 0 0 3.289 1.199 7.72 7.72 0 0 0 3.501-.324 7.9 7.9 0 0 0 3.007-1.791 7.96 7.96 0 0 0 2.516-5.812 8 8 0 0 0-12.043-7.057 8 8 0 0 0-3.954 7.057m31.932 10c-.001 2.14.98 4.162 2.662 5.486.928.737 2.031 1.224 3.201 1.412a6.74 6.74 0 0 0 1.136.102c.416 0 .824-.042 1.222-.116a6.98 6.98 0 0 0 3.186-1.447c1.641-1.328 2.595-3.326 2.595-5.437-.065-3.82-3.18-6.884-7.001-6.884s-6.936 3.063-7.001 6.884M29.369 74.882L9.014 79.41l20.355 4.523 4.529 20.358 4.523-20.353 20.361-4.528-10.566-2.352-7.092-1.579-2.705-.6-.382-1.719-1.411-6.351-2.728-12.285zM69.06 62.927c-1.159.281-2.208.903-3.011 1.785-.993 1.083-1.551 2.495-1.566 3.965l-.003.073c0 1.214.36 2.339.981 3.285 1.105 1.694 2.992 2.716 5.015 2.715 3.314.001 6.002-2.686 6.003-6 .001-1.743-.758-3.399-2.08-4.535a5.99 5.99 0 0 0-3.201-1.416c-.24-.03-.481-.046-.722-.049a6 6 0 0 0-1.416.177m33.483 24.296c-1.182.154-2.29.66-3.182 1.451a5.97 5.97 0 0 0-2.028 4.486 6 6 0 0 0 6 6.002 6 6 0 0 0 5.261-9.022 6 6 0 0 0-5.261-2.977 5.9 5.9 0 0 0-.79.06"/>
+  </clipPath>
+  <g clip-path="url(#eve-map-D)">
+  <rect x="9" y="26" width="101" height="79" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-planets">
+  <clipPath id="eve-planets-A">
+  <path d="M36.942 63.999l.042.987c-12.986 6.958-21.005 13.662-19.45 17.65 2.351 6.022 25.622 1.398 51.083-8.536s44.192-22.869 41.842-28.891c-1.52-3.895-11.502-3.029-25.252.76-5.041-5.802-12.456-9.485-20.748-9.485-15.198 0-27.517 12.32-27.517 27.515M87.13 48.471c8.224-1.621 13.837-1.512 14.701.705.858 2.21-3.155 6.064-10.245 10.419a27.39 27.39 0 0 0-4.456-11.124M25.849 78.822c-.906-2.32 3.585-6.463 11.37-11.095a27.36 27.36 0 0 0 4.416 11.579c-4.141.868-7.676 1.324-10.354 1.324-3.022 0-4.954-.581-5.432-1.808m44.399-1.053c-7.913 3.088-15.556 5.737-22.692 7.912 4.664 3.644 10.52 5.835 16.903 5.835 13.739 0 25.093-10.079 27.151-23.244a251.21 251.21 0 0 1-21.362 9.497"/>
+  </clipPath>
+  <g clip-path="url(#eve-planets-A)">
+  <rect x="15" y="36" width="98" height="56" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-market">
+  <clipPath id="eve-market-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".25" clip-path="url(#eve-market-A)">
+  <clipPath id="eve-market-B">
+  <path d="M33.133 94.781H99.91V47.67H33.133z"/>
+  </clipPath>
+  <g clip-path="url(#eve-market-B)">
+  <clipPath id="eve-market-C">
+  <path d="M86.816 67.857l-13.885-6.08-14.785 21.25L44.227 50.42 33.133 63.677v31.104h66.778V47.764c-.313 0-.618-.038-.917-.094z"/>
+  </clipPath>
+  <g clip-path="url(#eve-market-C)">
+  <rect x="33" y="47" width="67" height="48" class="shape"/>
+  </g>
+  </g>
+  </g>
+  <clipPath id="eve-market-D">
+  <path d="M28.133 28v71.781h71.778v-5H33.133V63.677L44.227 50.42l13.919 32.607 14.785-21.25 13.886 6.08L98.994 47.67c.299.055.604.094.917.094a5 5 0 1 0 0-10 5 5 0 0 0-5 5c0 1.173.421 2.236 1.094 3.087L85.406 63.42l-13.707-6-12.816 18.42-13.678-32.045-12.072 14.431V28z"/>
+  </clipPath>
+  <g clip-path="url(#eve-market-D)">
+  <rect x="28" y="28" width="77" height="72" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-calendar">
+  <clipPath id="eve-calendar-A">
+  <path d="M50.435 98.357H61V87.793H50.435zm0 0H61V87.793H50.435zm-16.563 0h10.563V87.793H33.872zm0 0h10.563V87.793H33.872zm60.256-27.128H83.564v10.564h10.564zm0 0H83.564v10.564h10.564zM67 81.793h10.563V71.229H67zm0 0h10.563V71.229H67zm-16.565 0H61V71.229H50.435zm0 0H61V71.229H50.435zm-16.563 0h10.563V71.229H33.872zm0 0h10.563V71.229H33.872zm60.256-27.127H83.564v10.563h10.564zm0 0H83.564v10.563h10.564zM67 65.229h10.563V54.666H67zm0 0h10.563V54.666H67zm-16.565 0H61V54.666H50.435zm0 0H61V54.666H50.435zm-16.563 0h10.563V54.666H33.872zm0 0h10.563V54.666H33.872zM87.824 22.92H75.848v10h11.976zm-35.83 0H40.015v10h11.979zM100 44.775H28V28h7.016v9.92h21.978V28h13.854v9.92h21.976V28H100z"/>
+  </clipPath>
+  <g clip-path="url(#eve-calendar-A)">
+  <rect x="28" y="22" width="72" height="77" class="shape"/>
+  </g>
+  <clipPath id="eve-calendar-B">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".25" clip-path="url(#eve-calendar-B)">
+  <clipPath id="eve-calendar-C">
+  <path d="M28 104h72V49.023H28z"/>
+  </clipPath>
+  <g clip-path="url(#eve-calendar-C)">
+  <clipPath id="eve-calendar-D">
+  <path d="M84.027 104L100 88.027V104zm-6.464-38.771H67V54.666h10.563zm0 16.564H67V71.229h10.563zM61 65.229H50.435V54.666H61zm0 16.564H50.435V71.229H61zm0 16.564H50.435V87.793H61zM44.435 65.229H33.872V54.666h10.563zm0 16.564H33.872V71.229h10.563zm0 16.564H33.872V87.793h10.563zm39.128-27.128h10.564v10.564H83.563zm0-16.563h10.564v10.563H83.563zm12.902 29.826L100 80.957V49.023H28V104h48.957l3.535-3.535z"/>
+  </clipPath>
+  <g clip-path="url(#eve-calendar-D)">
+  <rect x="28" y="49" width="72" height="55" class="shape"/>
+  </g>
+  </g>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-medical">
+  <clipPath id="eve-medical-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".8" clip-path="url(#eve-medical-A)">
+  <clipPath id="eve-medical-B">
+  <path d="M21.25 104.5h85.499V90.934H21.251z"/>
+  </clipPath>
+  <g clip-path="url(#eve-medical-B)" class="shape" opacity="0.8">
+  <path d="M21.25 104.5h8.778l-3.305-13.566zm80.027-13.566L97.971 104.5h8.778z" class="shape" opacity="0.8"/>
+  </g>
+  </g>
+  <clipPath id="eve-medical-C">
+  <path d="M64 23.269H44.552L23.159 76.3l6.87 28.2h67.943l6.87-28.2-21.394-53.031zM28.026 76.653l19.661-48.738h32.625l19.662 48.738-5.652 23.201H33.678zm20.8-18.194c.029.989-.696.485-.862.471-1.63-.117-.965 4.15-.579 5.981s.532 2.421 1.156 4.051c.629 1.632 1.928 1.385 1.928 1.385l.819 5.288c.386 2.47 1.928 3.904 1.928 3.904s0 .246-.338 3.457-4.046 3.708-4.046 3.708l-12.117 3.919.998 4.096h52.574l.998-4.096-12.117-3.919s-3.709-.496-4.046-3.708l-.338-3.457s1.542-1.434 1.928-3.904l.819-5.288s1.299.247 1.928-1.385.771-2.223 1.156-4.051 1.051-6.098-.579-5.981c-.166.014-.891.518-.862-.471 0 0 2.334-19.689-15.174-19.689S48.826 58.459 48.826 58.459m2.218-.619H60.5v-9.455h7v9.455h9.455v7.001H67.5v9.455h-7v-9.455h-9.456z"/>
+  </clipPath>
+  <g clip-path="url(#eve-medical-C)">
+  <rect x="23" y="23" width="82" height="82" class="shape"/>
+  </g>
+  <clipPath id="eve-medical-D">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".25" clip-path="url(#eve-D)">
+  <clipPath id="eve-medical-E">
+  <path d="M51.044 74.296h25.912V48.385H51.044z"/>
+  </clipPath>
+  <g clip-path="url(#eve-medical-E)">
+  <clipPath id="eve-medical-F">
+  <path d="M60.5 74.296V64.84h-9.456v-7H60.5v-9.455h7v9.455h9.456v7H67.5v9.456z"/>
+  </clipPath>
+  <g clip-path="url(#eve-medical-F)">
+  <rect x="51" y="48" width="26" height="27" class="shape"/>
+  </g>
+  </g>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-Settings">
+  <clipPath id="eve-Settings-A">
+  <path d="M67.613 28.181c-2.403-.241-4.823-.241-7.226 0l-4.772-8.591-6.559 1.757.163 9.829a35.91 35.91 0 0 0-6.249 3.615l-8.437-5.059-4.801 4.802 5.058 8.436c-1.411 1.956-2.621 4.05-3.614 6.248l-9.829-.162-1.758 6.559 8.592 4.772c-.24 2.402-.24 4.823 0 7.225l-8.592 4.773 1.758 6.559 9.829-.163a35.97 35.97 0 0 0 3.614 6.249l-5.058 8.436 4.801 4.802 8.437-5.058a35.97 35.97 0 0 0 6.249 3.614l-.163 9.829 6.559 1.757 4.772-8.591a36.25 36.25 0 0 0 7.226 0l4.772 8.591 6.558-1.757-.161-9.829a36 36 0 0 0 6.248-3.614l8.437 5.058 4.801-4.802-5.059-8.436a35.81 35.81 0 0 0 3.615-6.249l9.829.163 1.757-6.559-8.591-4.773c.241-2.402.241-4.823 0-7.225l8.591-4.772-1.757-6.559-9.829.162c-.992-2.199-2.203-4.292-3.614-6.248l5.058-8.436-4.801-4.802-8.437 5.059a35.94 35.94 0 0 0-6.248-3.615l.161-9.829-6.558-1.757zM32.659 64c0-17.282 14.06-31.341 31.341-31.341S95.341 46.718 95.341 64 81.282 95.341 64 95.341 32.659 81.281 32.659 64"/>
+  </clipPath>
+  <g clip-path="url(#eve-Settings-A)">
+  <rect x="19" y="19" width="90" height="90" class="shape"/>
+  </g>
+  <clipPath id="eve-Settings-B">
+  <path d="M37.66 64c0 14.524 11.816 26.34 26.34 26.34S90.34 78.524 90.34 64 78.524 37.66 64 37.66 37.66 49.476 37.66 64m5.753 0A20.59 20.59 0 0 1 64 43.413 20.59 20.59 0 0 1 84.587 64 20.59 20.59 0 0 1 64 84.587 20.59 20.59 0 0 1 43.413 64"/>
+  </clipPath>
+  <g clip-path="url(#eve-Settings-B)">
+  <rect x="37" y="37" width="54" height="54" class="shape"/>
+  </g>
+  <clipPath id="eve-Settings-C">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".6" clip-path="url(#eve-Settings-C)">
+  <clipPath id="eve-Settings-D">
+  <path d="M32.66 95.34h62.68V32.66H32.66z"/>
+  </clipPath>
+  <g clip-path="url(#eve-Settings-D)">
+  <clipPath id="eve-Settings-E">
+  <path d="M64 90.34c-14.524 0-26.341-11.816-26.341-26.34S49.476 37.66 64 37.66 90.34 49.476 90.34 64 78.524 90.34 64 90.34M95.34 64c0-17.282-14.059-31.34-31.34-31.34S32.659 46.718 32.659 64 46.719 95.34 64 95.34 95.34 81.281 95.34 64"/>
+  </clipPath>
+  <g clip-path="url(#eve-Settings-E)">
+  <rect x="32" y="32" width="64" height="64" class="shape"/>
+  </g>
+  </g>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-info">
+  <clipPath id="eve-info-A">
+  <path d="M24 64.001C24 86.091 41.909 104 64 104s40-17.909 40-39.999S86.09 24 64 24 24 41.909 24 64.001M59.714 39h10v10.001h-10zm-2.857 16.667h12.857V79h1.429v10H58.286V79h1.428V65.668h-2.857z"/>
+  </clipPath>
+  <g clip-path="url(#eve-info-A)">
+  <rect x="24" y="24" width="80" height="80" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-evemail">
+  <clipPath id="eve-evemail-A">
+  <path d="M22.842 45.904v36.611l18.303-18.306zm48.389 33.932H56.773L45.642 68.704 22.976 91.371h82.052L82.363 68.704zm33.93 2.682V45.904L86.856 64.211zM45.677 59.682l-.035.035-22.738-22.738h82.195L82.363 59.717 68.6 73.479h-9.195l-9.272-9.27.038-.036z"/>
+  </clipPath>
+  <g clip-path="url(#eve-evemail-A)">
+  <rect x="22" y="36" width="84" height="56" class="shape"/>
+  </g>
+  </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-killreport">
+  <clipPath id="eve-killreport-A">
+  <path d="M32.241 60.82c0 18.125 14.693 32.82 32.821 32.82a33.05 33.05 0 0 0 6.507-.647V85.49a25.47 25.47 0 0 1-4.077.73V74.385h-4.865V86.22C50.49 85.069 40.811 75.389 39.661 63.251h11.837v-4.864H39.661C40.811 46.25 50.49 36.568 62.627 35.42v11.837h4.865V35.42c12.138 1.148 21.817 10.83 22.973 22.967H78.623v4.864h19.142c.069-.865.115-1.548.115-2.431C97.88 42.693 83.186 28 65.062 28S32.241 42.693 32.241 60.82"/>
+  </clipPath>
+  <g clip-path="url(#eve-killreport-A)">
+  <rect x="32" y="28" width="66" height="66" class="shape"/>
+  </g>
+  <clipPath id="eve-killreport-B">
+  <path d="M74.679 108h31.08V66.553h-31.08zm7.177-34.266H98.71v2.912H81.856zm0 6.766H98.71v2.911H81.856zm0 6.823H98.71v2.911H81.856zm.005 6.828h11.381v2.911H81.861z"/>
+  </clipPath>
+  <g clip-path="url(#eve-killreport-B)">
+  <rect x="74" y="66" width="32" height="42" class="shape"/>
+  </g>
+  </symbol>
+</svg>
 
 <!-- ── User background wallpaper (behind all UI; hidden until one is chosen) ─ -->
 <div id="appBackground" aria-hidden="true"><div id="appBackgroundOverlay"></div></div>
@@ -161,37 +432,46 @@
       </div>
       <nav id="sidebarNav" class="sidebar-nav expanded">
         <button class="nav-btn nav-btn-characters" data-page="characters" title="Characters">
-          <span class="nav-icon material-symbols-outlined">person</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-charactersheet"/></svg></span>
           <span class="nav-label">Characters</span>
         </button>
         <button class="nav-btn nav-btn-dashboard" data-page="dashboard" title="Dashboard">
           <span class="nav-icon material-symbols-outlined">dashboard</span>
           <span class="nav-label">Dashboard</span>
         </button>
+        <button class="nav-btn nav-btn-killboard" data-page="killboard" title="Killboard — kills, losses and PvP stats">
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-killreport"/></svg></span>
+          <span class="nav-label">Killboard</span>
+        </button>
+        <button class="nav-btn nav-btn-mail" data-page="mail" title="EVE Mail &amp; Notifications">
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-evemail"/></svg></span>
+          <span class="nav-label">EVE Mail</span>
+          <span class="nav-status" id="mailNavUnread"></span>
+        </button>
         <div class="nav-item-with-menu">
           <button class="nav-btn nav-btn-industry" data-page="industry" title="Industry">
-            <span class="nav-icon material-symbols-outlined">precision_manufacturing</span>
+            <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-industry"/></svg></span>
             <span class="nav-label">Industry</span>
           </button>
         </div>
         <button class="nav-btn nav-btn-assets" data-page="assets" title="Assets">
-          <span class="nav-icon material-symbols-outlined">inventory_2</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-assets"/></svg></span>
           <span class="nav-label">Assets</span>
         </button>
         <button class="nav-btn nav-btn-wallets" data-page="wallets" title="Finances">
-          <span class="nav-icon material-symbols-outlined">account_balance_wallet</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-wallet"/></svg></span>
           <span class="nav-label">Finances</span>
         </button>
         <button class="nav-btn nav-btn-fc" data-page="fc" title="Fleet Commander">
-          <span class="nav-icon material-symbols-outlined">swords</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-fleet"/></svg></span>
           <span class="nav-label">Fleet Commander</span>
         </button>
         <button class="nav-btn nav-btn-map" data-page="map" title="Map">
-          <span class="nav-icon material-symbols-outlined">map</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-map"/></svg></span>
           <span class="nav-label">Map</span>
         </button>
         <button class="nav-btn nav-btn-pi" data-page="pi" title="Planetary Interaction">
-          <span class="nav-icon material-symbols-outlined">public</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-planets"/></svg></span>
           <span class="nav-label">Planetary Interaction</span>
         </button>
         <button class="nav-btn nav-btn-forums" data-page="forums" title="Forums">
@@ -209,16 +489,16 @@
           </span>
         </button>
         <button class="nav-btn nav-btn-market" data-page="market" title="Market">
-          <span class="nav-icon material-symbols-outlined">candlestick_chart</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-market"/></svg></span>
           <span class="nav-label">Market</span>
         </button>
         <button class="nav-btn nav-btn-calendar" data-page="calendar" title="Calendar">
-          <span class="nav-icon material-symbols-outlined">calendar_month</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-calendar"/></svg></span>
           <span class="nav-label">Calendar</span>
         </button>
         <button class="nav-btn" id="plexForGoodBtn" title="PLEX for Good — donate PLEX to charity via CCP (opens in your browser)"
                 onclick="openPlexForGood()">
-          <span class="nav-icon material-symbols-outlined">medical_services</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-medical"/></svg></span>
           <span class="nav-label">PLEX FOR GOOD</span>
         </button>
         <button class="nav-btn" id="eveStatusBtn" title="EVE server status — live player count and CCP status page"
@@ -242,7 +522,7 @@
           <span class="nav-label">Bug Report</span>
         </button>
         <button id="openSettingsBtn" class="nav-btn" title="Open UI Settings">
-          <span class="nav-icon material-symbols-outlined">settings</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-Settings"/></svg></span>
           <span class="nav-label">Settings</span>
         </button>
         <button class="nav-btn" title="Support EVE Carbon with ISK/PLEX" onclick="openDonateModal()">
@@ -250,7 +530,7 @@
           <span class="nav-label">Donate</span>
         </button>
         <button class="nav-btn" title="Credits &amp; Attributions" onclick="openAttributionsModal()">
-          <span class="nav-icon material-symbols-outlined">info</span>
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-info"/></svg></span>
           <span class="nav-label">About</span>
         </button>
       </nav>
@@ -1079,6 +1359,7 @@
 <script src="./func/reactions.js"></script>
 <script src="./func/orehold-reprocess.js"></script>
 <script src="./func/shopping-lists.js"></script>
+<script src="./func/appraisal.js"></script>  <!-- Industry → Appraisal (bulk Jita valuation) -->
 <script src="./func/market.js"></script>
 <script src="./func/ics-parse.js"></script>  <!-- pure iCalendar parser; must precede calendar.js -->
 <script src="./func/calendar.js"></script>
@@ -1087,6 +1368,9 @@
 <script src="./func/ticker.js"></script>  <!-- persistent bottom market ticker -->
 <script src="./func/donation.js"></script>  <!-- donation / feedback prompts -->
 <script src="./func/forums.js"></script>  <!-- embedded forum webview -->
+<script src="./func/killboard.js"></script>  <!-- zKillboard-backed kills/losses feed -->
+<script src="./func/notifications.js"></script>  <!-- notification feed; must precede mail.js (tab host) -->
+<script src="./func/mail.js"></script>  <!-- EVE Mail client (live ESI, nothing stored) -->
 <script src="./pageLoader.js"></script>  <!-- injects pages/*.html → #navPagesContainer -->
 <script src="./app.js"></script>         <!-- must be last -->
 

@@ -334,12 +334,22 @@ function registerCharacterHandlers({
   // fresh + a long stale fallback keeps us polite and the banner instant.
   // Returns null when the character has no killboard presence or zKill is
   // unreachable; the banner section simply stays hidden.
-  ipcHandle('get-zkill-stats', async (_, characterId) => {
-    const cacheKey = `zkill_stats_v3_${characterId}`;
+  // `kind` is 'character' (default, so the dashboard banner's one-arg call still
+  // works) or 'corporation' — the Killboard's corp overviews reuse this.
+  ipcHandle('get-zkill-stats', async (_, entityId, kind = 'character') => {
+    const characterId = entityId;                         // URL/id below reads this
+    const ek = kind === 'corporation' ? 'corporation' : 'character';
+    const cacheKey = `zkill_stats_v4_${ek}_${entityId}`;
     const cached   = readCache(cacheKey);
     if (cached) return cached;
     try {
-      const raw = await httpGet(`https://zkillboard.com/api/stats/characterID/${characterId}/`);
+      // The bare .../stats/characterID/{id}/ URL now 302s to .../kills/, and
+      // httpGet doesn't follow redirects — it just failed to parse the empty
+      // body and returned null, which silently blanked this everywhere it's
+      // used (the dashboard banner's rank column simply stayed hidden).
+      // Request the redirect target directly; the payload is unchanged and
+      // still carries shipsDestroyed / iskDestroyed / rankings / rankHistory.
+      const raw = await httpGet(`https://zkillboard.com/api/stats/${ek}ID/${characterId}/kills/`);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
       // Rank trend: current rank vs the oldest snapshot in zKill's rankHistory
@@ -407,6 +417,74 @@ function registerCharacterHandlers({
       const stale = readCache(`${cacheKey}_stale`);
       if (stale) return stale;
       console.warn(`get-zkill-stats failed for ${characterId}:`, e.message || e);
+      return null;
+    }
+  });
+
+  // ─── IPC: zKillboard killmail feed (public API, no auth) ─────────────────
+  // The character's recent kills and losses. zKill returns the whole killmail
+  // inline these days (victim, attackers, ship, system, time) alongside its own
+  // `zkb` value block, so one request covers the entire feed — no follow-up ESI
+  // call per killmail. No scope needed either, which is why the Killboard works
+  // without re-authenticating a character.
+  //
+  // We normalise here and deliberately drop victim.items: a 200-entry feed with
+  // full fitting lists is megabytes of IPC payload for data the list never shows.
+  // Cached 10 minutes (zKill asks consumers to cache aggressively) with a long
+  // stale fallback so the page still renders if zKill is having a moment.
+  // `kind` is 'character' or 'corporation'. Corp feeds show every kill/loss the
+  // corp was on (not just the logged-in pilot), which is what powers the
+  // Killboard's corp overviews. isLoss is judged against the matching id field.
+  ipcHandle('get-zkill-feed', async (_, kind, entityId, page = 1) => {
+    if (!entityId) return null;
+    const ek = kind === 'corporation' ? 'corporation' : 'character';
+    const cacheKey = `zkill_feed_v2_${ek}_${entityId}_p${page}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
+    try {
+      const url = `https://zkillboard.com/api/${ek}ID/${entityId}/page/${page}/`;
+      const raw = await httpGet(url);
+      if (!Array.isArray(raw)) return null;
+
+      const numId = Number(entityId);
+      const rows = raw.map(k => {
+        const v         = k.victim || {};
+        const attackers = Array.isArray(k.attackers) ? k.attackers : [];
+        const zkb       = k.zkb || {};
+        // A loss when the matching id is the victim; otherwise it's a kill.
+        const isLoss    = ek === 'corporation'
+          ? Number(v.corporation_id) === numId
+          : Number(v.character_id) === numId;
+        const finalBlow = attackers.find(a => a.final_blow) || attackers[0] || {};
+        // On a kill, "who we shot" is the victim; on a loss, the notable other
+        // party is whoever landed the final blow.
+        return {
+          killmailId:   k.killmail_id,
+          hash:         zkb.hash || null,
+          time:         k.killmail_time,
+          systemId:     k.solar_system_id,
+          isLoss,
+          victimCharId:     v.character_id     || null,
+          victimCorpId:     v.corporation_id   || null,
+          victimAllianceId: v.alliance_id      || null,
+          victimShipTypeId: v.ship_type_id     || null,
+          finalBlowCharId:     finalBlow.character_id  || null,
+          finalBlowShipTypeId: finalBlow.ship_type_id  || null,
+          attackerCount: attackers.length,
+          totalValue:    Number(zkb.totalValue) || 0,
+          points:        Number(zkb.points) || 0,
+          npc:           !!zkb.npc,
+          solo:          !!zkb.solo,
+          awox:          !!zkb.awox,
+        };
+      });
+      writeCache(cacheKey, rows, 1 / 144);          // ~10 minutes
+      writeCache(`${cacheKey}_stale`, rows, 30);    // 30-day stale fallback
+      return rows;
+    } catch (e) {
+      const stale = readCache(`${cacheKey}_stale`);
+      if (stale) return stale;
+      console.warn(`get-zkill-feed failed for ${ek} ${entityId}:`, e.message || e);
       return null;
     }
   });

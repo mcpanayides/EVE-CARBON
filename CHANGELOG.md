@@ -6,6 +6,21 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.6.0] - 2026-07-24
+### Features
+- **EVE Mail client** (nav → EVE Mail) — read, reply to and send in-game mail, with folders/labels, unread counts, mailing-list support and a composer that resolves characters, corporations, alliances and mailing lists by name. Mail is fetched live from ESI and never written to disk.
+- **Notification feed** (EVE Mail → Notifications tab) — the in-game notification list (structure attacks, war decs, bills, moon extractions, insurance payouts) with category filters and readable, parsed detail for each notification. Read-only, as ESI provides no write route.
+- **Bulk appraisal** (Industry → Appraisal) — paste a cargo hold, loot pile or contract and get an instant Jita valuation with per-item breakdown, Jita sell/buy/split totals, m³ volume, and a rate modifier for buyback offers. Handles EVE's paste formats and correctly keeps items whose names end in numbers (e.g. "Cap Booster 400") intact.
+- **Killboard** (nav → Killboard) — recent kills and losses with all-time PvP stats (ships/ISK destroyed and lost, ISK efficiency, solo kills, danger ratio, rank), filters for kills/losses/solo, and click-through to zKillboard.
+- **Combined killboard overviews** — the killboard source picker now offers *All Characters* and *All Corporations* alongside each individual character and corporation, merging every source's feed into one timeline and aggregating the stats.
+- **EVE in-game nav icons** — the navigation menu now uses authentic EVE neocom icons for the game-domain pages, at a larger 28px size, with Material Symbols retained for app-utility items.
+
+### Fixes
+- **Fixed the dashboard banner's killboard/rank column being permanently blank.** zKillboard now 302-redirects its stats endpoint and our HTTP helper doesn't follow redirects, so the request silently returned nothing and the column just hid itself. Now requests the redirect target directly.
+- Fixed the welcome banner's net-worth figure being able to stick on "Calculating…" — the value is now retained and applied whichever of the calculation or the banner paint finishes last, and a cold cache shows liquid ISK immediately instead of waiting on market prices.
+
+---
+
 ## [1.5.0] - 2026-07-21
 ### Security
 - Removed `EVE_CLIENT_SECRET` from the codebase and build entirely — the app's ESI login already uses PKCE and never sent it, but it was still being bundled in plaintext into every shipped installer. Rotated to a new EVE application/client ID as part of this.

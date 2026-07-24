@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Public ESI / Fuzzwork
   searchTypes:           (q, lim)  => ipcRenderer.invoke('sde-search-types', q, lim),
   searchMarketTypes:     (q, lim)  => ipcRenderer.invoke('sde-search-market-types', q, lim),
+  // Batched exact name → { id, name, volume } lookup (bulk appraisal).
+  sdeTypesByNames:       (names)   => ipcRenderer.invoke('sde-types-by-names', names),
   search:                (q)       => ipcRenderer.invoke('esi-search', q),
   getNames:              (ids)     => ipcRenderer.invoke('esi-names', ids),
   getBlueprintMaterials: (id)      => ipcRenderer.invoke('get-blueprint-materials', id),
@@ -87,7 +89,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterJobs:       (characterId) => ipcRenderer.invoke('get-character-jobs', characterId),
   getCharacterActiveJobs:    (characterId)             => ipcRenderer.invoke('get-character-active-jobs', characterId),
   getCorpActiveJobs:         (characterId)             => ipcRenderer.invoke('get-corp-active-jobs', characterId),
-  getZkillStats:             (characterId)             => ipcRenderer.invoke('get-zkill-stats', characterId),
+  // kind defaults to 'character' in main, so the banner's one-arg call is unchanged.
+  getZkillStats:             (entityId, kind)          => ipcRenderer.invoke('get-zkill-stats', entityId, kind),
+  getZkillFeed:              (kind, entityId, page)    => ipcRenderer.invoke('get-zkill-feed', kind, entityId, page),
   modernLayoutGet:           ()                        => ipcRenderer.invoke('modern-layout-get'),
   modernLayoutSave:          (layout)                  => ipcRenderer.invoke('modern-layout-save', layout),
   modernLayoutReset:         ()                        => ipcRenderer.invoke('modern-layout-reset'),
@@ -218,6 +222,18 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fitLookupNames:   (names)              => ipcRenderer.invoke('fit-lookup-names', names),
   fitGetFittings:   (characterId)        => ipcRenderer.invoke('fit-get-fittings', characterId),
   fitSaveFitting:   (characterId, fit)   => ipcRenderer.invoke('fit-save-fitting', characterId, fit),
+
+  // EVE Mail (live-fetched via ESI, never stored locally — see main.js).
+  mailGetHeaders:   (characterId, opts)          => ipcRenderer.invoke('mail-get-headers', characterId, opts),
+  mailGetBody:      (characterId, mailId)        => ipcRenderer.invoke('mail-get-body', characterId, mailId),
+  mailGetLabels:    (characterId)                => ipcRenderer.invoke('mail-get-labels', characterId),
+  mailGetLists:     (characterId)                => ipcRenderer.invoke('mail-get-lists', characterId),
+  mailSend:         (characterId, mail)          => ipcRenderer.invoke('mail-send', characterId, mail),
+  mailUpdate:       (characterId, mailId, patch) => ipcRenderer.invoke('mail-update', characterId, mailId, patch),
+  mailDelete:       (characterId, mailId)        => ipcRenderer.invoke('mail-delete', characterId, mailId),
+
+  // In-game notification feed (read-only — ESI exposes no write route).
+  notifGet:         (characterId)                => ipcRenderer.invoke('notif-get', characterId),
 
   // Reactions Profit — all reaction formulas + materials from the SDE
   reactionsList:       ()       => ipcRenderer.invoke('reactions-list'),

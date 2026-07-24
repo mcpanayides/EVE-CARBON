@@ -37,6 +37,10 @@ const SCOPES = [
   'esi-fittings.write_fittings.v1',             // push fits from the Fitting tool back to the game
   'esi-ui.write_waypoint.v1',
   'esi-ui.open_window.v1',
+  'esi-mail.read_mail.v1',                      // EVE Mail: read headers/bodies, labels and mailing lists
+  'esi-mail.send_mail.v1',                      // EVE Mail: send from the Mail page's composer
+  'esi-mail.organize_mail.v1',                  // EVE Mail: mark read/unread, move labels, delete
+  'esi-characters.read_notifications.v1',       // in-game notification feed (structure attacks, war decs, bills, moon extractions…)
 ].join(' ');
 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────

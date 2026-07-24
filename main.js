@@ -1299,6 +1299,251 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
   }
 });
 
+// ─── EVE Mail ─────────────────────────────────────────────────────────────────
+// Live-fetched, never stored: mail is personal correspondence and ESI already
+// ETag-caches it through the wrapped global fetch() above (which also applies
+// the error-limit gate, User-Agent and compatibility-date headers), so there's
+// no local mail database to keep in sync or leak on disk. Mirrors how game fits
+// are handled. Requires esi-mail.read_mail / send_mail / organize_mail — a 403
+// means the character predates those scopes and must be re-authenticated.
+
+// Shared: resolve a token and hand back the standard auth header, or a
+// structured error the renderer can show without needing to know about tokens.
+async function _mailAuth(characterId) {
+  if (!characterId) return { error: { ok: false, error: 'no character' } };
+  try {
+    const token = await getValidToken(characterId);
+    return { hdr: { Authorization: `Bearer ${token}` } };
+  } catch (e) {
+    return { error: { ok: false, error: 'token: ' + e.message } };
+  }
+}
+
+// Turn a non-OK ESI response into the renderer's { ok:false, ... } shape. 403 is
+// called out separately so the UI can prompt for re-auth rather than showing a
+// raw HTTP error for what is really "you haven't granted mail access yet".
+async function _mailErr(res, what) {
+  if (res.status === 403) {
+    return { ok: false, needsReauth: true,
+             error: `Re-authenticate this character to grant EVE Mail access (esi-mail.* scopes).` };
+  }
+  const t = await res.text().catch(() => '');
+  return { ok: false, error: `ESI ${res.status} on ${what}${t ? ': ' + t : ''}` };
+}
+
+// Mail headers, newest first. ESI returns at most 50 per call; `lastMailId`
+// pages backwards (ask for mail older than that id). `labelId` filters to one
+// label/folder. Returns ids + metadata only — bodies are fetched on demand.
+ipcMain.handle('mail-get-headers', async (_, characterId, opts = {}) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  try {
+    const qs = new URLSearchParams({ datasource: 'tranquility' });
+    if (opts.labelId != null && opts.labelId !== '') qs.set('labels', String(opts.labelId));
+    if (opts.lastMailId) qs.set('last_mail_id', String(opts.lastMailId));
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/?${qs}`, { headers: auth.hdr });
+    if (!res.ok) return await _mailErr(res, 'mail headers');
+    const rows = await res.json();
+    const mails = (Array.isArray(rows) ? rows : []).map(m => ({
+      mailId:     m.mail_id,
+      from:       m.from,
+      subject:    m.subject || '(no subject)',
+      timestamp:  m.timestamp,
+      isRead:     !!m.is_read,
+      labels:     m.labels || [],
+      recipients: (m.recipients || []).map(r => ({ id: r.recipient_id, type: r.recipient_type })),
+    }));
+    return { ok: true, mails };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Full body for one mail. EVE bodies are a restricted HTML dialect (<font>,
+// <a href="showinfo:…">, <br>); the renderer sanitises before display.
+ipcMain.handle('mail-get-body', async (_, characterId, mailId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  if (!mailId) return { ok: false, error: 'no mail id' };
+  try {
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, { headers: auth.hdr });
+    if (!res.ok) return await _mailErr(res, 'mail body');
+    const m = await res.json();
+    return { ok: true, mail: {
+      mailId:     mailId,
+      from:       m.from,
+      subject:    m.subject || '(no subject)',
+      timestamp:  m.timestamp,
+      body:       m.body || '',
+      labels:     m.labels || [],
+      isRead:     !!m.read,
+      recipients: (m.recipients || []).map(r => ({ id: r.recipient_id, type: r.recipient_type })),
+    } };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Labels (folders) with unread counts, plus the total unread figure ESI reports.
+ipcMain.handle('mail-get-labels', async (_, characterId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  try {
+    const res = await fetch(`${ESI_BASE}/v3/characters/${characterId}/mail/labels/?datasource=tranquility`, { headers: auth.hdr });
+    if (!res.ok) return await _mailErr(res, 'mail labels');
+    const d = await res.json();
+    const labels = (d.labels || []).map(l => ({
+      labelId: l.label_id, name: l.name, unreadCount: l.unread_count || 0, color: l.color || null,
+    }));
+    return { ok: true, labels, totalUnread: d.total_unread_count || 0 };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Mailing lists the character is subscribed to — these appear as senders and as
+// selectable recipients in the composer.
+ipcMain.handle('mail-get-lists', async (_, characterId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  try {
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/lists/?datasource=tranquility`, { headers: auth.hdr });
+    if (!res.ok) return await _mailErr(res, 'mailing lists');
+    const rows = await res.json();
+    return { ok: true, lists: (Array.isArray(rows) ? rows : []).map(l => ({ id: l.mailing_list_id, name: l.name })) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Send a mail. recipients = [{ id, type }] where type is character|corporation|
+// alliance|mailing_list. ESI caps the recipient list at 50 and bodies at ~8000
+// characters; we surface those as friendly errors rather than a raw 400/520.
+ipcMain.handle('mail-send', async (_, characterId, mail) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  const recipients = (mail?.recipients || []).filter(r => r && r.id);
+  if (!recipients.length)              return { ok: false, error: 'Add at least one recipient.' };
+  if (recipients.length > 50)          return { ok: false, error: 'EVE Mail allows at most 50 recipients.' };
+  if ((mail.body || '').length > 8000) return { ok: false, error: 'Body is too long (EVE Mail allows about 8000 characters).' };
+  try {
+    const body = {
+      approved_cost: mail.approvedCost || 0,
+      body:          mail.body || '',
+      subject:       (mail.subject || '').slice(0, 1000),
+      recipients:    recipients.map(r => ({ recipient_id: Number(r.id), recipient_type: r.type })),
+    };
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/?datasource=tranquility`, {
+      method: 'POST', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res.ok) return await _mailErr(res, 'send mail');
+    const mailId = await res.json().catch(() => null);
+    return { ok: true, mailId };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Mark read/unread and/or move to a label. ESI's PUT replaces the whole set, so
+// callers pass the labels they want the mail to end up with.
+ipcMain.handle('mail-update', async (_, characterId, mailId, patch = {}) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  if (!mailId) return { ok: false, error: 'no mail id' };
+  try {
+    const body = {};
+    if (typeof patch.read === 'boolean') body.read = patch.read;
+    if (Array.isArray(patch.labels))     body.labels = patch.labels.map(Number);
+    if (!Object.keys(body).length) return { ok: false, error: 'nothing to update' };
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+      method: 'PUT', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!res.ok) return await _mailErr(res, 'update mail');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+// The in-game notification feed (structure attacks, war decs, bills, moon
+// extractions, insurance payouts…). Read-only: ESI exposes no write route, so
+// is_read reflects what you've opened in the client and can't be changed here.
+//
+// Each notification carries a `text` blob of YAML whose shape depends entirely
+// on the notification type (there are 100+). We parse it here rather than in the
+// renderer because js-yaml is a main-process dependency — and js-yaml v4+ load()
+// is the safe loader (no arbitrary type construction), which matters because
+// this is third-party content.
+
+// "StructureUnderAttack" → "Structure Under Attack". Trailing Msg/Notification
+// noise is dropped so the labels read like the in-game ones.
+function _notifLabel(type) {
+  return String(type || '')
+    .replace(/(Msg|Notification)$/i, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim() || String(type || 'Unknown');
+}
+
+// Coarse grouping so the feed can be filtered. Order matters — the first
+// matching rule wins.
+const _NOTIF_CATEGORIES = [
+  [/^Structure|^OwnershipTransferred|^Upwell/i,               'Structure'],
+  [/War|^Ally|^Declare|Surrender|^Offer/i,                    'War'],
+  [/Sov|Territorial|Entosis|^Station.*(Conquer|Aggression)/i, 'Sovereignty'],
+  [/Moonmining|^Mining/i,                                     'Mining'],
+  [/^Corp|^Alliance|Application|^Member/i,                    'Corporation'],
+  [/Bill|^Insurance/i,                                        'Billing'],
+  [/Contract|Market|Order/i,                                  'Market'],
+  [/Kill|Attack|Aggress|Orbital|Reinforce/i,                  'Combat'],
+  [/Industry|^Job/i,                                          'Industry'],
+];
+function _notifCategory(type) {
+  for (const [re, cat] of _NOTIF_CATEGORIES) if (re.test(type || '')) return cat;
+  return 'Other';
+}
+
+ipcMain.handle('notif-get', async (_, characterId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  try {
+    const res = await fetch(`${ESI_BASE}/v6/characters/${characterId}/notifications/?datasource=tranquility`, { headers: auth.hdr });
+    if (res.status === 403) {
+      return { ok: false, needsReauth: true,
+               error: 'Re-authenticate this character to grant notification access (esi-characters.read_notifications.v1).' };
+    }
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      return { ok: false, error: `ESI ${res.status} on notifications${t ? ': ' + t : ''}` };
+    }
+    const yaml = require('js-yaml');
+    const rows = await res.json();
+    const notifications = (Array.isArray(rows) ? rows : []).map(n => {
+      let data = null;
+      // A malformed/unknown body must never take the whole feed down — fall back
+      // to showing the raw text for that one notification.
+      try { data = n.text ? yaml.load(n.text) : null; } catch (_) { data = null; }
+      return {
+        id:        n.notification_id,
+        type:      n.type,
+        label:     _notifLabel(n.type),
+        category:  _notifCategory(n.type),
+        senderId:  n.sender_id,
+        senderType: n.sender_type,
+        timestamp: n.timestamp,
+        isRead:    !!n.is_read,
+        data:      (data && typeof data === 'object') ? data : null,
+        raw:       (data && typeof data === 'object') ? null : (n.text || ''),
+      };
+    });
+    notifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return { ok: true, notifications };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Delete a mail from the character's mailbox (same as deleting it in-game).
+ipcMain.handle('mail-delete', async (_, characterId, mailId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  if (!mailId) return { ok: false, error: 'no mail id' };
+  try {
+    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+      method: 'DELETE', headers: auth.hdr,
+    });
+    if (!res.ok) return await _mailErr(res, 'delete mail');
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;   // second instance is quitting — don't init/open
   initPaths();

@@ -293,6 +293,7 @@
 .industry-sub-btn[data-industry-tab="salvage"]       .industry-sub-icon::before { content: "handyman"; }
 .industry-sub-btn[data-industry-tab="orehold"]       .industry-sub-icon::before { content: "diamond"; }
 .industry-sub-btn[data-industry-tab="cost-index"]    .industry-sub-icon::before { content: "trending_up"; }
+.industry-sub-btn[data-industry-tab="appraisal"]     .industry-sub-icon::before { content: "receipt_long"; }
 .industry-sub-btn[data-industry-tab="shopping-lists"] .industry-sub-icon::before { content: "shopping_cart"; }
 .industry-sub-btn[data-industry-tab="reactions"]     .industry-sub-icon::before { content: "science"; }
 .industry-sub-btn[data-industry-tab="ore"]           .industry-sub-icon::before { content: "grain"; }

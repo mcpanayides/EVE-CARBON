@@ -1,0 +1,441 @@
+/* ─── EVE Mail ───────────────────────────────────────────────────────────────
+   Three-pane client: labels │ message list │ reading pane. Colours come from
+   the shared palette tokens so the page follows every theme (see palette.css);
+   nothing here hardcodes a hue. Markup lives in pageLoader.js (PAGE_HTML.mail),
+   behaviour in func/mail.js. */
+
+/* ── Tabs (Mail │ Notifications) ── */
+.mail-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+.mail-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  padding: 9px 16px;
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.mail-tab:hover  { color: var(--accent); }
+.mail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Toolbar ── */
+.mail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.mail-char-select {
+  background: var(--bg-deep);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  min-width: 180px;
+}
+
+.mail-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+}
+
+/* ── Buttons ── */
+.mail-act-btn {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mail-act-btn:hover          { border-color: var(--accent); color: var(--accent); }
+.mail-act-btn.primary        { border-color: var(--accent); color: var(--accent); }
+.mail-act-btn.primary:hover  { background: var(--nav-active-bg); }
+.mail-act-btn.danger:hover   { border-color: var(--danger); color: var(--danger); }
+.mail-act-btn:disabled       { opacity: 0.5; cursor: default; }
+
+/* ── Three-pane layout ── */
+.mail-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 190px 340px 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Narrow windows: drop the reading pane below the list rather than crushing
+   all three columns (the banner-collapse lesson — never let a pane hit 0px). */
+@media (max-width: 1100px) {
+  .mail-layout { grid-template-columns: 160px 1fr; grid-template-rows: 1fr auto; }
+  .mail-reader { grid-column: 1 / -1; border-top: 1px solid var(--border); }
+}
+
+/* ── Labels / folders ── */
+.mail-labels {
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mail-label-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.mail-label-btn:hover  { background: var(--bg-hover); color: var(--accent); }
+.mail-label-btn.active { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
+.mail-label-name       { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-label-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--accent);
+  color: var(--bg-deep);
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-weight: 700;
+}
+
+/* ── Message list ── */
+.mail-list {
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mail-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-family: var(--font);
+}
+.mail-row:hover  { background: var(--bg-hover); }
+.mail-row.active { background: var(--nav-active-bg); border-left-color: var(--accent); }
+
+.mail-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 3px;
+}
+.mail-row-from {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-row-date {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.mail-row-subject {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Unread: brighter text + accent marker, matching the nav's active treatment. */
+.mail-row.unread .mail-row-from    { color: var(--value-bright, var(--text-1)); font-weight: 700; }
+.mail-row.unread .mail-row-subject { color: var(--text-1); }
+.mail-row.unread                   { border-left-color: var(--accent); }
+
+.mail-more-btn {
+  margin: 10px;
+  padding: 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.mail-more-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Reading pane ── */
+.mail-reader { overflow-y: auto; padding: 18px 22px; }
+
+.mail-reader-head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+.mail-reader-subject {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 8px;
+}
+.mail-reader-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.mail-meta-label {
+  color: var(--label-muted, var(--text-3));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 5px;
+}
+.mail-reader-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* Sanitised mail body (see _mailSanitizeBody). Long unbroken strings are wrapped
+   so a pasted link can't push the pane wide. */
+.mail-body {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mail-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* In-game links (showinfo:/killReport:/fitting:) can't be followed outside the
+   client, so they're shown as inert text rather than a dead hyperlink. */
+.mail-link-eve {
+  color: var(--teal, var(--accent));
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}
+
+.mail-empty {
+  padding: 26px 20px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* ── Composer ── */
+/* The composer carries the app-wide .modal-backdrop class as well, so its dim,
+   blur and z-index come from the shared modal styling (including the lighter
+   glass-mode override in glass.css) and stay consistent with every other modal.
+   Only the hidden-by-default state and positioning belong here. _mailCompose()
+   toggles display inline, which wins over any stylesheet ordering. */
+.mail-compose-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+}
+
+/* Unread count on the nav button (sibling of the Forums/Jabber status lights). */
+.mail-nav-unread {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--accent);
+  color: var(--bg-deep);
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+
+.mail-compose {
+  width: min(720px, 92%);
+  max-height: 88%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px var(--shadow-dark, rgba(0,0,0,0.6));
+}
+
+.mail-compose-head {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mail-compose-row { display: flex; gap: 8px; }
+.mail-compose-row .mail-input { flex: 1; }
+
+.mail-input, .mail-textarea {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-1);
+  padding: 8px 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.mail-textarea { font-family: var(--mono); line-height: 1.6; resize: vertical; }
+.mail-input:focus, .mail-textarea:focus { outline: none; border-color: var(--accent); }
+
+.mail-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; align-items: center; }
+.mail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  color: var(--text-1);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.mail-chip-x {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 1;
+}
+.mail-chip-x:hover { color: var(--danger); }
+.mail-chip-hint    { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+
+.mail-compose-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Notifications tab ──
+   Reuses .mail-row / .mail-reader-* so both tabs read as one page. Only the
+   category filters and the parsed-field table are specific to notifications. */
+.notif-filters { gap: 4px; }
+
+.notif-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.notif-filter:hover  { background: var(--bg-hover); color: var(--accent); }
+.notif-filter.active { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
+.notif-filter-n {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.notif-filter.active .notif-filter-n { color: var(--accent); }
+
+/* Category tag on each row in the list. */
+.notif-cat {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--label-muted, var(--text-3));
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 6px;
+}
+
+.notif-type {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+/* Parsed YAML body rendered as a field table. */
+.notif-fields { display: flex; flex-direction: column; gap: 1px; }
+.notif-field {
+  display: flex;
+  gap: 14px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.notif-field:last-child { border-bottom: none; }
+.notif-field-key {
+  flex: 0 0 190px;
+  color: var(--label-muted, var(--text-3));
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.notif-field-val {
+  flex: 1;
+  color: var(--value-bright, var(--text-1));
+  overflow-wrap: anywhere;
+}
+
+/* Fallback for a body we couldn't parse — shown verbatim. */
+.notif-raw {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

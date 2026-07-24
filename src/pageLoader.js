@@ -144,6 +144,9 @@ const PAGE_HTML = {
           <button class="industry-sub-btn" data-industry-tab="cost-index">
             <span class="industry-sub-icon material-symbols-outlined"></span>Cost Index
           </button>
+          <button class="industry-sub-btn" data-industry-tab="appraisal">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Appraisal
+          </button>
           <button class="industry-sub-btn" data-industry-tab="shopping-lists">
             <span class="industry-sub-icon material-symbols-outlined"></span>Shopping Lists
           </button>
@@ -434,6 +437,109 @@ const PAGE_HTML = {
         <button class="close-page-btn" onclick="closePage('calendar')">✕</button>
       </div>
       <div id="calendarBody"></div>
+    </div>`,
+
+  // ── Killboard ───────────────────────────────────────────────────────────────
+  // zKillboard-backed kills/losses feed + all-time PvP stats. No ESI scope —
+  // see src/func/killboard.js (initKillboardPage).
+  killboard: `
+    <div id="page-killboard" class="nav-page"
+         style="flex-direction:column; height:100%; overflow:hidden;">
+      <div class="page-header">
+        <div>
+          <h2>Killboard</h2>
+          <div class="page-description">
+            Recent kills and losses with all-time PvP stats, from zKillboard.
+          </div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('killboard')">✕</button>
+      </div>
+
+      <div class="kb-toolbar">
+        <select id="kbCharSelect" class="kb-char-select" title="Whose killboard to show"></select>
+        <div class="kb-filters">
+          <button class="kb-filter active" data-kb-filter="all">All</button>
+          <button class="kb-filter" data-kb-filter="kills">Kills</button>
+          <button class="kb-filter" data-kb-filter="losses">Losses</button>
+          <button class="kb-filter" data-kb-filter="solo">Solo</button>
+        </div>
+        <button class="kb-btn" id="kbRefreshBtn">Refresh</button>
+        <button class="kb-btn" id="kbOpenZkillBtn" title="Open this character on zKillboard">zKillboard ↗</button>
+      </div>
+
+      <div class="kb-stats" id="kbStats"></div>
+
+      <div class="kb-feed" id="kbFeed">
+        <div class="kb-empty">Loading killboard…</div>
+      </div>
+    </div>`,
+
+  // ── EVE Mail ────────────────────────────────────────────────────────────────
+  // Three panes: labels/folders │ message list │ reading pane. All behaviour is
+  // in src/func/mail.js (initMailPage). Mail is live-fetched from ESI and never
+  // stored locally, so there is no cache to invalidate here.
+  mail: `
+    <div id="page-mail" class="nav-page"
+         style="flex-direction:column; height:100%; overflow:hidden;">
+      <div class="page-header">
+        <div>
+          <h2>EVE Mail</h2>
+          <div class="page-description">
+            Read, reply to and send in-game mail. Fetched live from ESI — nothing is stored on disk.
+          </div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('mail')">✕</button>
+      </div>
+
+      <div class="mail-tabs">
+        <button class="mail-tab active" data-mailtab="mail">Mail</button>
+        <button class="mail-tab" data-mailtab="notifications">Notifications</button>
+      </div>
+
+      <div class="mail-toolbar">
+        <select id="mailCharSelect" class="mail-char-select" title="Which character to read"></select>
+        <button class="mail-act-btn primary" id="mailComposeBtn">Compose</button>
+        <button class="mail-act-btn" id="mailRefreshBtn">Refresh</button>
+        <span class="mail-status" id="mailStatus"></span>
+      </div>
+
+      <!-- Tab: Mail -->
+      <div class="mail-layout" id="mailTabMail">
+        <div class="mail-labels" id="mailLabels"></div>
+        <div class="mail-list" id="mailList"></div>
+        <div class="mail-reader" id="mailReader">
+          <div class="mail-empty">Select a mail to read.</div>
+        </div>
+      </div>
+
+      <!-- Tab: Notifications (read-only — ESI exposes no write route) -->
+      <div class="mail-layout notif-layout" id="mailTabNotifications" style="display:none;">
+        <div class="mail-labels notif-filters" id="notifFilters"></div>
+        <div class="mail-list" id="notifList"></div>
+        <div class="mail-reader" id="notifReader">
+          <div class="mail-empty">Select a notification to read.</div>
+        </div>
+      </div>
+
+      <!-- Composer -->
+      <div class="modal-backdrop mail-compose-backdrop" id="mailComposeBackdrop">
+        <div class="mail-compose">
+          <div class="mail-compose-head">New EVE Mail</div>
+          <div class="mail-compose-row">
+            <input type="text" id="mailComposeSearch" class="mail-input"
+                   placeholder="Recipient — character, corporation, alliance or mailing list"/>
+            <button class="mail-act-btn" id="mailComposeAddBtn">Add</button>
+          </div>
+          <div class="mail-chips" id="mailComposeChips"></div>
+          <input type="text" id="mailComposeSubject" class="mail-input" placeholder="Subject"/>
+          <textarea id="mailComposeBody" class="mail-textarea" rows="12"
+                    placeholder="Write your mail…"></textarea>
+          <div class="mail-compose-actions">
+            <button class="mail-act-btn" id="mailComposeCancelBtn">Cancel</button>
+            <button class="mail-act-btn primary" id="mailComposeSendBtn">Send</button>
+          </div>
+        </div>
+      </div>
     </div>`,
 
 };

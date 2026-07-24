@@ -1,0 +1,198 @@
+/* ─── Killboard ──────────────────────────────────────────────────────────────
+   Toolbar + all-time stat strip + a kills/losses feed. Kill rows lean on the
+   success/positive tokens, losses on the danger ones, so the page reads at a
+   glance in every theme. */
+
+.kb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.kb-char-select {
+  background: var(--bg-deep);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  min-width: 180px;
+}
+
+.kb-btn {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.kb-btn:hover { border-color: var(--accent); color: var(--accent); }
+#kbOpenZkillBtn { margin-left: auto; }
+
+/* ── Filter pills ── */
+.kb-filters { display: flex; gap: 2px; }
+.kb-filter {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.kb-filter:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.kb-filter:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+.kb-filter:hover       { color: var(--accent); }
+.kb-filter.active      { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
+
+/* ── All-time stat strip ── */
+.kb-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+.kb-stat { display: flex; flex-direction: column; gap: 3px; }
+.kb-stat > span {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--label-muted, var(--text-3));
+}
+.kb-stat > b {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--value-bright, var(--text-1));
+}
+.kb-pos { color: var(--success, var(--pal-green)); }
+.kb-neg { color: var(--danger); }
+
+/* Combined overview name, shown as the leading stat tile for All Characters /
+   All Corporations so it's clear the figures are an aggregate. */
+.kb-stat-src { padding-right: 26px; border-right: 1px solid var(--border); }
+.kb-stat-src > b { color: var(--accent); }
+
+/* ── Feed ── */
+.kb-feed { flex: 1; overflow-y: auto; min-height: 0; }
+
+.kb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  font-family: var(--font);
+}
+.kb-row:hover      { background: var(--bg-hover); }
+.kb-row.kill       { border-left-color: var(--success, var(--pal-green)); }
+.kb-row.loss       { border-left-color: var(--danger); }
+
+.kb-badge {
+  flex-shrink: 0;
+  width: 44px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+}
+.kb-row.kill .kb-badge { color: var(--success, var(--pal-green)); }
+.kb-row.loss .kb-badge { color: var(--danger); }
+
+.kb-ship {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--bg-deep);
+}
+
+.kb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kb-ship-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--value-bright, var(--text-1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kb-dim { color: var(--text-3); opacity: 0.75; }
+
+.kb-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.kb-isk   { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.kb-time  { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+/* Killmail flags. */
+.kb-tag {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+}
+.kb-tag.solo { color: var(--accent); }
+.kb-tag.npc  { color: var(--text-3); }
+.kb-tag.awox { color: var(--warning, var(--danger)); }
+
+.kb-more {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 12px 16px;
+  padding: 9px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.kb-more:hover     { border-color: var(--accent); color: var(--accent); }
+.kb-more:disabled  { opacity: 0.6; cursor: default; }
+
+.kb-empty {
+  padding: 34px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+}

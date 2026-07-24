@@ -803,6 +803,37 @@ function registerEsiHandlers({
     }
   });
 
+  // Batched exact name → type lookup for the bulk appraisal tool. A pasted cargo
+  // hold can be hundreds of lines, so this resolves them in one pass instead of
+  // one search IPC per line. Matching is case-insensitive and exact (paste data
+  // carries real type names); the volume comes along for the m³ total.
+  // Returns { "<lowercased name>": { id, name, volume } }.
+  ipcHandle('sde-types-by-names', async (_, names) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !Array.isArray(names) || !names.length) return {};
+    const wanted = [...new Set(names.map(n => String(n || '').trim().toLowerCase()).filter(Boolean))];
+    const out = {};
+    // Chunked well under SQLite's default 999 bound-parameter limit.
+    const CHUNK = 400;
+    try {
+      for (let i = 0; i < wanted.length; i += CHUNK) {
+        const slice = wanted.slice(i, i + CHUNK);
+        const rows = await sdeDb.all(
+          `SELECT typeID AS id, typeName AS name, volume
+             FROM invTypes
+            WHERE lower(typeName) IN (${slice.map(() => '?').join(',')})
+              AND published = 1`,
+          slice,
+        );
+        (rows || []).forEach(r => { out[String(r.name).toLowerCase()] = { id: r.id, name: r.name, volume: r.volume || 0 }; });
+      }
+      return out;
+    } catch (e) {
+      console.warn('sde-types-by-names failed:', e.message);
+      return out;
+    }
+  });
+
   ipcHandle('sde-search-types', async (_, query, limit = 15) => {
     const sdeDb = getSdeDb();
     if (!sdeDb) return [];

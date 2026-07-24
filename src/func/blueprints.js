@@ -1755,6 +1755,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'orehold') {
     if (typeof renderOreholdCalc === 'function') renderOreholdCalc(right);
 
+  } else if (tab === 'appraisal') {
+    if (typeof renderAppraisal === 'function') renderAppraisal(right);
+
   } else if (tab === 'active-jobs') {
     renderActiveJobsPage(right);
 

@@ -58,3 +58,10 @@ Desktop.ini
 
 tmp_*
 *.tmp
+
+# Stray Electron user-data accidentally created in-repo by a run with a
+# mangled --user-data-dir path (backslashes stripped into one filename).
+# The correct pattern (e2e/support/electron-app.js) uses os.tmpdir(); these
+# must never be committed.
+Users*AppData*/
+*-realcopy-*/

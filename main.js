@@ -1453,6 +1453,168 @@ ipcMain.handle('mail-update', async (_, characterId, mailId, patch = {}) => {
   } catch (e) { return { ok: false, error: e.message }; }
 });
 
+// ─── Contracts ────────────────────────────────────────────────────────────────
+// The character's contracts (item exchange, courier, auction, loan). Uses
+// esi-contracts.read_character_contracts.v1, which the app has requested since
+// before this feature existed — so no re-authentication is needed.
+//
+// ESI paginates this endpoint; we walk pages until one comes back short. Items
+// are fetched lazily per contract because most contracts are never opened.
+ipcMain.handle('contracts-get', async (_, characterId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  try {
+    const all = [];
+    for (let page = 1; page <= 10; page++) {
+      const res = await fetch(
+        `${ESI_BASE}/v1/characters/${characterId}/contracts/?datasource=tranquility&page=${page}`,
+        { headers: auth.hdr });
+      if (res.status === 403) {
+        return { ok: false, needsReauth: true,
+                 error: 'Re-authenticate this character to grant contract access (esi-contracts.read_character_contracts.v1).' };
+      }
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        return { ok: false, error: `ESI ${res.status} on contracts${t ? ': ' + t : ''}` };
+      }
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) break;
+      all.push(...rows);
+      if (rows.length < 1000) break;      // ESI page size — a short page is the last
+    }
+
+    const contracts = all.map(c => ({
+      contractId:   c.contract_id,
+      type:         c.type || 'unknown',
+      status:       c.status || 'unknown',
+      title:        c.title || '',
+      forCorp:      !!c.for_corporation,
+      availability: c.availability || 'public',
+      issuerId:     c.issuer_id || null,
+      issuerCorpId: c.issuer_corporation_id || null,
+      assigneeId:   c.assignee_id || null,
+      acceptorId:   c.acceptor_id || null,
+      startLocationId: c.start_location_id || null,
+      endLocationId:   c.end_location_id || null,
+      dateIssued:    c.date_issued || null,
+      dateExpired:   c.date_expired || null,
+      dateAccepted:  c.date_accepted || null,
+      dateCompleted: c.date_completed || null,
+      daysToComplete: c.days_to_complete || 0,
+      price:      Number(c.price) || 0,
+      reward:     Number(c.reward) || 0,
+      collateral: Number(c.collateral) || 0,
+      buyout:     Number(c.buyout) || 0,
+      volume:     Number(c.volume) || 0,
+    }));
+    contracts.sort((a, b) => new Date(b.dateIssued) - new Date(a.dateIssued));
+    return { ok: true, contracts };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Items included in one contract — fetched on demand when a contract is opened.
+ipcMain.handle('contracts-get-items', async (_, characterId, contractId) => {
+  const auth = await _mailAuth(characterId);
+  if (auth.error) return auth.error;
+  if (!contractId) return { ok: false, error: 'no contract id' };
+  try {
+    const res = await fetch(
+      `${ESI_BASE}/v1/characters/${characterId}/contracts/${contractId}/items/?datasource=tranquility`,
+      { headers: auth.hdr });
+    // 404 is normal: courier and loan contracts carry no item list.
+    if (res.status === 404) return { ok: true, items: [] };
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      return { ok: false, error: `ESI ${res.status} on contract items${t ? ': ' + t : ''}` };
+    }
+    const rows = await res.json();
+    return { ok: true, items: (Array.isArray(rows) ? rows : []).map(i => ({
+      typeId:     i.type_id,
+      quantity:   i.quantity,
+      isIncluded: i.is_included !== false,   // false = the buyer must supply it
+      isBlueprintCopy: !!i.is_blueprint_copy,
+      runs:       i.runs ?? null,
+      me:         i.material_efficiency ?? null,
+      te:         i.time_efficiency ?? null,
+    })) };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// ─── Skills (Skills page / planner) ───────────────────────────────────────────
+// Everything the planner needs about one character, in a single call: trained
+// skills with their partial SP, the attribute block (post-remap base values),
+// the active implant set, and the live training queue.
+//
+// No new scopes — esi-skills.read_skills, esi-skills.read_skillqueue and
+// esi-clones.read_implants are all already granted, so this works without any
+// re-authentication. Attributes come from /attributes/ (covered by read_skills)
+// and deliberately exclude implants; the renderer adds implant bonuses itself
+// via sde-implant-attrs so the maths is transparent.
+ipcMain.handle('skills-get-character', async (_, characterId) => {
+  const auth = await _mailAuth(characterId);      // shared token/error helper
+  if (auth.error) return auth.error;
+  try {
+    const get = async (path, what) => {
+      const res = await fetch(`${ESI_BASE}${path}?datasource=tranquility`, { headers: auth.hdr });
+      if (res.status === 403) return { forbidden: true, what };
+      if (!res.ok) return { failed: `ESI ${res.status} on ${what}` };
+      return { data: await res.json() };
+    };
+
+    const [sk, attrs, imps, queue] = await Promise.all([
+      get(`/v4/characters/${characterId}/skills/`,     'skills'),
+      get(`/v1/characters/${characterId}/attributes/`, 'attributes'),
+      get(`/v2/characters/${characterId}/implants/`,   'implants'),
+      get(`/v2/characters/${characterId}/skillqueue/`, 'skill queue'),
+    ]);
+
+    if (sk.forbidden || attrs.forbidden) {
+      return { ok: false, needsReauth: true,
+               error: 'Re-authenticate this character to grant skill access (esi-skills.read_skills.v1).' };
+    }
+    if (sk.failed)    return { ok: false, error: sk.failed };
+    if (attrs.failed) return { ok: false, error: attrs.failed };
+
+    // skillId → { sp, level } for O(1) lookup while costing a plan.
+    const skills = {};
+    (sk.data?.skills || []).forEach(s => {
+      skills[s.skill_id] = {
+        sp:    s.skillpoints_in_skill || 0,
+        level: s.trained_skill_level  || 0,
+      };
+    });
+
+    const a = attrs.data || {};
+    return {
+      ok: true,
+      totalSp: sk.data?.total_sp || 0,
+      skills,
+      attributes: {
+        charisma:     a.charisma     || 0,
+        intelligence: a.intelligence || 0,
+        memory:       a.memory       || 0,
+        perception:   a.perception   || 0,
+        willpower:    a.willpower    || 0,
+        bonusRemaps:  a.bonus_remaps ?? null,
+        lastRemap:    a.last_remap_date || null,
+        remapCooldown: a.accrued_remap_cooldown_date || null,
+      },
+      // Implants/queue are non-fatal extras — a character with neither still plans.
+      implants: Array.isArray(imps.data) ? imps.data : [],
+      queue: Array.isArray(queue.data) ? queue.data.map(q => ({
+        skillId:      q.skill_id,
+        finishedLevel: q.finished_level,
+        startSp:      q.level_start_sp,
+        endSp:        q.level_end_sp,
+        trainingStartSp: q.training_start_sp,
+        startDate:    q.start_date || null,
+        finishDate:   q.finish_date || null,
+        position:     q.queue_position,
+      })) : [],
+    };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 // The in-game notification feed (structure attacks, war decs, bills, moon
 // extractions, insurance payouts…). Read-only: ESI exposes no write route, so
@@ -1681,22 +1843,6 @@ app.whenReady().then(async () => {
       throw new Error(`ESI open window ${res.status}: ${body}`);
     }
     return { success: true };
-  });
-
-  // Resolve character names → character IDs via ESI /universe/ids/ (public, no auth)
-  // Returns [{ name, id }] for matched characters; unmatched names are omitted.
-  ipcHandle('resolve-character-ids', async (_, names) => {
-    if (!Array.isArray(names) || !names.length) return [];
-    try {
-      const result = await httpPost(
-        'https://esi.evetech.net/latest/universe/ids/?datasource=tranquility',
-        names
-      );
-      return (result.characters || []).map(c => ({ name: c.name, id: c.id }));
-    } catch (e) {
-      console.warn('[resolve-character-ids] failed:', e.message);
-      return [];
-    }
   });
 
   // Resolve a solar system name → solarSystemID from the local SDE

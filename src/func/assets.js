@@ -1131,6 +1131,11 @@ function _wireWalletDrag(el) {
 }
 
 async function renderWallets() {
+  // Wallets │ Contracts tab strip (src/func/contracts.js). Bound here because
+  // loadAllPages() injects the page markup asynchronously, so it can't be done
+  // on DOMContentLoaded. Bind before the early-returns below so the Contracts
+  // tab still works while the wallet grid is mid-load.
+  if (typeof bindWalletTabs === 'function') bindWalletTabs();
   const walletsGrid = document.getElementById('walletsGrid');
   if (!walletsGrid) return;
   if (walletsGrid._isLoading) return;

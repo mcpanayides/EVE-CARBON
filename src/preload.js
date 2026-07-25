@@ -14,10 +14,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
   syncCharacterStatus:         (characterId) => ipcRenderer.invoke('sync-character-status', characterId),
 
   // Read stored character data from CharDB
-  getCharacterInfoDb:       (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
   getCharacterAssetsDb:     (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
   getAssetSyncedAt:         (characterId) => ipcRenderer.invoke('get-asset-synced-at', characterId),
-  getCharacterBlueprintsDb: (characterId) => ipcRenderer.invoke('get-character-blueprints-db', characterId),
 
   // Aliases used by dashboard.js, characters.js, wallets, and PI
   getCharacterData:    (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
@@ -45,19 +43,13 @@ contextBridge.exposeInMainWorld('eveAPI', {
   forumFetchText:        (url)                      => ipcRenderer.invoke('forum-fetch-text', url),
   scrapeForumEvents:     (url)                      => ipcRenderer.invoke('forum-scrape-events', url),
   forumLogout:           ()                         => ipcRenderer.invoke('forum-logout'),
-  getCharacterInfo:      (characterId)              => ipcRenderer.invoke('get-character-info', characterId),
-  getClones:             (characterId)              => ipcRenderer.invoke('get-clones', characterId),
   getMarketPrices:       ()                         => ipcRenderer.invoke('get-market-prices'),
   getMarketMovers:       ()                         => ipcRenderer.invoke('get-market-movers'),
-  getStructureInfo:      (structureId, characterId) => ipcRenderer.invoke('get-structure-info', structureId, characterId),
   resolveLocation:       (locationId, characterId)  => ipcRenderer.invoke('resolve-location', locationId, characterId),
   resolveSystemNames:    (systemIds)                => ipcRenderer.invoke('resolve-system-names', systemIds),
   getCharacterOrders:    (characterId)              => ipcRenderer.invoke('get-character-orders', characterId),
-  getCharacterContracts: (characterId)              => ipcRenderer.invoke('get-character-contracts', characterId),
 
   // Blueprints
-  syncBlueprints:    (charId) => ipcRenderer.invoke('sync-blueprints', charId),
-  getBlueprints:     (charId) => ipcRenderer.invoke('get-blueprints', charId),
   getAllBlueprintsFromDb: () => ipcRenderer.invoke('get-all-blueprints-from-db'),
 
   // Public ESI / Fuzzwork
@@ -86,21 +78,16 @@ contextBridge.exposeInMainWorld('eveAPI', {
   sdeGetRegionPlanets:   (regionId) => ipcRenderer.invoke('sde-get-region-planets', regionId),
 
   // Jobs
-  getCharacterJobs:       (characterId) => ipcRenderer.invoke('get-character-jobs', characterId),
   getCharacterActiveJobs:    (characterId)             => ipcRenderer.invoke('get-character-active-jobs', characterId),
   getCorpActiveJobs:         (characterId)             => ipcRenderer.invoke('get-corp-active-jobs', characterId),
   // kind defaults to 'character' in main, so the banner's one-arg call is unchanged.
   getZkillStats:             (entityId, kind)          => ipcRenderer.invoke('get-zkill-stats', entityId, kind),
   getZkillFeed:              (kind, entityId, page)    => ipcRenderer.invoke('get-zkill-feed', kind, entityId, page),
   modernLayoutGet:           ()                        => ipcRenderer.invoke('modern-layout-get'),
-  modernLayoutSave:          (layout)                  => ipcRenderer.invoke('modern-layout-save', layout),
-  modernLayoutReset:         ()                        => ipcRenderer.invoke('modern-layout-reset'),
   setAutopilotDestination:   (characterId, systemId)   => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
   setAutopilotRoute:         (characterId, systemIds)  => ipcRenderer.invoke('set-autopilot-route', { characterId, systemIds }),
 
   // Assets
-  syncAssets:    (charId) => ipcRenderer.invoke('sync-assets', charId),
-  syncAllAssets: ()       => ipcRenderer.invoke('sync-all-assets'),
   repairStructureLocations: () => ipcRenderer.invoke('repair-structure-locations'),
   wipeAssets:    ()       => ipcRenderer.invoke('wipe-assets'),
 
@@ -122,8 +109,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   onWidgetContent:     (cb)   => ipcRenderer.on('widget-content',      (_e, data) => cb(data)),
   onWidgetPoppedIn:    (cb)   => ipcRenderer.on('widget-popped-in',    (_e, id)   => cb(id)),
   onWidgetPopoutReady: (cb)   => ipcRenderer.on('widget-popout-ready', (_e, id)   => cb(id)),
-  getAssets:     (charId) => ipcRenderer.invoke('get-assets', charId),
-  getAllAssets:   ()       => ipcRenderer.invoke('get-all-assets'),
 
   // Station / structure database sync
   syncStationDatabase:     (opts) => ipcRenderer.invoke('sync-station-database', opts),
@@ -145,8 +130,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   cacheSet: (key, value, days) => ipcRenderer.invoke('cache-set', key, value, days),
 
   // UI theme config
-  getUIConfig:  ()       => ipcRenderer.invoke('ui-get-config'),
-  saveUIConfig: (config) => ipcRenderer.invoke('ui-save-config', config),
 
   // App settings
   getAppConfig:  ()       => ipcRenderer.invoke('app-get-config'),
@@ -159,8 +142,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getPresenceCount:   ()        => ipcRenderer.invoke('presence-get-count'),
 
   // Ping file watcher
-  watchPingFile:   (path) => ipcRenderer.invoke('watch-ping-file', path),
-  unwatchPingFile: ()     => ipcRenderer.invoke('unwatch-ping-file'),
 
   // GSF SIGs / Squads metadata (yaml/gsf_sigs.yaml)
   getSigGroups:     () => ipcRenderer.invoke('get-sig-groups'),
@@ -168,14 +149,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Fleet join helpers
   openCharacterInfoWindow: (characterId, targetId) => ipcRenderer.invoke('open-character-info-window', { characterId, targetId }),
-  resolveCharacterIds: (names)            => ipcRenderer.invoke('resolve-character-ids', names),
   systemIdByName: (name)                  => ipcRenderer.invoke('sde-system-id-by-name', name),
   openExternalUrl: (url)                  => ipcRenderer.invoke('open-external-url', url),
-  setWaypoint: (characterId, systemId)    => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
 
   // Jabber
   connectJabber:       (config) => ipcRenderer.invoke('jabber-connect', config),
-  disconnectJabber:    ()       => ipcRenderer.invoke('jabber-disconnect'),
   getJabberMessages:   (limit)  => ipcRenderer.invoke('jabber-get-messages', limit),
   wipeJabberData:      ()       => ipcRenderer.invoke('jabber-wipe-data'),
   openPingAlert:       (rowId)  => ipcRenderer.invoke('jabber-open-ping-alert', rowId),
@@ -234,6 +212,17 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // In-game notification feed (read-only — ESI exposes no write route).
   notifGet:         (characterId)                => ipcRenderer.invoke('notif-get', characterId),
+
+  // Contracts (Finances → Contracts). Scope was already granted.
+  contractsGet:      (characterId)             => ipcRenderer.invoke('contracts-get', characterId),
+  contractsGetItems: (characterId, contractId) => ipcRenderer.invoke('contracts-get-items', characterId, contractId),
+
+  // Skills page / planner. skillsGetCharacter needs no new scope.
+  skillsGetCharacter: (characterId)  => ipcRenderer.invoke('skills-get-character', characterId),
+  sdeGetSkills:       ()             => ipcRenderer.invoke('sde-get-skills'),
+  sdeImplantAttrs:    (typeIds)      => ipcRenderer.invoke('sde-implant-attrs', typeIds),
+  sdeTypeRequirements:(typeId)       => ipcRenderer.invoke('sde-type-requirements', typeId),
+  sdeAttributeBoosters: ()           => ipcRenderer.invoke('sde-attribute-boosters'),
 
   // Reactions Profit — all reaction formulas + materials from the SDE
   reactionsList:       ()       => ipcRenderer.invoke('reactions-list'),

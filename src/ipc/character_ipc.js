@@ -43,10 +43,6 @@ function registerCharacterHandlers({
     return charInfoDb.getAssetSyncedAt(characterId);
   });
 
-  ipcHandle('get-character-blueprints-db', async (_, characterId) => {
-    return charInfoDb.getCharacterBlueprints(characterId);
-  });
-
   // ─── IPC: All blueprints from DB (all synced characters) ─────────────────
   // Reads char_{id}_blueprints tables directly from character_information.db.
   // Returns a flat array of blueprint rows, each augmented with characterId
@@ -72,42 +68,6 @@ function registerCharacterHandlers({
     }
 
     return all;
-  });
-
-  // ─── IPC: Character jobs ──────────────────────────────────────────────────
-  // Completed jobs never change — cache aggressively to avoid hammering ESI.
-  // This is the single biggest source of 429s in the dashboard refresh loop.
-  ipcHandle('get-character-jobs', async (_, characterId) => {
-    const cacheKey = `jobs_completed_${characterId}`;
-    const cached   = readCache(cacheKey);
-    if (cached) return cached;
-
-    try {
-      const token  = await getValidToken(characterId);
-      const url    = `${ESI_BASE}/latest/characters/${characterId}/industry/jobs/?datasource=tranquility&status=completed`;
-      const jobs   = await httpGet(url, { Authorization: `Bearer ${token}` });
-      if (!Array.isArray(jobs)) return [];
-
-      const systemIds = [...new Set(jobs.filter(j => j.solar_system_id).map(j => j.solar_system_id))];
-      const nameMap   = systemIds.length ? await resolveNames(systemIds) : {};
-      const result    = jobs.map(job => ({
-        ...job,
-        solar_system_name: nameMap[job.solar_system_id] || `System ${job.solar_system_id || 'Unknown'}`,
-      }));
-
-      writeCache(cacheKey, result, 1);           // 24 hours — completed jobs never change
-      writeCache(`${cacheKey}_stale`, result, 30); // 30-day stale fallback for 429 situations
-      return result;
-    } catch (e) {
-      if (e.isRateLimit) {
-        // On a 429, return whatever stale cache we have rather than an empty array
-        // so the dashboard doesn't blank out the jobs table.
-        const stale = readCache(`${cacheKey}_stale`);
-        if (stale) return stale;
-      }
-      console.warn('Failed to load character jobs:', e.message || e);
-      return [];
-    }
   });
 
   // ─── IPC: Set autopilot destination in active EVE client ─────────────────────
@@ -489,34 +449,6 @@ function registerCharacterHandlers({
     }
   });
 
-  // ─── IPC: Character public info (ESI) ────────────────────────────────────
-  ipcHandle('get-character-info', async (_, characterId) => {
-    try {
-      const token = await getValidToken(characterId);
-      return await httpGet(
-        `${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
-        { Authorization: `Bearer ${token}` }
-      );
-    } catch (e) {
-      console.warn(`get-character-info failed for ${characterId}:`, e.message);
-      return null;
-    }
-  });
-
-  // ─── IPC: Clones / home location ─────────────────────────────────────────
-  ipcHandle('get-clones', async (_, characterId) => {
-    try {
-      const token = await getValidToken(characterId);
-      return await httpGet(
-        `${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`,
-        { Authorization: `Bearer ${token}` }
-      );
-    } catch (e) {
-      console.warn(`get-clones failed for ${characterId}:`, e.message);
-      return null;
-    }
-  });
-
   // ─── IPC: PI colonies (from CharDB) ──────────────────────────────────────
   ipcHandle('get-pi-colonies', async (_, characterId) => {
     return charInfoDb.getCharacterPIColonies(characterId);
@@ -546,22 +478,6 @@ function registerCharacterHandlers({
         if (stale) return stale;
       }
       console.warn(`get-character-orders failed for ${characterId}:`, e.message);
-      return [];
-    }
-  });
-
-  // ─── IPC: Character contracts (for escrow) ───────────────────────────────
-  // Returns all contracts; we sum 'price' on outstanding buyer contracts.
-  ipcHandle('get-character-contracts', async (_, characterId) => {
-    try {
-      const token     = await getValidToken(characterId);
-      const contracts = await httpGet(
-        `${ESI_BASE}/v1/characters/${characterId}/contracts/?datasource=tranquility`,
-        { Authorization: `Bearer ${token}` }
-      );
-      return Array.isArray(contracts) ? contracts : [];
-    } catch (e) {
-      console.warn(`get-character-contracts failed for ${characterId}:`, e.message);
       return [];
     }
   });

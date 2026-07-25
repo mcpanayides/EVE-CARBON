@@ -6,6 +6,26 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.6.1] - 2026-07-25
+### Features
+- **Skills page — multi-character skill planner** (nav → Skills). Build a plan once and cost it against every character you own, side by side, with the fastest highlighted. Includes:
+  - An in-game-style skill browser: 24 skill groups you can expand, each skill showing your current level as pips and I–V buttons to add it at a target level — no need to know skill names.
+  - **Plan by goal** — search for a ship (e.g. *Rifter*) and it adds every skill needed to fly it; prerequisites are expanded automatically in training order.
+  - Accurate time-to-train using each character's real attributes and **active implants**.
+  - **Optimal remap** — brute-forces every legal attribute allocation to find the fastest for a plan, showing the per-attribute change and time saved.
+  - **Booster cost optimiser** — prices learning implants and cerebral accelerators at Jita and recommends the most cost-effective route *and* the outright fastest ("money no object"), with total ISK cost.
+  - Import a character's live training queue as a plan; export as a Multibuy list (to buy the skillbooks in-game), plain text, or an EVEMon `.emp` file. (ESI's queue is read-only, so no tool can inject a plan into the game.)
+- **Contracts browser** (Finances → Contracts) — browse a character's item-exchange, courier and auction contracts with type/status/expiry, reward/collateral/price, and an expandable per-contract item list (included vs requested, with BPC/ME/TE detail). Uses a scope that was already granted, so no re-authentication is needed.
+
+### Maintenance
+- Removed accidentally-committed Electron user-data from the repository (a stray profile copy with caches, storage and cookies), and added `.gitignore` rules so it can't recur. Note: it remains in older tagged history pending a separate history rewrite.
+- Removed a batch of dead code with no home: two orphaned source files (`wallets.js`, `fleetup.js` — both unloaded and unreachable at runtime), 22 unused preload bridge methods, and 18 superseded IPC handlers. Verified against the full test suite plus a per-page smoke test — no functionality changed.
+
+### Fixes
+- The navigation menu now keeps **Dashboard** as the second item (directly under the character selection) after the Skills page was added.
+
+---
+
 ## [1.6.0] - 2026-07-24
 ### Features
 - **EVE Mail client** (nav → EVE Mail) — read, reply to and send in-game mail, with folders/labels, unread counts, mailing-list support and a composer that resolves characters, corporations, alliances and mailing lists by name. Mail is fetched live from ESI and never written to disk.

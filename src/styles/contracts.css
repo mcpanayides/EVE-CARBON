@@ -1,0 +1,192 @@
+/* ─── Contracts (Finances → Contracts) ───────────────────────────────────────
+   Reuses .mail-tabs for the Wallets│Contracts strip; everything below is the
+   contract list itself. Palette tokens only, so it follows every theme. */
+
+.wallets-tabs { flex-shrink: 0; }
+
+.ct-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+.ct-bar .field-input { width: auto; min-width: 180px; flex: 0 0 auto; }
+.ct-status { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+
+.ct-btn {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ct-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.ct-filters { display: flex; gap: 2px; }
+.ct-filter {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 6px 11px;
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.ct-filter:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.ct-filter:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+.ct-filter:hover  { color: var(--accent); }
+.ct-filter.active { background: var(--nav-active-bg); border-color: var(--accent); color: var(--accent); }
+
+.ct-list { flex: 1; overflow-y: auto; min-height: 0; }
+
+.ct-row { border-bottom: 1px solid var(--border); }
+.ct-row.open { background: var(--bg-panel); }
+
+.ct-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font);
+  cursor: pointer;
+}
+.ct-head:hover { background: var(--bg-hover); }
+
+/* Contract type badge, colour-coded per type. */
+.ct-type {
+  flex-shrink: 0;
+  width: 104px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 0;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  color: var(--text-3);
+}
+.ct-item_exchange { color: var(--accent); }
+.ct-courier       { color: var(--teal, var(--pal-blue, var(--accent))); }
+.ct-auction       { color: var(--warning, var(--pal-gold)); }
+.ct-loan          { color: var(--pal-purple, var(--text-2)); }
+
+.ct-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ct-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--value-bright, var(--text-1));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.ct-right { display: flex; align-items: center; gap: 18px; flex-shrink: 0; }
+.ct-money { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.ct-money > i {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--label-muted, var(--text-3));
+}
+.ct-money > b { font-family: var(--mono); font-size: 13px; color: var(--value-bright, var(--text-1)); }
+.ct-pos { color: var(--success, var(--pal-green)); }
+
+.ct-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 96px; }
+.ct-status-tag {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  color: var(--text-3);
+}
+.ct-st-outstanding { color: var(--success, var(--pal-green)); }
+.ct-st-in_progress { color: var(--warning, var(--pal-gold)); }
+.ct-st-finished, .ct-st-finished_issuer, .ct-st-finished_contractor { color: var(--text-3); }
+.ct-st-failed, .ct-st-cancelled, .ct-st-rejected, .ct-st-deleted { color: var(--danger); }
+.ct-urgent { color: var(--danger); }
+.ct-dim    { color: var(--text-3); font-family: var(--mono); font-size: 10px; }
+
+/* ── Expanded detail ── */
+.ct-detail { padding: 4px 16px 16px 132px; }
+.ct-detail-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ct-detail-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.ct-detail-grid i {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--label-muted, var(--text-3));
+}
+.ct-detail-grid b { font-family: var(--mono); font-size: 12px; color: var(--text-1); }
+
+.ct-itemgroup { margin-bottom: 12px; }
+.ct-itemlabel {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  margin-bottom: 6px;
+  color: var(--label-muted, var(--text-3));
+}
+.ct-itemlabel.ct-in  { color: var(--success, var(--pal-green)); }
+.ct-itemlabel.ct-out { color: var(--warning, var(--pal-gold)); }
+
+.ct-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-1);
+}
+.ct-item img  { width: 26px; height: 26px; flex-shrink: 0; }
+.ct-item span { flex: 1; min-width: 0; }
+.ct-item b    { font-family: var(--mono); color: var(--value-bright, var(--text-1)); }
+.ct-bpc {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--pal-purple, var(--accent));
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.ct-empty {
+  padding: 34px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+}

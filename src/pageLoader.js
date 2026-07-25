@@ -209,11 +209,18 @@ const PAGE_HTML = {
           0.00 ISK
         </span>
       </div>
-      <div class="page-content" style="overflow-y:auto; padding:16px;">
+      <div class="mail-tabs wallets-tabs">
+        <button class="mail-tab active" data-wallettab="wallets">Wallets</button>
+        <button class="mail-tab" data-wallettab="contracts">Contracts</button>
+      </div>
+      <div class="page-content" id="walletsTabWallets" style="overflow-y:auto; padding:16px;">
         <!-- The net-worth tile + character cards are rendered into this grid by
              renderWallets(); the net-worth tile is a draggable 3×2 grid item. -->
         <div class="wallets-grid" id="walletsGrid"></div>
       </div>
+      <!-- Contracts tab — populated by initContractsTab() (src/func/contracts.js) -->
+      <div class="page-content" id="contractsTab" style="display:none; overflow:hidden; padding:0;
+           flex-direction:column; flex:1; min-height:0;"></div>
     </div>`,
 
   // ── Fleet Commander ─────────────────────────────────────────────────────────
@@ -437,6 +444,36 @@ const PAGE_HTML = {
         <button class="close-page-btn" onclick="closePage('calendar')">✕</button>
       </div>
       <div id="calendarBody"></div>
+    </div>`,
+
+  // ── Skills ──────────────────────────────────────────────────────────────────
+  // Multi-character skill planner. Mirrors the Industry page's TOOLS sub-nav so
+  // more skill tools (remap optimiser, fit requirements) can slot in later.
+  // Behaviour lives in src/func/skills.js (initSkillsPage).
+  skills: `
+    <div id="page-skills" class="nav-page"
+         style="flex-direction:column; height:100%; overflow:hidden;">
+      <div class="page-header">
+        <div>
+          <h2>Skills</h2>
+          <div class="page-description">
+            Build skill plans once and cost them against every character you own.
+          </div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('skills')">✕</button>
+      </div>
+      <div class="industry-layout">
+        <div class="industry-subnav">
+          <div class="industry-subnav-label">TOOLS</div>
+          <button class="skills-sub-btn industry-sub-btn active" data-skills-tab="planner">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Planner
+          </button>
+          <button class="skills-sub-btn industry-sub-btn" data-skills-tab="plans">
+            <span class="industry-sub-icon material-symbols-outlined"></span>My Plans
+          </button>
+        </div>
+        <div id="skillsTabContent" class="industry-content"></div>
+      </div>
     </div>`,
 
   // ── Killboard ───────────────────────────────────────────────────────────────

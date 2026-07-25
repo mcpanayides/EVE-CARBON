@@ -223,18 +223,6 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
     }
   });
 
-  ipcMain.handle('jabber-disconnect', async () => {
-    if (jabberClient) {
-      jabberConnectionActive = false;
-      const clientToStop = jabberClient;
-      jabberClient = null; // Null first so no new events route through
-      try { await clientToStop.stop(); } catch (_) {}
-    }
-    stopBeehiveRecheck();
-    resetBeehiveStatus();   // status unknown while disconnected
-    return true;
-  });
-
   // Current Beehive beacon status (cached from the room MOTD) for the dashboard
   // widget to read on mount, before the next live subject update arrives.
   ipcMain.handle('beehive-get-status', async () => beehiveStatus);

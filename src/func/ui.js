@@ -693,6 +693,7 @@ function _initPageForFirstVisit(page) {
     case 'forums':     return initForumsPage();
     case 'mail':       return initMailPage();
     case 'killboard':  return initKillboardPage();
+    case 'skills':     return initSkillsPage();
   }
 }
 

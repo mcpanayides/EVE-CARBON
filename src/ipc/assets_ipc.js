@@ -228,64 +228,6 @@ function registerAssetHandlers({
     }
   });
 
-  // ─── IPC: Sync assets for a single character ──────────────────────────────
-  ipcHandle('sync-assets', async (_, characterId) => {
-    return syncAssetsInternal(characterId);
-  });
-
-  // ─── IPC: Sync assets for all characters (concurrency-limited) ───────────
-  ipcHandle('sync-all-assets', async () => {
-    // Check cache first to avoid re-syncing too often (6-hour gate)
-    try {
-      const cached = readCache('sync_all_assets');
-      if (cached && cached.updatedAt && (Date.now() - cached.updatedAt) < (1000 * 60 * 60 * 6)) {
-        return cached.result;
-      }
-    } catch (e) { /* ignore cache errors */ }
-
-    const db       = loadDB();
-    const accounts = Object.values(db.accounts || {});
-    const result   = { total: 0, characters: [] };
-
-    // Limit concurrency to avoid hammering ESI
-    const CONCURRENCY = 4;
-    async function workerPool(list, fn) {
-      const results = [];
-      let i = 0;
-      async function worker() {
-        while (i < list.length) {
-          const idx = i++;
-          try {
-            results[idx] = await fn(list[idx]);
-          } catch (err) {
-            results[idx] = { error: err.message };
-          }
-        }
-      }
-      const workers = Array.from({ length: Math.min(CONCURRENCY, list.length) }, worker);
-      await Promise.all(workers);
-      return results;
-    }
-
-    const syncResults = await workerPool(accounts, async (account) => {
-      try {
-        const r = await syncAssetsInternal(account.characterId);
-        return { characterId: account.characterId, characterName: account.characterName, count: r.count };
-      } catch (err) {
-        return { characterId: account.characterId, characterName: account.characterName, error: err.message };
-      }
-    });
-
-    for (const s of syncResults) {
-      if (s.count) result.total += s.count;
-      result.characters.push(s);
-    }
-
-    try { writeCache('sync_all_assets', { updatedAt: Date.now(), result }, 0.25); } catch (e) {}
-
-    return result;
-  });
-
   // ─── IPC: Repair poisoned / unresolved structure names ───────────────────
   // Cleans up structures that show as "No structure found with that ID!" (an
   // ESI error an old build cached) or the generic "Structure {id}" fallback,
@@ -364,28 +306,6 @@ function registerAssetHandlers({
     return result;
   });
 
-  // ─── IPC: Get saved assets for a single character (from JSON DB) ──────────
-  ipcHandle('get-assets', (_, characterId) => {
-    const db = loadDB();
-    return db.assets?.[characterId] || null;
-  });
-
-  // ─── IPC: Get all assets across all characters (from JSON DB) ────────────
-  ipcHandle('get-all-assets', () => {
-    const db  = loadDB();
-    const all = [];
-    for (const [charId, data] of Object.entries(db.assets || {})) {
-      const account = db.accounts[charId];
-      if (data && data.items) {
-        data.items.forEach(asset => all.push({
-          ...asset,
-          characterId: charId,
-          characterName: account?.characterName || 'Unknown',
-        }));
-      }
-    }
-    return all;
-  });
 }
 
 module.exports = { registerAssetHandlers };

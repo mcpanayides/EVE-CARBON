@@ -30,6 +30,8 @@
   <link rel="stylesheet" href="./styles/mail.css"/>
   <link rel="stylesheet" href="./styles/appraisal.css"/>
   <link rel="stylesheet" href="./styles/killboard.css"/>
+  <link rel="stylesheet" href="./styles/skills.css"/>
+  <link rel="stylesheet" href="./styles/contracts.css"/>
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
   <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
        comment on the script tag below for why. -->
@@ -334,6 +336,30 @@
   <rect x="74" y="66" width="32" height="42" class="shape"/>
   </g>
   </symbol>
+  <symbol viewBox="0 0 128 128" id="eve-skills">
+  <clipPath id="eve-skills-A">
+  <path d="M0 0h128v128H0z"/>
+  </clipPath>
+  <g opacity=".8" clip-path="url(#eve-skills-A)">
+  <clipPath id="eve-skills-B">
+  <path d="M28 98.368h72v-77.84H28z"/>
+  </clipPath>
+  <g clip-path="url(#eve-skills-B)">
+  <clipPath id="eve-skills-C">
+  <path d="M100 20.528H41.11L28 33.637v.334h9.097l8-8H94v72.397l6-6z"/>
+  </clipPath>
+  <g clip-path="url(#eve-skills-C)">
+  <rect x="28" y="20" width="72" height="79" class="shape"/>
+  </g>
+  </g>
+  </g>
+  <clipPath id="eve-skills-D">
+  <path d="M37.097 33.971H28v72.476h57.921V33.971z"/>
+  </clipPath>
+  <g clip-path="url(#eve-skills-D)">
+  <rect x="28" y="33" width="58" height="74" class="shape"/>
+  </g>
+  </symbol>
 </svg>
 
 <!-- ── User background wallpaper (behind all UI; hidden until one is chosen) ─ -->
@@ -435,9 +461,15 @@
           <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-charactersheet"/></svg></span>
           <span class="nav-label">Characters</span>
         </button>
+        <!-- Dashboard is always the second nav item, directly under the
+             character selection — keep it here when adding new pages. -->
         <button class="nav-btn nav-btn-dashboard" data-page="dashboard" title="Dashboard">
           <span class="nav-icon material-symbols-outlined">dashboard</span>
           <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-btn nav-btn-skills" data-page="skills" title="Skills — multi-character skill planner">
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-skills"/></svg></span>
+          <span class="nav-label">Skills</span>
         </button>
         <button class="nav-btn nav-btn-killboard" data-page="killboard" title="Killboard — kills, losses and PvP stats">
           <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-killreport"/></svg></span>
@@ -1369,6 +1401,8 @@
 <script src="./func/donation.js"></script>  <!-- donation / feedback prompts -->
 <script src="./func/forums.js"></script>  <!-- embedded forum webview -->
 <script src="./func/killboard.js"></script>  <!-- zKillboard-backed kills/losses feed -->
+<script src="./func/skills.js"></script>  <!-- multi-character skill planner -->
+<script src="./func/contracts.js"></script>  <!-- Finances -> Contracts tab -->
 <script src="./func/notifications.js"></script>  <!-- notification feed; must precede mail.js (tab host) -->
 <script src="./func/mail.js"></script>  <!-- EVE Mail client (live ESI, nothing stored) -->
 <script src="./pageLoader.js"></script>  <!-- injects pages/*.html → #navPagesContainer -->

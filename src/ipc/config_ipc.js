@@ -27,19 +27,6 @@ function registerConfigHandlers({
     return true;
   });
 
-  // ─── IPC: UI theme config ──────────────────────────────────────────────────
-  ipcHandle('ui-get-config', () => {
-    const cfg = loadConfig();
-    return cfg.uiTheme || null;
-  });
-
-  ipcHandle('ui-save-config', (_, uiTheme) => {
-    const cfg = loadConfig();
-    cfg.uiTheme = uiTheme || {};
-    saveConfig(cfg);
-    return true;
-  });
-
   // ─── IPC: App settings ────────────────────────────────────────────────────
   ipcHandle('app-get-config', () => {
     const cfg = loadConfig();

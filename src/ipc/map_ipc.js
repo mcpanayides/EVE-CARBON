@@ -21,16 +21,6 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     try { return JSON.parse(fs.readFileSync(_modernLayoutPath(), 'utf8')); }
     catch (_) { return null; }   // no custom layout saved yet
   });
-  ipcHandle('modern-layout-save', async (_, layout) => {
-    if (!layout || typeof layout !== 'object' || !layout.systems) return false;
-    fs.writeFileSync(_modernLayoutPath(), JSON.stringify(layout));
-    return true;
-  });
-  ipcHandle('modern-layout-reset', async () => {
-    try { fs.unlinkSync(_modernLayoutPath()); } catch (_) {}
-    return true;
-  });
-
   // ── Alliance-space incursion alert (dashboard widget) ─────────────────────
   // Given the character's allianceId, returns every incursion-infested system
   // that falls within that alliance's sovereign space, with names resolved.

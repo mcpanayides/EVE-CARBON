@@ -194,13 +194,6 @@ function registerEsiHandlers({
     }
   });
 
-  // ─── IPC: Location / structure resolution ────────────────────────────────
-  // All three use getLocator(), not a bare locator, so the shared instance
-  // with its persistent station cache is always used.
-  ipcHandle('get-structure-info', async (_, structureId, characterId) => {
-    return getLocator().resolveLocation(structureId, characterId);
-  });
-
   ipcHandle('resolve-location', async (_, locationId, characterId) => {
     return getLocator().resolveLocation(locationId, characterId);
   });
@@ -800,6 +793,166 @@ function registerEsiHandlers({
     } catch (e) {
       console.warn('sde-search-market-types failed:', e.message);
       return [];
+    }
+  });
+
+  // ─── Skill definitions (Skills page) ──────────────────────────────────────
+  // Every published skill with the numbers the planner needs, in one query:
+  //   275 = rank (training-time multiplier)
+  //   180/181 = primary/secondary attribute ids (165..168 → int/mem/per/wil, 164 cha)
+  //   182/183/184 = required skill ids, 277/278/279 = their required levels
+  // ~511 rows, so the renderer caches the whole set once per session.
+  ipcHandle('sde-get-skills', async () => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb) return [];
+    try {
+      const rows = await sdeDb.all(`
+        SELECT t.typeID AS id, t.typeName AS name, g.groupName AS grp,
+          MAX(CASE WHEN a.attributeID=275 THEN COALESCE(a.valueInt,a.valueFloat) END) AS rank,
+          MAX(CASE WHEN a.attributeID=180 THEN COALESCE(a.valueInt,a.valueFloat) END) AS primaryAttr,
+          MAX(CASE WHEN a.attributeID=181 THEN COALESCE(a.valueInt,a.valueFloat) END) AS secondaryAttr,
+          MAX(CASE WHEN a.attributeID=182 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req1,
+          MAX(CASE WHEN a.attributeID=277 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req1lvl,
+          MAX(CASE WHEN a.attributeID=183 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req2,
+          MAX(CASE WHEN a.attributeID=278 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req2lvl,
+          MAX(CASE WHEN a.attributeID=184 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req3,
+          MAX(CASE WHEN a.attributeID=279 THEN COALESCE(a.valueInt,a.valueFloat) END) AS req3lvl
+        FROM invTypes t
+        JOIN invGroups g ON g.groupID = t.groupID
+        LEFT JOIN dgmTypeAttributes a ON a.typeID = t.typeID
+        WHERE g.categoryID = 16 AND t.published = 1
+        GROUP BY t.typeID
+        ORDER BY t.typeName`);
+      return (rows || []).map(r => ({
+        id: r.id, name: r.name, group: r.grp,
+        rank: r.rank || 1,
+        primaryAttr: r.primaryAttr || null,
+        secondaryAttr: r.secondaryAttr || null,
+        prereqs: [
+          r.req1 ? { id: r.req1, level: r.req1lvl || 1 } : null,
+          r.req2 ? { id: r.req2, level: r.req2lvl || 1 } : null,
+          r.req3 ? { id: r.req3, level: r.req3lvl || 1 } : null,
+        ].filter(Boolean),
+      }));
+    } catch (e) {
+      console.warn('sde-get-skills failed:', e.message);
+      return [];
+    }
+  });
+
+  // Attribute-boosting items for the planner's booster optimiser:
+  //   • Learning implants (group "Cyber Learning") — permanent, one attribute
+  //     each (+1..+5), in a fixed head slot.
+  //   • Cerebral accelerators — temporary, +N to ALL five attributes for a set
+  //     duration (attribute 330, milliseconds).
+  // Blueprints/crates are excluded; the renderer further drops anything with no
+  // Jita price, which cleanly removes the non-tradeable Serenity/expired/event
+  // boosters that share these names.
+  ipcHandle('sde-attribute-boosters', async () => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb) return { implants: [], accelerators: [] };
+    const ATTR = { 175: 'charisma', 176: 'intelligence', 177: 'memory', 178: 'perception', 179: 'willpower' };
+    try {
+      const impRows = await sdeDb.all(`
+        SELECT t.typeID AS id, t.typeName AS name,
+          MAX(CASE WHEN a.attributeID=331 THEN COALESCE(a.valueInt,a.valueFloat) END) AS slot,
+          MAX(CASE WHEN a.attributeID=175 THEN COALESCE(a.valueInt,a.valueFloat) END) AS cha,
+          MAX(CASE WHEN a.attributeID=176 THEN COALESCE(a.valueInt,a.valueFloat) END) AS intl,
+          MAX(CASE WHEN a.attributeID=177 THEN COALESCE(a.valueInt,a.valueFloat) END) AS mem,
+          MAX(CASE WHEN a.attributeID=178 THEN COALESCE(a.valueInt,a.valueFloat) END) AS per,
+          MAX(CASE WHEN a.attributeID=179 THEN COALESCE(a.valueInt,a.valueFloat) END) AS wil
+        FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+        LEFT JOIN dgmTypeAttributes a ON a.typeID = t.typeID
+        WHERE t.published = 1 AND g.groupName = 'Cyber Learning'
+        GROUP BY t.typeID`);
+      const implants = [];
+      (impRows || []).forEach(r => {
+        const map = { charisma: r.cha, intelligence: r.intl, memory: r.mem, perception: r.per, willpower: r.wil };
+        // A learning implant boosts exactly one attribute — find which.
+        const attr = Object.keys(map).find(k => (map[k] || 0) > 0);
+        if (!attr) return;
+        implants.push({ id: r.id, name: r.name, attr, bonus: map[attr], slot: r.slot || null });
+      });
+
+      const accRows = await sdeDb.all(`
+        SELECT t.typeID AS id, t.typeName AS name,
+          MAX(CASE WHEN a.attributeID IN (175,176,177,178,179) THEN COALESCE(a.valueInt,a.valueFloat) END) AS bonus,
+          MAX(CASE WHEN a.attributeID=330 THEN COALESCE(a.valueInt,a.valueFloat) END) AS durMs
+        FROM invTypes t
+        LEFT JOIN dgmTypeAttributes a ON a.typeID = t.typeID
+        WHERE t.published = 1 AND t.typeName LIKE '%Cerebral Accelerator%'
+          AND t.typeName NOT LIKE '%Blueprint%' AND t.typeName NOT LIKE '%Crate%'
+        GROUP BY t.typeID`);
+      const accelerators = (accRows || [])
+        .filter(r => r.bonus > 0 && r.durMs > 0)
+        .map(r => ({ id: r.id, name: r.name, bonus: r.bonus, durationHours: Math.round(r.durMs / 3600000) }));
+
+      return { implants, accelerators };
+    } catch (e) {
+      console.warn('sde-attribute-boosters failed:', e.message);
+      return { implants: [], accelerators: [] };
+    }
+  });
+
+  // Skills required to USE a given type (ship, module, rig…), so the planner can
+  // answer "what do I need to fly a Rifter?". Same dogma attributes the skill
+  // prerequisites use (182/183/184 → required skill, 277/278/279 → its level);
+  // the renderer expands each requirement's own prerequisite chain from the
+  // skill definitions it already holds.
+  ipcHandle('sde-type-requirements', async (_, typeId) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !typeId) return null;
+    try {
+      const t = await sdeDb.get(
+        `SELECT t.typeID AS id, t.typeName AS name, g.groupName AS grp
+           FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+          WHERE t.typeID = ?`, [typeId]);
+      if (!t) return null;
+      const rows = await sdeDb.all(
+        `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v
+           FROM dgmTypeAttributes
+          WHERE typeID = ? AND attributeID IN (182,183,184,277,278,279)`, [typeId]);
+      const at = {};
+      (rows || []).forEach(r => { at[r.attributeID] = r.v; });
+      const reqs = [
+        at[182] ? { id: at[182], level: at[277] || 1 } : null,
+        at[183] ? { id: at[183], level: at[278] || 1 } : null,
+        at[184] ? { id: at[184], level: at[279] || 1 } : null,
+      ].filter(Boolean);
+      return { id: t.id, name: t.name, group: t.grp, requirements: reqs };
+    } catch (e) {
+      console.warn('sde-type-requirements failed:', e.message);
+      return null;
+    }
+  });
+
+  // Attribute bonuses granted by implants (175=cha, 176=int, 177=mem, 178=per,
+  // 179=wil). Needed so training estimates reflect the character's actual pod
+  // rather than base attributes — a +5 set shifts times by ~20%.
+  ipcHandle('sde-implant-attrs', async (_, typeIds) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !Array.isArray(typeIds) || !typeIds.length) return {};
+    const ids = [...new Set(typeIds.map(Number).filter(Boolean))];
+    const out = {};
+    try {
+      const rows = await sdeDb.all(
+        `SELECT typeID, attributeID, COALESCE(valueInt, valueFloat) AS v
+           FROM dgmTypeAttributes
+          WHERE attributeID IN (175,176,177,178,179)
+            AND typeID IN (${ids.map(() => '?').join(',')})`,
+        ids,
+      );
+      const KEY = { 175: 'charisma', 176: 'intelligence', 177: 'memory', 178: 'perception', 179: 'willpower' };
+      (rows || []).forEach(r => {
+        const k = KEY[r.attributeID];
+        if (!k) return;
+        out[r.typeID] = out[r.typeID] || {};
+        out[r.typeID][k] = r.v || 0;
+      });
+      return out;
+    } catch (e) {
+      console.warn('sde-implant-attrs failed:', e.message);
+      return {};
     }
   });
 

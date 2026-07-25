@@ -4,10 +4,13 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
 ## 🚀 Features
 
 * **Secure EVE SSO Integration**: Authenticate characters securely via EVE Online SSO.
-* **Blueprint Library Management**: Synchronize, browse, and organize your blueprints directly from ESI.
-* **Recursive Material Calculator**: Dynamically build multi-level manufacturing trees for any blueprint, integrating public blueprint copies via Fuzzwork.
-* **Asset & Wealth Tracking**: Track liquid wealth, active market orders, and item locations across your character roster.
-* **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering.
+* **Multi-Character Skill Planner**: Build skill plans once and cost them against every character, with an in-game-style skill browser, plan-by-ship prerequisite expansion, remap optimisation, and a Jita-priced implant/cerebral-accelerator cost optimiser.
+* **EVE Mail & Notifications**: Read, reply to and send in-game mail, and browse the in-game notification feed — all live from ESI.
+* **Killboard**: Recent kills and losses with all-time PvP stats, plus combined all-character and all-corporation overviews (via zKillboard).
+* **Blueprint Library & Industry Tools**: Synchronize and browse blueprints, plus a recursive material calculator, reactions, salvage, ore/reprocessing, cost index and a bulk Jita appraisal tool.
+* **Asset, Wealth & Contracts Tracking**: Track liquid wealth, market orders and item locations, and browse item-exchange/courier/auction contracts across your character roster.
+* **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits, run fleet tools, and plan jumps on an interactive map.
+* **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering and message pop-ups.
 * **Local SDE Database**: Uses a local SQLite EVE Static Data Export (SDE) for lightning-fast, offline item and type lookups.
 * **Dynamic Theming**: Customizable UI with user-configurable themes saved locally.
 

@@ -6,6 +6,45 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.7.0] - 2026-07-27
+A major update: two brand-new top-level tools (Faction Warfare and Mining Ledger), a
+rebuilt Finances suite with an LP-store optimiser and trading tools, a Station Checkout
+for shopping lists, correct blueprint icons everywhere, and a fitting ship browser that
+now mirrors the in-game market tree.
+
+> **Re-authenticate your characters** (Characters page) after updating. This release
+> adds three ESI scopes — `esi-industry.read_character_mining.v1`,
+> `esi-industry.read_corporation_mining.v1` and `esi-characters.read_fw_stats.v1` —
+> and the Mining Ledger and "My Militia" views stay empty until each character grants them.
+
+### Features
+- **Faction Warfare tracker** (new nav → Faction War). Five views built on public ESI:
+  - **Warzone Control** — both warzones with a live control split and per-militia cards (systems held & %, control tier + LP multiplier, pilots, kills, victory points).
+  - **Systems & Plexes** — every FW system with owner/occupier, contested/vulnerable status and a capture-progress bar; filter by warzone or contested-only.
+  - **Leaderboards** — top pilots and corporations by kills or victory points, all-time or yesterday.
+  - **My Militia** — your faction, rank, enlisted date, kills and VP (needs the FW scope).
+  - **LP & Tiers** — the warzone-control tier ladder with live faction highlights and a plex-LP reference that scales to a chosen faction's current tier.
+- **Mining Ledger** (Industry → Mining Ledger). Per-character and combined mining yield from ESI, valued as raw ore *or* refined minerals (reusing the ore-reprocessing math), with a daily-yield view and corp moon-extraction timers. Accumulates a longer local history than ESI's 30-day window, and refreshes automatically on the endpoint's cache cadence — no manual sync button.
+- **Finances suite** (nav → Finances) rebuilt onto a left tools rail (like Industry):
+  - **LP Store optimiser** — ranks a corporation's loyalty-store offers by ISK-per-LP on live Jita prices, with sortable/resizable columns and blueprint build-valuation.
+  - **Trading tools** — **Undercut Alerts** (your active orders vs the best competing order at their own station, on buys *and* sells) with an opt-in background watcher that toasts you the moment a new order is undercut; **Per-Item P&L** (realised profit per item, average-cost); **Profit Over Time** (daily/weekly realised profit); and **vs Jita** (every sell order compared to Jita 4-4 — the former standalone Market page, folded in here).
+- **Station Checkout** (Industry → Station Checkout). Cross-references a shopping list against what you already hold in a chosen NPC station, Upwell structure, or even a specific container, and lists exactly what's missing with a Jita buy-cost — then copy the shortfall to Multibuy or spin it into its own shopping list.
+- **Jabber ping-alert sound** — an audible alert on incoming pings, configurable under Settings → Jabber with bundled presets and custom-file upload.
+- **In-app notifications** — non-blocking corner toasts (e.g. undercut alerts) and a centered confirmation toast for actions like "copied to Multibuy", so clipboard/actions no longer confirm only in the status-bar log.
+
+### Fixes
+- **Blueprint icons** now render everywhere instead of showing broken images: originals use the BPO icon and copies use the BPC icon (different colours, matching the game) across the Assets list, My Blueprints library/detail/jobs, and the LP store. The Assets list also spells out "Blueprint Original" / "Blueprint Copy" instead of a bare "Blueprint".
+- **Fitting ship browser** now groups hulls by the in-game **market tree** (SDE market groups) instead of inventory groups, so special-edition and Alliance-Tournament hulls file correctly — e.g. the Chremoas now sits under *Special Edition Ships → Special Edition Covert Ops*, not under Covert Ops. Group rows also carry icons.
+- **New Shopping List** button now works — it opened a `window.prompt()`, which Electron doesn't support; replaced with an in-app modal.
+- **Component tree → shopping list** — the tree now has its own "Add this breakdown" button that adds exactly the tier you're viewing (T1 / T2 / raw), separate from the detail view's "Add direct materials", so you no longer get base materials when you meant the T1 breakdown.
+- **Send to Game** on a shopping list now shows a clear centered "copied to Multibuy" confirmation instead of confirming silently.
+- The blueprint detail view now shows its controls and buttons instantly (they no longer wait on the Jita price fetch).
+- **macOS (Apple Silicon) build now launches.** Previous `.dmg` builds installed but the app silently failed to open with no Gatekeeper prompt — an unsigned arm64 binary is killed outright by macOS. The build is now ad-hoc code-signed so it launches. On first run, right-click the app → **Open** (or run `xattr -dr com.apple.quarantine "/Applications/EVE-Carbon.app"`) to clear the download quarantine. (Full one-click launch needs a paid Apple Developer ID + notarization, which isn't set up yet.)
+
+### Maintenance
+- Retired the standalone **Market** nav page; its Jita-benchmark view lives on as the "vs Jita" tab inside Finances → Trading.
+- Removed a stray probe image from the working tree; extended the automated end-to-end suite to cover the new tools (Faction Warfare, Mining Ledger, Trading, Station Checkout, shopping-list fixes and the fitting market-tree grouping).
+
 ## [1.6.1] - 2026-07-25
 ### Features
 - **Skills page — multi-character skill planner** (nav → Skills). Build a plan once and cost it against every character you own, side by side, with the fastest highlighted. Includes:

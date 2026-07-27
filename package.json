@@ -1,7 +1,7 @@
 {
   "name": "eve-carbon",
   "productName": "EVE Carbon",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "author": "Mia Christina Panayides",
   "description": "EVE Online desktop companion for industrialists: recursive blueprint calculations, live ESI wealth tracking, industry job monitoring, and integrated Jabber comms.",
   "main": "main.js",
@@ -65,7 +65,8 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.icns",
+      "identity": null
     },
     "linux": {
       "target": "AppImage",

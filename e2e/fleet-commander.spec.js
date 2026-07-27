@@ -27,3 +27,29 @@ test('Fleet Fight Notify tab embeds the CCP page', async ({ window }) => {
   await window.locator('.fc-sub-btn[data-fc-tab="fleetfight"]').click();
   await expect(window.locator('#fcFleetFightWebview')).toBeVisible({ timeout: 10_000 });
 });
+
+test('fitting ship browser mirrors the in-game market tree (with group icons)', async ({ window }) => {
+  await window.locator('.fc-sub-btn[data-fc-tab="fitting"]').click();
+  await expect(window.locator('#fitResults .ft-grp').first()).toBeVisible({ timeout: 15_000 });
+
+  const info = await window.evaluate(() => ({
+    top: [...document.querySelectorAll('#fitResults > details.ft-grp > summary .ft-grp-name')].map(s => s.textContent.trim()),
+    groupIcons: document.querySelectorAll('#fitResults .ft-grp-icon').length,
+  }));
+  // Market-group sections, not the old inventory-group "classes".
+  expect(info.top).toContain('Battleships');
+  expect(info.top).toContain('Special Edition Ships');
+  // "Covert Ops" was a top-level class in the old (mis-)grouping; in the market
+  // tree it's nested (under Frigates / Special Edition), never a top section.
+  expect(info.top).not.toContain('Covert Ops');
+  expect(info.groupIcons).toBeGreaterThan(0);   // group rows now carry icons
+});
+
+test('Chremoas is filed under Special Edition Ships, not Covert Ops', async ({ window }) => {
+  await window.locator('.fc-sub-btn[data-fc-tab="fitting"]').click();
+  await expect(window.locator('#fitResults .ft-grp').first()).toBeVisible({ timeout: 15_000 });
+
+  await window.locator('details.ft-grp > summary', { hasText: 'Special Edition Ships' }).first().click();
+  await window.locator('details.ft-grp > summary', { hasText: 'Special Edition Covert Ops' }).first().click();
+  await expect(window.locator('#fitResults .fit-result[data-name="Chremoas"]')).toBeVisible({ timeout: 10_000 });
+});

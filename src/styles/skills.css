@@ -91,8 +91,10 @@
 }
 .sk-group-head:hover { background: var(--bg-hover); color: var(--accent); }
 .sk-group-head.open  { color: var(--accent); background: var(--nav-active-bg); }
-.sk-group-head > span:nth-child(2) { flex: 1; }
-.sk-group-caret { width: 10px; font-size: 9px; }
+.sk-group-name  { flex: 1; }
+.sk-group-caret { width: 10px; font-size: 9px; flex-shrink: 0; }
+/* Representative in-game item icon per group (see _SK_GROUP_ICON). */
+.sk-group-icon  { width: 20px; height: 20px; flex-shrink: 0; object-fit: contain; }
 .sk-group-body  { background: var(--bg-deep); }
 
 .sk-skill-row {

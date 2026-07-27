@@ -253,6 +253,193 @@ function registerCharacterHandlers({
     }
   });
 
+  // ─── Mining Ledger ─────────────────────────────────────────────────────────
+  const _tokenScopes = (token) => {
+    try {
+      const c = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+      return Array.isArray(c.scp) ? c.scp : (c.scp ? [c.scp] : []);
+    } catch (_) { return []; }
+  };
+  const _corpOf = async (characterId, token) => {
+    const key = `corp_of_${characterId}`;
+    let id = readCache(key);
+    if (!id) {
+      const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
+                                 { Authorization: `Bearer ${token}` });
+      id = info && info.corporation_id;
+      if (id) writeCache(key, id, 1);   // 24h — corp moves are rare
+    }
+    return id;
+  };
+
+  // Personal mining ledger (ESI /v1/characters/{id}/mining/ — paginated, ~30 days).
+  // Scope: esi-industry.read_character_mining.v1. We UPSERT into the local ledger
+  // (which outlives ESI's window) and return the merged history.
+  ipcHandle('sync-mining-ledger', async (_, characterId) => {
+    try {
+      const token = await getValidToken(characterId);
+      if (!_tokenScopes(token).includes('esi-industry.read_character_mining.v1')) {
+        const ledger = await charInfoDb.getMiningLedger(characterId).catch(() => []);
+        return { ok: false, reason: 'scope', ledger,
+          message: 'Re-authenticate this character to grant mining-ledger access (esi-industry.read_character_mining.v1).' };
+      }
+      // ESI caches this endpoint for 3600s — hitting it more often just returns the
+      // same payload. Self-throttle to that window so callers can poll freely.
+      if (readCache(`mining_sync_at_${characterId}`)) {
+        const ledger = await charInfoDb.getMiningLedger(characterId);
+        return { ok: true, ledger, throttled: true };
+      }
+      const rows = [];
+      let page = 1, xPages = 1;
+      do {
+        const { data, xPages: xp } = await httpGetFull(
+          `${ESI_BASE}/v1/characters/${characterId}/mining/?datasource=tranquility&page=${page}`,
+          { Authorization: `Bearer ${token}` }
+        );
+        if (Array.isArray(data)) rows.push(...data);
+        xPages = xp || 1; page++;
+      } while (page <= xPages && page <= 20);
+
+      await charInfoDb.upsertMiningLedger(characterId, rows);
+      writeCache(`mining_sync_at_${characterId}`, Date.now(), 1 / 24);   // 1-hour ESI cadence
+      const ledger = await charInfoDb.getMiningLedger(characterId);
+      return { ok: true, ledger, syncedAt: Date.now(), fetched: rows.length };
+    } catch (e) {
+      const msg    = e.message || String(e);
+      const ledger = await charInfoDb.getMiningLedger(characterId).catch(() => []);
+      if (/^HTTP 403\b/.test(msg)) {
+        return { ok: false, reason: 'scope', ledger,
+          message: 'Re-authenticate this character to grant mining-ledger access (esi-industry.read_character_mining.v1).' };
+      }
+      return { ok: false, reason: 'error', message: msg, ledger };
+    }
+  });
+
+  // Stored ledger only (no ESI) — fast path for switching characters.
+  ipcHandle('get-mining-ledger-db', async (_, characterId) => {
+    return charInfoDb.getMiningLedger(characterId);
+  });
+
+  // Corp mining observers + their per-character pull ledgers (moon drills).
+  // NOTE: the corp mining routes use singular "/corporation/" (an ESI quirk),
+  // unlike most corp endpoints. Scope: esi-industry.read_corporation_mining.v1 +
+  // in-game Station Manager/Accountant role (else 403 → back off 6h).
+  ipcHandle('get-corp-mining-observers', async (_, characterId) => {
+    let corporationId = null;
+    try {
+      const token = await getValidToken(characterId);
+      if (!_tokenScopes(token).includes('esi-industry.read_corporation_mining.v1')) return { ok: false, reason: 'scope' };
+      corporationId = await _corpOf(characterId, token);
+      if (!corporationId) return { ok: false, reason: 'error', message: 'No corporation.' };
+      if (readCache(`mining_obs_noaccess_${corporationId}`)) return { ok: false, reason: 'role' };
+      const cacheKey = `mining_observers_${corporationId}`;
+      const cached   = readCache(cacheKey);
+      if (cached) return cached;
+
+      const observers = [];
+      let page = 1, xPages = 1;
+      do {
+        const { data, xPages: xp } = await httpGetFull(
+          `${ESI_BASE}/v1/corporation/${corporationId}/mining/observers/?datasource=tranquility&page=${page}`,
+          { Authorization: `Bearer ${token}` }
+        );
+        if (Array.isArray(data)) observers.push(...data);
+        xPages = xp || 1; page++;
+      } while (page <= xPages && page <= 20);
+
+      const entries = [];
+      for (const obs of observers.slice(0, 50)) {   // cap to keep the ESI budget sane
+        let p2 = 1, xp2 = 1;
+        do {
+          const { data, xPages: xx } = await httpGetFull(
+            `${ESI_BASE}/v1/corporation/${corporationId}/mining/observers/${obs.observer_id}/?datasource=tranquility&page=${p2}`,
+            { Authorization: `Bearer ${token}` }
+          );
+          if (Array.isArray(data)) data.forEach(d => entries.push({
+            ...d, observer_id: obs.observer_id, observer_type: obs.observer_type, observer_last_updated: obs.last_updated,
+          }));
+          xp2 = xx || 1; p2++;
+        } while (p2 <= xp2 && p2 <= 20);
+      }
+
+      const charIds = [...new Set(entries.map(e => e.character_id).filter(Boolean))];
+      const nameMap = charIds.length ? await resolveNames(charIds) : {};
+      const result  = { ok: true, corporationId, observers,
+        entries: entries.map(e => ({ ...e, character_name: nameMap[e.character_id] || `Char ${e.character_id}` })) };
+      writeCache(cacheKey, result, 30 / 1440);   // 30-minute cache
+      return result;
+    } catch (e) {
+      const msg = e.message || String(e);
+      if (/^HTTP 403\b/.test(msg)) { if (corporationId) writeCache(`mining_obs_noaccess_${corporationId}`, true, 0.25); return { ok: false, reason: 'role' }; }
+      return { ok: false, reason: 'error', message: msg };
+    }
+  });
+
+  // Upcoming/past moon extractions (chunk arrival times) for the corp.
+  ipcHandle('get-corp-mining-extractions', async (_, characterId) => {
+    let corporationId = null;
+    try {
+      const token = await getValidToken(characterId);
+      if (!_tokenScopes(token).includes('esi-industry.read_corporation_mining.v1')) return { ok: false, reason: 'scope' };
+      corporationId = await _corpOf(characterId, token);
+      if (!corporationId) return { ok: false, reason: 'error', message: 'No corporation.' };
+      if (readCache(`mining_ext_noaccess_${corporationId}`)) return { ok: false, reason: 'role' };
+      const cacheKey = `mining_extractions_${corporationId}`;
+      const cached   = readCache(cacheKey);
+      if (cached) return cached;
+
+      const rows = [];
+      let page = 1, xPages = 1;
+      do {
+        const { data, xPages: xp } = await httpGetFull(
+          `${ESI_BASE}/v1/corporation/${corporationId}/mining/extractions/?datasource=tranquility&page=${page}`,
+          { Authorization: `Bearer ${token}` }
+        );
+        if (Array.isArray(data)) rows.push(...data);
+        xPages = xp || 1; page++;
+      } while (page <= xPages && page <= 20);
+
+      const moonIds = [...new Set(rows.map(r => r.moon_id).filter(Boolean))];
+      const nameMap = moonIds.length ? await resolveNames(moonIds) : {};
+      const result  = { ok: true, corporationId,
+        extractions: rows.map(r => ({ ...r, moon_name: nameMap[r.moon_id] || `Moon ${r.moon_id}` })) };
+      writeCache(cacheKey, result, 30 / 1440);   // 30-minute cache
+      return result;
+    } catch (e) {
+      const msg = e.message || String(e);
+      if (/^HTTP 403\b/.test(msg)) { if (corporationId) writeCache(`mining_ext_noaccess_${corporationId}`, true, 0.25); return { ok: false, reason: 'role' }; }
+      return { ok: false, reason: 'error', message: msg };
+    }
+  });
+
+  // ─── IPC: Personal Faction Warfare stats ─────────────────────────────────
+  // /v1/characters/{id}/fw/stats/ — scope esi-characters.read_fw_stats.v1. Returns
+  // faction_id (0 = not enlisted), current/highest rank, kills and victory points.
+  ipcHandle('get-character-fw-stats', async (_, characterId) => {
+    try {
+      const token = await getValidToken(characterId);
+      if (!_tokenScopes(token).includes('esi-characters.read_fw_stats.v1')) {
+        return { ok: false, reason: 'scope',
+          message: 'Re-authenticate this character to grant Faction Warfare stats (esi-characters.read_fw_stats.v1).' };
+      }
+      const cacheKey = `fw_char_stats_${characterId}`;
+      const cached   = readCache(cacheKey);
+      if (cached) return cached;
+      const stats = await httpGet(
+        `${ESI_BASE}/v1/characters/${characterId}/fw/stats/?datasource=tranquility`,
+        { Authorization: `Bearer ${token}` }
+      );
+      const result = { ok: true, stats: stats || {} };
+      writeCache(cacheKey, result, 30 / 1440);   // 30-minute cache
+      return result;
+    } catch (e) {
+      const msg = e.message || String(e);
+      if (/^HTTP 403\b/.test(msg)) return { ok: false, reason: 'scope',
+        message: 'Re-authenticate this character to grant Faction Warfare stats (esi-characters.read_fw_stats.v1).' };
+      return { ok: false, reason: 'error', message: msg };
+    }
+  });
+
   // ─── IPC: Skill queue (ESI live) ─────────────────────────────────────────
   // Returns the character's training queue with skill names resolved.
   // Scope: esi-skills.read_skillqueue.v1 (already requested at auth time).

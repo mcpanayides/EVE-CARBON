@@ -322,6 +322,19 @@ async function ensureCharacterTables(characterId) {
       level     INTEGER,
       synced_at INTEGER
     );
+
+    -- Personal mining ledger (ESI /characters/{id}/mining/). One row per day per
+    -- ore type per system. ESI only serves ~30 days, but because we UPSERT on the
+    -- (date, system, type) key, re-syncing merges new days in without dropping the
+    -- older ones — so the local ledger grows into a longer history over time.
+    CREATE TABLE IF NOT EXISTS ${p}_mining_ledger (
+      date            TEXT,
+      solar_system_id INTEGER,
+      type_id         INTEGER,
+      quantity        INTEGER,
+      synced_at       INTEGER,
+      PRIMARY KEY (date, solar_system_id, type_id)
+    );
   `);
 
   // ── Migrate existing tables: add columns that may be missing ────────────────
@@ -1087,6 +1100,46 @@ async function getWalletTransactions(characterId) {
   } catch (e) { return []; }
 }
 
+// ── Mining Ledger ─────────────────────────────────────────────────────────────
+// UPSERT (not replace) so older days survive as ESI's 30-day window slides forward
+// — the local ledger accumulates into a longer history than ESI itself keeps.
+async function upsertMiningLedger(characterId, rows) {
+  const db  = charDb;
+  if (!db || !Array.isArray(rows)) return;
+  const now = Date.now();
+  const p   = `char_${characterId}`;
+  await withTx(async () => {
+    for (const r of rows) {
+      if (!r || !r.date || !r.type_id) continue;
+      await db.run(
+        `INSERT OR REPLACE INTO ${p}_mining_ledger
+           (date, solar_system_id, type_id, quantity, synced_at)
+         VALUES (?,?,?,?,?)`,
+        [r.date, r.solar_system_id || 0, r.type_id, r.quantity || 0, now]
+      );
+    }
+  });
+}
+
+async function getMiningLedger(characterId) {
+  if (!charDb) return [];
+  try {
+    return await charDb.all(
+      `SELECT date, solar_system_id, type_id, quantity, synced_at
+         FROM char_${characterId}_mining_ledger
+        ORDER BY date DESC`
+    );
+  } catch (e) { return []; }
+}
+
+async function getMiningLedgerSyncedAt(characterId) {
+  if (!charDb) return 0;
+  try {
+    const row = await charDb.get(`SELECT MAX(synced_at) AS m FROM char_${characterId}_mining_ledger`);
+    return (row && row.m) || 0;
+  } catch (e) { return 0; }
+}
+
 // ── Loyalty Points ────────────────────────────────────────────────────────────
 async function replaceLoyaltyPoints(characterId, lpRows) {
   const db  = charDb;
@@ -1143,7 +1196,7 @@ async function getImplantsSyncedAt(characterId) {
 async function removeCharacterData(characterId) {
   if (!charDb) return;
   const p = `char_${characterId}`;
-  const tables = ['info','wallet','location','ship','implants','jump_clones','pi_colonies','assets','blueprints','wallet_journal','wallet_transactions','loyalty_points'];
+  const tables = ['info','wallet','location','ship','implants','jump_clones','pi_colonies','assets','blueprints','wallet_journal','wallet_transactions','loyalty_points','mining_ledger'];
   for (const t of tables) {
     try { await charDb.run(`DROP TABLE IF EXISTS ${p}_${t}`); } catch (_) {}
   }
@@ -1292,6 +1345,9 @@ module.exports = {
   getWalletJournal,
   replaceWalletTransactions,
   getWalletTransactions,
+  upsertMiningLedger,
+  getMiningLedger,
+  getMiningLedgerSyncedAt,
   replaceLoyaltyPoints,
   getLoyaltyPoints,
   getWalletJournalSyncedAt,

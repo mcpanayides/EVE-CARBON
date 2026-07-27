@@ -580,6 +580,7 @@ async function populateJabberSettings() {
     password:     jabber.password     || '',
     directorOnly: typeof jabber.directorOnly === 'boolean' ? jabber.directorOnly : true,
     pack:         jabber.pack         || 'gsf_sigs',
+    pingSound:    jabber.pingSound    || null,
   };
 
   const serviceInput  = document.getElementById('jabberService');
@@ -593,6 +594,7 @@ async function populateJabberSettings() {
   if (directorCheck) directorCheck.checked = jabberSettings.directorOnly;
 
   await populatePackDropdown(jabberSettings.pack);
+  await _populatePingSounds();
 }
 
 function gatherJabberSettings() {
@@ -602,7 +604,87 @@ function gatherJabberSettings() {
     password:     document.getElementById('jabberPassword')?.value         || '',
     directorOnly: document.getElementById('jabberDirectorOnly')?.checked   ?? true,
     pack:         document.getElementById('jabberPackSelect')?.value       || 'gsf_sigs',
+    // Include the ping-sound choice so a Settings save doesn't wipe it
+    // (app-save-config replaces the whole jabber object).
+    pingSound:    (document.getElementById('pingSoundSelect') ? _gatherPingSound() : jabberSettings.pingSound) || undefined,
   };
+}
+
+// ── Ping alert sound ──────────────────────────────────────────────────────────
+// Built-in sounds come from assets/audio; uploads are copied into
+// userData/ping-sounds by pingSoundPick. The choice is stored in app config as
+// jabber.pingSound = { id, volume } and read back by the popup (see main.js
+// ping-sound-current). Saved immediately on change for instant test/apply.
+let _pingSounds = [];   // cached list from pingSoundList
+
+async function _populatePingSounds() {
+  const select = document.getElementById('pingSoundSelect');
+  const volEl  = document.getElementById('pingSoundVolume');
+  if (!select) return;
+  try { _pingSounds = await window.eveAPI.pingSoundList(); } catch (_) { _pingSounds = []; }
+
+  const cur    = jabberSettings.pingSound || {};
+  const curVol = typeof cur.volume === 'number' ? cur.volume : 0.7;
+
+  select.innerHTML = '<option value="none">None (silent)</option>'
+    + _pingSounds.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.name)}${s.source === 'user' ? ' (custom)' : ''}</option>`).join('');
+  // Selected: saved id if still available, else the resolved default.
+  const wanted = cur.id || _pingSoundDefaultId();
+  select.value = [...select.options].some(o => o.value === wanted) ? wanted : (_pingSounds[0]?.id || 'none');
+  if (volEl) volEl.value = Math.round(curVol * 100);
+
+  // Wire handlers (idempotent — assignment, not accumulation).
+  select.onchange = () => _savePingSound();
+  if (volEl) volEl.onchange = () => _savePingSound();
+  const testBtn = document.getElementById('pingSoundTestBtn');
+  if (testBtn) testBtn.onclick = () => _testPingSound();
+  const upBtn = document.getElementById('pingSoundUploadBtn');
+  if (upBtn) upBtn.onclick = () => _uploadPingSound();
+}
+
+// The main-process default (mixkit "message pop" clip, else first preset), so
+// the dropdown highlights what will actually play before anything is saved.
+function _pingSoundDefaultId() {
+  const def = _pingSounds.find(s => /2354|message[-_ ]?pop/i.test(s.file))
+           || _pingSounds.find(s => s.source === 'preset') || _pingSounds[0];
+  return def ? def.id : 'none';
+}
+
+function _gatherPingSound() {
+  const id  = document.getElementById('pingSoundSelect')?.value || 'none';
+  const vol = (Number(document.getElementById('pingSoundVolume')?.value) || 70) / 100;
+  return { id, volume: vol };
+}
+
+async function _savePingSound() {
+  jabberSettings.pingSound = _gatherPingSound();
+  try {
+    const cfg    = await window.eveAPI.getAppConfig();
+    const jabber = (cfg?.app?.jabber) || {};
+    jabber.pingSound = jabberSettings.pingSound;   // preserves service/jid/pack/etc.
+    await window.eveAPI.saveAppConfig({ jabber });
+  } catch (e) { showToast('Could not save ping sound: ' + e.message, 'error'); }
+}
+
+function _testPingSound() {
+  const id = document.getElementById('pingSoundSelect')?.value || 'none';
+  if (id === 'none') { showToast('Ping sound is set to None.', 'info'); return; }
+  const s = _pingSounds.find(x => x.id === id);
+  if (!s) return;
+  const vol = (Number(document.getElementById('pingSoundVolume')?.value) || 70) / 100;
+  try { const a = new Audio(s.url); a.volume = vol; a.play().catch(() => {}); } catch (_) {}
+}
+
+async function _uploadPingSound() {
+  try {
+    const res = await window.eveAPI.pingSoundPick();
+    if (!res || res.canceled) return;
+    if (res.error) { showToast('Upload failed: ' + res.error, 'error'); return; }
+    if (res.sound) jabberSettings.pingSound = { id: res.sound.id, volume: (jabberSettings.pingSound?.volume ?? 0.7) };
+    await _populatePingSounds();                       // refresh + select the new sound
+    await _savePingSound();
+    showToast(`Added "${res.sound?.name || 'sound'}".`, 'success');
+  } catch (e) { showToast('Upload failed: ' + e.message, 'error'); }
 }
 
 // ── Pack dropdown helpers ─────────────────────────────────────────────────────

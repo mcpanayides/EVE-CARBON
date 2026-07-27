@@ -625,7 +625,7 @@ async function _fitRenderTree() {
     const idx = _fitTreeNodes.push({ node, key }) - 1;
     return `
       <details class="ft-grp" data-tn="${idx}" data-key="${_fitEsc(key)}" ${open.has(key) ? 'open' : ''}>
-        <summary>${_fitEsc(node.name)}<span class="ft-count">${cnt}</span></summary>
+        <summary>${node.repId ? `<img class="ft-grp-icon" src="https://images.evetech.net/types/${node.repId}/icon?size=32" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}<span class="ft-grp-name">${_fitEsc(node.name)}</span><span class="ft-count">${cnt}</span></summary>
         <div class="ft-body">${node.kids.map(k => grpHtml(k, key)).join('')}<div class="ft-types"></div></div>
       </details>`;
   };

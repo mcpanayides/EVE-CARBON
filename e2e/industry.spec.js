@@ -14,6 +14,40 @@ test('Blueprints tab shows the seeded blueprint library', async ({ window }) => 
   await expect(window.locator('#bpLibCount')).toHaveText('3', { timeout: 10_000 });
   await expect(window.locator('#bpLibList')).toContainText('Rifter Blueprint');
   await expect(window.locator('#bpLibList')).toContainText('Merlin Blueprint');
+
+  // Blueprint thumbnails use the copy-specific image-server variant: originals
+  // (Rifter 690, Merlin 691) use /bp, the copy (590) uses /bpc — never a plain
+  // /icon (which 400s for blueprints).
+  await expect(window.locator('.bp-card-thumb[src*="/types/690/bp?"]')).toHaveCount(1);
+  await expect(window.locator('.bp-card-thumb[src*="/types/590/bpc?"]')).toHaveCount(1);
+  await expect(window.locator('.bp-card-thumb[src*="/icon?"]')).toHaveCount(0);
+});
+
+test('blueprint detail has a clearly-labelled "direct materials" add button', async ({ window }) => {
+  await window.locator('.industry-sub-btn[data-industry-tab="blueprints"]').click();
+  await expect(window.locator('#bpLibList')).toBeVisible({ timeout: 10_000 });
+  await window.locator('.bp-card', { has: window.locator('.bp-card-thumb[src*="/types/690/bp?"]') }).click();
+  const addBtn = window.locator('#bpAddToListBtn');
+  await expect(addBtn).toBeVisible({ timeout: 10_000 });
+  await expect(addBtn).toContainText('DIRECT MATERIALS');   // was ambiguous "ADD TO SHOPPING LIST"
+});
+
+test('component tree renders its own "add this breakdown" button', async ({ window }) => {
+  // The synthetic fixture blueprints have no SDE materials to build a tree from, so
+  // drive renderComponentTreePanel directly with a mineral leaf and confirm the
+  // per-breakdown add button (distinct from the detail view's direct-materials one).
+  const has = await window.evaluate(async () => {
+    const div = document.createElement('div');
+    document.body.appendChild(div);
+    await renderComponentTreePanel(div, { type_id: 587, name: 'Rifter' },
+      [{ typeid: 34, name: 'Tritanium', quantity: 100 }]);
+    const btn = div.querySelector('#bpTreeAddBtn');
+    const tiers = div.querySelectorAll('.tier-btn').length;
+    return { addBtn: !!btn, label: btn ? btn.textContent.trim() : '', tiers };
+  });
+  expect(has.addBtn).toBe(true);
+  expect(has.label).toContain('ADD THIS BREAKDOWN');
+  expect(has.tiers).toBe(3);   // T1 / T2 / Raw
 });
 
 test('Active Jobs tab loads without crashing (no valid ESI token)', async ({ window }) => {

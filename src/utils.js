@@ -86,6 +86,69 @@ function showToast(msg, type = 'info') {
   if (typeof logToConsole === 'function') logToConsole(msg, type);
 }
 
+// ── Floating toast stack ──────────────────────────────────────────────────────
+// Non-blocking corner notifications that slide in and auto-dismiss. Distinct from
+// showToast()/logToConsole() (the bottom status-bar log). Used for undercut alerts
+// and anywhere a passing notification beats a modal. Returns the toast element.
+function pushAppToast({ title = '', body = '', kind = 'info', timeout = 9000, onClick } = {}) {
+  let stack = document.getElementById('appToastStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'appToastStack';
+    stack.className = 'app-toast-stack';
+    document.body.appendChild(stack);
+  }
+  const el = document.createElement('div');
+  el.className = `app-toast app-toast-${kind}`;
+  el.innerHTML =
+    `<div class="app-toast-body">
+       ${title ? `<div class="app-toast-title">${escHtml(String(title))}</div>` : ''}
+       ${body  ? `<div class="app-toast-text">${escHtml(String(body))}</div>`  : ''}
+     </div>
+     <button class="app-toast-close" aria-label="Dismiss">✕</button>`;
+
+  let removed = false;
+  const dismiss = () => {
+    if (removed) return; removed = true;
+    el.classList.add('app-toast-out');
+    setTimeout(() => el.remove(), 240);
+  };
+  el.querySelector('.app-toast-close').addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
+  if (typeof onClick === 'function') {
+    el.classList.add('app-toast-click');
+    el.addEventListener('click', () => { try { onClick(); } catch (_) {} dismiss(); });
+  }
+
+  stack.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('app-toast-in'));   // trigger slide-in
+  if (timeout > 0) setTimeout(dismiss, timeout);
+  return el;
+}
+
+// ── Centered confirmation toast ───────────────────────────────────────────────
+// A brief, prominent popup in the middle of the app window for actions the user
+// needs immediate confirmation of (e.g. "Copied!"). Non-blocking (pointer-events
+// none) and auto-dismisses. Distinct from pushAppToast() (corner) and showToast()
+// (status-bar log). Only one shows at a time.
+function pushCenterToast(message, kind = 'success', ms = 1900) {
+  const existing = document.getElementById('centerToast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'centerToast';
+  el.className = `center-toast center-toast-${kind}`;
+  const glyph = kind === 'error' ? '✕' : kind === 'info' ? 'ℹ' : '✓';
+  el.innerHTML = `<span class="center-toast-icon">${glyph}</span><span class="center-toast-msg">${escHtml(String(message))}</span>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('center-toast-in'));
+  setTimeout(() => {
+    el.classList.remove('center-toast-in');
+    setTimeout(() => el.remove(), 260);
+  }, ms);
+  // Also drop a line in the status-bar log so there's a persistent record.
+  if (typeof logToConsole === 'function') logToConsole(message, kind);
+  return el;
+}
+
 function logToConsole(message, type = 'info') {
   const consoleMsg  = document.getElementById('console-msg');
   const consoleTime = document.getElementById('console-time');

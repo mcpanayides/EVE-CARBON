@@ -396,6 +396,49 @@ function _skBindPlannerControls() {
   }
 }
 
+// ─── Group icons ─────────────────────────────────────────────────────────────
+// EVE serves an identical generic "skillbook" icon for every skill (verified),
+// so we can't use skill icons to tell groups apart. Instead each group shows a
+// representative module/ship/item's icon from CCP's image server — real in-game
+// art that's distinct per category. typeIDs are hand-picked for clarity; edit
+// one here to change a group's icon.
+const _SK_GROUP_ICON = {
+  'Armor': 11279,                  // 1600mm Steel Plates I
+  'Corporation Management': 17621, // Corporate Hangar Array
+  'Drones': 2454,                  // Hobgoblin I
+  'Electronic Systems': 447,       // Warp Scrambler I
+  'Engineering': 1445,             // Capacitor Power Relay I
+  'Fleet Support': 42529,          // Shield Command Burst I
+  'Gunnery': 484,                  // 125mm Gatling AutoCannon I
+  'Missiles': 499,                 // Light Missile Launcher I
+  'Navigation': 439,               // 1MN Afterburner I
+  'Neural Enhancement': 9899,      // Ocular Filter - Basic (implant)
+  'Planet Management': 2254,       // Temperate Command Center
+  'Production': '691:bp',          // Rifter Blueprint (blueprints use the /bp endpoint, not /icon)
+  'Resource Processing': 483,      // Miner I
+  'Rigging': 31788,                // Small Core Defense Field Extender I
+  'Scanning': 17938,               // Core Probe Launcher I
+  'Science': 20418,                // Datacore - Electronic Engineering
+  'Sequencing': 81826,             // Metenox Moon Drill
+  'Shields': 3839,                 // Large Shield Extender I
+  'Social': 3699,                  // Quafe
+  'Spaceship Command': 587,        // Rifter
+  'Structure Management': 35832,   // Astrahus
+  'Subsystems': 45626,             // Tengu Core - Augmented Graviton Reactor
+  'Targeting': 1973,               // Sensor Booster I
+  'Trade': 44992,                  // PLEX
+};
+
+function _skGroupIconHtml(name) {
+  const v = _SK_GROUP_ICON[name];
+  if (!v) return '';
+  // A value like '691:bp' renders via the blueprint endpoint; a bare id via /icon.
+  const [id, variant] = String(v).split(':');
+  const kind = variant === 'bp' ? 'bp' : (variant === 'bpc' ? 'bpc' : 'icon');
+  return `<img class="sk-group-icon" src="https://images.evetech.net/types/${id}/${kind}?size=32"
+               alt="" loading="lazy" onerror="this.style.display='none'"/>`;
+}
+
 // ─── Skill browser (in-game style) ───────────────────────────────────────────
 // Groups collapsed by default, exactly like the in-game Skills window; each row
 // shows your current level as filled pips plus I–V buttons to add at a level.
@@ -423,7 +466,8 @@ function _skRenderBrowser() {
       <div class="sk-group">
         <button class="sk-group-head${_skOpenGroup === g.name ? ' open' : ''}" data-group="${escHtml(g.name)}">
           <span class="sk-group-caret">${_skOpenGroup === g.name ? '▾' : '▸'}</span>
-          <span>${escHtml(g.name)}</span>
+          ${_skGroupIconHtml(g.name)}
+          <span class="sk-group-name">${escHtml(g.name)}</span>
           <span class="sk-dim">${g.skills.length}</span>
         </button>
         ${_skOpenGroup === g.name ? `<div class="sk-group-body">${g.skills.map(d => _skSkillRow(d)).join('')}</div>` : ''}

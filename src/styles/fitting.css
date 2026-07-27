@@ -47,7 +47,9 @@ details.ft-grp > summary::before {
 details.ft-grp[open] > summary::before { transform: rotate(90deg); }
 details.ft-grp > summary:hover { background: var(--bg-hover); color: var(--text-1); }
 details.ft-grp > summary::-webkit-details-marker { display: none; }
-.ft-count { margin-left: auto; font-size: 9px; font-family: var(--mono); color: var(--text-3); }
+.ft-grp-icon { width: 18px; height: 18px; border-radius: 3px; flex-shrink: 0; object-fit: contain; }
+.ft-grp-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-count { margin-left: auto; font-size: 9px; font-family: var(--mono); color: var(--text-3); flex-shrink: 0; }
 .ft-body { padding-left: 14px; border-left: 1px solid var(--border); margin-left: 10px; }
 .ft-fit { padding-left: 26px; color: var(--accent); font-size: 11.5px; }
 .ft-fit:hover { background: var(--bg-hover); }

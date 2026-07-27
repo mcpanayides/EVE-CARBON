@@ -456,10 +456,29 @@
       setTimeout(() => { btn.textContent = 'Join'; btn.className = 'join-btn'; btn.title = 'Open comms · Set waypoint · Find FC'; }, 4000);
     });
 
+    // ── Alert sound ───────────────────────────────────────────────────────────
+    // Plays the configured ping sound once when the popup appears. The chosen
+    // sound (a file:// URL from assets/audio or userData/ping-sounds) and volume
+    // come from the main process; a missing/failed sound is silent, never fatal.
+    let _soundPlayed = false;
+    async function playPingSound() {
+      if (_soundPlayed) return;
+      _soundPlayed = true;
+      try {
+        if (!window.eveAPI?.pingSoundCurrent) return;
+        const s = await window.eveAPI.pingSoundCurrent();
+        if (!s || !s.enabled || !s.url) return;
+        const audio = new Audio(s.url);
+        audio.volume = typeof s.volume === 'number' ? s.volume : 0.7;
+        audio.play().catch(() => {});   // autoplay is enabled on this window
+      } catch (_) { /* silence is fine */ }
+    }
+
     // ── Receive data from main process ────────────────────────────────────────
     if (window.eveAPI && typeof window.eveAPI.on === 'function') {
-      window.eveAPI.on('ping-alert-data', (msg) => populate(msg));
+      window.eveAPI.on('ping-alert-data', (msg) => { populate(msg); playPingSound(); });
     }
+    playPingSound();   // also fire on load in case the push arrives first
     (async () => {
       try {
         if (window.eveAPI && typeof window.eveAPI.getPingAlertData === 'function') {

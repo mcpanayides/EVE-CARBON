@@ -31,6 +31,8 @@
   <link rel="stylesheet" href="./styles/appraisal.css"/>
   <link rel="stylesheet" href="./styles/killboard.css"/>
   <link rel="stylesheet" href="./styles/skills.css"/>
+  <link rel="stylesheet" href="./styles/finances.css"/>
+  <link rel="stylesheet" href="./styles/toast.css"/>
   <link rel="stylesheet" href="./styles/contracts.css"/>
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
   <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
@@ -73,6 +75,23 @@
      developer policy. Vectorised by PhobiaCide / Incomplete-Infinity (2023):
      https://github.com/Incomplete-Infinity/eve-icons  Themeable via currentColor. -->
 <svg class="eve-icon-sprite" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+  <!-- Faction Warfare — our own crossed-swords glyph (no neocom FW icon exists). Themeable via currentColor. -->
+  <symbol viewBox="0 0 128 128" id="eve-fw">
+    <g fill="currentColor">
+      <g transform="rotate(45 64 64)">
+        <path d="M59 18 L64 8 L69 18 L69 80 L59 80 Z"/>
+        <rect x="46" y="80" width="36" height="6" rx="1.5"/>
+        <rect x="61" y="86" width="6" height="17"/>
+        <circle cx="64" cy="107" r="4.5"/>
+      </g>
+      <g transform="rotate(-45 64 64)">
+        <path d="M59 18 L64 8 L69 18 L69 80 L59 80 Z"/>
+        <rect x="46" y="80" width="36" height="6" rx="1.5"/>
+        <rect x="61" y="86" width="6" height="17"/>
+        <circle cx="64" cy="107" r="4.5"/>
+      </g>
+    </g>
+  </symbol>
   <symbol viewBox="0 0 128 128" id="eve-charactersheet">
   <clipPath id="eve-charactersheet-A">
   <path d="M0 0h128v128H0z"/>
@@ -475,6 +494,10 @@
           <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-killreport"/></svg></span>
           <span class="nav-label">Killboard</span>
         </button>
+        <button class="nav-btn nav-btn-fw" data-page="fw" title="Faction Warfare — warzone control, stats and LP tiers">
+          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-fw"/></svg></span>
+          <span class="nav-label">Faction War</span>
+        </button>
         <button class="nav-btn nav-btn-mail" data-page="mail" title="EVE Mail &amp; Notifications">
           <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-evemail"/></svg></span>
           <span class="nav-label">EVE Mail</span>
@@ -519,10 +542,6 @@
           <span class="nav-status" id="jabberNavStatus">
             <span class="status-light status-offline" title="Disconnected"></span>
           </span>
-        </button>
-        <button class="nav-btn nav-btn-market" data-page="market" title="Market">
-          <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-market"/></svg></span>
-          <span class="nav-label">Market</span>
         </button>
         <button class="nav-btn nav-btn-calendar" data-page="calendar" title="Calendar">
           <span class="nav-icon"><svg class="nav-icon-svg nav-icon-eve" viewBox="0 0 128 128" aria-hidden="true"><use href="#eve-calendar"/></svg></span>
@@ -742,6 +761,29 @@
             </div>
             <div style="font-size:12px; color:var(--text-3); margin-top:10px;">
               Stored locally and preserved until changed.
+            </div>
+          </div>
+
+          <!-- Ping alert sound -->
+          <div class="settings-panel-block" style="margin-top:16px; border-top:1px solid var(--border); padding-top:16px;">
+            <div class="settings-panel-title">Ping Alert Sound</div>
+            <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
+              Plays when a director ping pops up. Choose a built-in sound or upload your own
+              (.mp3 / .wav / .ogg). Drop files into <code>assets/audio</code> to add more built-ins.
+            </div>
+            <div class="ui-settings-grid">
+              <div class="ui-settings-row">
+                <label>Sound</label>
+                <select id="pingSoundSelect" class="field-input" style="cursor:pointer;"></select>
+              </div>
+              <div class="ui-settings-row">
+                <label>Volume</label>
+                <input id="pingSoundVolume" type="range" min="0" max="100" value="70" style="cursor:pointer;"/>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+              <button id="pingSoundTestBtn" class="calc-btn" style="font-size:12px;">▶ Test</button>
+              <button id="pingSoundUploadBtn" class="calc-btn" style="font-size:12px;">Upload sound…</button>
             </div>
           </div>
 
@@ -1390,7 +1432,10 @@
 <script src="./func/salvage.js"></script>
 <script src="./func/reactions.js"></script>
 <script src="./func/orehold-reprocess.js"></script>
+<script src="./func/mining.js"></script>  <!-- Mining Ledger (Industry) -->
+<script src="./func/faction-warfare.js"></script>  <!-- Faction Warfare tracker -->
 <script src="./func/shopping-lists.js"></script>
+<script src="./func/station-checkout.js"></script>  <!-- Station Checkout (Industry) -->
 <script src="./func/appraisal.js"></script>  <!-- Industry → Appraisal (bulk Jita valuation) -->
 <script src="./func/market.js"></script>
 <script src="./func/ics-parse.js"></script>  <!-- pure iCalendar parser; must precede calendar.js -->
@@ -1402,6 +1447,9 @@
 <script src="./func/forums.js"></script>  <!-- embedded forum webview -->
 <script src="./func/killboard.js"></script>  <!-- zKillboard-backed kills/losses feed -->
 <script src="./func/skills.js"></script>  <!-- multi-character skill planner -->
+<script src="./func/finances.js"></script>  <!-- Finances left-nav dispatcher -->
+<script src="./func/lpstore.js"></script>  <!-- LP store optimiser -->
+<script src="./func/trading.js"></script>  <!-- Trading / accounting (placeholder) -->
 <script src="./func/contracts.js"></script>  <!-- Finances -> Contracts tab -->
 <script src="./func/notifications.js"></script>  <!-- notification feed; must precede mail.js (tab host) -->
 <script src="./func/mail.js"></script>  <!-- EVE Mail client (live ESI, nothing stored) -->

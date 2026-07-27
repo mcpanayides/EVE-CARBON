@@ -41,6 +41,9 @@ const SCOPES = [
   'esi-mail.send_mail.v1',                      // EVE Mail: send from the Mail page's composer
   'esi-mail.organize_mail.v1',                  // EVE Mail: mark read/unread, move labels, delete
   'esi-characters.read_notifications.v1',       // in-game notification feed (structure attacks, war decs, bills, moon extractions…)
+  'esi-industry.read_character_mining.v1',      // personal mining ledger (Mining Ledger tool)
+  'esi-industry.read_corporation_mining.v1',    // corp mining observers + moon extractions (needs in-game Station Manager/Accountant role, else 403)
+  'esi-characters.read_fw_stats.v1',            // personal Faction Warfare stats (rank, kills, VP) for the FW tool
 ].join(' ');
 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────

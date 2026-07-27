@@ -682,17 +682,17 @@ function _initPageForFirstVisit(page) {
     case 'characters': return loadAccounts();
     case 'dashboard':  return loadDashboard();
     case 'assets':     return loadAssets();
-    case 'wallets':    return renderWallets();
+    case 'wallets':    return initFinancesPage();
     case 'industry':   return initIndustryPage();
     case 'pi':       { const p = loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); return p; }
     case 'jabber':     return loadJabberHistory();
     case 'map':        return initMapPage();
-    case 'market':     return renderMarket();
     case 'calendar':   return renderCalendar();
     case 'fc':         return initFcPage();
     case 'forums':     return initForumsPage();
     case 'mail':       return initMailPage();
     case 'killboard':  return initKillboardPage();
+    case 'fw':         return initFactionWarfarePage();
     case 'skills':     return initSkillsPage();
   }
 }

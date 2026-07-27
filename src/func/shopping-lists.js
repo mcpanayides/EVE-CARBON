@@ -233,15 +233,48 @@ function renderShoppingLists(container) {
   _renderSlSidebar();
   _renderSlContent();
 
-  // New list button
-  document.getElementById('slNewListBtn').addEventListener('click', () => {
-    const name = prompt('Shopping list name:');
-    if (!name?.trim()) return;
+  // New list button — Electron has no window.prompt(), so use an in-app modal.
+  document.getElementById('slNewListBtn').addEventListener('click', () => showNewShoppingListModal());
+}
+
+// Small in-app modal to name and create an empty shopping list (replaces prompt()).
+function showNewShoppingListModal() {
+  const backdrop = document.createElement('div');
+  backdrop.id = 'slNewListBackdrop';
+  backdrop.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;
+    display:flex;align-items:center;justify-content:center;`;
+  backdrop.innerHTML = `
+    <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;
+                padding:24px;width:380px;max-width:95vw;font-family:var(--font);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-1);">NEW SHOPPING LIST</div>
+        <button id="slNewClose" style="background:none;border:none;color:var(--text-3);
+                cursor:pointer;font-size:18px;padding:0;">✕</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input id="slNewNameInput" class="field-input" placeholder="List name…" style="flex:1;"/>
+        <button id="slNewCreate" class="bp-view-btn" style="padding:6px 14px;font-size:11px;white-space:nowrap;">CREATE</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const close = () => backdrop.remove();
+  const input = backdrop.querySelector('#slNewNameInput');
+  const create = () => {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
     const list = slCreate(name);
     _slActiveId = list.id;
+    close();
     _renderSlSidebar();
     _renderSlContent();
-  });
+    if (typeof showToast === 'function') showToast(`Created "${list.name}".`, 'success');
+  };
+  backdrop.querySelector('#slNewClose').addEventListener('click', close);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('#slNewCreate').addEventListener('click', create);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') create(); else if (e.key === 'Escape') close(); });
+  input.focus();
 }
 
 function _renderSlSidebar() {
@@ -492,19 +525,25 @@ async function _renderSlContent() {
   });
 
   document.getElementById('slSendBtn')?.addEventListener('click', () => {
-    if (!list.items.length) { showToast('Shopping list is empty.', 'error'); return; }
+    if (!list.items.length) {
+      pushCenterToast('Shopping list is empty', 'error');
+      return;
+    }
     const text = slToGameFormat(list.items);
+    const done = () => pushCenterToast(
+      `Copied ${list.items.length} item${list.items.length !== 1 ? 's' : ''} — in EVE open Market → Multibuy → paste`,
+      'success', 2600);
     navigator.clipboard.writeText(text)
-      .then(() => showToast('Copied! Open EVE → Market → Multi-buy → Paste', 'success'))
+      .then(done)
       .catch(() => {
-        // Electron fallback
+        // Electron fallback when the async clipboard API is unavailable.
         const el = document.createElement('textarea');
         el.value = text;
         document.body.appendChild(el);
         el.select();
         document.execCommand('copy');
         el.remove();
-        showToast('Copied! Open EVE → Market → Multi-buy → Paste', 'success');
+        done();
       });
   });
 

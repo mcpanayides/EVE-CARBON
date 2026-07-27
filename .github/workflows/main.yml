@@ -162,7 +162,14 @@ jobs:
       - name: Fetch SDE
         run: node scripts/fetch-sde.js
 
+      # No Apple Developer cert in CI, so electron-builder must NOT try to discover
+      # one — it should ad-hoc sign instead (mac.identity: null in package.json).
+      # An arm64 app with no signature at all is killed silently by macOS on Apple
+      # Silicon (no Gatekeeper prompt); ad-hoc signing lets it launch via right-click
+      # → Open. Full Gatekeeper clearance needs a Developer ID + notarization.
       - name: Build macOS dmg
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npx electron-builder --mac --publish never
 
       - name: Upload to GitHub Release

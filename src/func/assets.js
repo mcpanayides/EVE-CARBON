@@ -95,7 +95,12 @@ function _updateAssetMetaCells() {
     if (!m) return;
     const set = (sel, val) => { const td = row.querySelector(sel); if (td) td.textContent = val; };
     set('.asset-item-group-cell',    m.group    || '');
-    set('.asset-item-category-cell', m.category || '');
+    // Keep the original-vs-copy label (set at render) for blueprints instead of
+    // overwriting it with the bare "Blueprint" category.
+    const catText = row.dataset.isBpc === '1' ? 'Blueprint Copy'
+                  : row.dataset.isBpc === '0' ? 'Blueprint Original'
+                  : (m.category || '');
+    set('.asset-item-category-cell', catText);
     set('.asset-item-slot-cell',     m.slot     || '');
     set('.asset-item-meta-cell', m.metaLevel != null ? String(m.metaLevel) : 'None');
     set('.asset-item-tech-cell', m.techLevel != null ? String(m.techLevel) : 'None');
@@ -729,13 +734,22 @@ function renderAssetTree() {
         const customName = asset.custom_name && asset.custom_name !== itemName ? asset.custom_name : '';
         const vol      = asset.volume != null ? Number(asset.volume).toFixed(2) : '—';
 
+        // Blueprints have no /icon on the image server (it 400s) — originals use
+        // /bp and copies use /bpc (distinct border colours, matching the game).
+        // is_bpc is 0 (original), 1 (copy) or null (not a blueprint).
+        const bpcNum    = asset.is_bpc == null ? null : Number(asset.is_bpc);
+        const bpVariant = bpcNum === 1 ? 'bpc' : (bpcNum === 0 ? 'bp' : null);
         const iconHtml = asset.type_id
-          ? `<img class="asset-type-icon" src="https://images.evetech.net/types/${asset.type_id}/icon?size=32" alt="" loading="lazy" />`
+          ? `<img class="asset-type-icon" src="https://images.evetech.net/types/${asset.type_id}/${bpVariant || 'icon'}?size=32" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />`
           : `<span class="asset-type-icon-placeholder"></span>`;
 
         const md         = typeMetaCache[asset.type_id];
         const grp        = md ? (md.group || '')    : '';
         const cat        = md ? (md.category || '') : '';
+        // Spell out original vs copy in the Category column (was just "Blueprint").
+        const catDisplay = bpcNum === 1 ? 'Blueprint Copy'
+                         : bpcNum === 0 ? 'Blueprint Original'
+                         : cat;
         const slotTxt    = md ? (md.slot || '')     : '';
         const metaTxt    = md ? (md.metaLevel != null ? String(md.metaLevel) : 'None') : '';
         const techTxt    = md ? (md.techLevel != null ? String(md.techLevel) : 'None') : '';
@@ -771,7 +785,7 @@ function renderAssetTree() {
           <td class="asset-item-name-cell"     data-col-key="name" style="padding-left:${indent}px !important;">${chevron}${nameInner}${contains}</td>
           <td class="asset-item-qty-cell"      data-col-key="qty">${qty > 1 ? qty.toLocaleString() : ''}</td>
           <td class="asset-item-group-cell"    data-col-key="group">${escHtml(grp)}</td>
-          <td class="asset-item-category-cell" data-col-key="category">${escHtml(cat)}</td>
+          <td class="asset-item-category-cell" data-col-key="category">${escHtml(catDisplay)}</td>
           <td class="asset-item-slot-cell"     data-col-key="slot">${escHtml(slotTxt)}</td>
           <td class="asset-item-vol-cell"      data-col-key="vol">${vol}</td>
           <td class="asset-item-meta-cell"     data-col-key="meta">${escHtml(metaTxt)}</td>
@@ -1131,11 +1145,6 @@ function _wireWalletDrag(el) {
 }
 
 async function renderWallets() {
-  // Wallets │ Contracts tab strip (src/func/contracts.js). Bound here because
-  // loadAllPages() injects the page markup asynchronously, so it can't be done
-  // on DOMContentLoaded. Bind before the early-returns below so the Contracts
-  // tab still works while the wallet grid is mid-load.
-  if (typeof bindWalletTabs === 'function') bindWalletTabs();
   const walletsGrid = document.getElementById('walletsGrid');
   if (!walletsGrid) return;
   if (walletsGrid._isLoading) return;
@@ -1154,7 +1163,14 @@ async function renderWallets() {
     const cachedWallets = cachedDash?.walletByChar || {};
 
     // CCP adjusted prices for valuing each character's assets (one cached call).
-    const marketPrices = await window.eveAPI.getMarketPrices().catch(() => ({}));
+    // Bounded: the cards (name + balance) come from the local DB and don't need
+    // prices — only the asset-value figure does — so a slow/hung price fetch must
+    // not hold up the whole grid. A timeout is treated like the existing error
+    // path (empty → 0 asset value), which self-corrects on the next render.
+    const marketPrices = await Promise.race([
+      window.eveAPI.getMarketPrices().catch(() => ({})),
+      new Promise(resolve => setTimeout(() => resolve({}), 4000)),
+    ]);
 
     const cardData = await Promise.all(accounts.map(async (account) => {
       const cid = String(account.characterId);
@@ -1339,15 +1355,14 @@ async function openWalletJournal(characterId, characterName) {
   setJournalTab('overview');
   backdrop.style.display = 'flex';
 
-  // Load data in parallel
-  const [journalEntries, lpData] = await Promise.all([
-    loadJournalEntries(characterId),
-    loadLPData(characterId),
-  ]);
-
+  // The overview + transactions come from the wallet journal (local DB, fast), so
+  // render them as soon as it loads. LP lives on its own tab and its DB-miss
+  // fallback hits ESI — load it separately so a slow loyalty fetch can't hold up
+  // the journal totals.
+  const journalEntries = await loadJournalEntries(characterId);
   renderJournalOverview(journalEntries);
   renderJournalTransactions(journalEntries);
-  renderJournalLP(lpData);
+  loadLPData(characterId).then(renderJournalLP).catch(() => {});
 }
 
 function closeWalletJournal() {

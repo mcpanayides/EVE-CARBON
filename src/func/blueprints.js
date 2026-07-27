@@ -45,6 +45,18 @@ async function loadBlueprintLibrary() {
   }
 }
 
+// Blueprint thumbnail URL. The image server has NO plain /icon for blueprints
+// (it 400s) — originals use /bp, copies use /bpc (distinct colours, matching the
+// game). Pair with _bpIconFallback() for the onerror handler.
+function _bpIconSrc(typeId, isBPC, size = 64) {
+  return `${ESI_IMAGE}/${typeId}/${isBPC ? 'bpc' : 'bp'}?size=${size}`;
+}
+// onerror for a blueprint thumb: if even /bp(/bpc) fails, drop the broken image
+// rather than falling to /icon (which always 400s for blueprints).
+function _bpIconFallback() {
+  return `this.onerror=null;this.style.visibility='hidden';`;
+}
+
 function _renderBpLibLoadingState(isError = false) {
   const listDiv = document.getElementById('bpLibList');
   if (!listDiv) return;
@@ -646,8 +658,8 @@ function renderBlueprintList(bps) {
       <div class="bp-pill-row">${pills.join('')}</div>
       <div class="bp-card-head">
         <img class="bp-card-thumb"
-             src="${ESI_IMAGE}/${bp.type_id}/bp?size=64"
-             onerror="this.onerror=null;this.src='${ESI_IMAGE}/${bp.type_id}/icon?size=64';"
+             src="${_bpIconSrc(bp.type_id, bp.isBPC, 64)}"
+             onerror="${_bpIconFallback()}"
              alt="bp-icon">
         <div class="bp-card-titlewrap">
           <div class="bp-card-title">${escHtml(bp.name)}</div>
@@ -981,8 +993,8 @@ async function openBlueprintDetail(bp) {
         ← BACK TO LIBRARY
       </button>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
-        <img src="${ESI_IMAGE}/${bp.type_id}/bp?size=64"
-             onerror="this.onerror=null;this.src='${ESI_IMAGE}/${bp.type_id}/icon?size=64';"
+        <img src="${_bpIconSrc(bp.type_id, bp.isBPC, 64)}"
+             onerror="${_bpIconFallback()}"
              style="width:64px;height:64px;border-radius:4px;border:1px solid var(--border);">
         <div>
           <h2 style="font-size:22px;margin:0 0 6px;color:var(--text-1);">${escHtml(bp.name)}</h2>
@@ -1058,9 +1070,10 @@ async function openBlueprintDetail(bp) {
   const baseTime = sdeResult.baseTime || 0;
   const priceIds = materials.map(m => m.typeId);
   if (productTypeId) priceIds.push(productTypeId);
+  // Populated after the shell paints (see below) — the breakdown numbers use them,
+  // but the buttons/controls don't, so nothing user-facing waits on the price call.
   let prices = {};
-  try { prices = await window.eveAPI.getJitaPrices([...new Set(priceIds)]) || {}; } catch (_) {}
-  const adjustedPrices = await _indGetAdjustedPrices();
+  let adjustedPrices = {};
 
   const productImg = productTypeId
     ? `<img src="${ESI_IMAGE}/${productTypeId}/icon?size=32"
@@ -1082,8 +1095,8 @@ async function openBlueprintDetail(bp) {
       <button id="bpTreeBtn" class="bp-view-btn" type="button" style="padding:6px 16px;font-size:11px;background:var(--bg-hover);">
         ⬡ SHOW COMPONENT TREE
       </button>
-      <button id="bpAddToListBtn" class="bp-view-btn" type="button" style="padding:6px 16px;font-size:11px;background:var(--bg-hover);margin-left:auto;">
-        ➕ ADD TO SHOPPING LIST
+      <button id="bpAddToListBtn" class="bp-view-btn" type="button" title="Add this blueprint's immediate input materials (the list shown above)" style="padding:6px 16px;font-size:11px;background:var(--bg-hover);margin-left:auto;">
+        ➕ ADD DIRECT MATERIALS
       </button>
     </div>
     <div id="bpComponentTree" style="display:none;margin-top:16px;"></div>`;
@@ -1131,18 +1144,15 @@ async function openBlueprintDetail(bp) {
 
   _indRenderControls(document.getElementById('bpDetailFacility'), () => recompute());
   document.getElementById('bpDetailRuns')?.addEventListener('change', () => recompute());
-  // Load the build character's skills up front so the first time/ISK-hour is correct.
-  await _indLoadSkills(_indSettings.buildCharId);
-  await recompute();
 
-  // Add to Shopping List
+  // Wire the action buttons now — they only need the already-loaded SDE materials,
+  // so they're live the instant the shell paints, before any price network call.
   document.getElementById('bpAddToListBtn')?.addEventListener('click', () => {
     const slMats = materials.map(m => ({ typeId: m.typeId, name: m.name, qty: m.adjustedQty }));
     if (typeof showAddToShoppingListModal === 'function') {
-      showAddToShoppingListModal(slMats, bp.name || `Type ${bp.type_id}`);
+      showAddToShoppingListModal(slMats, `${bp.name || `Type ${bp.type_id}`} — direct materials`);
     }
   });
-
   // Component tree toggle — passes SDE materials so root level never needs Fuzzwork
   document.getElementById('bpTreeBtn')?.addEventListener('click', async () => {
     const treeDiv = document.getElementById('bpComponentTree');
@@ -1156,6 +1166,14 @@ async function openBlueprintDetail(bp) {
     document.getElementById('bpTreeBtn').textContent = '⬡ HIDE COMPONENT TREE';
     await renderComponentTreePanel(treeDiv, bp, sdeResult.materials);
   });
+
+  // Prices power the breakdown numbers only — fetch them after the shell + buttons
+  // are live so nothing user-facing waits on the network.
+  try { prices = await window.eveAPI.getJitaPrices([...new Set(priceIds)]) || {}; } catch (_) {}
+  adjustedPrices = await _indGetAdjustedPrices();
+  // Load the build character's skills up front so the first time/ISK-hour is correct.
+  await _indLoadSkills(_indSettings.buildCharId);
+  await recompute();
 }
 
 // ─── Component Tree Panel ─────────────────────────────────────────────────────
@@ -1226,11 +1244,18 @@ async function renderComponentTreePanel(container, bp, rootMaterials = null) {
       </div>
 
       <label style="display:flex;align-items:center;gap:6px;font-family:var(--mono);
-                    font-size:10px;color:var(--text-2);margin-left:auto;cursor:pointer;">
+                    font-size:10px;color:var(--text-2);cursor:pointer;">
         <input type="checkbox" id="includeReactions" checked
                style="accent-color:var(--accent);width:13px;height:13px;">
         Include reaction items
       </label>
+
+      <button id="bpTreeAddBtn" class="bp-view-btn" type="button"
+              title="Add the breakdown shown below (the current tier) to a shopping list"
+              style="margin-left:auto;padding:4px 12px;font-size:10px;font-weight:700;
+                     background:var(--accent);color:#000;">
+        ➕ ADD THIS BREAKDOWN
+      </button>
     </div>
 
     <div id="treeOutput" style="font-family:var(--mono);font-size:11px;color:var(--text-3);
@@ -1239,6 +1264,7 @@ async function renderComponentTreePanel(container, bp, rootMaterials = null) {
   // Wire tier buttons
   let currentDepth    = 1;
   let includeReactions = true;
+  let currentFlat     = null;   // the leaves shown at the current tier — what "Add this breakdown" adds
 
   const rebuild = async () => {
     const out = document.getElementById('treeOutput');
@@ -1258,6 +1284,7 @@ async function renderComponentTreePanel(container, bp, rootMaterials = null) {
       }
 
       const flat = flattenTreeToLeaves(tree);
+      currentFlat = flat;   // remember what's shown so "Add this breakdown" matches exactly
 
       // Fetch Jita prices for the flat leaf list
       let leafPrices = {};
@@ -1291,6 +1318,22 @@ async function renderComponentTreePanel(container, bp, rootMaterials = null) {
   container.querySelector('#includeReactions')?.addEventListener('change', e => {
     includeReactions = e.target.checked;
     rebuild();
+  });
+
+  // Add exactly the breakdown currently shown (current tier depth) to a shopping list.
+  container.querySelector('#bpTreeAddBtn')?.addEventListener('click', () => {
+    if (!currentFlat || !currentFlat.size) {
+      if (typeof showToast === 'function') showToast('Nothing to add yet — the breakdown is still building.', 'info');
+      return;
+    }
+    const depthLabel = currentDepth === 99 ? 'raw inputs'
+                     : currentDepth === 1  ? 'T1 breakdown'
+                     : currentDepth === 2  ? 'T2 breakdown'
+                     : `tier ${currentDepth} breakdown`;
+    const slMats = [...currentFlat.values()].map(m => ({ typeId: m.typeid, name: m.name, qty: m.quantity }));
+    if (typeof showAddToShoppingListModal === 'function') {
+      showAddToShoppingListModal(slMats, `${bp.name || `Type ${bp.type_id}`} — ${depthLabel}`);
+    }
   });
 
   await rebuild();
@@ -1755,6 +1798,9 @@ function navigateIndustryTab(tab) {
   } else if (tab === 'orehold') {
     if (typeof renderOreholdCalc === 'function') renderOreholdCalc(right);
 
+  } else if (tab === 'mining') {
+    if (typeof renderMiningLedger === 'function') renderMiningLedger(right);
+
   } else if (tab === 'appraisal') {
     if (typeof renderAppraisal === 'function') renderAppraisal(right);
 
@@ -1763,6 +1809,9 @@ function navigateIndustryTab(tab) {
 
   } else if (tab === 'shopping-lists') {
     if (typeof renderShoppingLists === 'function') renderShoppingLists(right);
+
+  } else if (tab === 'station-checkout') {
+    if (typeof renderStationCheckout === 'function') renderStationCheckout(right);
 
   } else if (tab === 'moon') {
     renderMoonReformatter(right);
@@ -2488,14 +2537,19 @@ async function renderActiveJobsPage(container) {
     body.innerHTML = jobs.map(job => {
       const act       = _AJ_ACT[job.activity_id] || { label: `Act ${job.activity_id}`, color: 'var(--text-3)' };
       const itemId    = job._displayId;
-      const icon64    = `https://images.evetech.net/types/${itemId}/icon?size=64`;
-      const icon32    = `https://images.evetech.net/types/${itemId}/icon?size=32`;
-      const iconBp    = `https://images.evetech.net/types/${itemId}/bp?size=32`;
+      // Pick the right image-server variant so blueprints don't flash a broken
+      // /icon (which 400s): manufacturing/reaction show a real product (/icon);
+      // invention & reverse-eng output a copy (/bpc); research & copying show the
+      // source blueprint original (/bp).
+      const _ajVariant = (job.activity_id === 1 || job.activity_id === 9) ? 'icon'
+                       : (job.activity_id === 7 || job.activity_id === 8) ? 'bpc'
+                       : 'bp';
+      const iconSrc   = `https://images.evetech.net/types/${itemId}/${_ajVariant}?size=64`;
 
       const itemIcon = itemId
-        ? `<img src="${icon64}" style="width:26px;height:26px;border-radius:3px;
+        ? `<img src="${iconSrc}" style="width:26px;height:26px;border-radius:3px;
                     border:1px solid var(--border);flex-shrink:0;background:var(--bg-deep);"
-               onerror="if(this.src==='${icon64}'){this.src='${icon32}'}else if(this.src==='${icon32}'){this.src='${iconBp}'}else{this.style.display='none'}">`
+               onerror="this.onerror=null;this.style.visibility='hidden';">`
         : '';
 
       const charPortrait = `<img src="https://images.evetech.net/characters/${job.character_id}/portrait?size=32"

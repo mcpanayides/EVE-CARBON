@@ -26,7 +26,7 @@ A plain object where each key is a page name and each value is an HTML string (t
 | `pi` | `#page-pi` | Planetary Interaction colony monitor |
 | `forums` | `#page-forums` | Forums and community links (placeholder — coming soon) |
 | `jabber` | `#page-jabber` | Jabber XMPP client — message table, connection status, director bot filter |
-| `market` | `#page-market` | Market data and trading tools (placeholder — coming soon) |
+<!-- The standalone `market` page was retired; its "vs Jita" view is now a segment inside Finances → Trading (see src/func/trading.js). -->
 
 ### Notable DOM Elements Declared Inside `PAGE_HTML`
 

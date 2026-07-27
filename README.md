@@ -7,10 +7,12 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
 * **Multi-Character Skill Planner**: Build skill plans once and cost them against every character, with an in-game-style skill browser, plan-by-ship prerequisite expansion, remap optimisation, and a Jita-priced implant/cerebral-accelerator cost optimiser.
 * **EVE Mail & Notifications**: Read, reply to and send in-game mail, and browse the in-game notification feed — all live from ESI.
 * **Killboard**: Recent kills and losses with all-time PvP stats, plus combined all-character and all-corporation overviews (via zKillboard).
-* **Blueprint Library & Industry Tools**: Synchronize and browse blueprints, plus a recursive material calculator, reactions, salvage, ore/reprocessing, cost index and a bulk Jita appraisal tool.
-* **Asset, Wealth & Contracts Tracking**: Track liquid wealth, market orders and item locations, and browse item-exchange/courier/auction contracts across your character roster.
-* **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits, run fleet tools, and plan jumps on an interactive map.
-* **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering and message pop-ups.
+* **Blueprint Library & Industry Tools**: Synchronize and browse blueprints (with correct BPO/BPC icons), plus a recursive material calculator, reactions, salvage, ore/reprocessing, cost index, bulk Jita appraisal, shopping lists, and a **Station Checkout** that diffs a shopping list against what you already hold in a chosen station/structure/container and surfaces exactly what's missing.
+* **Mining Ledger**: Per-character (and combined) mining yield valued as raw ore or refined minerals, daily trends, and corp moon-extraction timers — auto-refreshed on ESI's own cadence.
+* **Finances Suite**: Wallets and liquid-wealth tracking, contracts browser, an **LP Store optimiser** (ranks loyalty offers by ISK/LP on live Jita prices), and **Trading tools** — per-station undercut alerts with background toast notifications, per-item realised P&L, profit-over-time, and a vs-Jita order view.
+* **Faction Warfare Tracker**: Live warzone control and tiers, per-system plex/contested status, militia stats, pilot & corp leaderboards, and LP-rate tiers — sourced from public ESI.
+* **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits (browsing hulls by the in-game market tree), run fleet tools, and plan jumps on an interactive map.
+* **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering, message pop-ups, and a configurable ping-alert sound (with custom uploads).
 * **Local SDE Database**: Uses a local SQLite EVE Static Data Export (SDE) for lightning-fast, offline item and type lookups.
 * **Dynamic Theming**: Customizable UI with user-configurable themes saved locally.
 
@@ -31,6 +33,11 @@ Designed for serious capsuleers and industrial manufacturers, EVE-Carbon is a co
 The easiest way to get EVE Carbon is from the 
 [Releases page](https://github.com/mcpanayides/EVE-CARBON/releases) — 
 just download and run the installer, no setup needed.
+
+**macOS (Apple Silicon):** the app is ad-hoc signed but not yet notarized, so on first
+launch macOS quarantines it. Right-click the app → **Open** and confirm, or run
+`xattr -dr com.apple.quarantine "/Applications/EVE-Carbon.app"` once — after that it
+opens normally.
 
 ---
 

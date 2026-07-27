@@ -13,28 +13,6 @@ let _ctOpenId  = null;
 let _ctItems   = {};          // contractId → items[]
 let _ctNames   = {};          // entity/type/location id → name
 let _ctLoaded  = false;
-let _ctTabBound = false;
-
-// Wire the Finances page's Wallets │ Contracts tabs. Called from renderWallets()
-// once the page markup exists (loadAllPages injects it asynchronously, so this
-// can't be done on DOMContentLoaded).
-function bindWalletTabs() {
-  if (_ctTabBound) return;
-  const tabs = document.querySelectorAll('[data-wallettab]');
-  if (!tabs.length) return;
-  _ctTabBound = true;
-  tabs.forEach(b => {
-    b.onclick = () => {
-      const which = b.dataset.wallettab;
-      tabs.forEach(x => x.classList.toggle('active', x === b));
-      const w = document.getElementById('walletsTabWallets');
-      const c = document.getElementById('contractsTab');
-      if (w) w.style.display = which === 'wallets' ? '' : 'none';
-      if (c) c.style.display = which === 'contracts' ? 'flex' : 'none';
-      if (which === 'contracts' && !_ctLoaded) initContractsTab();
-    };
-  });
-}
 
 const CT_TYPE_LABEL = {
   item_exchange: 'Item Exchange', courier: 'Courier', auction: 'Auction', loan: 'Loan', unknown: 'Unknown',

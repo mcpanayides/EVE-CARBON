@@ -89,6 +89,63 @@ function registerEsiHandlers({
     );
   });
 
+  // Batched blueprint → manufactured product lookup (LP store optimiser values
+  // BPC offers by what they build). activityID 1 = manufacturing; `quantity` is
+  // units produced per run. Returns { "<blueprintTypeId>": { product, qty } }.
+  ipcHandle('sde-products-for-blueprints', async (_, blueprintTypeIds) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !Array.isArray(blueprintTypeIds) || !blueprintTypeIds.length) return {};
+    const ids = [...new Set(blueprintTypeIds.map(Number).filter(Boolean))];
+    const out = {};
+    const CHUNK = 400;
+    try {
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const slice = ids.slice(i, i + CHUNK);
+        const rows = await sdeDb.all(
+          `SELECT typeID AS bp, productTypeID AS product, quantity AS qty
+             FROM industryActivityProducts
+            WHERE activityID = 1 AND typeID IN (${slice.map(() => '?').join(',')})`,
+          slice,
+        );
+        (rows || []).forEach(r => { if (r.product) out[r.bp] = { product: r.product, qty: r.qty || 1 }; });
+      }
+      return out;
+    } catch (e) {
+      console.warn('sde-products-for-blueprints failed:', e.message);
+      return out;
+    }
+  });
+
+  // ─── IPC: LP store offers for a corporation (public, no auth) ────────────
+  // Powers the LP Store optimiser. Offers change rarely, so cache 6h with a long
+  // stale fallback. Each offer: { offer_id, type_id, quantity, lp_cost, isk_cost,
+  // required_items:[{type_id, quantity}] }.
+  ipcHandle('lp-get-offers', async (_, corpId) => {
+    if (!corpId) return [];
+    const cacheKey = `lp_offers_${corpId}`;
+    const cached   = readCache(cacheKey);
+    if (cached) return cached;
+    try {
+      const offers = await httpGet(`${ESI_BASE}/v1/loyalty/stores/${corpId}/offers/?datasource=tranquility`);
+      const rows = (Array.isArray(offers) ? offers : []).map(o => ({
+        offerId:  o.offer_id,
+        typeId:   o.type_id,
+        quantity: o.quantity || 1,
+        lpCost:   o.lp_cost || 0,
+        iskCost:  o.isk_cost || 0,
+        required: (o.required_items || []).map(r => ({ typeId: r.type_id, quantity: r.quantity })),
+      }));
+      writeCache(cacheKey, rows, 0.25);          // 6-hour cache
+      writeCache(`${cacheKey}_stale`, rows, 30); // 30-day stale fallback
+      return rows;
+    } catch (e) {
+      const stale = readCache(`${cacheKey}_stale`);
+      if (stale) return stale;
+      console.warn(`lp-get-offers failed for ${corpId}:`, e.message);
+      return [];
+    }
+  });
+
   // ─── IPC: ESI bulk name resolution ───────────────────────────────────────
   ipcHandle('esi-names', async (_, ids) => {
     if (!ids || !ids.length) return [];
@@ -368,8 +425,10 @@ function registerEsiHandlers({
   ipcHandle('get-product-for-blueprint', async (_, blueprintTypeId) => {
     const sdeDb = getSdeDb(); if (!sdeDb) return null;
     try {
+      // industryActivityProducts (activityID 1 = manufacturing) — the SDE has no
+      // invBlueprintTypes table, so the old query here silently returned null.
       const result = await getSdeDb().get(
-        'SELECT productTypeID FROM invBlueprintTypes WHERE blueprintTypeID = ?',
+        'SELECT productTypeID FROM industryActivityProducts WHERE activityID = 1 AND typeID = ?',
         blueprintTypeId
       );
       if (result && result.productTypeID) {

@@ -159,6 +159,9 @@ const SCOPES         = [
   'esi-fittings.read_fittings.v1',               // import saved ship fits from the game (Fitting tool)
   'esi-fittings.write_fittings.v1',              // push fits from the Fitting tool back to the game
   'esi-ui.write_waypoint.v1',                    // set autopilot destination in active EVE client
+  'esi-industry.read_character_mining.v1',       // personal mining ledger (Mining Ledger tool)
+  'esi-industry.read_corporation_mining.v1',     // corp mining observers + moon extractions (needs in-game role, else 403)
+  'esi-characters.read_fw_stats.v1',             // personal Faction Warfare stats (rank, kills, VP)
 ].join(' ');
 // ─── Local DB ────────────────────────────────────────────────────────────────────
  
@@ -199,7 +202,7 @@ async function initSde() {
 }
  
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir, resfileCacheDir, etagCacheDir;
+let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir, userPingSoundsDir, resfileCacheDir, etagCacheDir;
 // Shared state for ping file watcher — passed into registerPingFileHandlers
 // so the app-quit handler can still close it without knowing the internals.
 const pingWatcherState = { watcher: null, timer: null };
@@ -219,6 +222,7 @@ function initPaths() {
   userPacksDir  = path.join(userDataPath, 'packs');
   userThemesDir = path.join(userDataPath, 'themes');
   userBackgroundsDir = path.join(userDataPath, 'backgrounds');
+  userPingSoundsDir  = path.join(userDataPath, 'ping-sounds');   // user-uploaded ping alert sounds
   resfileCacheDir    = path.join(userDataPath, 'resfile-cache');
   etagCacheDir       = path.join(cacheDir, 'esi-etag');
   try { fs.mkdirSync(cacheDir,     { recursive: true }); } catch (e) { /* ignore */ }
@@ -226,6 +230,7 @@ function initPaths() {
   try { fs.mkdirSync(userPacksDir, { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userThemesDir,{ recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(userBackgroundsDir, { recursive: true }); } catch (e) { /* ignore */ }
+  try { fs.mkdirSync(userPingSoundsDir,  { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(resfileCacheDir,    { recursive: true }); } catch (e) { /* ignore */ }
   try { fs.mkdirSync(etagCacheDir,       { recursive: true }); } catch (e) { /* ignore */ }
 }
@@ -351,6 +356,82 @@ ipcHandle('pick-background', async () => {
   } catch (e) {
     return { canceled: false, error: e.message };
   }
+});
+
+// ─── Jabber ping-alert sound ─────────────────────────────────────────────────
+// Mirrors the backgrounds pattern: bundled presets live in assets/audio/ (drop
+// .mp3/.wav/.ogg files there to ship them), user uploads are copied into
+// userData/ping-sounds/. Both are returned as file:// URLs the ping-alert
+// popup (itself a file:// page) can feed straight into an <audio> element.
+const _AUDIO_EXT = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']);
+
+function _bundledAudioDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath || __dirname, 'assets', 'audio')
+    : path.join(__dirname, 'assets', 'audio');
+}
+
+function _scanAudioDir(dir, source) {
+  const out = [];
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!_AUDIO_EXT.has(path.extname(f).toLowerCase())) continue;
+      const abs = path.join(dir, f);
+      out.push({ id: `${source}:${f}`, name: path.parse(f).name, source, file: f, url: require('url').pathToFileURL(abs).href });
+    }
+  } catch (_) { /* folder may not exist yet */ }
+  return out;
+}
+
+ipcHandle('ping-sound-list', async () => {
+  const all = [..._scanAudioDir(_bundledAudioDir(), 'preset'), ..._scanAudioDir(userPingSoundsDir, 'user')];
+  // Dedupe by filename so a user copy shadows a preset of the same name.
+  const seen = new Map();
+  for (const s of all) seen.set(s.file.toLowerCase(), s);
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+});
+
+ipcHandle('ping-sound-pick', async () => {
+  const { dialog } = require('electron');
+  const result = await dialog.showOpenDialog({
+    title: 'Choose a ping alert sound',
+    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || !result.filePaths.length) return { canceled: true };
+  const src      = result.filePaths[0];
+  const fileName = path.basename(src);
+  try {
+    fs.mkdirSync(userPingSoundsDir, { recursive: true });
+    const dest = path.join(userPingSoundsDir, fileName);
+    fs.copyFileSync(src, dest);
+    return { canceled: false, sound: { id: `user:${fileName}`, name: path.parse(fileName).name, source: 'user', file: fileName, url: require('url').pathToFileURL(dest).href } };
+  } catch (e) {
+    return { canceled: false, error: e.message };
+  }
+});
+
+// Resolve the CURRENTLY-selected ping sound for the popup to play. Reads the
+// choice from app config (app.jabber.pingSound = { id, volume, enabled }). When
+// nothing is configured yet, defaults to the mixkit "message pop" sound if it's
+// present in assets/audio (matched loosely so the exact filename doesn't matter),
+// otherwise the first bundled sound. Returns { enabled, url, volume }.
+ipcHandle('ping-sound-current', async () => {
+  let choice = null;
+  try { choice = (loadConfig().app?.jabber?.pingSound) || null; } catch (_) {}
+  const sounds = [..._scanAudioDir(_bundledAudioDir(), 'preset'), ..._scanAudioDir(userPingSoundsDir, 'user')];
+  const volume = (choice && typeof choice.volume === 'number') ? Math.max(0, Math.min(1, choice.volume)) : 0.7;
+
+  if (choice && choice.id === 'none') return { enabled: false, url: null, volume };
+
+  let sel = null;
+  if (choice && choice.id) sel = sounds.find(s => s.id === choice.id) || null;
+  if (!sel) {
+    // Default: prefer the mixkit "message pop alert" (the 2354 clip), else the
+    // first bundled sound available.
+    sel = sounds.find(s => /2354|message[-_ ]?pop/i.test(s.file)) || sounds.find(s => s.source === 'preset') || sounds[0] || null;
+  }
+  return { enabled: !!sel, url: sel ? sel.url : null, volume };
 });
  
 function getCachePath(key) {
@@ -1073,48 +1154,11 @@ async function _fitBuildTree(kind) {
   if (_fitTreeCache.has(kind)) return _fitTreeCache.get(kind);
   if (!sdeDb) return null;
 
-  if (kind === 'ship') {
-    const races = {};
-    (await sdeDb.all(`SELECT raceID, raceName FROM chrRaces`)).forEach(r => { races[r.raceID] = r.raceName; });
-    // Pirate hulls (Cynabal, Orthrus, Ashimmu…) carry an EMPIRE raceID in the SDE
-    // (Angel = Minmatar, etc.) — the reliable signal is their market-group ancestry,
-    // which ends in a "Pirate Faction" node. Build the set once.
-    const mgAll = await sdeDb.all(`SELECT marketGroupID id, parentGroupID p, marketGroupName n FROM invMarketGroups`);
-    const mgParent = new Map(mgAll.map(m => [m.id, m.p]));
-    const mgName   = new Map(mgAll.map(m => [m.id, m.n]));
-    const isPirateMg = (mgId) => {
-      for (let cur = mgId, hops = 0; cur != null && hops < 12; cur = mgParent.get(cur), hops++) {
-        if ((mgName.get(cur) || '').startsWith('Pirate Faction')) return true;
-      }
-      return false;
-    };
-    const rows = await sdeDb.all(
-      `SELECT t.typeID id, t.typeName n, t.raceID race, t.marketGroupID mg, g.groupName cls
-         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
-        WHERE g.categoryID = 6 AND t.published = 1
-        ORDER BY g.groupName, t.typeName`);
-    const byClass = new Map();
-    for (const r of rows) {
-      if (!byClass.has(r.cls)) byClass.set(r.cls, new Map());
-      const raceName = isPirateMg(r.mg) ? 'Pirate' : (races[r.race] || 'Other');
-      const byRace = byClass.get(r.cls);
-      if (!byRace.has(raceName)) byRace.set(raceName, []);
-      byRace.get(raceName).push({ id: r.id, name: r.n });
-    }
-    const sections = [...byClass.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([cls, byRace]) => ({
-      name: cls,
-      count: [...byRace.values()].reduce((s, t) => s + t.length, 0),
-      kids: [...byRace.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([race, types]) => ({
-        name: race, count: types.length, kids: [], types,
-      })),
-      types: [],
-    }));
-    const tree = { sections };
-    _fitTreeCache.set(kind, tree);
-    return tree;
-  }
-
-  // Market-group kinds — bulk-load everything once, then assemble the subtree.
+  // Every kind's browse tree IS the SDE market-group hierarchy — the exact tree
+  // EVE shows in its market window. Ships used to be grouped by inventory group +
+  // race, which mis-filed special-edition / Alliance-Tournament hulls (e.g. the
+  // Chremoas landed under "Covert Ops" instead of "Special Edition Ships"); the
+  // market tree files every hull exactly as the game does.
   const mgRows = await sdeDb.all(`SELECT marketGroupID id, parentGroupID p, marketGroupName n FROM invMarketGroups`);
   const mgById = new Map(mgRows.map(m => [m.id, m]));
   const mgKids = new Map();
@@ -1130,29 +1174,35 @@ async function _fitBuildTree(kind) {
     if (!typesByMg.has(t.mg)) typesByMg.set(t.mg, []);
     typesByMg.get(t.mg).push(t);
   }
-  // Slot / hardpoint / cpu / pg / required skills for the filter row.
-  const effByType = new Map();
-  for (const e of await sdeDb.all(`SELECT typeID t, effectID e FROM dgmTypeEffects WHERE effectID IN (11,12,13,2663,3772,40,42)`)) {
-    if (!effByType.has(e.t)) effByType.set(e.t, []);
-    effByType.get(e.t).push(e.e);
+
+  // Slot / hardpoint / cpu / pg / skill decoration is only used by the Modules
+  // tab's filter row — skip the heavy dgm* loads for ships and charges.
+  let decorate = (t) => ({ id: t.id, name: t.n });
+  if (kind === 'module') {
+    const effByType = new Map();
+    for (const e of await sdeDb.all(`SELECT typeID t, effectID e FROM dgmTypeEffects WHERE effectID IN (11,12,13,2663,3772,40,42)`)) {
+      if (!effByType.has(e.t)) effByType.set(e.t, []);
+      effByType.get(e.t).push(e.e);
+    }
+    const attrByType = new Map();
+    for (const a of await sdeDb.all(`SELECT typeID t, attributeID a, COALESCE(valueInt, valueFloat) v FROM dgmTypeAttributes WHERE attributeID IN (50,30,182,277,183,278,184,279)`)) {
+      if (!attrByType.has(a.t)) attrByType.set(a.t, {});
+      attrByType.get(a.t)[a.a] = a.v;
+    }
+    decorate = (t) => {
+      const effs = effByType.get(t.id) || [];
+      let slot = null;
+      for (const [eid, s] of Object.entries(FIT_SLOT_EFFECT)) if (effs.includes(Number(eid))) { slot = s; break; }
+      const hp = effs.includes(42) ? 'turret' : (effs.includes(40) ? 'launcher' : null);
+      const a = attrByType.get(t.id) || {};
+      const sk = [];
+      if (a[182] && a[277]) sk.push([a[182], a[277]]);
+      if (a[183] && a[278]) sk.push([a[183], a[278]]);
+      if (a[184] && a[279]) sk.push([a[184], a[279]]);
+      return { id: t.id, name: t.n, slot, hp, cpu: a[50] || 0, pg: a[30] || 0, sk };
+    };
   }
-  const attrByType = new Map();
-  for (const a of await sdeDb.all(`SELECT typeID t, attributeID a, COALESCE(valueInt, valueFloat) v FROM dgmTypeAttributes WHERE attributeID IN (50,30,182,277,183,278,184,279)`)) {
-    if (!attrByType.has(a.t)) attrByType.set(a.t, {});
-    attrByType.get(a.t)[a.a] = a.v;
-  }
-  const decorate = (t) => {
-    const effs = effByType.get(t.id) || [];
-    let slot = null;
-    for (const [eid, s] of Object.entries(FIT_SLOT_EFFECT)) if (effs.includes(Number(eid))) { slot = s; break; }
-    const hp = effs.includes(42) ? 'turret' : (effs.includes(40) ? 'launcher' : null);
-    const a = attrByType.get(t.id) || {};
-    const sk = [];
-    if (a[182] && a[277]) sk.push([a[182], a[277]]);
-    if (a[183] && a[278]) sk.push([a[183], a[278]]);
-    if (a[184] && a[279]) sk.push([a[184], a[279]]);
-    return { id: t.id, name: t.n, slot, hp, cpu: a[50] || 0, pg: a[30] || 0, sk };
-  };
+
   const buildNode = (mgId) => {
     const mg = mgById.get(mgId);
     if (!mg) return null;
@@ -1162,13 +1212,19 @@ async function _fitBuildTree(kind) {
       .sort((a, b) => a.name.localeCompare(b.name));
     const count = types.length + kids.reduce((s, k) => s + k.count, 0);
     if (!count) return null;
-    return { name: mg.n, count, kids, types };
+    // Representative type id for the group's icon. CCP's own market-group icon
+    // graphics live in client resource files (iconID → res:/…), not on the public
+    // image server, so the renderer shows a real in-group type icon instead.
+    const repId = (types[0] && types[0].id) || (kids.find(k => k.repId) || {}).repId || null;
+    return { name: mg.n, count, kids, types, repId };
   };
   const findChildByName = (parentId, name) =>
     (mgKids.get(parentId) || []).find(id => mgById.get(id)?.n === name);
 
   let sections = [];
-  if (kind === 'module') {
+  if (kind === 'ship') {
+    sections = (mgKids.get(4) || []).map(buildNode).filter(Boolean);   // 4 = "Ships"
+  } else if (kind === 'module') {
     sections = (mgKids.get(9) || []).map(buildNode).filter(Boolean);
     for (const name of ['Rigs', 'Subsystems']) {
       const id = findChildByName(955, name);
@@ -2638,9 +2694,12 @@ function createPingAlertWindow(msg) {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
       nodeIntegration:  false,
+      // The alert plays its notification sound the moment it opens, with no
+      // click first, so the popup must be allowed to autoplay audio.
+      autoplayPolicy:   'no-user-gesture-required',
     },
   });
- 
+
   // ── GAME-SAFETY: never steal foreground focus ────────────────────────────
   // Electron's default show() force-activates the window. If a D3D game holds
   // the display in exclusive fullscreen, that forced foreground change yanks

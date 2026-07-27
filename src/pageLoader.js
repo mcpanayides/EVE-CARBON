@@ -141,6 +141,9 @@ const PAGE_HTML = {
           <button class="industry-sub-btn" data-industry-tab="orehold">
             <span class="industry-sub-icon material-symbols-outlined"></span>Orehold Minerals Calc
           </button>
+          <button class="industry-sub-btn" data-industry-tab="mining">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Mining Ledger
+          </button>
           <button class="industry-sub-btn" data-industry-tab="cost-index">
             <span class="industry-sub-icon material-symbols-outlined"></span>Cost Index
           </button>
@@ -149,6 +152,9 @@ const PAGE_HTML = {
           </button>
           <button class="industry-sub-btn" data-industry-tab="shopping-lists">
             <span class="industry-sub-icon material-symbols-outlined"></span>Shopping Lists
+          </button>
+          <button class="industry-sub-btn" data-industry-tab="station-checkout">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Station Checkout
           </button>
           <button class="industry-sub-btn" data-industry-tab="reactions">
             <span class="industry-sub-icon material-symbols-outlined"></span>Reactions Profit
@@ -178,49 +184,79 @@ const PAGE_HTML = {
       </div>
     </div>`,
 
-  // ── Wallets ─────────────────────────────────────────────────────────────────
+  // ── Finances ────────────────────────────────────────────────────────────────
+  // Left TOOLS rail like the Industry/Skills pages. navigateFinancesTab() (in
+  // src/func/finances.js) renders each tool into #financesTabContent: Wallets,
+  // Contracts (contracts.js), LP Store (lpstore.js) and Trading (trading.js).
   wallets: `
     <div id="page-wallets" class="nav-page"
-         style="flex-direction:column; height:100%;">
+         style="flex-direction:column; height:100%; overflow:hidden;">
       <div class="page-header">
         <div>
           <h2>Finances</h2>
           <div class="page-description">
-            Wallet balances are read from your local database and refreshed
-            automatically in the background.
+            Wallets, contracts, LP store optimiser and trading tools.
           </div>
         </div>
         <button class="close-page-btn" onclick="closePage('wallets')">✕</button>
       </div>
-      <div style="display:flex; align-items:center; padding:12px 16px;
-                  border-bottom:1px solid var(--border); background:var(--bg-card);
-                  flex-shrink:0; flex-wrap:wrap; gap:10px;">
-        <span id="walletsSummary" class="asset-summary"></span>
+      <div class="industry-layout">
+        <div class="industry-subnav">
+          <div class="industry-subnav-label">TOOLS</div>
+          <button class="finances-sub-btn industry-sub-btn active" data-finances-tab="wallets">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Wallets
+          </button>
+          <button class="finances-sub-btn industry-sub-btn" data-finances-tab="contracts">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Contracts
+          </button>
+          <button class="finances-sub-btn industry-sub-btn" data-finances-tab="lpstore">
+            <span class="industry-sub-icon material-symbols-outlined"></span>LP Store
+          </button>
+          <button class="finances-sub-btn industry-sub-btn" data-finances-tab="trading">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Trading
+          </button>
+        </div>
+        <div id="financesTabContent" class="industry-content"></div>
       </div>
-      <div id="walletsTotalRow"
-           style="display:none; padding:14px 20px; background:var(--bg-panel);
-                  border-bottom:1px solid var(--border); flex-shrink:0;">
-        <span style="font-size:11px; color:var(--text-2); letter-spacing:0.1em; font-weight:600;">
-          COMBINED LIQUID WEALTH
-        </span>
-        <span id="walletsTotalValue"
-              style="margin-left:16px; font-size:20px; font-weight:700;
-                     color:var(--accent); font-family:var(--mono);">
-          0.00 ISK
-        </span>
+    </div>`,
+
+  // ── Faction Warfare ───────────────────────────────────────────────────────────
+  // Left TOOLS rail like Industry/Finances. navigateFwTab() (src/func/faction-warfare.js)
+  // renders each view into #fwTabContent. Most data is public ESI (fw/stats,
+  // fw/systems, leaderboards); My Militia needs esi-characters.read_fw_stats.v1.
+  fw: `
+    <div id="page-fw" class="nav-page"
+         style="flex-direction:column; height:100%; overflow:hidden;">
+      <div class="page-header">
+        <div>
+          <h2>Faction Warfare</h2>
+          <div class="page-description">
+            Warzone control, militia stats, plex/system status, leaderboards and LP tiers.
+          </div>
+        </div>
+        <button class="close-page-btn" onclick="closePage('fw')">✕</button>
       </div>
-      <div class="mail-tabs wallets-tabs">
-        <button class="mail-tab active" data-wallettab="wallets">Wallets</button>
-        <button class="mail-tab" data-wallettab="contracts">Contracts</button>
+      <div class="industry-layout">
+        <div class="industry-subnav">
+          <div class="industry-subnav-label">FACTION WAR</div>
+          <button class="fw-sub-btn industry-sub-btn active" data-fw-tab="overview">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Warzone Control
+          </button>
+          <button class="fw-sub-btn industry-sub-btn" data-fw-tab="systems">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Systems &amp; Plexes
+          </button>
+          <button class="fw-sub-btn industry-sub-btn" data-fw-tab="leaderboards">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Leaderboards
+          </button>
+          <button class="fw-sub-btn industry-sub-btn" data-fw-tab="militia">
+            <span class="industry-sub-icon material-symbols-outlined"></span>My Militia
+          </button>
+          <button class="fw-sub-btn industry-sub-btn" data-fw-tab="lp">
+            <span class="industry-sub-icon material-symbols-outlined"></span>LP &amp; Tiers
+          </button>
+        </div>
+        <div id="fwTabContent" class="industry-content"></div>
       </div>
-      <div class="page-content" id="walletsTabWallets" style="overflow-y:auto; padding:16px;">
-        <!-- The net-worth tile + character cards are rendered into this grid by
-             renderWallets(); the net-worth tile is a draggable 3×2 grid item. -->
-        <div class="wallets-grid" id="walletsGrid"></div>
-      </div>
-      <!-- Contracts tab — populated by initContractsTab() (src/func/contracts.js) -->
-      <div class="page-content" id="contractsTab" style="display:none; overflow:hidden; padding:0;
-           flex-direction:column; flex:1; min-height:0;"></div>
     </div>`,
 
   // ── Fleet Commander ─────────────────────────────────────────────────────────
@@ -384,47 +420,6 @@ const PAGE_HTML = {
             <tr>
               <td colspan="11" class="loading-row">Loading message history&#x2026;</td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>`,
-
-  // ── Market ──────────────────────────────────────────────────────────────────
-  market: `
-    <div id="page-market" class="nav-page"
-         style="flex-direction:column; height:100%;">
-      <div class="page-header">
-        <div>
-          <h2>Market</h2>
-          <div class="page-description">
-            Active sell orders across all your characters, compared live to Jita 4-4.
-            Green = priced at/above Jita, red = below.
-          </div>
-        </div>
-        <button class="close-page-btn" onclick="closePage('market')">✕</button>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-                  padding:12px 16px; border-bottom:1px solid var(--border);
-                  background:var(--bg-card); flex-shrink:0;">
-        <span id="marketSummary" class="asset-summary" style="margin-right:auto;">Loading…</span>
-        <button class="icon-btn" onclick="renderMarket()" title="Refresh from ESI"
-                style="padding:7px 14px; font-size:12px;">⟳ REFRESH</button>
-      </div>
-      <div style="flex:1; overflow:auto; min-height:0;">
-        <table class="asset-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-          <thead>
-            <tr>
-              <th style="width:44px;"></th>
-              <th class="th-item">Item</th>
-              <th>Location</th>
-              <th class="th-right">Qty</th>
-              <th class="th-right">Your Price</th>
-              <th class="th-right">Jita 4-4</th>
-              <th class="th-right">vs Jita</th>
-            </tr>
-          </thead>
-          <tbody id="marketOrdersBody">
-            <tr><td colspan="7" class="loading-row">Loading market orders…</td></tr>
           </tbody>
         </table>
       </div>

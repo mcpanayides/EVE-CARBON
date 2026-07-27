@@ -28,6 +28,14 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getWalletBalanceBefore: (charId, beforeTs) => ipcRenderer.invoke('get-wallet-balance-before', charId, beforeTs),
   getWalletTransactions:  (charId) => ipcRenderer.invoke('get-wallet-transactions', charId),
   getLoyaltyPoints:       (charId) => ipcRenderer.invoke('get-loyalty-points', charId),
+  // Mining ledger (personal ledger synced to CharDB; corp observers + moon extractions live)
+  syncMiningLedger:       (charId) => ipcRenderer.invoke('sync-mining-ledger', charId),
+  getMiningLedgerDb:      (charId) => ipcRenderer.invoke('get-mining-ledger-db', charId),
+  getCorpMiningObservers: (charId) => ipcRenderer.invoke('get-corp-mining-observers', charId),
+  getCorpMiningExtractions:(charId) => ipcRenderer.invoke('get-corp-mining-extractions', charId),
+  getCharacterFwStats:    (charId) => ipcRenderer.invoke('get-character-fw-stats', charId),
+  lpGetOffers:            (corpId) => ipcRenderer.invoke('lp-get-offers', corpId),
+  sdeProductsForBlueprints:(typeIds) => ipcRenderer.invoke('sde-products-for-blueprints', typeIds),
 
   // Accounts
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
@@ -94,6 +102,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Background images
   listBackgrounds: () => ipcRenderer.invoke('list-backgrounds'),
   pickBackground:  () => ipcRenderer.invoke('pick-background'),
+
+  // Jabber ping-alert sound (assets/audio + userData/ping-sounds)
+  pingSoundList:    () => ipcRenderer.invoke('ping-sound-list'),
+  pingSoundPick:    () => ipcRenderer.invoke('ping-sound-pick'),
+  pingSoundCurrent: () => ipcRenderer.invoke('ping-sound-current'),
 
   // Reeded glass / Windows acrylic
   glassSupported:   ()         => ipcRenderer.invoke('glass-supported'),

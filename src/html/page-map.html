@@ -1,58 +1,61 @@
 <!-- ── Map Page ───────────────────────────────────────────────────────────── -->
 <div id="page-map" class="nav-page">
-  <div class="page-header" style="flex-wrap:wrap; gap:8px; align-items:center;">
-    <h2 style="flex-shrink:0;">Galaxy Map</h2>
+  <div class="page-header">
+    <h2>Galaxy Map</h2>
 
     <!-- Toolbar -->
     <div class="map-toolbar">
 
       <!-- Overlay selector -->
-      <div class="map-overlay-group">
+      <div class="map-overlay-group" role="group" aria-label="Map overlay">
         <span class="map-group-label">OVERLAY</span>
-        <button class="map-overlay-btn active" data-overlay="security">Security</button>
-        <button class="map-overlay-btn" data-overlay="sovereignty">Sovereignty</button>
-        <button class="map-overlay-btn" data-overlay="fnf" title="Colour sov by your alliance's standings — blue (+5/+10), orange (−5), red (−10), NPC grey">Friends &amp; Foes</button>
-        <button class="map-overlay-btn" data-overlay="incursions">Incursions</button>
+        <button type="button" class="map-overlay-btn active" data-overlay="security" aria-pressed="true">Security</button>
+        <button type="button" class="map-overlay-btn" data-overlay="sovereignty" aria-pressed="false">Sovereignty</button>
+        <button type="button" class="map-overlay-btn" data-overlay="fnf" aria-pressed="false" title="Colour sov by your alliance's standings — blue (+5/+10), orange (−5), red (−10), NPC grey">Friends &amp; Foes</button>
+        <button type="button" class="map-overlay-btn" data-overlay="incursions" aria-pressed="false">Incursions</button>
       </div>
 
       <!-- View style (Classic / Modern). Modern = CCP-style flattened galaxy with
            uniform-pitch region clusters (see _buildGalaxyModern in map.js) plus the
            DOTLAN-style per-region view via the region picker. -->
-      <div class="map-overlay-group">
+      <div class="map-overlay-group" role="group" aria-label="Map view style">
         <span class="map-group-label">VIEW</span>
-        <button class="map-view-btn" data-view="classic" title="The whole-galaxy overview (true positions)">Classic</button>
-        <button class="map-view-btn active" data-view="modern" title="Flattened galaxy — every region as a tidy cluster; pick a region for the detailed layout">Modern</button>
+        <button type="button" class="map-view-btn" data-view="classic" aria-pressed="false" title="The whole-galaxy overview (true positions)">Classic</button>
+        <button type="button" class="map-view-btn active" data-view="modern" aria-pressed="true" title="Flattened galaxy — every region as a tidy cluster; pick a region for the detailed layout">Modern</button>
       </div>
 
       <!-- Region picker — the Modern-view JS shows/hides this as the view switches -->
-      <select id="mapRegionSelect" class="map-region-select" title="Pick a region to lay out (Modern view)"></select>
+      <select id="mapRegionSelect" class="map-region-select" aria-label="Region to lay out" title="Pick a region to lay out (Modern view)"></select>
 
-      <!-- Jump bridge toggle -->
-      <button class="map-toggle-btn" id="mapJbToggle" title="Show your jump-bridge network (green arcs) and IHUB systems">
-        ◈ Jump Bridges
+      <!-- Layer toggles. Icons are Material Symbols in the shared 18px slot — the
+           app's two sanctioned icon families are Material (app utility) and the
+           EVE neocom sprite (game concepts); no emoji in the chrome. -->
+      <button type="button" class="map-toggle-btn" id="mapJbToggle" aria-pressed="false" title="Show your jump-bridge network (green arcs) and IHUB systems">
+        <span class="material-symbols-outlined" aria-hidden="true">hub</span>Jump Bridges
       </button>
 
       <!-- Wormhole connections toggle (EvE-Scout public API) -->
-      <button class="map-toggle-btn" id="mapWhToggle" title="Show EvE-Scout wormhole connections (public API) as dark-purple arcs">
-        🌀 Wormholes
+      <button type="button" class="map-toggle-btn" id="mapWhToggle" aria-pressed="false" title="Show EvE-Scout wormhole connections (public API) as dark-purple arcs">
+        <span class="material-symbols-outlined" aria-hidden="true">cyclone</span>Wormholes
       </button>
 
       <!-- Influence field (Verite-style territory blobs under the systems) -->
-      <button class="map-toggle-btn" id="mapInfToggle"
+      <button type="button" class="map-toggle-btn" id="mapInfToggle" aria-pressed="false"
               title="Glowing territory field — sov influence spreads out along gates and neighbours merge into one shape. Follows the active overlay: alliance colours normally, your standings under Friends &amp; Foes. Galaxy views only (not inside a region)">
-        ◍ Influence
+        <span class="material-symbols-outlined" aria-hidden="true">blur_on</span>Influence
       </button>
 
-      <!-- Jump route planner -->
-      <button class="map-toggle-btn" id="mapJumpPlannerBtn" onclick="openJumpPlanner()"
+      <!-- Route planners. These open a modal rather than toggling a layer, so they
+           carry .map-planner-btn and never take the toggles' lit .active state. -->
+      <button type="button" class="map-toggle-btn map-planner-btn" id="mapJumpPlannerBtn" onclick="openJumpPlanner()"
               title="Plan a capital jump route (cyno or beacon network)">
-        ⤓ Jump Planner
+        <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>Jump Planner…
       </button>
 
       <!-- Stargate route planner -->
-      <button class="map-toggle-btn" id="mapStargatePlannerBtn" onclick="openStargatePlanner()"
+      <button type="button" class="map-toggle-btn map-planner-btn" id="mapStargatePlannerBtn" onclick="openStargatePlanner()"
               title="Plan a sub-cap stargate route (safest by alliance standings)">
-        🧭 Stargate Planner
+        <span class="material-symbols-outlined" aria-hidden="true">explore</span>Stargate Planner…
       </button>
 
       <!-- System search -->
@@ -60,25 +63,45 @@
         <input id="mapSearchInput" type="text"
                class="map-search-input"
                placeholder="Find system…"
+               aria-label="Find system"
+               role="combobox"
+               aria-expanded="false"
+               aria-controls="mapSearchResults"
+               aria-autocomplete="list"
                autocomplete="off"
                spellcheck="false" />
-        <div id="mapSearchResults" class="map-search-results" style="display:none;"></div>
+        <div id="mapSearchResults" class="map-search-results is-hidden" role="listbox" aria-label="Matching systems"></div>
       </div>
-
-      <!-- Refresh live data -->
-      <button class="map-refresh-btn" id="mapRefreshBtn" title="Refresh sovereignty / incursions / jump bridges">⟳</button>
     </div>
 
-    <button class="close-page-btn" onclick="closePage('map')">✕</button>
+    <button type="button" class="close-page-btn" onclick="closePage('map')" aria-label="Close the Galaxy Map">✕</button>
   </div>
 
   <!-- Map viewport fills all remaining space -->
   <div class="map-viewport" id="mapViewport">
 
     <!-- Loading spinner (visible until SDE data is ready) -->
-    <div class="map-loading" id="mapLoading" style="display:none;">
+    <div class="map-loading is-hidden" id="mapLoading" role="status" aria-live="polite">
       <div class="map-loading-spinner"></div>
       <div class="map-loading-text">Loading galaxy data…</div>
+    </div>
+
+    <!-- Galaxy-load failure. Replaces the loading overlay rather than sitting under
+         it: a spinner that keeps turning under an error reads as "still working". -->
+    <div class="map-error is-hidden" id="mapError" role="alert">
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">⚠</div>
+        <div class="empty-title">The galaxy didn't load</div>
+        <div class="empty-sub">
+          The map is drawn from the bundled Static Data Export. Without it there is
+          nothing to render.
+          <span class="map-error-cause" id="mapErrorCause"></span>
+        </div>
+        <div class="map-error-actions">
+          <button type="button" class="map-error-btn" id="mapErrorRetry">Try again</button>
+          <button type="button" class="map-error-btn map-error-btn-quiet" id="mapErrorSettings">Open database settings</button>
+        </div>
+      </div>
     </div>
 
     <!-- Main canvas — sized to parent by ResizeObserver in map.js -->
@@ -88,20 +111,21 @@
     <div id="mapTooltip"></div>
 
     <!-- System info panel (shown on click) -->
-    <div class="map-info-panel" id="mapInfoPanel" style="display:none;">
+    <div class="map-info-panel is-hidden" id="mapInfoPanel">
       <div class="map-info-header">
         <span id="mapInfoSystemName">—</span>
-        <button class="map-info-close" onclick="mapCloseInfo()">✕</button>
+        <button type="button" class="map-info-close" onclick="mapCloseInfo()" aria-label="Close system details">✕</button>
       </div>
       <div class="map-info-body" id="mapInfoBody"></div>
     </div>
 
     <!-- Zoom controls (bottom-right) -->
     <div class="map-zoom-controls">
-      <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
-      <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
-      <button class="map-zoom-btn" id="mapZoomFit" title="Fit galaxy to view"
-              style="font-size:13px;">⊡</button>
+      <button type="button" class="map-zoom-btn" id="mapZoomIn"  title="Zoom in"  aria-label="Zoom in">+</button>
+      <button type="button" class="map-zoom-btn" id="mapZoomOut" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" class="map-zoom-btn map-zoom-btn-icon" id="mapZoomFit" title="Fit galaxy to view" aria-label="Fit galaxy to view">
+        <span class="material-symbols-outlined" aria-hidden="true">fit_screen</span>
+      </button>
     </div>
 
     <!-- Colour legend (bottom-left) -->

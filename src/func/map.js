@@ -51,6 +51,7 @@ let _regionBackRect = null;   // screen rect of the "◄ Galaxy overview" link i
 let _whArcEdges  = null;   // deduped [[idA,idB],…] of every WH connection to draw as arcs
 let _rafPending  = false;
 let _loaded      = false;
+let _wired       = false;  // canvas/toolbar/search listeners bound (survives a failed load + retry)
 
 // Data (populated by initMapPage)
 let _systems     = [];        // [{id, name, wx, wz, sec, regionId, factionId}]
@@ -951,11 +952,40 @@ function _infTitles(won, holders) {
 function _infInvalidate() { _infKey = ''; _infBufKey = ''; }
 
 // The --mono custom property, resolved to something canvas will actually accept.
-// Re-read each call (once per frame) rather than cached, so a theme switch that
-// changes the stack takes effect without a reload.
+//
+// Canvas 2D parses `font` as a CSS shorthand VALUE, not as a declaration, so
+// var() never gets substituted — the whole string fails to parse and the
+// assignment is silently dropped, leaving the context on its default
+// 10px sans-serif. (Verified: setting "30.4px var(--mono, monospace)" reads back
+// "10px sans-serif".) Every canvas font in this file therefore goes through
+// _mono() below. Never write var(--mono) into ctx.font.
+//
+// The same is true of fillStyle and strokeStyle: var() there is dropped too, and
+// the context silently keeps whatever colour was set last — so tokens the canvas
+// needs get resolved here as well, never written into a canvas property raw.
+//
+// Resolved once per frame by _render() rather than per call: getComputedStyle
+// forces a style resolution, and these are set inside per-system draw loops.
+// Re-reading every frame still lets a theme switch take effect without a reload.
+let _fontStack = '';
+let _accentCol = '';
+function _refreshThemeVars() {
+  const cs = getComputedStyle(document.documentElement);
+  _fontStack = cs.getPropertyValue('--mono').trim()   || 'monospace';
+  _accentCol = cs.getPropertyValue('--accent').trim() || '#e0483a';
+}
 function _monoStack() {
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim();
-  return v || 'monospace';
+  if (!_fontStack) _refreshThemeVars();
+  return _fontStack;
+}
+function _accent() {
+  if (!_accentCol) _refreshThemeVars();
+  return _accentCol;
+}
+
+// Canvas font shorthand, with the resolved family list. Weight is optional.
+function _mono(px, weight) {
+  return `${weight ? weight + ' ' : ''}${px}px ${_monoStack()}`;
 }
 
 // Anything drawn ON a territory — its title, its system dots — comes from the
@@ -993,13 +1023,7 @@ function _drawInfluenceTitles(ctx, W, H, baseFont, baseMin, baseMax) {
   const fs  = INF_TITLE_PX_OUT + (INF_TITLE_PX_IN - INF_TITLE_PX_OUT) * t01;
 
   ctx.save();
-  // Resolve --mono to a real family list. Canvas 2D parses `font` as a CSS
-  // shorthand VALUE, not as a declaration, so var() never gets substituted — the
-  // whole string fails to parse and the assignment is silently dropped, leaving
-  // the context on its default 10px sans-serif. (Verified: setting
-  // "30.4px var(--mono, monospace)" reads back "10px sans-serif".) Every other
-  // ctx.font in this file still has that bug and is drawing at 10px sans-serif.
-  ctx.font         = `${fs.toFixed(1)}px ${_monoStack()}`;
+  ctx.font         = _mono(fs.toFixed(1));
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor  = 'rgba(0,0,0,0.95)';
@@ -1860,7 +1884,7 @@ function _drawModernRouteExtras(ctx, W, H, posMap) {
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) continue;
     ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = col; ctx.font = 'bold 11px var(--mono, monospace)';
+    ctx.fillStyle = col; ctx.font = _mono(11, 'bold');
     ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
     ctx.fillText(`${s.name} (${label})`, cx, cy - 14);
     ctx.shadowBlur = 0; ctx.textAlign = 'left';
@@ -1881,7 +1905,7 @@ function _drawModernRouteExtras(ctx, W, H, posMap) {
       ctx.fillStyle = '#4ecbb0';
       ctx.fill();
       ctx.fillStyle   = '#4ecbb0';
-      ctx.font        = 'bold 11px var(--mono, monospace)';
+      ctx.font        = _mono(11, 'bold');
       ctx.textAlign   = 'center';
       ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
       ctx.fillText('◉ YOU', cx, cy + 18);
@@ -1952,11 +1976,14 @@ function _renderGalaxyModern() {
   // place and say more; the hovered region still highlights via its cluster.
   const regionFs = Math.max(9, Math.min(15, _zoom * 30));
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `bold ${regionFs}px var(--mono, monospace)`;
+  ctx.font = _mono(regionFs, 'bold');
   if (!_infActive()) for (const lb of g.labels) {
     const [lx, ly] = _w2c(lb.x, lb.z);
     if (lx < -80 || lx > W + 80 || ly < -30 || ly > H + 30) continue;
-    ctx.fillStyle = (_hoveredRegion === lb.regionId) ? 'rgba(245,215,150,1)' : 'rgba(205,215,235,0.5)';
+    // 0.56 over the #07080c backdrop lands at 4.8:1 — these are the overview's
+    // primary wayfinding labels and regionFs bottoms out at 9px, so they have to
+    // clear 4.5:1 as normal text, not ride the large-text exemption.
+    ctx.fillStyle = (_hoveredRegion === lb.regionId) ? 'rgba(245,215,150,1)' : 'rgba(205,215,235,0.56)';
     ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 4;
     ctx.fillText(lb.name.toUpperCase(), lx, ly);
     ctx.shadowBlur = 0;
@@ -1969,7 +1996,7 @@ function _renderGalaxyModern() {
   // everything, same order as classic's equivalent block.
   _drawModernRouteExtras(ctx, W, H, gp);
 
-  ctx.fillStyle = 'rgba(150,160,180,0.8)'; ctx.font = '11px var(--mono, monospace)';
+  ctx.fillStyle = 'rgba(150,160,180,0.8)'; ctx.font = _mono(11);
   ctx.fillText('Modern galaxy overview — click a region to open it', 14, H - 14);
 }
 
@@ -2062,7 +2089,7 @@ function _renderRegion() {
   const layout = _regionLayout;
   if (!layout || !layout.size) {
     ctx.fillStyle = 'rgba(205,215,235,0.6)';
-    ctx.font = '14px var(--mono, monospace)';
+    ctx.font = _mono(14);
     ctx.textAlign = 'center';
     ctx.fillText('No systems to lay out for this region.', W / 2, H / 2);
     ctx.textAlign = 'left';
@@ -2114,7 +2141,7 @@ function _renderRegion() {
 
   // System pills (fixed screen size, DOTLAN-like name labels).
   const fs = 11;
-  ctx.font = `${fs}px var(--mono, monospace)`;
+  ctx.font = _mono(fs);
   ctx.textBaseline = 'middle';
   for (const [id, p] of layout) {
     const s = _sysById[id]; if (!s) continue;
@@ -2145,9 +2172,9 @@ function _renderRegion() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const ex of _regionExits) {
       const [sx, sy] = _w2c(ex.x, ex.z);
-      ctx.font = `${efs}px var(--mono, monospace)`;
+      ctx.font = _mono(efs);
       const tw1 = ctx.measureText(ex.name).width;
-      ctx.font = `${efs - 1}px var(--mono, monospace)`;
+      ctx.font = _mono(efs - 1);
       const tw2 = ctx.measureText(ex.regionName + '  ▸').width;
       const w = Math.max(tw1, tw2) + 16, h = efs * 2 + 10;
       ex._sx = sx; ex._sy = sy; ex._w = w; ex._h = h;   // remembered for click hit-testing
@@ -2159,10 +2186,10 @@ function _renderRegion() {
       ctx.lineWidth = hot ? 1.8 : 1.2;
       ctx.strokeStyle = hot ? 'rgba(240,190,110,1)' : 'rgba(196,140,64,0.9)';
       ctx.stroke();
-      ctx.font = `${efs}px var(--mono, monospace)`;
+      ctx.font = _mono(efs);
       ctx.fillStyle = 'rgba(232,234,242,0.96)';
       ctx.fillText(ex.name, sx, sy - efs * 0.55);
-      ctx.font = `${efs - 1}px var(--mono, monospace)`;
+      ctx.font = _mono(efs - 1);
       ctx.fillStyle = hot ? 'rgba(240,200,140,1)' : 'rgba(204,158,96,0.95)';
       ctx.fillText(ex.regionName + '  ▸', sx, sy + efs * 0.6);
     }
@@ -2177,16 +2204,16 @@ function _renderRegion() {
   ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = 'rgba(210,218,236,0.92)';
-  ctx.font = 'bold 14px var(--mono, monospace)';
+  ctx.font = _mono(14, 'bold');
   ctx.fillText(`${_regions[_regionView] || 'Region'} · ${layout.size} systems`, 14, 24);
   // Clickable "◄ Galaxy overview" link (rect remembered for hit-testing).
-  ctx.font = '12px var(--mono, monospace)';
+  ctx.font = _mono(12);
   const back = '◄ Galaxy overview';
   ctx.fillStyle = 'rgba(150,190,235,0.95)';
   ctx.fillText(back, 14, 44);
   _regionBackRect = { x: 12, y: 32, w: ctx.measureText(back).width + 4, h: 18 };
   ctx.fillStyle = 'rgba(150,160,180,0.7)';
-  ctx.font = '11px var(--mono, monospace)';
+  ctx.font = _mono(11);
   ctx.fillText('Click an amber gateway box to jump to a neighbouring region', 14, 62);
   ctx.shadowBlur = 0;
 }
@@ -2194,6 +2221,7 @@ function _renderRegion() {
 function _render() {
   _rafPending = false;
   if (!_canvas || !_ctx || !_systems.length) return;
+  _refreshThemeVars();   // once per frame — every _mono()/_accent() below reads it
   // Modern takes over the whole canvas (its own coordinate space): a single region
   // when one is open, otherwise the galaxy overview of all region clusters.
   if (_viewMode === 'modern' && _regionView != null) { _renderRegion(); return; }
@@ -2440,7 +2468,7 @@ function _render() {
     if (_selected && _selected.id === s.id) {
       ctx.beginPath();
       ctx.arc(cx, cy, dotR * 3.8, 0, Math.PI * 2);
-      ctx.strokeStyle = 'var(--accent, #c0392b)';
+      ctx.strokeStyle = _accent();
       ctx.lineWidth   = Math.max(0.8, dotR * 0.65);
       ctx.stroke();
     }
@@ -2449,7 +2477,7 @@ function _render() {
     // pale mono, then the sec value in its sec colour (the in-game label style).
     if (dotR > SYS_LABEL_DOTR) {
       const fs = Math.max(8, Math.min(14, dotR * 3.2));
-      ctx.font         = `${fs}px var(--mono, monospace)`;
+      ctx.font         = _mono(fs);
       ctx.shadowColor  = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 3;
       const lx = cx + dotR * 1.9 + 2, ly = cy + dotR * 0.5;
       ctx.fillStyle = 'rgba(205,215,235,0.8)';
@@ -2496,7 +2524,7 @@ function _render() {
       const gap  = dom ? rfs * 0.7 : 0;
 
       // Region name — uppercase, letter-spaced mono (new in-game map style)
-      ctx.font          = `${rfs}px var(--mono, monospace)`;
+      ctx.font          = _mono(rfs);
       ctx.letterSpacing = `${Math.max(1, rfs * 0.2)}px`;
       ctx.fillStyle     = 'rgba(205,215,235,0.62)';
       ctx.shadowColor   = 'rgba(0,0,0,0.9)';
@@ -2506,7 +2534,7 @@ function _render() {
 
       // Dominant sov ticker / name — bold, alliance colour (sovereignty only)
       if (dom && dom.label) {
-        ctx.font      = `bold ${lfs}px var(--mono, monospace)`;
+        ctx.font      = _mono(lfs, 'bold');
         ctx.fillStyle = dom.color;
         ctx.shadowBlur = 5;
         ctx.fillText(dom.label, lcx, lcy + lfs * 0.65);
@@ -2537,7 +2565,7 @@ function _render() {
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) continue;
     ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = col; ctx.font = 'bold 11px var(--mono, monospace)';
+    ctx.fillStyle = col; ctx.font = _mono(11, 'bold');
     ctx.textAlign = 'center'; ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
     ctx.fillText(`${s.name} (${label})`, cx, cy - 14);
     ctx.shadowBlur = 0; ctx.textAlign = 'left';
@@ -2558,7 +2586,7 @@ function _render() {
       ctx.fillStyle = '#4ecbb0';
       ctx.fill();
       ctx.fillStyle   = '#4ecbb0';
-      ctx.font        = 'bold 11px var(--mono, monospace)';
+      ctx.font        = _mono(11, 'bold');
       ctx.textAlign   = 'center';
       ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
       ctx.fillText('◉ YOU', cx, cy + 18);
@@ -2597,7 +2625,7 @@ function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, 
     ctx.stroke();
     if (isEnd || isWaypoint) {
       ctx.fillStyle   = isWaypoint ? wpCol : endCol;
-      ctx.font        = 'bold 11px var(--mono, monospace)';
+      ctx.font        = _mono(11, 'bold');
       ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
       ctx.fillText(isEnd ? `${s.name} (${i === 0 ? 'start' : 'end'})` : `${s.name} (waypoint)`, cx, cy + labelDy);
       ctx.shadowBlur = 0;
@@ -2626,11 +2654,13 @@ async function _showInfo(system) {
   const sov        = _sovMap[system.id];
   const incursion  = _incSet.has(system.id);
   const jb         = _jbSet.has(system.id);
-  const secColor   = _secColor(system.sec);
+  // The ramp the canvas is currently painting — the panel used to always show the
+  // Classic hue for a value the Modern view had drawn in a different one.
+  const secColor   = (_viewMode === 'modern' ? _secColorModern : _secColor)(system.sec);
   const secDisplay = system.sec !== null ? system.sec.toFixed(1) : '—';
 
   // Sovereignty label (async — will update once alliance name resolves)
-  let sovHtml = '<span style="color:var(--text-3);">None</span>';
+  let sovHtml = '<span class="map-muted">None</span>';
   if (sov) {
     if (sov.factionId && _FACTIONS[sov.factionId]) {
       const names = {
@@ -2653,18 +2683,20 @@ async function _showInfo(system) {
   }
 
   // Your alliance's standing toward this system's sov holder (Friends & Foes data).
-  let standingHtml = '<span style="color:var(--text-3);">—</span>';
+  let standingHtml = '<span class="map-muted">—</span>';
   if (sov && (sov.allianceId != null || sov.corporationId != null)) {
     if (_fnfAllianceId && sov.allianceId === _fnfAllianceId) {
-      standingHtml = '<span style="color:#4ecbb0;">Your alliance</span>';
+      standingHtml = '<span class="map-mark-own">Your alliance</span>';
     } else {
       let st = _fnfStandings[sov.allianceId];
       if (st == null) st = _fnfStandings[sov.corporationId];
       if (st != null) {
-        const c = st >= 10 ? '#2e6fdb' : st >= 5 ? '#5a9be8' : st <= -10 ? '#d0263d' : st <= -5 ? '#e67e22' : 'var(--text-3)';
-        standingHtml = `<span style="color:${c};">${st > 0 ? '+' : ''}${st}</span>`;
+        const cls = st >= 10 ? 'map-mark-blue-10'  : st >= 5  ? 'map-mark-blue-5'
+                  : st <= -10 ? 'map-mark-red'     : st <= -5 ? 'map-mark-orange-5'
+                  : 'map-muted';
+        standingHtml = `<span class="${cls}">${st > 0 ? '+' : ''}${st}</span>`;
       } else {
-        standingHtml = `<span style="color:var(--text-3);">${_fnfLoaded ? 'Not set (neutral)' : 'open Friends & Foes to load'}</span>`;
+        standingHtml = `<span class="map-muted">${_fnfLoaded ? 'Not set (neutral)' : 'open Friends &amp; Foes to load'}</span>`;
       }
     }
   }
@@ -2688,23 +2720,23 @@ async function _showInfo(system) {
     </div>
     <div class="map-info-row">
       <span class="map-info-label">INCURSION</span>
-      <span class="map-info-value" style="color:${incursion ? '#dd44aa' : 'var(--text-3)'};">
+      <span class="map-info-value ${incursion ? 'map-mark-incursion' : 'map-muted'}">
         ${incursion ? '⚠ Active' : 'None'}
       </span>
     </div>
     <div class="map-info-row">
       <span class="map-info-label">JUMP BRIDGE</span>
-      <span class="map-info-value" style="color:${jb ? '#ffd700' : 'var(--text-3)'};">
+      <span class="map-info-value ${jb ? 'map-mark-bridge-node' : 'map-muted'}">
         ${jb ? '◈ Bridge endpoint' : 'None'}
       </span>
     </div>
     <div class="map-info-row">
       <span class="map-info-label">SYSTEM ID</span>
-      <span class="map-info-value" style="color:var(--text-3);">${system.id}</span>
+      <span class="map-info-value map-muted">${system.id}</span>
     </div>
   `;
 
-  panel.style.display = 'flex';
+  panel.classList.remove('is-hidden');
   _scheduleRender();
 
   // Resolve alliance name asynchronously and update label
@@ -2723,104 +2755,244 @@ async function _showInfo(system) {
 function mapCloseInfo() {
   _selected = null;
   const panel = document.getElementById('mapInfoPanel');
-  if (panel) panel.style.display = 'none';
+  if (panel) panel.classList.add('is-hidden');
   _scheduleRender();
 }
 
 // ── Legend ────────────────────────────────────────────────────────────────────
+// A pure function of what is actually on screen: (view mode, overlay, the three
+// layer toggles, whether a route is plotted). It used to describe the Classic
+// security ramp while the app booted into Modern and painted a different one, and
+// it never mentioned the shapes, arcs or route lines at all — a legend that is
+// wrong is worse than none, because it turns "I don't know" into confident
+// misreading. Every handler that changes any of those inputs calls this.
 function _updateLegend() {
   const el = document.getElementById('mapLegend');
   if (!el) return;
 
-  const dot = (col) => `<span class="map-legend-dot" style="background:${col}"></span>`;
+  // Swatch fills are data (a ramp value, an alliance hash), not design decisions,
+  // so they are the one thing here that is legitimately inline.
+  const dot  = (col) => `<span class="map-legend-dot" style="background:${col}"></span>`;
+  const line = (col) => `<span class="map-legend-line" style="background:${col}"></span>`;
+  const row  = (mark, label) => `<div class="map-legend-row">${mark} ${label}</div>`;
+  const glyph = (g) => `<span class="map-legend-glyph" aria-hidden="true">${g}</span>`;
+
+  // The ramp the canvas is ACTUALLY painting with, so the two can never diverge.
+  const sec = _viewMode === 'modern' ? _secColorModern : _secColor;
+
+  let html = '';
 
   if (_overlay === 'security') {
-    el.innerHTML = `
-      <div class="map-legend-title">SECURITY STATUS</div>
-      <div class="map-legend-row">${dot('#2effff')} 1.0 Hi-Sec</div>
-      <div class="map-legend-row">${dot('#48f0c0')} 0.9</div>
-      <div class="map-legend-row">${dot('#00f000')} 0.7</div>
-      <div class="map-legend-row">${dot('#efef00')} 0.5</div>
-      <div class="map-legend-row">${dot('#d77700')} 0.4 Lo-Sec</div>
-      <div class="map-legend-row">${dot('#c00000')} 0.0 Null-Sec</div>
-      <div class="map-legend-row">${dot('#282828')} W-Space</div>`;
+    html = `<div class="map-legend-title">SECURITY STATUS</div>
+      ${row(dot(sec(1.0)),  '1.0 High-sec')}
+      ${row(dot(sec(0.9)),  '0.9')}
+      ${row(dot(sec(0.7)),  '0.7')}
+      ${row(dot(sec(0.5)),  '0.5')}
+      ${row(dot(sec(0.4)),  '0.4 Low-sec')}
+      ${row(dot(sec(0.0)),  '0.0 Null-sec')}
+      ${row(dot(sec(null)), 'W-space')}`;
   } else if (_overlay === 'sovereignty') {
-    el.innerHTML = `
-      <div class="map-legend-title">SOVEREIGNTY</div>
-      <div class="map-legend-row">${dot('#3a8fc5')} Caldari State</div>
-      <div class="map-legend-row">${dot('#c8a020')} Amarr Empire</div>
-      <div class="map-legend-row">${dot('#28a040')} Gallente Fed.</div>
-      <div class="map-legend-row">${dot('#b84c14')} Minmatar Rep.</div>
-      <div class="map-legend-row">${dot('#4466aa')} Player Alliance</div>
-      <div class="map-legend-row">${dot('#111827')} Unclaimed</div>`;
+    html = `<div class="map-legend-title">SOVEREIGNTY</div>
+      ${row(dot('#3a8fc5'), 'Caldari State')}
+      ${row(dot('#c8a020'), 'Amarr Empire')}
+      ${row(dot('#28a040'), 'Gallente Fed.')}
+      ${row(dot('#b84c14'), 'Minmatar Rep.')}
+      ${row(dot('#4466aa'), 'Player alliance')}
+      <div class="map-legend-note">Each alliance gets its own hue — the swatch is a stand-in.</div>
+      ${row(dot('#111827'), 'Unclaimed')}`;
   } else if (_overlay === 'incursions') {
-    el.innerHTML = `
-      <div class="map-legend-title">INCURSIONS</div>
-      <div class="map-legend-row">${dot('#dd44aa')} Infested System</div>
-      <div class="map-legend-row">${dot('#1c1c28')} Clear</div>`;
+    html = `<div class="map-legend-title">INCURSIONS</div>
+      ${row(dot('#dd44aa'), 'Infested system')}
+      ${row(dot('#1c1c28'), 'Clear')}`;
   } else if (_overlay === 'fnf') {
     const note = _fnfError === 'reauth'
-      ? `<div class="map-legend-row" style="color:#e6a23c;">⚠ Sync &amp; re-auth a char for standings</div>`
-      : (_fnfError === 'no-alliance' ? `<div class="map-legend-row" style="color:var(--text-3);">No alliance on your character</div>` : '');
-    el.innerHTML = `
-      <div class="map-legend-title">FRIENDS &amp; FOES</div>
-      <div class="map-legend-row">${dot('#4ecbb0')} Your sov</div>
-      <div class="map-legend-row">${dot('#2e6fdb')} +10 blue</div>
-      <div class="map-legend-row">${dot('#5a9be8')} +5 blue</div>
-      <div class="map-legend-row">${dot('#e67e22')} −5 orange</div>
-      <div class="map-legend-row">${dot('#d0263d')} −10 red</div>
-      <div class="map-legend-row">${dot('#e8d44a')} Low-sec</div>
-      <div class="map-legend-row">${dot('#5b6472')} NPC sov</div>
-      <div class="map-legend-row">${dot('#cfd3db')} Other sov</div>
+      ? `<div class="map-legend-note map-legend-warn">Sync and re-auth a character to load standings</div>`
+      : (_fnfError === 'no-alliance'
+          ? `<div class="map-legend-note">No alliance on your character</div>` : '');
+    html = `<div class="map-legend-title">FRIENDS &amp; FOES</div>
+      ${row(dot('#4ecbb0'), 'Your sov')}
+      ${row(dot('#2e6fdb'), '+10 blue')}
+      ${row(dot('#5a9be8'), '+5 blue')}
+      ${row(dot('#e67e22'), '−5 orange')}
+      ${row(dot('#d0263d'), '−10 red')}
+      ${row(dot('#e8d44a'), 'Low-sec')}
+      ${row(dot('#5b6472'), 'NPC sov')}
+      ${row(dot('#cfd3db'), 'Other sov')}
       ${note}`;
   }
+
+  // With the influence field up, _systemColor repaints every sov dot to its
+  // territory's colour — so the ramp above stops describing the dots, and saying
+  // so is the difference between a reading and a misreading.
+  if (_infActive()) {
+    html += `<div class="map-legend-note">Influence is on: system dots carry their territory's colour, not the ramp above.</div>`;
+  }
+
+  // Marks: only what is on screen right now, so this section stays short and
+  // never claims something the canvas isn't drawing.
+  const marks = [];
+  if (_viewMode === 'modern' && _regionView == null) {
+    marks.push(row(glyph('▲⬠⬡'), 'Pochven · Thera/Turnur · Zarzakh'));
+  }
+  if (_showJb)        marks.push(row(glyph('◆'), 'Jump-bridge endpoint'));
+  if (_incSet.size)   marks.push(row(glyph('◎'), 'Incursion'));
+  if (_youHereId)     marks.push(row(dot('#4ecbb0'), 'You are here'));
+  if (marks.length) html += `<div class="map-legend-title map-legend-sub">MARKS</div>${marks.join('')}`;
+
+  const lines = [ row(line('rgba(150,160,176,0.42)'), 'Stargate') ];
+  lines.push(row(line('rgba(196,140,64,0.65)'), 'Regional gate'));
+  if (_showJb)                     lines.push(row(line('rgba(64,220,130,0.85)'),  'Jump bridge'));
+  if (_showWh)                     lines.push(row(line('rgba(138,43,196,0.7)'),   'Wormhole'));
+  if (_routeIds && _routeIds.length)         lines.push(row(line('rgba(96,200,255,0.95)'), 'Stargate route'));
+  if (_jumpRouteIds && _jumpRouteIds.length) lines.push(row(line('rgba(240,120,200,0.92)'), 'Jump route'));
+  html += `<div class="map-legend-title map-legend-sub">LINES</div>${lines.join('')}`;
+
+  // Freshness, not a control: the map polls on ESI's own cadence, so the honest
+  // thing to show is how old this is — and to say plainly when a fetch failed
+  // rather than letting an outage read as "the galaxy is unclaimed".
+  const stale = _liveFail === 'both' || _liveFail === 'sov';
+  const fresh = !_sovAt && !_liveFail
+    ? 'Sov loading…'
+    : `Sov ${_agoLabel(_sovAt)}${_liveFail ? ' · last fetch failed' : ''}`;
+  html += `<div class="map-legend-fresh${stale ? ' map-legend-warn' : ''}">${fresh}</div>`;
+
+  el.innerHTML = html;
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────
+// The query goes back onto the page as markup, so it has to be escaped: a pilot
+// pasting "<Alliance>" should see it, not have it swallowed as a tag.
+function _esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Index of the highlighted result, or -1 for "none". Kept module-level so the
+// keyboard and pointer paths share one notion of what is selected.
+let _searchIdx = -1;
+
+const SEARCH_LIMIT = 12;
+
+// Rank matches so the system you typed is the one you can hit Enter on: exact
+// name first, then names that start with the query, then anything containing it,
+// alphabetical within each band. `includes()` alone put Jita behind five systems
+// whose names merely contain "jita".
+function _searchRank(q) {
+  const out = [];
+  for (const s of _systems) {
+    const n = s.name.toLowerCase();
+    const i = n.indexOf(q);
+    if (i < 0) continue;
+    out.push({ s, band: n === q ? 0 : i === 0 ? 1 : 2 });
+  }
+  out.sort((a, b) => a.band - b.band || a.s.name.localeCompare(b.s.name));
+  return out.map(o => o.s);
+}
+
 function _initSearch() {
   const input   = document.getElementById('mapSearchInput');
   const results = document.getElementById('mapSearchResults');
   if (!input || !results) return;
 
+  const close = () => {
+    results.classList.add('is-hidden');
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    _searchIdx = -1;
+  };
+
+  const options = () => Array.from(results.querySelectorAll('[data-sid]'));
+
+  // Move the highlight, keep it in view, and tell the screen reader which option
+  // is current — the input keeps focus throughout, so aria-activedescendant is
+  // the only thing that announces the change.
+  const highlight = idx => {
+    const opts = options();
+    if (!opts.length) return;
+    _searchIdx = (idx + opts.length) % opts.length;
+    opts.forEach((el, i) => {
+      const on = i === _searchIdx;
+      el.classList.toggle('is-active', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) {
+        input.setAttribute('aria-activedescendant', el.id);
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  };
+
+  const choose = sys => {
+    if (!sys) return;
+    input.value = sys.name;
+    close();
+    _forceGalaxyView();   // search fly-to works in galaxy coords
+    _flyTo(sys);
+    _showInfo(sys);
+  };
+
   input.addEventListener('input', () => {
-    const q = input.value.trim().toLowerCase();
-    if (!q) { results.style.display = 'none'; return; }
+    const raw = input.value.trim();
+    const q   = raw.toLowerCase();
+    if (!q) { close(); return; }
 
-    const matches = _systems
-      .filter(s => s.name.toLowerCase().includes(q))
-      .slice(0, 12);
+    const all     = _searchRank(q);
+    const matches = all.slice(0, SEARCH_LIMIT);
+    _searchIdx = -1;
 
-    if (!matches.length) { results.style.display = 'none'; return; }
-
-    results.innerHTML = matches
-      .map(s => `<div class="map-search-item" data-sid="${s.id}">${s.name}</div>`)
-      .join('');
-    results.style.display = 'block';
+    if (!matches.length) {
+      // An empty dropdown used to look identical to having typed nothing at all.
+      results.innerHTML = `<div class="map-search-empty">No systems match “${_esc(raw)}”</div>`;
+    } else {
+      results.innerHTML = matches
+        .map((s, i) => `<div class="map-search-item" role="option" aria-selected="false" id="mapSearchOpt${i}" data-sid="${s.id}">${_esc(s.name)}</div>`)
+        .join('') +
+        (all.length > matches.length
+          ? `<div class="map-search-more">${matches.length} of ${all.length.toLocaleString()} matches — keep typing</div>`
+          : '');
+    }
+    results.classList.remove('is-hidden');
+    input.setAttribute('aria-expanded', 'true');
   });
 
   results.addEventListener('click', e => {
     const item = e.target.closest('[data-sid]');
     if (!item) return;
-    const sys = _sysById[parseInt(item.dataset.sid, 10)];
-    if (!sys) return;
-    input.value            = sys.name;
-    results.style.display  = 'none';
-    _forceGalaxyView();   // search fly-to works in galaxy coords
-    _flyTo(sys);
-    _showInfo(sys);
+    choose(_sysById[parseInt(item.dataset.sid, 10)]);
   });
 
   // Close results when clicking elsewhere
   document.addEventListener('click', e => {
-    if (!input.contains(e.target) && !results.contains(e.target)) {
-      results.style.display = 'none';
-    }
+    if (!input.contains(e.target) && !results.contains(e.target)) close();
   });
 
   input.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      results.style.display = 'none';
-      input.blur();
+    const open = !results.classList.contains('is-hidden');
+    switch (e.key) {
+      case 'Escape':
+        if (open) { close(); } else { input.blur(); }
+        e.preventDefault();
+        break;
+      case 'ArrowDown':
+        if (open) { highlight(_searchIdx + 1); e.preventDefault(); }
+        break;
+      case 'ArrowUp':
+        if (open) { highlight(_searchIdx - 1); e.preventDefault(); }
+        break;
+      case 'Home':
+        if (open && _searchIdx >= 0) { highlight(0); e.preventDefault(); }
+        break;
+      case 'End':
+        if (open && _searchIdx >= 0) { highlight(options().length - 1); e.preventDefault(); }
+        break;
+      case 'Enter': {
+        if (!open) break;
+        // No explicit highlight yet: Enter takes the top-ranked match, which is
+        // the exact name whenever one exists.
+        const opts = options();
+        const el   = opts[_searchIdx >= 0 ? _searchIdx : 0];
+        if (el) { choose(_sysById[parseInt(el.dataset.sid, 10)]); e.preventDefault(); }
+        break;
+      }
     }
   });
 }
@@ -2880,12 +3052,19 @@ function _flyTo(system) {
 }
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
+// Lit state and its announced state are one call, so a screen reader can never
+// disagree with the pixels.
+function _press(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle('active', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 function _initToolbar() {
   document.querySelectorAll('.map-overlay-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.map-overlay-btn')
-        .forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+        .forEach(b => _press(b, b === btn));
       _overlay = btn.dataset.overlay;
       // Friends & Foes needs the alliance standings — load them on first use, then redraw.
       if (_overlay === 'fnf' && !_fnfLoaded) {
@@ -2906,7 +3085,7 @@ function _initToolbar() {
       if (mode === _viewMode) return;
       _viewMode = mode;
       document.querySelectorAll('.map-view-btn')
-        .forEach(b => b.classList.toggle('active', b.dataset.view === mode));
+        .forEach(b => _press(b, b.dataset.view === mode));
       if (mode === 'modern') {
         _populateRegionSelect();
         if (regionSel) { regionSel.style.display = ''; regionSel.value = 'galaxy'; }
@@ -2918,6 +3097,7 @@ function _initToolbar() {
         _regionView = null;
         _fitGalaxy();
       }
+      _updateLegend();   // Classic and Modern paint different security ramps
       _scheduleRender();
     });
   });
@@ -2930,29 +3110,32 @@ function _initToolbar() {
           .forEach(b => b.classList.toggle('active', b.dataset.view === 'modern'));
         regionSel.style.display = '';
       }
-      if (regionSel.value === 'galaxy') { _backToOverview(); return; }
+      if (regionSel.value === 'galaxy') { _backToOverview(); _updateLegend(); return; }
       _enterRegion(Number(regionSel.value));
+      _updateLegend();   // the special-shape row only applies to the overview
       _scheduleRender();
     });
   }
 
   const jbBtn = document.getElementById('mapJbToggle');
   if (jbBtn) {
-    jbBtn.classList.toggle('active', _showJb);   // reflect the default-on state
+    _press(jbBtn, _showJb);   // reflect the default-on state
     jbBtn.addEventListener('click', () => {
       _showJb = !_showJb;
       if (_showJb) _loadSavedBridges();   // pick up any newly imported bridges
-      jbBtn.classList.toggle('active', _showJb);
+      _press(jbBtn, _showJb);
+      _updateLegend();
       _scheduleRender();
     });
   }
 
   const whBtn = document.getElementById('mapWhToggle');
   if (whBtn) {
-    whBtn.classList.toggle('active', _showWh);   // default-on
+    _press(whBtn, _showWh);   // default-on
     whBtn.addEventListener('click', async () => {
       _showWh = !_showWh;
-      whBtn.classList.toggle('active', _showWh);
+      _press(whBtn, _showWh);
+      _updateLegend();
       if (_showWh) await _ensureWhArcs();        // lazy-load the connections on first enable
       _scheduleRender();
     });
@@ -2962,12 +3145,13 @@ function _initToolbar() {
   if (infBtn) {
     infBtn.addEventListener('click', () => {
       _showInf = !_showInf;
-      infBtn.classList.toggle('active', _showInf);
+      _press(infBtn, _showInf);
       // Under Friends & Foes the field is drawn from the standings, so make sure
       // they're loaded — otherwise the first paint would be all neutral.
       if (_showInf && _overlay === 'fnf' && !_fnfLoaded) {
         _loadFnfStandings().then(() => { _infInvalidate(); _updateLegend(); _scheduleRender(); });
       }
+      _updateLegend();   // the field repaints the dots — the ramp stops describing them
       _scheduleRender();
     });
   }
@@ -2982,24 +3166,9 @@ function _initToolbar() {
     _scheduleRender();
   });
 
-  const refreshBtn = document.getElementById('mapRefreshBtn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
-      refreshBtn.disabled  = true;
-      refreshBtn.style.opacity = '0.45';
-      await _loadLiveData();
-      // Re-pull alliance standings too (e.g. after a re-auth granted the scope).
-      _fnfLoaded = false;
-      if (_overlay === 'fnf') { await _loadFnfStandings(); _updateLegend(); _scheduleRender(); }
-      // Refresh wormhole connections (holes spawn/die constantly).
-      if (_showWh || _whLoaded) {
-        _whLoaded = false;
-        await _ensureWhArcs();
-      }
-      refreshBtn.disabled  = false;
-      refreshBtn.style.opacity = '';
-    });
-  }
+  // There is deliberately no Refresh control here. Everything the old ⟳ button
+  // did now happens on the endpoints' own cadence in _startLivePolling(), and the
+  // legend reports the age of the data instead.
 }
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
@@ -3114,7 +3283,7 @@ function _initCanvas() {
       } else {
         _selected = null;
         const p = document.getElementById('mapInfoPanel');
-        if (p) p.style.display = 'none';
+        if (p) p.classList.add('is-hidden');
         _scheduleRender();
       }
     }
@@ -3174,18 +3343,76 @@ function _onResize() {
 }
 
 // ── Live ESI data ─────────────────────────────────────────────────────────────
-async function _loadLiveData() {
+// ESI sets the tempo (PRODUCT.md Principle 3): sovereignty is cached 5 minutes on
+// CCP's side and incursions 30, so those are the cadences the map polls at. There
+// is deliberately no Refresh control — the legend reports how old the data is
+// instead, which is the question a pilot actually has.
+const SOV_TTL_MS = 5 * 60 * 1000;
+const INC_TTL_MS = 30 * 60 * 1000;
+const WH_TTL_MS  = 15 * 60 * 1000;   // EvE-Scout is a public API, not ESI
+
+let _sovAt     = 0;      // epoch ms of the last SUCCESSFUL sovereignty fetch
+let _incAt     = 0;      // …and incursions
+let _whAt      = 0;      // …and the EvE-Scout wormhole arcs
+let _liveFail  = null;   // 'sov' | 'inc' | 'both' | null — what failed last cycle
+let _pollTimer = null;
+
+const _mapVisible = () =>
+  !document.hidden && !!document.getElementById('page-map')?.classList.contains('active');
+
+// "How old is what I'm looking at" — deliberately coarse; nobody needs seconds.
+function _agoLabel(t) {
+  if (!t) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m}m ago` : `${Math.round(m / 60)}h ago`;
+}
+
+async function _loadLiveData({ sov = true, inc = true } = {}) {
   const [sovR, incR] = await Promise.allSettled([
-    window.eveAPI.mapGetSovereignty(),
-    window.eveAPI.mapGetIncursions(),
+    sov ? window.eveAPI.mapGetSovereignty() : Promise.resolve(null),
+    inc ? window.eveAPI.mapGetIncursions()  : Promise.resolve(null),
   ]);
-  if (sovR.status === 'fulfilled') _sovMap = sovR.value || {};
-  if (incR.status === 'fulfilled') _incSet = new Set(incR.value || []);
+
+  // A rejected fetch must not be mistaken for "the galaxy is unclaimed": keep the
+  // last good data and say the overlay is stale rather than repainting it empty.
+  const sovBad = sov && sovR.status === 'rejected';
+  const incBad = inc && incR.status === 'rejected';
+  if (sov && !sovBad) { _sovMap = sovR.value || {};            _sovAt = Date.now(); }
+  if (inc && !incBad) { _incSet = new Set(incR.value || []);   _incAt = Date.now(); }
+
+  _liveFail = sovBad && incBad ? 'both' : sovBad ? 'sov' : incBad ? 'inc' : null;
+  if (_liveFail) {
+    logToConsole(`[Map] Live overlay fetch failed (${_liveFail}) — keeping the last good data`, 'warning');
+  }
 
   // Recompute region dominant holders then fetch tickers (async, re-renders when done)
   _computeRegionDomSov();
+  _updateLegend();    // freshness line moved with the data
   _scheduleRender();
   _fetchDomTickers(); // background — patches labels in once tickers arrive
+  _startLivePolling();
+}
+
+function _startLivePolling() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(async () => {
+    // Nothing is fetched while the map is off-screen: those calls would land on a
+    // page nobody is looking at and spend ESI error budget the rest of the app needs.
+    if (!_mapVisible()) return;
+    const now = Date.now();
+    await _loadLiveData({ sov: true, inc: now - _incAt >= INC_TTL_MS });
+
+    // Wormholes churn faster than sov but come from a public API, not ESI, so they
+    // ride their own slower cadence rather than every sov tick.
+    if (_showWh && now - _whAt >= WH_TTL_MS) {
+      _whAt = now;
+      _whLoaded = false;
+      await _ensureWhArcs();
+      _scheduleRender();
+    }
+  }, SOV_TTL_MS);
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -3471,20 +3698,24 @@ function _mapMenuOutside(e) {
 
 function _showMapMenu(sys, x, y) {
   _closeMapMenu();
-  const esc = (typeof escHtml === 'function') ? escHtml : (s => s);
-  const btn = (act, label, color) =>
-    `<button class="map-ctx" data-act="${act}" style="display:block;width:100%;text-align:left;background:none;border:none;border-top:1px solid var(--border);color:${color || 'var(--text-1)'};padding:8px 12px;cursor:pointer;font-family:var(--mono,monospace);font-size:12px;">${label}</button>`;
+  const esc = (typeof escHtml === 'function') ? escHtml : _esc;
+  const btn = (act, icon, label, cls) =>
+    `<button type="button" class="map-ctx${cls ? ' ' + cls : ''}" data-act="${act}">`
+    + `<span class="material-symbols-outlined" aria-hidden="true">${icon}</span>${label}</button>`;
 
-  let body = `<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-weight:700;font-family:var(--mono,monospace);font-size:12px;color:var(--text-1);">📍 ${esc(sys.name)}</div>`;
-  body += btn('start', '📍 Set as start');
-  body += btn('end',   '🏁 Set as destination');
-  if (_travelStart || _travelEnd || _routeIds || _jumpRouteIds) body += btn('clear', '✕ Clear routes', '#e05252');
-  if (window.jpHasActiveRoute && window.jpHasActiveRoute()) body += btn('jump', '⤓ Jump route options…');
+  let body = `<div class="map-ctx-title">${esc(sys.name)}</div>`;
+  body += btn('start', 'trip_origin', 'Set as start');
+  body += btn('end',   'flag',        'Set as destination');
+  if (_travelStart || _travelEnd || _routeIds || _jumpRouteIds) {
+    body += btn('clear', 'close', 'Clear routes', 'map-ctx-danger');
+  }
+  if (window.jpHasActiveRoute && window.jpHasActiveRoute()) {
+    body += btn('jump', 'rocket_launch', 'Jump route options…');
+  }
 
   const menu = document.createElement('div');
   menu.id = 'mapCtxMenu';
-  menu.style.cssText = 'position:fixed;z-index:10060;min-width:210px;background:var(--bg-card);'
-    + 'border:1px solid var(--accent);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.6);overflow:hidden;';
+  menu.className = 'map-ctx-menu';
   menu.style.left = x + 'px';
   menu.style.top  = y + 'px';
   menu.innerHTML  = body;
@@ -3563,7 +3794,8 @@ function _sgShowPill() {
     document.body.appendChild(pill);
   }
   const jumps = _sgLastPath ? _sgLastPath.length - 1 : 0;
-  pill.innerHTML = `🧭 Stargate Planner${jumps ? ` · ${jumps} jumps` : ''} <span style="opacity:.7;">▢</span>`;
+  pill.innerHTML = `<span class="material-symbols-outlined" aria-hidden="true">explore</span>`
+                 + ` Stargate Planner${jumps ? ` · ${jumps} jumps` : ''}`;
   pill.style.display = 'flex';
 }
 
@@ -3574,7 +3806,7 @@ function _sgBuildModal() {
   m.innerHTML = `
     <div class="jp-modal">
       <div class="jp-modal-header">
-        <span class="panel-icon">🧭</span><span>Stargate Route Planner</span>
+        <span class="panel-icon material-symbols-outlined" aria-hidden="true">explore</span><span>Stargate Route Planner</span>
         <span id="sgStatus" class="jp-status"></span>
         <button class="icon-btn sg-min" title="Minimise — keep the route and view it on the map" style="margin-left:auto;font-size:16px;line-height:1;">—</button>
         <button class="icon-btn sg-close" title="Close" style="font-size:16px;">✕</button>
@@ -3602,8 +3834,8 @@ function _sgBuildModal() {
           </div>
           <button id="sgPlotBtn" class="calc-btn" style="width:100%;margin-top:6px;">PLOT ROUTE</button>
           <div style="display:flex;gap:6px;margin-top:6px;">
-            <button id="sgSendGameBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Set this route as autopilot waypoints in your running EVE client">📡 Send to game</button>
-            <button id="sgAltBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Show up to 3 alternative routes">⎇ Alternatives</button>
+            <button id="sgSendGameBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Set this route as autopilot waypoints in your running EVE client"><span class="material-symbols-outlined" aria-hidden="true">satellite_alt</span> Send to game</button>
+            <button id="sgAltBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Show up to 3 alternative routes">Alternatives</button>
           </div>
           <div class="jp-range-note" id="sgNote">Safest prefers your sov, blues and hi-sec; drops to neutral, low-sec, then red only if needed.</div>
         </div>
@@ -3795,12 +4027,12 @@ function _sgRenderRoute(path, opts) {
     if (s.sec > 0.0 && s.sec < 0.45) low++;
     let hopMark = '';
     if (i > 0 && !isGate(path[i - 1], id)) {
-      if (isBridge(path[i - 1], id)) { bridges++; hopMark = '<span style="color:#40dc82;" title="Jump bridge">◈ </span>'; }
+      if (isBridge(path[i - 1], id)) { bridges++; hopMark = '<span class="map-mark-bridge" title="Jump bridge">◈ </span>'; }
       else if (isWh(path[i - 1], id)) {
         wormholes++;
         const c = whInfo(path[i - 1], id);
         const t = c ? `EvE-Scout wormhole ${c.whType || ''} · ${c.maxShip || ''}${c.remainingHours != null ? ` · ${c.remainingHours}h left` : ''}` : 'EvE-Scout wormhole';
-        hopMark = `<span style="color:#b07cff;" title="${t.trim()}">🌀 </span>`;
+        hopMark = `<span class="map-mark-wormhole" title="${t.trim()}">◇ </span>`;
       }
     }
     const sov = _travelSovLabel(s);
@@ -3817,15 +4049,15 @@ function _sgRenderRoute(path, opts) {
   }).join('');
 
   result.innerHTML = `
-    <div class="jp-banner">${opts.mode === 'shortest' ? '↪ Shortest route — fewest jumps (gates + bridges).' : '🛡 Safest route — prefers your sov, blues & hi-sec; red only as a last resort.'}</div>
+    <div class="jp-banner">${opts.mode === 'shortest' ? 'Shortest route — fewest jumps (gates + bridges).' : 'Safest route — prefers your sov, blues &amp; hi-sec; red only as a last resort.'}</div>
     <div class="jp-totals">
       <div><span class="jp-tot-num">${jumps}</span><span class="jp-tot-lbl">jumps</span></div>
-      ${bridges ? `<div><span class="jp-tot-num" style="color:#40dc82;">${bridges}</span><span class="jp-tot-lbl">bridges</span></div>` : ''}
-      ${wormholes ? `<div><span class="jp-tot-num" style="color:#b07cff;">${wormholes}</span><span class="jp-tot-lbl">wormholes</span></div>` : ''}
-      ${low ? `<div><span class="jp-tot-num" style="color:#e8d44a;">${low}</span><span class="jp-tot-lbl">low-sec</span></div>` : ''}
-      ${red ? `<div><span class="jp-tot-num" style="color:#d0263d;">${red}</span><span class="jp-tot-lbl">red</span></div>` : ''}
+      ${bridges ? `<div><span class="jp-tot-num map-mark-bridge">${bridges}</span><span class="jp-tot-lbl">bridges</span></div>` : ''}
+      ${wormholes ? `<div><span class="jp-tot-num map-mark-wormhole">${wormholes}</span><span class="jp-tot-lbl">wormholes</span></div>` : ''}
+      ${low ? `<div><span class="jp-tot-num map-mark-lowsec">${low}</span><span class="jp-tot-lbl">low-sec</span></div>` : ''}
+      ${red ? `<div><span class="jp-tot-num map-mark-red">${red}</span><span class="jp-tot-lbl">red</span></div>` : ''}
     </div>
-    <button id="sgShowMapBtn" class="icon-btn" style="width:100%;margin:4px 0 8px;padding:6px;font-size:12px;cursor:pointer;">🗺 Show / centre on map</button>
+    <button id="sgShowMapBtn" class="icon-btn" style="width:100%;margin:4px 0 8px;padding:6px;font-size:12px;cursor:pointer;"><span class="material-symbols-outlined" aria-hidden="true">map</span> Show / centre on map</button>
     <table class="jp-route-table">
       <thead><tr><th></th><th>System</th><th>Region</th><th class="jp-right">Sec</th><th>Sov</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -3835,6 +4067,36 @@ function _sgRenderRoute(path, opts) {
   if (btn) btn.addEventListener('click', () => {
     // Minimise the planner and draw + centre the route so it's actually visible.
     _sgMinimize();
+  });
+}
+
+// ── Viewport state ────────────────────────────────────────────────────────────
+// One switch for the three states the viewport can be in. Exactly one of loading,
+// error and canvas is on screen at a time — the failure path used to rewrite the
+// loading text and leave the spinner turning underneath it, which reads as
+// "still working" and "it failed" simultaneously, with the canvas hidden for good.
+function _setMapState(state, cause) {
+  const loadingEl = document.getElementById('mapLoading');
+  const errorEl   = document.getElementById('mapError');
+  const canvasEl  = document.getElementById('mapCanvas');
+  const causeEl   = document.getElementById('mapErrorCause');
+
+  loadingEl?.classList.toggle('is-hidden', state !== 'loading');
+  errorEl?.classList.toggle('is-hidden',   state !== 'error');
+  canvasEl?.classList.toggle('is-hidden',  state !== 'ready');
+
+  // The raw message is the technical cause, never the headline: it sits under the
+  // plain-language explanation, and is dropped entirely when there is none.
+  if (causeEl) causeEl.textContent = state === 'error' && cause ? cause : '';
+}
+
+function _initErrorState() {
+  document.getElementById('mapErrorRetry')?.addEventListener('click', () => initMapPage());
+  document.getElementById('mapErrorSettings')?.addEventListener('click', () => {
+    // Same hand-off the forum empty state uses: open Settings, then select the tab
+    // once its panel has mounted.
+    document.getElementById('openSettingsBtn')?.click();
+    setTimeout(() => document.querySelector('[data-settings-tab=database]')?.click(), 140);
   });
 }
 
@@ -3849,19 +4111,21 @@ async function initMapPage() {
     return;
   }
 
-  const loadingEl = document.getElementById('mapLoading');
-  const canvasEl  = document.getElementById('mapCanvas');
-
-  _initCanvas();
-  _initToolbar();
-  _initSearch();
+  // Bind once. The error state's Try-again re-enters initMapPage, so without this
+  // guard a retry would stack a second copy of every canvas and toolbar listener.
+  if (!_wired) {
+    _wired = true;
+    _initCanvas();
+    _initToolbar();
+    _initSearch();
+    _initErrorState();
+  }
   _updateLegend();
   // Hand-curated layout (if the user saved one) — must be in hand before the
   // first Modern render so it wins over the algorithm.
   try { _savedModernLayout = await window.eveAPI.modernLayoutGet(); } catch (_) { _savedModernLayout = null; }
 
-  if (loadingEl) loadingEl.style.display = 'flex';
-  if (canvasEl)  canvasEl.style.display  = 'none';
+  _setMapState('loading');
 
   try {
     logToConsole('[Map] Loading galaxy data from SDE…', 'info');
@@ -3882,8 +4146,7 @@ async function initMapPage() {
     _loaded = true;
     _onResize(); // Size the canvas now that data is ready; calls _fitGalaxy()
 
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (canvasEl)  canvasEl.style.display  = 'block';
+    _setMapState('ready');
 
     logToConsole(`[Map] ${_systems.length.toLocaleString()} systems, ${_jumps.length.toLocaleString()} connections loaded`, 'success');
 
@@ -3919,8 +4182,7 @@ async function initMapPage() {
     if (_showWh) _ensureWhArcs();
 
   } catch (err) {
-    const txt = loadingEl && loadingEl.querySelector('.map-loading-text');
-    if (txt) txt.textContent = `Failed to load: ${err.message}`;
+    _setMapState('error', err && err.message);
     logToConsole(`[Map] Galaxy load failed: ${err.message}`, 'error');
   }
 }

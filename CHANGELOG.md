@@ -6,6 +6,67 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.7.1] - 2026-08-01
+A galaxy-map release. Sovereignty data is flowing again after CCP retired the endpoint
+it came from, there's a new **Influence** overlay that paints alliance territory as a
+glowing field, and the per-region view has been rebuilt so a region actually fills the
+screen instead of stacking into a narrow column.
+
+### Fixes
+- **Sovereignty and Friends & Foes were silently blank.** CCP removed
+  `/v1/sovereignty/map/` and `/v1/sovereignty/structures/` in ESI's **2026-05-19**
+  compatibility snapshot. Because the app pins a compatibility date, both routes began
+  returning 404 and the map quietly fell back to empty sovereignty — so every system
+  read as unclaimed, the Sovereignty overlay showed nothing, and Friends & Foes had
+  nothing to colour even though your alliance standings were loading fine. Both now
+  read from the replacement `/sovereignty/systems`. This also restores the dashboard's
+  alliance-space incursion alert, which shares the same data, and the sovereignty
+  labels on the Classic map.
+- **Sovereignty now refreshes on the endpoint's own 5-minute cadence** instead of being
+  held for an hour.
+
+### Features
+- **Influence overlay** (Map toolbar → **Influence**) — a Verite-style territory field.
+  Every sov system emits influence for its holder, that influence travels outward along
+  the gate graph decaying per jump, and the result is painted as interlocking hex tiles
+  where the strongest holder takes each cell. Neighbouring tiles won by the same holder
+  fuse into one contiguous shape, with a glow pass over the top.
+  - **Territory titles** name the holder on their own ground — biggest at the galaxy
+    overview, smaller as you zoom in, and only shown once a territory is large enough
+    on screen to carry the name, so the overview stays readable.
+  - Follows the active overlay: per-alliance colours normally, or your own standings
+    (your teal, +5/+10 blues, −5/−10 hostiles) under Friends & Foes.
+  - System dots take a lighter tint of the territory they sit in, so dots and ground
+    agree; systems outside anyone's reach keep the overlay's own colour. Region names
+    step aside while the field is up, since the titles answer the same question.
+  - Available on the Classic and Modern galaxy views (not inside a single region,
+    where a one-holder wash would say nothing).
+- **Region view rebuilt.** Regions were laid out on a layered grid — graph depth on one
+  axis, position-within-layer on the other — which turned a chain-shaped region into a
+  ribbon tens of layers long and two or three wide, i.e. a narrow vertical stack down
+  the middle of a wide canvas. Regions now use the same force layout the galaxy overview
+  uses for its clusters, seeded from the systems' true positions, rotated so the
+  region's long axis lies across the screen, and fitted on both axes. Insmother went
+  from a 550×4400 ribbon to 1630×1110 — all 110 systems on screen and legible at once.
+- **Jump Bridges system markers** now mark the endpoints of *your* imported Ansiblex
+  network. They previously came from a public IHUB list that ESI has since removed —
+  and post-Equinox that list would have meant "every sov system" anyway, because an
+  alliance claim now *is* a sovereignty hub.
+
+### Maintenance
+- **Map page chrome** — toolbar icons are now Material Symbols in the shared 18px slot
+  instead of emoji; the two route planners read as actions rather than layer toggles;
+  every control has a visible focus ring, an accessible name and a state a screen
+  reader can't disagree with; show/hide is a class rather than an inline style; and the
+  spinner respects `prefers-reduced-motion`.
+- **The galaxy can now fail visibly.** If the bundled Static Data Export can't be read
+  the map explains what happened and offers *Try again* / *Open database settings*,
+  instead of a spinner that turns forever.
+- Removed the map's manual refresh button (live layers poll on their own ESI cadence).
+- Alliance ticker and name now come back from one batched lookup instead of two.
+- Retired the unused layered-grid region layout (81 lines) now that nothing consumes
+  its positions.
+
 ## [1.7.0] - 2026-07-27
 A major update: two brand-new top-level tools (Faction Warfare and Mining Ledger), a
 rebuilt Finances suite with an LP-store optimiser and trading tools, a Station Checkout

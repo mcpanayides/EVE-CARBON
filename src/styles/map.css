@@ -6,6 +6,57 @@
   overflow: hidden;
 }
 
+/* Show/hide is a class, not an inline style, so the JS never has to know which
+   display value an element wants back. Scoped to #page-map so it outranks the
+   component's own display rule without reaching for !important. */
+#page-map .is-hidden { display: none; }
+
+/* Route-mark colours. The canvas draws bridges, wormhole hops, low-sec and red
+   space in these hues; the planner's route table and totals label the same four
+   things. They were hardcoded hex at seven separate places in map.js markup, so
+   the table could drift from the picture. Declared once here, consumed as a class.
+   These are deliberately the canvas's exact current values so nothing shifts —
+   pointing them at --pal-*/--lowsec/--danger and having the canvas resolve them
+   too is the follow-up that makes a user palette repaint the map (/impeccable
+   colorize), and needs the canvas strokes moved off their rgba literals first. */
+#page-map {
+  --map-bridge:      #40dc82;
+  --map-bridge-node: #ffd700;
+  --map-wormhole:    #b07cff;
+  --map-lowsec:      #e8d44a;
+  --map-red:         #d0263d;
+  --map-incursion:   #dd44aa;
+  --map-own:         var(--pal-teal);
+  /* Friends & Foes standing ramp — the same four steps the legend lists. */
+  --map-blue-10:     #2e6fdb;
+  --map-blue-5:      #5a9be8;
+  --map-orange-5:    #e67e22;
+}
+
+.map-mark-bridge      { color: var(--map-bridge); }
+.map-mark-bridge-node { color: var(--map-bridge-node); }
+.map-mark-wormhole    { color: var(--map-wormhole); }
+.map-mark-lowsec      { color: var(--map-lowsec); }
+.map-mark-red         { color: var(--map-red); }
+.map-mark-incursion   { color: var(--map-incursion); }
+.map-mark-own         { color: var(--map-own); }
+.map-mark-blue-10     { color: var(--map-blue-10); }
+.map-mark-blue-5      { color: var(--map-blue-5); }
+.map-mark-orange-5    { color: var(--map-orange-5); }
+
+/* The "nothing here" reading of a value row — a real role, not an ad-hoc grey. */
+.map-muted { color: var(--text-3); }
+
+/* Every control on this surface takes the same focus treatment. base.css only
+   rings inputs, so before this the toolbar, zoom and legend controls had nothing
+   but the browser default — and .map-search-input:focus below was dead, because
+   base.css overrides input focus with !important. */
+#page-map :is(button, select, input, [role="option"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
 #page-map .page-header {
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -28,7 +79,7 @@
   align-items: center;
   gap: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -70,7 +121,7 @@
 
 .map-overlay-btn.active {
   background: var(--accent);
-  color: #000;
+  color: var(--text-on-accent);
 }
 
 /* View-style toggle (Classic / Modern) — mirrors the overlay buttons but kept on a
@@ -99,7 +150,7 @@
 
 .map-view-btn.active {
   background: var(--accent);
-  color: #000;
+  color: var(--text-on-accent);
 }
 
 /* Region picker — shown in the toolbar only while the Modern view is active. */
@@ -111,7 +162,7 @@
   letter-spacing: 0.04em;
   background: var(--bg-deep);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text-1);
   cursor: pointer;
   max-width: 180px;
@@ -121,6 +172,9 @@
 .map-region-select:hover { border-color: var(--accent); }
 
 .map-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 10px;
   font-size: 11px;
   font-family: var(--mono);
@@ -128,12 +182,32 @@
   letter-spacing: 0.06em;
   background: none;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text-2);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* Material glyphs sit optically small next to 11px mono caps at their natural
+   size, so the toolbar pins them to the app's 18px utility step. */
+.map-toggle-btn .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* The two planners open a modal; the three toggles beside them switch a layer on
+   and off. They were visually identical at rest, so a launcher read as something
+   that could be "on". The dotted edge and the trailing ellipsis in the label say
+   "this opens something" without adding another lit state to the strip. */
+.map-planner-btn {
+  border-style: dashed;
+  color: var(--text-3);
+}
+
+.map-planner-btn:hover {
+  border-style: solid;
 }
 
 .map-toggle-btn:hover {
@@ -142,7 +216,7 @@
 }
 
 .map-toggle-btn.active {
-  background: rgba(255, 215, 0, 0.12);
+  background: color-mix(in srgb, var(--pal-gold) 12%, transparent);
   border-color: var(--pal-gold);
   color: var(--pal-gold);
 }
@@ -160,7 +234,7 @@
   padding: 5px 10px;
   background: var(--bg-deep);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text-1);
   font-size: 12px;
   font-family: var(--mono);
@@ -180,8 +254,8 @@
   right: 0;
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px var(--shadow-darker);
   z-index: 100;
   max-height: 240px;
   overflow-y: auto;
@@ -201,32 +275,25 @@
   color: var(--accent);
 }
 
-/* ── Refresh button ──────────────────────────────────────────────────────── */
-.map-refresh-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-2);
-  font-size: 16px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
-}
-
-.map-refresh-btn:hover:not(:disabled) {
+/* Keyboard-highlighted result. Hover and keyboard land on the same treatment so
+   there is one idea of "the row you are about to pick". */
+.map-search-item.is-active {
   background: var(--bg-hover);
-  color: var(--text-1);
+  color: var(--accent);
 }
 
-.map-refresh-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* An empty dropdown used to be hidden outright, which looked identical to having
+   typed nothing at all. */
+.map-search-empty,
+.map-search-more {
+  padding: 7px 12px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--text-6);
+}
+
+.map-search-more {
+  border-top: 1px solid var(--border-e);
 }
 
 /* ── Viewport & canvas ───────────────────────────────────────────────────── */
@@ -234,7 +301,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  background: #050810;
+  background: var(--bg-body);
   min-height: 0;
 }
 
@@ -253,14 +320,14 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  background: #050810;
+  background: var(--bg-body);
   z-index: 10;
 }
 
 .map-loading-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(192, 57, 43, 0.2);
+  border: 3px solid var(--spinner-track);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: map-spin 0.9s linear infinite;
@@ -268,6 +335,72 @@
 
 @keyframes map-spin {
   to { transform: rotate(360deg); }
+}
+
+/* A continuously spinning ring is exactly the kind of motion this setting exists
+   to stop; the loading state still reads from its text. */
+@media (prefers-reduced-motion: reduce) {
+  .map-loading-spinner { animation: none; opacity: 0.6; }
+}
+
+/* ── Load failure ────────────────────────────────────────────────────────── */
+/* Sits in the same slot as the loading overlay and is never shown alongside it —
+   see _setMapState() in map.js. */
+.map-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-body);
+  z-index: 10;
+}
+
+/* The technical cause, kept subordinate to the plain-language explanation above it. */
+.map-error-cause {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-7);
+  word-break: break-word;
+}
+
+.map-error-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.map-error-btn {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text-on-accent);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.map-error-btn:hover { background: transparent; color: var(--accent); }
+
+/* Recovery has one obvious move; the settings route is the second option, not a
+   second equal one. */
+.map-error-btn-quiet {
+  background: none;
+  border-color: var(--border);
+  color: var(--text-2);
+}
+
+.map-error-btn-quiet:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--text-1);
 }
 
 .map-loading-text {
@@ -283,11 +416,12 @@
   top: 12px;
   right: 12px;
   width: 240px;
-  background: rgba(12, 14, 22, 0.96);
+  background: var(--bg-card-deep);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px var(--shadow-darker);
   z-index: 20;
+  display: flex;          /* was carried by an inline style; .is-hidden owns hiding now */
   flex-direction: column;
   overflow: hidden;
   backdrop-filter: blur(8px);
@@ -299,7 +433,7 @@
   justify-content: space-between;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  background: rgba(192, 57, 43, 0.08);
+  background: var(--accent-08);
 }
 
 .map-info-header span {
@@ -374,9 +508,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(12, 14, 22, 0.9);
+  background: var(--bg-card-deep);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text-2);
   font-size: 16px;
   font-weight: 700;
@@ -391,14 +525,21 @@
   color: var(--text-1);
 }
 
+/* + and − are typographic and sit at the button's own size; the fit control is a
+   Material glyph and takes the 18px utility step like every other one. */
+.map-zoom-btn-icon .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+}
+
 /* ── Legend ──────────────────────────────────────────────────────────────── */
 .map-legend {
   position: absolute;
   bottom: 16px;
   left: 16px;
-  background: rgba(12, 14, 22, 0.9);
+  background: var(--bg-card-deep);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 10px 12px;
   z-index: 20;
   backdrop-filter: blur(4px);
@@ -432,12 +573,111 @@
   flex-shrink: 0;
 }
 
+/* A stroke sample, so a line on the canvas is legible as a line in the legend
+   rather than being flattened into another dot. */
+.map-legend-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;   /* pill — rounds a 2px hairline's ends */
+  flex-shrink: 0;
+}
+
+/* The canvas draws these node shapes literally; the legend shows the same marks
+   rather than translating them into an icon family that isn't on screen. */
+.map-legend-glyph {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-3);
+  letter-spacing: -0.06em;
+}
+
+/* Section head inside the legend — quieter than the top title so the legend reads
+   as one block with subdivisions, not three stacked panels. */
+.map-legend-sub {
+  margin-top: 9px;
+  margin-bottom: 6px;
+  color: var(--text-4);
+}
+
+.map-legend-note {
+  font-size: 10px;
+  font-family: var(--mono);
+  line-height: 1.5;
+  color: var(--text-6);
+  margin-top: 6px;
+  max-width: 190px;
+}
+
+.map-legend-warn { color: var(--warning); }
+
+/* Freshness, not a control. Divided off so it reads as metadata about the whole
+   legend rather than another row in the last section. */
+.map-legend-fresh {
+  margin-top: 9px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border-e);
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--text-6);
+}
+
+/* ── Right-click context menu ────────────────────────────────────────────── */
+/* Was built entirely from inline styles in map.js; same look, declared once. */
+.map-ctx-menu {
+  position: fixed;
+  z-index: 10060;
+  min-width: 210px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px var(--shadow-darker);
+  overflow: hidden;
+}
+
+.map-ctx-title {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-1);
+}
+
+.map-ctx {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-1);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.map-ctx .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+.map-ctx:hover { background: var(--bg-hover); }
+
+.map-ctx-danger,
+.map-ctx-danger .material-symbols-outlined { color: var(--danger); }
+
 /* ── Floating system tooltip ─────────────────────────────────────────────── */
 #mapTooltip {
   position: fixed;
-  background: rgba(12, 14, 22, 0.95);
+  background: var(--bg-card-deep);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius);
   padding: 4px 9px;
   font-size: 11px;
   font-family: var(--mono);
@@ -445,21 +685,25 @@
   pointer-events: none;
   z-index: 9999;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 12px var(--shadow-dark);
+  /* The tooltip is the one floater with no blur behind it, and it lands on the
+     densest part of the picture — over a star field the panel tint alone doesn't
+     separate it from the systems underneath. */
+  backdrop-filter: blur(6px);
   display: none;
 }
 
 /* ── Jump Route Planner modal ─────────────────────────────────────────────── */
 .jp-modal-backdrop {
   position: fixed; inset: 0; z-index: 10000;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(2px);
+  background: var(--backdrop); backdrop-filter: blur(2px);
   display: none; align-items: center; justify-content: center;
 }
 .jp-modal {
   width: min(1040px, 94vw); height: min(680px, 90vh);
   background: var(--bg-modal); border: 1px solid var(--border);
-  border-radius: 10px; display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+  border-radius: var(--radius); display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 18px 60px var(--shadow-darker);
 }
 .jp-modal-header {
   display: flex; align-items: center; gap: 8px;
@@ -487,7 +731,7 @@
 .jp-bridge-list { display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; }
 .jp-bridge-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-size: 11px; color: var(--text-2); font-family: var(--mono);
-  background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; }
+  background: var(--bg-deep); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 8px; }
 .jp-bridge-del { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 12px; }
 .jp-bridge-del:hover { color: var(--danger); }
 
@@ -496,18 +740,20 @@
 .jp-empty { color: var(--text-3); font-family: var(--mono); font-size: 12px; padding: 24px 8px; text-align: center; }
 .jp-err { color: var(--danger); }
 .jp-banner { font-size: 11px; color: var(--text-2); background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
+  border-radius: var(--radius); padding: 8px 12px; margin-bottom: 12px; }
 .jp-banner-safe { border-color: var(--liquidisk); color: var(--text-1); }
 .jp-totals { display: flex; gap: 24px; margin-bottom: 12px; }
-.jp-tot-num { font-size: 22px; font-weight: 700; color: var(--text-1); font-family: var(--mono); }
+/* Route totals are headline figures — DESIGN.md's Stat role (Fira Code 700, 20px),
+   which this was sitting one step above for no reason. */
+.jp-tot-num { font-size: 20px; font-weight: 700; color: var(--text-1); font-family: var(--mono); }
 .jp-tot-lbl { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-left: 6px; }
 
 .jp-route-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .jp-route-table th { text-align: left; font-size: 9px; letter-spacing: 0.1em; color: var(--text-3);
   text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.jp-route-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text-1); white-space: nowrap; }
+.jp-route-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-e); color: var(--text-1); white-space: nowrap; }
 .jp-route-table .jp-right { text-align: right; font-family: var(--mono); }
 .jp-route-table .jp-num { color: var(--text-3); font-family: var(--mono); width: 28px; }
 .jp-route-table .jp-dim { color: var(--text-3); }
-.jp-origin td { background: rgba(255,255,255,0.02); }
+.jp-origin td { background: var(--bg-hover-subtle); }
 .jp-secdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }

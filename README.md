@@ -13,7 +13,7 @@ EVE Carbon is a comprehensive desktop companion for EVE Online — one fast, nat
 * **Faction Warfare Tracker**: Live warzone control and tiers, per-system plex/contested status, militia stats, pilot & corp leaderboards, and LP-rate tiers.
 * **Killboard**: Recent kills and losses with all-time PvP stats, plus combined all-character and all-corporation overviews (via zKillboard).
 * **EVE Mail & Notifications**: Read, reply to and send in-game mail, and browse the in-game notification feed — all live from ESI.
-* **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits (browsing hulls by the in-game market tree), run live fleet tools, and plan jumps on an interactive map with Thera / wormhole routing.
+* **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits (browsing hulls by the in-game market tree), run live fleet tools, and plan jumps on an interactive map with Thera / wormhole routing. The map also paints live sovereignty as a glowing influence field — coloured by alliance, or by your own standings, with each territory named on its own ground.
 * **Planetary Interaction**: Track PI colonies and extractor timers across your characters.
 * **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering, message pop-ups, and a configurable ping-alert sound (with custom uploads).
 * **Local SDE Database**: A bundled SQLite EVE Static Data Export for lightning-fast, offline item and type lookups.

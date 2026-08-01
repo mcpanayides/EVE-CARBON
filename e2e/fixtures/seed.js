@@ -43,7 +43,7 @@ async function seedUserData(userDataDir) {
 
   // ── app config ──
   const configPath = path.join(userDataDir, 'config.json');
-  fs.writeFileSync(configPath, JSON.stringify({ app: { theme: 'Carbon' } }, null, 2));
+  fs.writeFileSync(configPath, JSON.stringify({ app: { theme: 'Default' } }, null, 2));
 
   return { accountsPath, configPath, characterId: FAKE_CHAR_ID, characterName: FAKE_CHAR_NAME };
 }

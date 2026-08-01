@@ -40,6 +40,15 @@ function registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThe
         return { meta, source: 'builtin', path: p, file };
       }
     }
+    // Legacy or unknown built-in id (e.g. the removed Carbon/Sirius, or an old
+    // config entry): fall back to the single built-in default so the app always
+    // resolves to real tokens rather than an empty stylesheet.
+    const fallback = builtinFiles()[0];
+    if (fallback) {
+      const p    = path.join(builtinDir, fallback);
+      const meta = readThemeFile(p);
+      if (meta) return { meta, source: 'builtin', path: p, file: fallback };
+    }
     return null;
   }
 
@@ -131,7 +140,7 @@ function registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThe
 
   // Get / set the active theme id in config
   ipcHandle('theme-get-active', () => {
-    return loadConfig()?.app?.theme || 'Carbon';
+    return loadConfig()?.app?.theme || 'Default';
   });
 
   ipcHandle('theme-set-active', (_, id) => {
@@ -171,10 +180,10 @@ function registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThe
       const p = path.join(userThemesDir, path.basename(id.slice(5)));
       if (!fs.existsSync(p)) return { success: false, error: 'File not found' };
       fs.unlinkSync(p);
-      // If this was the active theme, fall back to Carbon
+      // If this was the active theme, fall back to the built-in default
       const cfg = loadConfig();
       if (cfg?.app?.theme === id) {
-        cfg.app.theme = 'Carbon';
+        cfg.app.theme = 'Default';
         saveConfig(cfg);
       }
       return { success: true };

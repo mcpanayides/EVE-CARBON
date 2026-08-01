@@ -11,14 +11,15 @@
        The pre-paint script below restores the last applied theme (shared
        localStorage 'eve-theme-css') before first paint. -->
   <link rel="stylesheet" href="../styles/palette.css"/>
-  <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-carbon.css"/>
+  <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-default.css"/>
   <link rel="stylesheet" href="../styles/ping-alert.css"/>
   <script>
   (function () {
     try {
       var t = JSON.parse(localStorage.getItem('eve-theme-css') || 'null');
       var link = document.getElementById('themeStylesheet');
-      if (t && link) {
+      var GONE = { 'theme-carbon.css': 1, 'theme-sirius.css': 1 };
+      if (t && link && !(t.file && GONE[t.file])) {
         if (t.file)      link.setAttribute('href', '../styles/' + t.file);
         else if (t.path) link.setAttribute('href', 'file:///' + encodeURI(t.path.replace(/\\/g, '/')));
       }

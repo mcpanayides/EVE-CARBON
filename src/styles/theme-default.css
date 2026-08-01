@@ -1,0 +1,170 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   EVE Carbon theme — Default (Nebula Glass)
+   The single built-in token set. One CSS custom property per colour token;
+   every surface, chart, KPI and badge references these. Glass is the default
+   look (see styles/glass.css) — these values are the flat-mode fallback and
+   the source getComputedStyle reads to build the translucent tint.
+   The @-metadata comments below are parsed by theme_ipc.js — keep them.
+   Users recolour by editing the 16 swatches (Settings → Colour Palette); the
+   glass tint (Settings → Background) follows the OS accent by default.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* @id: Default */
+/* @name: Default */
+/* @description: Clean, modern sci-fi glass. Cool deep-space surfaces, crisp white-alpha edges and a refined crimson signal over a blue nebula. */
+/* @author: EVE Carbon */
+/* @roles: {"accent":"red","danger":"red","success":"green","warning":"orange","info":"blue"} */
+/* @swatches: {"red":"#e0483a","teal":"#4ecbb0","purple":"#9b7fd4","pink":"#e47baf","baby_blue":"#67ace4","green":"#4ada8a","yellow":"#e6c84a","orange":"#f58c42","gold":"#ffd24a","indigo":"#8f73d8","cyan":"#45e0e0","blue":"#4a9fd4","background":"#070a12","panel":"#10141f","text":"#ccd1da","border":"#3a4150"} */
+
+:root {
+  /* ── BACKGROUNDS — cool deep-space glass ─────────────────────────────────── */
+  --bg:             #070a12;                  /* alias of --bg-body (popup windows) */
+  --bg-body:        #070a12;                  /* <body> base background colour   */
+  --bg-deep:        rgba(6, 9, 16, 0.85);     /* titlebar, nav buttons, inputs   */
+  --bg-panel:       rgba(14, 18, 28, 0.85);   /* sidebar, settings menu          */
+  --bg-card:        rgba(30, 36, 50, 0.82);   /* settings panel blocks/cards     */
+  --bg-card-deep:   rgba(12, 16, 24, 0.85);   /* blueprint-card, selected-bp, .panel */
+  --bg-hover:       rgba(90, 110, 150, 0.14); /* nav-btn hover                   */
+  --bg-hover-subtle: rgba(255, 255, 255, 0.03); /* console statusbar hover       */
+  --bg-input:       rgba(10, 13, 20, 0.85);   /* text/number/password/select/textarea */
+  --bg-modal:       rgba(14, 18, 28, 0.90);   /* modal dialog background         */
+  --bg-code:        #0a0d14;                  /* inline <code> background        */
+  --bg-surface:     rgba(10, 13, 20, 0.85);   /* KPI cards, chart wrap, char-bars, jobs table header */
+  --bg-banner-end:  rgba(16, 12, 20, 0.85);   /* banner gradient end (faint accent tint) */
+  --toast-bg:       rgba(14, 18, 28, 0.90);   /* toast background                */
+  --backdrop:       rgba(5, 8, 14, 0.58);     /* modal backdrop overlay          */
+
+  /* ── BORDERS — clean cool white-alpha hairlines ──────────────────────────── */
+  --border:         rgba(255, 255, 255, 0.09); /* primary border (sidebar, titlebar, nav, scrollbar) */
+  --border-b:       rgba(120, 160, 220, 0.28); /* sidebar/main-content scrollbar thumb */
+  --border-c:       rgba(255, 255, 255, 0.08); /* app-console top border          */
+  --border-d:       rgba(255, 255, 255, 0.07); /* .panel outer border             */
+  --border-e:       rgba(255, 255, 255, 0.06); /* .panel header divider, card border, code border */
+
+  /* ── ACCENT — refined crimson signal ─────────────────────────────────────── */
+  --accent:         #e0483a;                  /* primary accent: icons, active states, focus rings */
+  --accent-dim:     #7d201a;                  /* panel-count badge bg, add-btn bg */
+  --accent-glow:    rgba(224, 72, 58, 0.18);  /* (reserved for glow effects)     */
+
+  /* ── ACCENT ALPHA VARIANTS ───────────────────────────────────────────────── */
+  --accent-03:      rgba(224, 72, 58, 0.03);
+  --accent-04:      rgba(224, 72, 58, 0.04);
+  --accent-05:      rgba(224, 72, 58, 0.05);
+  --accent-06:      rgba(224, 72, 58, 0.06);
+  --accent-08:      rgba(224, 72, 58, 0.08);
+  --accent-10:      rgba(224, 72, 58, 0.10);
+  --accent-12:      rgba(224, 72, 58, 0.12);
+  --accent-15:      rgba(224, 72, 58, 0.15);
+  --accent-20:      rgba(224, 72, 58, 0.20);
+  --accent-25:      rgba(224, 72, 58, 0.25);
+  --accent-30:      rgba(224, 72, 58, 0.30);
+  --accent-40:      rgba(224, 72, 58, 0.40);
+  --accent-50:      rgba(224, 72, 58, 0.50);
+
+  /* ── TEXT — cool gray ramp ───────────────────────────────────────────────── */
+  --text-1:         #ccd1da;                  /* primary body text, toast, settings labels */
+  --text-2:         #dce0e6;                  /* secondary: titlebar-title, nav labels, icon-btn */
+  --text-3:         #b4bac4;                  /* tertiary: titlebar-sep/subtitle, console-toggle, log-time */
+  --text-4:         #7e858f;                  /* panel-header label              */
+  --text-5:         #8c929c;                  /* empty-state title               */
+  --text-6:         #6b7178;                  /* empty-state sub, console-label   */
+  --text-7:         #565b63;                  /* console timestamp               */
+  --text-8:         #697079;                  /* console default message text    */
+  --text-9:         #737a83;                  /* console info message text       */
+  --text-input:     #c6cbd3;                  /* field input / select text colour */
+  --text-on-accent: #0a0d14;                  /* text on solid accent bg (add-btn hover) */
+  --text-name:      #dde1e8;                  /* character welcome name (brighter than text-1) */
+
+  /* ── TIER COLOURS ────────────────────────────────────────────────────────── */
+  --tier-top:       #4f97d8;                  /* top-tier rank label             */
+  --tier-2:         #8f73d8;                  /* tier-2 rank label               */
+  --tier-1:         #d19a66;                  /* tier-1 rank label               */
+  --tier-0:         #4ec9b0;                  /* tier-0 rank label               */
+
+  /* ── DATA PALETTE — the eight consolidated hues (see styles/palette.css).
+     Every chart/KPI/badge colour references these; retune here per theme. ── */
+  --pal-red:        #e0564b;
+  --pal-green:      #4ada8a;
+  --pal-teal:       #4ecbb0;
+  --pal-gold:       #e3b341;
+  --pal-purple:     #ab7ab8;
+  --pal-blue:       #4a9fd4;
+  --pal-pink:       #e47baf;
+  --pal-orange:     #f58c42;
+
+  /* ── STATUS ──────────────────────────────────────────────────────────────── */
+  --success:        var(--pal-green);         /* toast.success, console success, code text, status-online */
+  --danger:         var(--pal-red);           /* toast.error, console error, status-offline */
+  --warning:        var(--pal-orange);        /* toast.warning, console warning  */
+  --assets:         var(--pal-purple);        /* asset-type label colour         */
+  --liquidisk:      var(--pal-teal);          /* liquid ISK value colour         */
+  --status-online:  #3ddc84;                  /* green dot — character online    */
+  --status-offline: #d0263d;                  /* red dot — character offline     */
+
+  /* ── SECURITY STATUS ─────────────────────────────────────────────────────── */
+  --newbie:         #4ec9b0;                  /* newbie/trial account label      */
+  --hisec:          #3d85c8;                  /* high-sec space label            */
+  --lowsec:         #d4a017;                  /* low-sec space label             */
+  --nullsec:        #e0483a;                  /* null-sec space label            */
+  --lawless:        #6a3a7a;                  /* wormhole / lawless space label  */
+
+  /* ── ESI BADGE ───────────────────────────────────────────────────────────── */
+  --esi-green:      rgba(74, 218, 138, 0.25); /* esi-badge border                */
+  --esi-green-dim:  rgba(74, 218, 138, 0.08); /* esi-badge background            */
+
+  /* ── TEAL — character portrait / active character ────────────────────────── */
+  --teal:           #00c4b4;                  /* portrait border, active char name colour */
+  --teal-glow:      rgba(0, 196, 180, 0.40);  /* portrait box-shadow             */
+
+  /* ── POPUP SLOT COLOURS (ping-alert buttons/badges) ──────────────────────── */
+  --teal-bg:        rgba(0, 150, 136, 0.12);
+  --teal-border:    rgba(0, 150, 136, 0.35);
+  --teal-text:      #4dd0c4;
+  --indigo-bg:      rgba(148, 103, 210, 0.12);
+  --indigo-border:  rgba(148, 103, 210, 0.32);
+  --indigo-text:    #c39ff5;
+  --green-bg:       rgba(74, 218, 138, 0.12);
+  --green-border:   rgba(74, 218, 138, 0.35);
+  --green-text:     #4ada8a;
+
+  /* ── NAV ─────────────────────────────────────────────────────────────────── */
+  --nav-active-bg:  rgba(74, 140, 220, 0.13); /* nav-btn.active background        */
+
+  /* ── HATCH / DOT PATTERNS ────────────────────────────────────────────────── */
+  --hatch-color:       rgba(255, 255, 255, 0.018); /* body hatch overlay stripe colour */
+  --hatch-card-color:  rgba(255, 255, 255, 0.010); /* hatch overlay on KPI/character cards */
+  --dot-color:         rgba(255, 255, 255, 0.04);  /* dot fill: near-invisible on dark */
+
+  /* ── GLOW ────────────────────────────────────────────────────────────────── */
+  --glow-color:        rgba(224, 72, 58, 0.22);    /* generic crimson glow (reserved) */
+  --glow-color-2:      rgb(224, 72, 58);           /* solid crimson glow (reserved)   */
+
+  /* ── TEAL / DANGER alpha helpers (used by character sync states) ── */
+  --teal-success-bg:     rgba(78, 201, 176, 0.18);
+  --teal-success-border: rgba(78, 201, 176, 0.30);
+  --danger-bg:           rgba(224, 72, 58, 0.14);
+  --danger-border:       rgba(224, 72, 58, 0.25);
+
+  /* ── SHADOWS / MISC ──────────────────────────────────────────────────────── */
+  --shadow-dark:    rgba(0, 0, 0, 0.35);      /* toast box-shadow                */
+  --shadow-darker:  rgba(0, 0, 0, 0.80);      /* modal box-shadow                */
+  --shadow-black-12: rgba(0, 0, 0, 0.12);     /* status-light subtle ring        */
+  --spinner-track:  rgba(255, 255, 255, 0.08); /* sync-spinner track ring        */
+
+  /* ── BODY PSEUDO-ELEMENT GLOWS — cool blue nebula, faint accent warmth ────── */
+  /* body::before — upper-left glow (behind portrait) */
+  --glow-body-a1:   rgba(48, 96, 210, 0.34);
+  --glow-body-a2:   rgba(130, 44, 40, 0.20);
+  --glow-body-a3:   rgba(60, 20, 20, 0.05);
+  /* body::after — bottom-right dim secondary glow */
+  --glow-body-b1:   rgba(50, 130, 180, 0.10);
+  --glow-body-b2:   rgba(40, 80, 200, 0.14);
+
+  /* ── AMBIENT GLOW DIVS — large nebula behind the frame ───────────────────── */
+  /* .concord-glow-main — large primary glow injected by HTML */
+  --glow-main-1:    rgba(30, 80, 220, 0.34);
+  --glow-main-2:    rgba(30, 40, 120, 0.30);
+  --glow-main-3:    rgba(10, 20, 80, 0.08);
+  /* .concord-glow-secondary — mid-screen secondary glow */
+  --glow-sec-1:     rgba(20, 60, 140, 0.10);
+  --glow-sec-2:     rgba(40, 70, 150, 0.24);
+}

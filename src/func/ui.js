@@ -285,6 +285,7 @@ async function clearBeaconNetwork() {
 // full-screen layer behind the whole UI (see #appBackground). Non-destructive:
 // "None" simply hides the layer and the original themed background returns.
 const BG_STORAGE_KEY = 'appBackground';
+const BG_DEFAULT_DIM = 0;   // default wallpaper dim (Citadel Overlook ships un-dimmed)
 
 function _getBgSettings() {
   try { return JSON.parse(localStorage.getItem(BG_STORAGE_KEY) || 'null') || {}; }
@@ -300,13 +301,36 @@ function applyBackground(url, dim) {
   if (!bg) return;
   if (url) { bg.style.backgroundImage = `url("${url}")`; bg.style.display = 'block'; }
   else     { bg.style.backgroundImage = ''; bg.style.display = 'none'; }
-  if (ov) ov.style.opacity = String((dim != null ? dim : 35) / 100);
+  if (ov) ov.style.opacity = String((dim != null ? dim : BG_DEFAULT_DIM) / 100);
 }
 
 // Restore the saved wallpaper at startup (called from app.js).
 function initBackground() {
+  // True first run (nothing ever saved): default to the Citadel Overlook
+  // wallpaper. Resolved lazily and deferred to idle so it never competes with
+  // SDE/DB init or the first-paint IPC burst (see resfile_backgrounds.js note).
+  if (localStorage.getItem(BG_STORAGE_KEY) == null) { _applyDefaultBackground(); return; }
   const s = _getBgSettings();
-  applyBackground(s.url || null, s.dim != null ? s.dim : 35);
+  applyBackground(s.url || null, s.dim != null ? s.dim : BG_DEFAULT_DIM);
+}
+
+// First-run wallpaper: set the (un-dimmed) default immediately, then fetch the
+// Citadel Overlook plate from CCP's resfile CDN once the app is idle and swap it
+// in. Best-effort — if offline, nothing is saved and it retries next launch.
+function _applyDefaultBackground() {
+  applyBackground(null, BG_DEFAULT_DIM);
+  const run = async () => {
+    try {
+      const list = await window.eveAPI.listBackgrounds() || [];
+      const citadel = list.find(b => b.id === 'resfile:citadel-overlook');
+      if (!citadel) return;
+      const s = { url: citadel.url, dim: BG_DEFAULT_DIM };
+      _saveBgSettings(s);
+      applyBackground(s.url, s.dim);
+    } catch (_) { /* offline / CDN hiccup — retried on next launch */ }
+  };
+  if (window.requestIdleCallback) requestIdleCallback(() => run(), { timeout: 6000 });
+  else setTimeout(run, 3000);
 }
 
 function _renderBgGrid(grid, list, activeUrl) {
@@ -325,7 +349,7 @@ function _renderBgGrid(grid, list, activeUrl) {
       const cur = _getBgSettings();
       cur.url = bg.url;
       _saveBgSettings(cur);
-      applyBackground(cur.url, cur.dim != null ? cur.dim : 35);
+      applyBackground(cur.url, cur.dim != null ? cur.dim : BG_DEFAULT_DIM);
       grid.querySelectorAll('.bg-preset').forEach(c => c.classList.remove('active'));
       cell.classList.add('active');
     });
@@ -344,7 +368,7 @@ async function populateBackgroundSettings() {
   const saved = _getBgSettings();
 
   if (dimSlider) {
-    dimSlider.value = saved.dim != null ? saved.dim : 35;
+    dimSlider.value = saved.dim != null ? saved.dim : BG_DEFAULT_DIM;
     if (dimValue) dimValue.textContent = `${dimSlider.value}%`;
     dimSlider.oninput = () => {
       if (dimValue) dimValue.textContent = `${dimSlider.value}%`;
@@ -366,7 +390,7 @@ async function populateBackgroundSettings() {
         const cur = _getBgSettings();
         cur.url = r.background.url;
         _saveBgSettings(cur);
-        applyBackground(cur.url, cur.dim != null ? cur.dim : 35);
+        applyBackground(cur.url, cur.dim != null ? cur.dim : BG_DEFAULT_DIM);
         await populateBackgroundSettings();
         showToast(`Background set: ${r.background.name}`, 'success');
       } else if (r && r.error) {
@@ -379,7 +403,7 @@ async function populateBackgroundSettings() {
     const cur = _getBgSettings();
     cur.url = null;
     _saveBgSettings(cur);
-    applyBackground(null, cur.dim != null ? cur.dim : 35);
+    applyBackground(null, cur.dim != null ? cur.dim : BG_DEFAULT_DIM);
     _renderBgGrid(grid, list, null);
   };
 }
@@ -393,7 +417,7 @@ const GLASS_STORAGE_KEY = 'eve-glass';
 // tintMode: 'system' follows the OS accent colour (Windows/macOS colourway);
 // 'custom' uses the colour picker. One tint drives everything: glass surfaces
 // (darkened) AND the ambient radial glows (full strength).
-const GLASS_DEFAULTS = { enabled: true, tintMode: 'system', tintRgb: '138, 77, 190', tintAlpha: 0.52, bgAlpha: 0.42, blurScale: 1 };
+const GLASS_DEFAULTS = { enabled: true, tintMode: 'custom', tintRgb: '43, 114, 115', tintAlpha: 0.45, bgAlpha: 0.15, blurScale: 1.45 };
 
 // The ambient glow variables that follow the tint in glass mode
 const GLASS_GLOW_ALPHAS = {

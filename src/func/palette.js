@@ -14,7 +14,7 @@ const THEME_LS_KEY = 'eve-theme-css';
 function themeHref(theme) {
   if (theme?.file) return `./styles/${theme.file}`;                              // built-in
   if (theme?.path) return 'file:///' + encodeURI(theme.path.replace(/\\/g, '/')); // user theme
-  return './styles/theme-carbon.css';
+  return './styles/theme-default.css';
 }
 
 function applyTheme(theme) {
@@ -101,9 +101,9 @@ async function initTheme() {
   try { localStorage.removeItem('eve-carbon-theme-vars'); } catch {}
   try {
     const cfg     = await window.eveAPI.getAppConfig();
-    const themeId = cfg?.app?.theme || 'Carbon';
+    const themeId = cfg?.app?.theme || 'Default';
     const theme   = await window.eveAPI.themeGet(themeId)
-                 || await window.eveAPI.themeGet('Carbon');
+                 || await window.eveAPI.themeGet('Default');
     if (theme) applyTheme(theme);   // no-op href-wise if the pre-paint script already set it
   } catch (e) {
     console.warn('[palette] initTheme failed:', e.message);
@@ -404,8 +404,8 @@ function bindPaletteEvents() {
     const result = await window.eveAPI.themeDeleteCustom(id);
     if (result.success) {
       await populatePaletteSettings();
-      // Reload Carbon
-      const theme = await window.eveAPI.themeGet('Carbon');
+      // Reload the built-in default
+      const theme = await window.eveAPI.themeGet('Default');
       if (theme) applyTheme(theme);
       showToast('Palette deleted.', 'success');
     } else {

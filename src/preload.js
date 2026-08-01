@@ -255,7 +255,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   mapGetGalaxy:          ()    => ipcRenderer.invoke('map-get-galaxy'),
   mapGetSovereignty:     ()    => ipcRenderer.invoke('map-get-sovereignty'),
   mapGetIncursions:      ()    => ipcRenderer.invoke('map-get-incursions'),
-  mapGetJumpBridges:     ()    => ipcRenderer.invoke('map-get-jump-bridges'),
   mapGetAllianceTickers:   (ids)         => ipcRenderer.invoke('map-get-alliance-tickers', ids),
   getSovIncursionAlert:    (allianceId)  => ipcRenderer.invoke('get-sov-incursion-alert', allianceId),
 

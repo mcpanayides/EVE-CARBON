@@ -37,17 +37,20 @@
 
   /* Accent alpha variants (--accent-04…50) are theme tokens — see styles/theme-*.css */
 
-  /* ── GLOW — banner & portrait ────────────────────────────────────────────── */
-  --glow-banner:      rgba(160, 20, 10, 0.12); /* banner outer box-shadow glow        */
-  --glow-portrait-1:  rgba(180, 25, 12, 0.45); /* portrait drop-shadow inner          */
-  --glow-portrait-2:  rgba(160, 15,  8, 0.20); /* portrait drop-shadow outer         */
-  --glow-portrait-h1: rgba(192, 40, 20, 0.65); /* portrait hover drop-shadow inner    */
-  --glow-portrait-h2: rgba(160, 15,  8, 0.30); /* portrait hover drop-shadow outer    */
-  --glow-ship-1:      rgba(180, 25, 12, 0.30); /* ship icon drop-shadow               */
-  --glow-ship-h1:     rgba(192, 40, 20, 0.55); /* ship icon hover drop-shadow         */
-  --glow-portrait-edge: rgba(192, 57, 43, 0.08); /* portrait col right-bleed gradient */
-  --glow-portrait-edge-end: rgba(192, 57, 43, 0.04); /* portrait col right-bleed end */
-  --glow-ship-edge:   rgba(192, 57, 43, 0.05); /* ship col left-bleed gradient        */
+  /* ── GLOW — banner & portrait ────────────────────────────────────────────────
+     Derived from the accent so the banner/portrait/ship glows follow the theme
+     (and any user palette) instead of being hardcoded crimson. Mapped to the
+     nearest --accent-* alpha step from the theme file. */
+  --glow-banner:      var(--accent-12);        /* banner outer box-shadow glow        */
+  --glow-portrait-1:  var(--accent-40);        /* portrait drop-shadow inner          */
+  --glow-portrait-2:  var(--accent-20);        /* portrait drop-shadow outer          */
+  --glow-portrait-h1: var(--accent-50);        /* portrait hover drop-shadow inner    */
+  --glow-portrait-h2: var(--accent-30);        /* portrait hover drop-shadow outer    */
+  --glow-ship-1:      var(--accent-30);        /* ship icon drop-shadow               */
+  --glow-ship-h1:     var(--accent-50);        /* ship icon hover drop-shadow         */
+  --glow-portrait-edge: var(--accent-08);      /* portrait col right-bleed gradient   */
+  --glow-portrait-edge-end: var(--accent-04);  /* portrait col right-bleed end        */
+  --glow-ship-edge:   var(--accent-05);        /* ship col left-bleed gradient        */
 
   /* ── SHADOWS ─────────────────────────────────────────────────────────────── */
   --shadow-light:     rgba(0, 0, 0, 0.30);     /* KPI card inset shadow               */

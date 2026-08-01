@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="../styles/base.css"/>
   <link rel="stylesheet" href="../styles/palette.css"/>
   <!-- Active theme (all colour tokens) — same file the main window uses. -->
-  <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-carbon.css"/>
+  <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-default.css"/>
   <link rel="stylesheet" href="../styles/dashboard.css"/>
   <link rel="stylesheet" href="../styles/glass.css"/>
   <link rel="stylesheet" href="../styles/widget-window.css"/>
@@ -20,7 +20,8 @@
     try {
       var t = JSON.parse(localStorage.getItem('eve-theme-css') || 'null');
       var link = document.getElementById('themeStylesheet');
-      if (t && link) {
+      var GONE = { 'theme-carbon.css': 1, 'theme-sirius.css': 1 };
+      if (t && link && !(t.file && GONE[t.file])) {
         if (t.file)      link.setAttribute('href', '../styles/' + t.file);
         else if (t.path) link.setAttribute('href', 'file:///' + encodeURI(t.path.replace(/\\/g, '/')));
       }

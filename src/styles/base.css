@@ -16,10 +16,10 @@
      it — see main.js). These tokens drive the see-through tint and the reeded
      (fluted) glass overlay. All are user-tunable from Settings → Background
      and overridden inline on :root at startup from localStorage 'eve-glass'.  */
-  --glass-tint-rgb:      8, 8, 12;              /* tint colour of all glass surfaces */
-  --glass-bg-alpha:      0.42;                  /* body wash over the raw acrylic     */
-  --glass-tint-alpha:    0.52;                  /* panel/card surface opacity         */
-  --glass-blur-scale:    1;                     /* frost blur multiplier (Settings → Background) */
+  --glass-tint-rgb:      7, 18, 18;             /* tint colour of all glass surfaces (darkened #2B7273 default) */
+  --glass-bg-alpha:      0.15;                  /* body wash over the raw acrylic     */
+  --glass-tint-alpha:    0.45;                  /* panel/card surface opacity         */
+  --glass-blur-scale:    1.45;                  /* frost blur multiplier (Settings → Background) */
   --flute-width:         8px;                   /* pitch of one vertical glass rib    */
   --flute-highlight:     rgba(255, 255, 255, 0.055); /* specular edge of each rib     */
   --flute-shadow:        rgba(0, 0, 0, 0.16);   /* concave centre of each rib         */
@@ -227,6 +227,33 @@ body.glass-on {
 @keyframes concordGlowPulse {
   0%, 100% { opacity: 0.85; transform: scale(1); }
   50%       { opacity: 1.0;  transform: scale(1.06); }
+}
+
+/* ── REDUCED MOTION ──────────────────────────────────────────────────────────
+   Honour the OS "reduce motion" setting. We stop the ambient, decorative loops
+   that carry only mood or continuous movement — the pulsing nebula glows, the
+   scrolling market ticker, and the status "pulses" (incursion, PI extractor,
+   fitting heat) — by freezing each to its already-visible resting frame, so the
+   signal stays legible without motion. The beehive RED flash becomes a static
+   ring so an active runner still can't miss the stand-down. Functional feedback
+   is deliberately KEPT: loading spinners still spin (a reduce-motion user still
+   needs to see that something is loading), and quick state transitions remain.
+   Centralised here with !important so one reviewable block wins over the same-
+   specificity animation rules declared later in dashboard/fitting/PI CSS. */
+@media (prefers-reduced-motion: reduce) {
+  .concord-glow-main,
+  .concord-glow-secondary,
+  .market-ticker-track,
+  .inc-alert-widget,
+  .inc-alert-light,
+  .fw-slot.state-overheated,
+  .pi-status.active::before { animation: none !important; }
+
+  /* Stand-down alert: hold a static red ring instead of the 4× flash. */
+  .beehive-alert {
+    animation: none !important;
+    box-shadow: 0 0 0 3px rgba(240, 72, 72, 0.6) !important;
+  }
 }
 
 /* ── TOAST NOTIFICATIONS ── */

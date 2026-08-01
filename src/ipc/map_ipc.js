@@ -4,11 +4,45 @@ const { app } = require('electron');
 const fs   = require('fs');
 const path = require('path');
 
-const ESI_BASE     = 'https://esi.evetech.net';
-const IHUB_TYPE_ID = 35833; // Infrastructure Hub — proxy for jump bridge access
+const ESI_BASE = 'https://esi.evetech.net';
+
+// Sovereignty comes from ONE endpoint now. CCP retired /v1/sovereignty/map/ and
+// /v1/sovereignty/structures/ in the compatibility-date snapshot of 2026-05-19
+// (they 404 for anything pinned at or after that date — see ESI_COMPATIBILITY_DATE
+// in src/app_ident.js); /sovereignty/systems replaces the first. Its per-system
+// claim is a tagged union — { faction } | { alliance } | { unclaimed }.
+//
+// Nothing replaces the second, and nothing needs to: the map used to mark
+// IHUB systems as a proxy for "a jump bridge could be anchored here", but under
+// Equinox an alliance claim *is* a sovereignty hub — every one of the ~2700
+// claimed systems carries one — so that proxy now selects the whole of null-sec
+// and tells you nothing. The map marks the user's own saved bridge endpoints
+// instead (see _loadSavedBridges in src/func/map.js); don't reinstate a
+// sov-derived IHUB list here.
+const SOV_SYSTEMS_URL = `${ESI_BASE}/sovereignty/systems`;
+const SOV_CACHE_KEY   = 'map_sovereignty';
+const SOV_TTL_DAYS    = 1 / 288;   // 5 min — the endpoint's own x-client-cache-ttl
 
 // In-process cache for SDE data (never changes at runtime)
 let _galaxyCache = null;
+
+// Fetch + normalise /sovereignty/systems into the shape the map renderer has
+// always consumed: { systemId: { allianceId, corporationId, factionId } }.
+async function _fetchSovSystems({ httpGet, writeCache }) {
+  const body   = await httpGet(SOV_SYSTEMS_URL);
+  const sovMap = {};
+  for (const s of (body?.solar_systems || [])) {
+    const claim = s.claim || {};
+    const a     = claim.alliance;
+    sovMap[s.solar_system_id] = {
+      allianceId:    a?.alliance_id            || null,
+      corporationId: a?.corporation_id         || null,
+      factionId:     claim.faction?.faction_id || null,
+    };
+  }
+  writeCache(SOV_CACHE_KEY, sovMap, SOV_TTL_DAYS);
+  return sovMap;
+}
 
 // Hand-curated Modern-map layout (the in-app layout editor writes this).
 // When present it wins over the algorithmic layout wholesale.
@@ -29,21 +63,8 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     if (!allianceId) return null;
     try {
       // Re-use the same cache keys as the map-page overlays
-      let sovMap = readCache('map_sovereignty');
-      if (!sovMap) {
-        const data = await httpGet(`${ESI_BASE}/v1/sovereignty/map/?datasource=tranquility`);
-        sovMap = {};
-        if (Array.isArray(data)) {
-          for (const e of data) {
-            sovMap[e.system_id] = {
-              allianceId:    e.alliance_id    || null,
-              corporationId: e.corporation_id || null,
-              factionId:     e.faction_id     || null,
-            };
-          }
-        }
-        writeCache('map_sovereignty', sovMap, 1 / 24);
-      }
+      let sovMap = readCache(SOV_CACHE_KEY);
+      if (!sovMap) sovMap = await _fetchSovSystems({ httpGet, writeCache });
 
       // Full incursion objects (different key from the id-only list)
       let incursions = readCache('map_incursions_full');
@@ -128,23 +149,31 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     }
   });
 
-  // ── Alliance tickers (batch, cached 24 h) ──────────────────────────────────
-  // Fetches /v3/alliances/{id}/ for each ID and returns { id: ticker }.
-  // Called once after dominant-sov is computed — typically ~30–60 unique IDs.
+  // ── Alliance identities (batch, cached 24 h) ───────────────────────────────
+  // Fetches /v3/alliances/{id}/ for each ID and returns { id: { ticker, name } }.
+  // Region labels want the ticker, the influence field's territory titles want
+  // the full name, and both come from the same call — so fetch once, return both.
+  // Called after dominant-sov is computed and when the influence field rebuilds;
+  // typically ~30–60 unique IDs.
+  //
+  // Deliberately a new cache key: entries under the old `map_ticker_*` are bare
+  // ticker STRINGS, and handing one of those back where an object is expected
+  // would silently drop every name until the old entries aged out.
   ipcHandle('map-get-alliance-tickers', async (_, allianceIds) => {
     if (!Array.isArray(allianceIds) || !allianceIds.length) return {};
     const result = {};
     await Promise.all(allianceIds.map(async id => {
-      const key = `map_ticker_${id}`;
+      const key = `map_alliance_${id}`;
       const cached = readCache(key);
       if (cached) { result[id] = cached; return; }
       try {
         const data = await httpGet(
           `${ESI_BASE}/v3/alliances/${id}/?datasource=tranquility`
         );
-        if (data && data.ticker) {
-          writeCache(key, data.ticker, 1); // 24 h
-          result[id] = data.ticker;
+        if (data && (data.ticker || data.name)) {
+          const ident = { ticker: data.ticker || null, name: data.name || null };
+          writeCache(key, ident, 1); // 24 h
+          result[id] = ident;
         }
       } catch (_) { /* ignore individual failures */ }
     }));
@@ -189,25 +218,12 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     return _galaxyCache;
   });
 
-  // ── ESI: sovereignty map (cached 1 hour) ───────────────────────────────────
+  // ── ESI: sovereignty map (cached 5 min, the endpoint's own TTL) ────────────
   ipcHandle('map-get-sovereignty', async () => {
-    const key    = 'map_sovereignty';
-    const cached = readCache(key);
+    const cached = readCache(SOV_CACHE_KEY);
     if (cached) return cached;
     try {
-      const data   = await httpGet(`${ESI_BASE}/v1/sovereignty/map/?datasource=tranquility`);
-      const result = {};
-      if (Array.isArray(data)) {
-        for (const e of data) {
-          result[e.system_id] = {
-            allianceId:    e.alliance_id    || null,
-            corporationId: e.corporation_id || null,
-            factionId:     e.faction_id     || null,
-          };
-        }
-      }
-      writeCache(key, result, 1 / 24); // 1 hour
-      return result;
+      return await _fetchSovSystems({ httpGet, writeCache });
     } catch (e) {
       console.warn('[map] sovereignty fetch failed:', e.message);
       return {};
@@ -237,32 +253,6 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     }
   });
 
-  // ── ESI: systems with IHUB (jump bridge proxy, cached 1 hour) ─────────────
-  // Ansiblex Jump Gates aren't publicly queryable; IHUB ownership is the
-  // standard prerequisite for jump bridge infrastructure in sov null.
-  ipcHandle('map-get-jump-bridges', async () => {
-    const key    = 'map_jump_bridges';
-    const cached = readCache(key);
-    if (cached) return cached;
-    try {
-      const data = await httpGet(
-        `${ESI_BASE}/v1/sovereignty/structures/?datasource=tranquility`
-      );
-      const ids = [];
-      if (Array.isArray(data)) {
-        for (const s of data) {
-          if (s.structure_type_id === IHUB_TYPE_ID) {
-            ids.push(s.solar_system_id);
-          }
-        }
-      }
-      writeCache(key, ids, 1 / 24); // 1 hour
-      return ids;
-    } catch (e) {
-      console.warn('[map] jump bridges fetch failed:', e.message);
-      return [];
-    }
-  });
 }
 
 module.exports = { registerMapHandlers };

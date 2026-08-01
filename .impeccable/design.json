@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-27T00:00:00Z",
+  "title": "Design System: EVE Carbon",
+  "extensions": {
+    "colorMeta": {
+      "crimson-signal": { "role": "primary", "displayName": "Crimson Signal", "canonical": "#e0483a", "tonalRamp": ["#2c0f0b", "#521a14", "#7d201a", "#a12f24", "#c53a2d", "#e0483a", "#ea8579", "#f4c3bc"] },
+      "space-black": { "role": "neutral", "displayName": "Space Black", "canonical": "#070a12", "tonalRamp": ["#070a12", "#0c1019", "#121824", "#1a2130", "#2a3346", "#3f4a60", "#5f6b82", "#8f99ae"] },
+      "text-primary": { "role": "neutral", "displayName": "Cool Terminal Gray", "canonical": "#ccd1da", "tonalRamp": ["#565b63", "#697079", "#7e858f", "#909aa6", "#aab0bc", "#b4bac4", "#ccd1da", "#dce0e6"] },
+      "portrait-teal": { "role": "tertiary", "displayName": "Capsuleer Teal", "canonical": "#00c4b4", "tonalRamp": ["#00221f", "#00423d", "#00635b", "#008579", "#00a698", "#00c4b4", "#5cdccf", "#a6efe9"] },
+      "data-red": { "role": "data", "displayName": "Loss Red", "canonical": "#e0564b", "tonalRamp": ["#3a1310", "#5e2019", "#822c23", "#a6382d", "#c04338", "#e0564b", "#e88076", "#f2bbb4"] },
+      "data-green": { "role": "data", "displayName": "Gain Green", "canonical": "#4ada8a", "tonalRamp": ["#0f3a24", "#175a38", "#20824f", "#28a666", "#37c076", "#4ada8a", "#7fe5ab", "#bcf2d3"] },
+      "data-teal": { "role": "data", "displayName": "Liquid Teal", "canonical": "#4ecbb0", "tonalRamp": ["#123a33", "#1a5a4e", "#238269", "#2ca684", "#3cbf9a", "#4ecbb0", "#82ddc9", "#bef0e5"] },
+      "data-gold": { "role": "data", "displayName": "Warning Gold", "canonical": "#e3b341", "tonalRamp": ["#3a2e10", "#5e4a17", "#826620", "#a68328", "#c09a34", "#e3b341", "#eccb7f", "#f5e4bc"] },
+      "data-purple": { "role": "data", "displayName": "Asset Purple", "canonical": "#ab7ab8", "tonalRamp": ["#2c1f30", "#453049", "#5e4263", "#77547d", "#916797", "#ab7ab8", "#c6a3cd", "#e2cfe6"] },
+      "data-blue": { "role": "data", "displayName": "Info Blue", "canonical": "#4a9fd4", "tonalRamp": ["#122a3a", "#1a415e", "#235982", "#2c72a6", "#3a89c0", "#4a9fd4", "#82bee2", "#bedcf0"] },
+      "data-pink": { "role": "data", "displayName": "Series Pink", "canonical": "#e47baf", "tonalRamp": ["#3a1428", "#5e2140", "#822e58", "#a63a70", "#c04b88", "#e47baf", "#eca6c9", "#f5d2e4"] },
+      "data-orange": { "role": "data", "displayName": "Series Orange", "canonical": "#f58c42", "tonalRamp": ["#3a1e0d", "#5e3117", "#824420", "#a65728", "#c06e34", "#f58c42", "#f8b17f", "#fcd6bc"] }
+    },
+    "typographyMeta": {
+      "stat": { "displayName": "Stat", "purpose": "Headline mono figures — net worth, wallet balance, KPI values." },
+      "title": { "displayName": "Title", "purpose": "Tracked mono console headers — titlebar and section titles." },
+      "body": { "displayName": "Body", "purpose": "Default Fira Sans UI text, descriptions, nav labels." },
+      "label": { "displayName": "Label", "purpose": "Uppercase tracked mono micro-labels above stats and panels." }
+    },
+    "shadows": [
+      { "name": "panel-lift", "value": "0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Structural glass page panels (the default resting surface)." },
+      { "name": "modal-lift", "value": "0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Dialogs and drawers — the top of the focus stack." },
+      { "name": "toast-lift", "value": "0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Transient floating notifications." },
+      { "name": "selected-glow", "value": "0 0 12px rgba(224,72,58,0.06)", "purpose": "Faint crimson glow on a selected card." },
+      { "name": "focus-ring", "value": "0 0 0 2px rgba(224,72,58,0.08)", "purpose": "Quiet crimson focus ring on inputs." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "ease", "purpose": "Default 0.2s state transitions on nav, buttons, toggles." },
+      { "name": "state-fast", "value": "0.15s", "purpose": "Snappy hover/press feedback on buttons and borders." },
+      { "name": "glow-pulse", "value": "concordGlowPulse 8s ease-in-out infinite (secondary 12s reverse)", "purpose": "Slow ambient breathing of the backdrop blue-nebula glows." },
+      { "name": "ticker-scroll", "value": "ticker-scroll 120s linear infinite", "purpose": "Continuous market-ticker marquee; pauses on hover." }
+    ],
+    "breakpoints": [
+      { "name": "sidebar-expanded", "value": "280px" },
+      { "name": "sidebar-collapsed", "value": "64px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ghost/outline crimson CTA — the primary action, restrained until hover.",
+      "html": "<button class=\"ds-btn-primary\">CALCULATE</button>",
+      "css": ".ds-btn-primary { width: 100%; padding: 10px; background: transparent; border: 1px solid #e0483a; border-radius: 10px; color: #e0483a; font-family: 'Fira Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; transition: all 0.15s; } .ds-btn-primary:hover { background: #e0483a; color: #070a12; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(224,72,58,0.4); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Sidebar navigation button with a fixed 28px icon slot; default gray → hover crimson → active on blue-tint.",
+      "html": "<button class=\"ds-nav-item\"><span class=\"ds-nav-icon\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\"><path d=\"M4 13h6v7H4v-7zm10-9h6v16h-6V4zM4 4h6v7H4V4z\"/></svg></span><span class=\"ds-nav-label\">Dashboard</span></button>",
+      "css": ".ds-nav-item { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(14,18,28,0.85); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; color: #dce0e6; cursor: pointer; font-size: 12px; font-family: 'Fira Sans', sans-serif; transition: all 0.2s ease; } .ds-nav-item:hover { background: rgba(90,110,150,0.14); border-color: #e0483a; color: #e0483a; } .ds-nav-item.ds-active { background: rgba(74,140,220,0.13); border-color: #e0483a; color: #e0483a; } .ds-nav-icon { min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; } .ds-nav-icon svg { fill: currentColor; } .ds-nav-label { flex: 1; text-align: left; }"
+    },
+    {
+      "name": "KPI Stat Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Signature data tile — muted uppercase label over a bright monospace value, with the diagonal hatch overlay.",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-label\">TOTAL NET WORTH</div><div class=\"ds-kpi-value\">4,182,640,915 <span class=\"ds-kpi-unit\">ISK</span></div><div class=\"ds-kpi-sub\">+2.4% · 24H</div></div>",
+      "css": ".ds-kpi { position: relative; overflow: hidden; background: rgba(10,13,20,0.85); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px 14px; } .ds-kpi::after { content: ''; position: absolute; inset: 0; background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,0.010) 0px, rgba(255,255,255,0.010) 0.5px, transparent 0.5px, transparent 4px); pointer-events: none; } .ds-kpi > * { position: relative; z-index: 2; } .ds-kpi-label { font-family: 'Fira Code', monospace; font-size: 9px; font-weight: 700; letter-spacing: 0.15em; color: #909090; margin-bottom: 6px; } .ds-kpi-value { font-family: 'Fira Code', monospace; font-size: 20px; font-weight: 700; color: #e0564b; } .ds-kpi-unit { font-size: 11px; color: #7e858f; font-weight: 400; } .ds-kpi-sub { font-family: 'Fira Code', monospace; font-size: 10px; color: #4ada8a; margin-top: 4px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Deep translucent mono field with a quiet crimson focus glow — no outline.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Type or ISK amount\" value=\"Tritanium\">",
+      "css": ".ds-input { width: 100%; box-sizing: border-box; background: rgba(10,13,20,0.85); border: 1px solid rgba(255,255,255,0.09); border-radius: 8px; color: #c6cbd3; font-family: 'Fira Code', monospace; font-size: 13px; padding: 6px 10px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; } .ds-input::placeholder { color: #565b63; } .ds-input:focus { border-color: rgba(224,72,58,0.4); box-shadow: 0 0 0 2px rgba(224,72,58,0.08); }"
+    },
+    {
+      "name": "Toggle Switch",
+      "kind": "custom",
+      "refersTo": "input",
+      "description": "42×24 pill switch — deep fill + gray knob off, solid crimson + white knob on.",
+      "html": "<label class=\"ds-switch\"><input type=\"checkbox\" checked><span class=\"ds-switch-slider\"></span></label>",
+      "css": ".ds-switch { position: relative; display: inline-block; width: 42px; height: 24px; } .ds-switch input { opacity: 0; width: 0; height: 0; } .ds-switch-slider { position: absolute; inset: 0; cursor: pointer; background: rgba(14,18,28,0.85); border: 1px solid rgba(255,255,255,0.09); border-radius: 24px; transition: background 0.2s ease, border-color 0.2s ease; } .ds-switch-slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; top: 50%; transform: translateY(-50%); background: #dce0e6; border-radius: 50%; transition: transform 0.2s ease, background 0.2s ease; } .ds-switch input:checked + .ds-switch-slider { background: #e0483a; border-color: #e0483a; } .ds-switch input:checked + .ds-switch-slider::before { transform: translate(18px, -50%); background: #fff; }"
+    },
+    {
+      "name": "Count Badge",
+      "kind": "chip",
+      "refersTo": "badge-count",
+      "description": "Pill badge — crimson-dim fill, crimson mono text; the one accent chip in a panel header.",
+      "html": "<span class=\"ds-badge\">12</span>",
+      "css": ".ds-badge { display: inline-block; background: #7d201a; color: #e0483a; font-family: 'Fira Code', monospace; font-size: 10px; padding: 1px 6px; border-radius: 999px; }"
+    },
+    {
+      "name": "Glass Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Structural page panel (the default surface) — translucent tint, backdrop blur, specular rim, panel-lift shadow, tracked header with count badge.",
+      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-header\"><span>BLUEPRINTS</span><span class=\"ds-panel-count\">48</span></div><div class=\"ds-panel-body\">Recursive material calculator ready.</div></div>",
+      "css": ".ds-panel { background: rgba(12,16,24,0.55); backdrop-filter: blur(14px) saturate(145%); -webkit-backdrop-filter: blur(14px) saturate(145%); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; padding: 10px 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.14); color: #ccd1da; } .ds-panel-header { display: flex; align-items: center; gap: 6px; font-family: 'Fira Code', monospace; font-size: 9px; letter-spacing: 0.2em; color: #7e858f; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); } .ds-panel-count { margin-left: auto; background: #7d201a; color: #e0483a; font-size: 10px; padding: 1px 6px; border-radius: 999px; } .ds-panel-body { font-family: 'Fira Sans', sans-serif; font-size: 13px; color: #b4bac4; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Tactical Reeded Glass Terminal",
+    "overview": "EVE Carbon is a dense, utility-forward data overlay whose primary material is translucent fluted glass floating over the operating system — the resting default, not a toggle. It merges the physical, refractive identity of reeded glass with an all-business tactical layout: subdued blue-nebula glows bleed through from behind, contrasting with crisp edges, hatch textures, and scanline-thin scrollbars on the surface. The chrome is deliberately near-invisible so that the information-heavy data and the textured glass remain the sole focus.\n\nThe system lives in a permanent tension between two registers. The backdrop is cinematic: cool deep-space black, twin ambient blue glows that pulse slowly, a whisper-fine diagonal hatch, and acrylic glass refracting the desktop. The foreground is instrument-grade: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win.\n\nThis is EVE Carbon's own identity, not a reskin of the in-game client. A single built-in theme ships — Default (Nebula Glass): cool deep-space surfaces, a refined crimson signal over blue nebula. There are no other named presets; users recolour by editing the 16-swatch palette, and every colour routes through tokens so a custom palette repaints the whole terminal at once.",
+    "keyCharacteristics": [
+      "Translucent reeded/acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.",
+      "Instrument-grade data foreground: monospace values, uppercase tracked labels, crisp white-alpha hairline structure.",
+      "Sharp 2px geometry that rounds into glass as the default surface treatment; a clear focus/blur depth hierarchy for overlays.",
+      "A single restrained crimson signal riding on top of an eight-hue data palette that carries all quantitative meaning.",
+      "Total themeability by derivation — a ~120-token map computed from just 16 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes)."
+    ],
+    "rules": [
+      { "name": "The Accent-Is-A-Role Rule", "body": "Never hardcode the highlight color. The accent is roles.accent resolved against the active 16-swatch palette and expressed only through the --accent* tokens. A literal crimson hex breaks every user palette instantly.", "section": "colors" },
+      { "name": "The Derive-Don't-Author Rule", "body": "Any new accent tint, hue variant, or state color is generated from a swatch via the theme-vars.js helpers (hexToRgba / lighten / darken), not typed as a fresh literal. Sixteen swatches are the only hand-set colors; the rest is math so themes stay coherent.", "section": "colors" },
+      { "name": "The One Signal Rule", "body": "The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead.", "section": "colors" },
+      { "name": "The Token-Or-Nothing Rule", "body": "No chart, KPI, badge, or status may hardcode one of the eight data hues. Reference --pal-* / --chart-* so a user palette repaints the whole app. A raw hex in a component is a bug.", "section": "colors" },
+      { "name": "The Color-Is-Not-The-Only-Signal Rule", "body": "In dense data views, color reinforces meaning but never carries it alone — pair every hue with a label, icon, sign, or position.", "section": "colors" },
+      { "name": "The Numbers-Are-Mono Rule", "body": "Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is how the eye finds the data.", "section": "typography" },
+      { "name": "The Muted-Label / Bright-Value Rule", "body": "Labels are muted and tracked (--label-muted); the value they describe is bright (--value-bright). Never invert this, and never inline-style either — always class + token.", "section": "typography" },
+      { "name": "The Focus-Stack Rule", "body": "Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing at the same clarity.", "section": "elevation" },
+      { "name": "The Ambient-Glow-Never-Interacts Rule", "body": "The nebula glows are backdrop only: z-index:0, pointer-events:none, mix-blend-mode:screen. They set mood behind the frame and never touch, tint, or obscure data.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do route every chart, KPI, badge, and status color through the --pal-* / --chart-* tokens so a user palette repaints the whole app.",
+      "Do treat the accent as a role over a 16-swatch palette — bind it via roles.accent and consume it only through --accent*, so the Default theme and every user palette resolve correctly.",
+      "Do set every quantity in Fira Code and every piece of language in Fira Sans.",
+      "Do keep labels muted and tracked (--label-muted) with the value they describe bright (--value-bright) — via class + token, never inline style.",
+      "Do encode focus with depth: the active surface is sharp and lifted; blur and dim whatever it sits on top of. When an overlay opens, blur and scrim the layer behind it.",
+      "Do hold the tension: cinematic atmosphere in the backdrop, instrument-grade precision in the foreground.",
+      "Do keep the accent rare enough to still signal — mark the single most important state or action per surface.",
+      "Do use the fixed 28px nav icon slot so Material (18px) and EVE-neocom (28px) glyphs share a baseline."
+    ],
+    "donts": [
+      "Don't hardcode one of the eight data hues, or inline-style any color in JS markup — always class + token.",
+      "Don't hardcode the accent color — it is roles.accent over the active palette, expressed only through --accent*. A literal crimson hex breaks every user palette.",
+      "Don't type a fresh accent tint or hue variant by hand — derive it from a swatch via theme-vars.js (hexToRgba / lighten / darken). Only the 16 swatches are hand-set.",
+      "Don't leave two planes competing at the same clarity — an open overlay must take focus while the layer behind it blurs and dims.",
+      "Don't let the ambient nebula glows become interactive, tint data, or leave pointer-events:none / z-index:0.",
+      "Don't set numbers in the sans font or spread the accent across a field of equally-weighted buttons.",
+      "Don't add manual Sync/Refresh buttons — data auto-refreshes on ESI's own cache cadence.",
+      "Don't use emoji in the app chrome; use the Material or EVE-neocom icon families.",
+      "Don't re-introduce a YAML/JS theme engine or add a second named preset — there is one built-in theme (theme-default.css); user palettes are generated plain-CSS files, one custom property per token."
+    ]
+  }
+}

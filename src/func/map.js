@@ -34,7 +34,7 @@ let _dragPX      = 0, _dragPY  = 0;
 let _hovered     = null;
 let _selected    = null;
 let _overlay     = 'security';
-let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + IHUB diamonds) on by default
+let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + endpoint diamonds) on by default
 let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
 let _viewMode    = 'modern'; // 'classic' (original look) | 'modern' (flat DOTLAN-style, default)
 
@@ -57,6 +57,13 @@ let _systems     = [];        // [{id, name, wx, wz, sec, regionId, factionId}]
 let _jumps       = [];        // [{from, to}]
 let _sovMap      = {};        // {systemId: {allianceId, factionId, corporationId}}
 let _incSet      = new Set();
+// Systems sitting at either end of one of the user's saved bridges — drawn as a
+// gold diamond so an endpoint stays findable when its arc runs off-screen.
+// This used to be "systems holding an IHUB", fetched from ESI as a proxy for
+// "a jump bridge could be anchored here". Equinox made sov itself a sovereignty
+// hub, so that set became *every* sov system and the diamond marked the whole of
+// null-sec — see the endpoint note in src/ipc/map_ipc.js. Derived from
+// _savedBridges now, which is the only real jump-bridge data we have.
 let _jbSet           = new Set();
 let _savedBridges    = [];        // user's saved Ansiblex bridges [[idA,idB],…] drawn as green arcs
 let _regions         = {};        // {regionId: name}
@@ -66,6 +73,7 @@ let _sysById         = {};        // {systemId: system}  — O(1) lookup
 let _regionCentroids    = {};   // {regionId: {wx, wz}}
 let _regionDomSov       = {};   // {regionId: {label, color, isFaction, entityId}}
 let _allianceTickers    = {};   // {allianceId: ticker}  — cached after first fetch
+let _allianceNames      = {};   // {allianceId: name}    — influence territory titles
 
 // Pending jump — set by window.mapJumpToSystem before galaxy data is ready
 let _pendingJumpSystemId = null;
@@ -572,35 +580,48 @@ function _computeRegionDomSov() {
   }
 }
 
-// Fetch tickers for all player-alliance dominant holders in one pass.
-// Skips any IDs already in _allianceTickers.
-async function _fetchDomTickers() {
-  const needed = [];
-  for (const dom of Object.values(_regionDomSov)) {
-    if (!dom.isFaction && dom.entityId && !_allianceTickers[dom.entityId]) {
-      needed.push(dom.entityId);
-    }
-  }
-  if (!needed.length) return;
-
+// Resolve alliance ticker + full name for the given IDs in one batched call,
+// skipping any already known. Region labels use the ticker (short, fits under a
+// region name); the influence field's territory titles use the name.
+// Returns true when anything new landed, so callers can re-render.
+async function _fetchAllianceIdents(ids) {
+  const needed = [...new Set(ids)].filter(id => id && !_allianceNames[id]);
+  if (!needed.length) return false;
   try {
     const result = await window.eveAPI.mapGetAllianceTickers(needed);
-    let changed  = false;
-    for (const [id, ticker] of Object.entries(result)) {
-      _allianceTickers[parseInt(id, 10)] = ticker;
+    let changed = false;
+    for (const [id, ident] of Object.entries(result)) {
+      const n = parseInt(id, 10);
+      if (ident && typeof ident === 'object') {
+        if (ident.ticker) _allianceTickers[n] = ident.ticker;
+        if (ident.name)   _allianceNames[n]   = ident.name;
+      } else if (ident) {
+        _allianceTickers[n] = ident;   // pre-name cache entry (bare ticker string)
+      }
       changed = true;
     }
-    if (changed) {
-      // Patch in tickers now that we have them, then re-render
-      for (const dom of Object.values(_regionDomSov)) {
-        if (!dom.isFaction && dom.entityId) {
-          dom.label = _allianceTickers[dom.entityId] || dom.label;
-        }
-      }
-      _scheduleRender();
-    }
+    return changed;
   } catch (e) {
-    console.warn('[Map] Ticker fetch failed:', e.message);
+    console.warn('[Map] alliance ident fetch failed:', e.message);
+    return false;
+  }
+}
+
+// Fetch tickers for all player-alliance dominant holders in one pass.
+async function _fetchDomTickers() {
+  const needed = Object.values(_regionDomSov)
+    .filter(d => !d.isFaction && d.entityId && !_allianceTickers[d.entityId])
+    .map(d => d.entityId);
+  if (!needed.length) return;
+
+  if (await _fetchAllianceIdents(needed)) {
+    // Patch in tickers now that we have them, then re-render
+    for (const dom of Object.values(_regionDomSov)) {
+      if (!dom.isFaction && dom.entityId) {
+        dom.label = _allianceTickers[dom.entityId] || dom.label;
+      }
+    }
+    _scheduleRender();
   }
 }
 
@@ -624,6 +645,16 @@ function _regularPolyPath(ctx, cx, cy, r, sides) {
 
 // Colour a system's dot uses under the current overlay (shared by both views).
 function _systemColor(s) {
+  // With the influence field up, a dot's job changes: the security ramp paints
+  // every null system the same rose (_secColorModern), which on top of per-holder
+  // territory reads as pink confetti over an unrelated map. Tint the dot to the
+  // territory it sits in instead, lifted so it still stands off its own ground.
+  // Systems no holder reaches — empire, NPC null, w-space — keep the overlay's
+  // own colour, so the field only overrides where it has something to say.
+  if (_infActive() && _infSysCol) {
+    const col = _infSysCol.get(s.id);
+    if (col) return _infLighten(col);
+  }
   switch (_overlay) {
     case 'sovereignty': return _sovColor(s.id);
     case 'fnf':         return _fnfColor(s);
@@ -656,6 +687,423 @@ function _resolveSpecialRegionIds() {
       if (name === 'Exordium') { _exordiumRegionId = Number(rid); break; }
     }
   }
+}
+
+// ── Influence field (Verite-style territory blobs) ───────────────────────────
+// Verite Rendition's sov map doesn't colour systems, it colours *territory*:
+// "different systems generate different amounts of influence which are then
+// transmitted to nearby systems" (evenews24.com/verite-renditions-sov-map).
+// Same model here. Every player-sov system emits influence for whoever holds it;
+// that influence travels outward along the GATE GRAPH (not raw distance — a
+// system two jumps away is closer in EVE terms than one across a rift), decaying
+// per hop. The result is painted as a hex field where the strongest holder wins
+// each cell. Cells won by the same holder share their edges exactly, so they
+// fuse into one contiguous shape — that's the "tiles lock together" effect —
+// and a blurred additive second pass gives the whole thing its glow.
+//
+// Drawn under everything else (right after the background) so gates, dots and
+// labels stay legible on top, exactly as on Verite's maps.
+const INF_JUMPS    = 3;      // gate hops influence travels
+const INF_DECAY    = 0.45;   // strength multiplier per hop
+const INF_MIN      = 0.02;   // stop propagating below this
+const INF_HEX      = 0.6;    // hex circumradius, in median-gate-lengths
+const INF_SPREAD   = 2.2;    // how far one system paints, in median-gate-lengths
+const INF_BANDS    = 5;      // alpha quantisation (keeps fills batched)
+const INF_FILL     = 0.42;   // flat territory alpha at full strength
+const INF_GLOW     = 0.34;   // additive blurred pass alpha
+const INF_BLUR_MAX = 28;     // glow radius cap, px
+const INF_TITLE_MIN   = 10;   // min cells in a territory before it gets a title
+// Title size in px, lerped across the zoom range — and deliberately INVERTED:
+// biggest at the galaxy overview, where a bloc name is all you can read anyway,
+// and smallest zoomed in, where system names carry the detail and a huge holder
+// name would just sit on top of them.
+const INF_TITLE_PX_OUT = 24;  // galaxy overview
+const INF_TITLE_PX_IN  = 12;  // zoomed right in
+const INF_TITLE_ROOM  = 2.5;  // territory must cover this × the title's own area
+
+let _showInf   = false;  // toolbar toggle
+let _infCells  = null;   // { byBatch: Map("colour|band" → [x,z,…]), R, titles } world units
+let _infKey    = '';     // cache key for the above (data + colour source + view)
+let _infBuf    = null;   // offscreen canvas the field is painted into
+let _infBufKey = '';     // cache key for the buffer (adds the view transform)
+let _infSysCol = null;   // systemId → its territory's colour (tints the dots)
+
+// Is the field actually part of the current picture? The region view deliberately
+// doesn't draw it (see _renderRegion), and everything that keys off the field —
+// dot tints, titles, hiding region names — has to agree with that, or a region
+// would show influence-tinted dots floating over no territory at all.
+function _infActive() {
+  return _showInf && !(_viewMode === 'modern' && _regionView != null);
+}
+
+// Everyone you have no standing toward holds ~40% of null between them. At the
+// dot palette's near-white that would be most of the glow, drowning out the
+// colours you actually care about, so the field substitutes a dim slate — the
+// one place it deliberately departs from the overlay's own legend.
+const INF_NEUTRAL = '#5c6478';
+
+// Which colour a system contributes to the field. Player sov only: NPC/faction
+// "claims" cover the whole of empire space and would smear the entire map, and
+// unclaimed null has nobody to attribute. The palette follows the active
+// overlay — Friends & Foes gives the standings view (your teal, blue +5/+10,
+// orange/red hostiles), anything else gives per-alliance territory colours.
+function _infColorOf(s) {
+  const sov = _sovMap[s.id];
+  if (!sov || sov.allianceId == null) return null;
+  if (_overlay !== 'fnf') return _sovColor(s.id);
+  const c = _fnfColor(s);
+  return c === '#cfd3db' ? INF_NEUTRAL : c;
+}
+
+// The field tracks the actual HOLDER per cell, not the colour, because under
+// Friends & Foes a colour is a standings class shared by dozens of alliances —
+// "+10 blue" can't title a territory. Colour is derived from the winning holder
+// afterwards via a system it actually owns, so the tier thresholds stay defined
+// in exactly one place (_fnfColor).
+// Returns Map(allianceId → { rep, colour }) where rep is a representative system.
+function _infHolders() {
+  const holders = new Map();
+  for (const s of _systems) {
+    const sov = _sovMap[s.id];
+    if (!sov || sov.allianceId == null || holders.has(sov.allianceId)) continue;
+    const colour = _infColorOf(s);
+    if (colour) holders.set(sov.allianceId, { rep: s, colour });
+  }
+  return holders;
+}
+
+// Median gate length in whatever position space we're drawing. Everything else
+// is expressed as a multiple of this, so the field keeps the same visual density
+// in Classic, the Modern galaxy overview and a Modern region — three coordinate
+// spaces with wildly different scales.
+function _infMedianGate(posOf) {
+  const lens = [];
+  for (const j of _jumps) {
+    if (j.from > j.to) continue;               // each edge once
+    const a = posOf(j.from), b = posOf(j.to);
+    if (!a || !b) continue;
+    lens.push(Math.hypot(a.x - b.x, a.z - b.z));
+  }
+  if (!lens.length) return 0;
+  lens.sort((x, y) => x - y);
+  return lens[Math.floor(lens.length / 2)] || 0;
+}
+
+// Spread each holder's influence out over the gate graph. Reaching a system by
+// several routes stacks — a system deep inside one alliance's space accumulates
+// far more than a border system its neighbour also pushes into, which is what
+// makes borders land where they intuitively should.
+function _infPropagate(holders) {
+  _ensureGateAdj();
+  const bump = (m, id, aid, w) => {
+    let c = m.get(id);
+    if (!c) m.set(id, c = new Map());
+    c.set(aid, (c.get(aid) || 0) + w);
+  };
+
+  const acc = new Map();          // sysId → Map(allianceId → weight)
+  let frontier = new Map();
+  for (const s of _systems) {
+    const aid = _sovMap[s.id]?.allianceId;
+    if (aid == null || !holders.has(aid)) continue;
+    bump(acc, s.id, aid, 1);
+    bump(frontier, s.id, aid, 1);
+  }
+
+  for (let hop = 0; hop < INF_JUMPS; hop++) {
+    const next = new Map();
+    for (const [id, hs] of frontier) {
+      const nbs = _gateAdj.get(id);
+      if (!nbs) continue;
+      for (const nb of nbs) {
+        for (const [aid, w] of hs) {
+          const nw = w * INF_DECAY;
+          if (nw < INF_MIN) continue;
+          bump(acc, nb, aid, nw);
+          bump(next, nb, aid, nw);
+        }
+      }
+    }
+    frontier = next;
+  }
+
+  const out = [];
+  for (const [id, hs] of acc) {
+    let ba = null, bw = 0;
+    for (const [aid, w] of hs) if (w > bw) { bw = w; ba = aid; }
+    if (ba != null) out.push({ id, aid: ba, w: bw });
+  }
+  return out;
+}
+
+// Cube-round an axial hex coordinate to the nearest whole cell.
+function _hexRound(q, r) {
+  const x = q, z = r, y = -x - z;
+  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz)  rx = -ry - rz;
+  else if (dy > dz)        ry = -rx - rz;
+  else                     rz = -rx - ry;
+  return [rx, rz];
+}
+
+// Paint the propagated influence into pointy-top hex cells. Each system splats a
+// squared-falloff disc of its holder's colour over the cells within reach; every
+// cell then goes to whichever holder pushed hardest into it.
+function _infBuildCells(posOf) {
+  const pitch = _infMedianGate(posOf);
+  if (!pitch) return null;
+  const holders = _infHolders();
+  if (!holders.size) return null;
+  const nodes = _infPropagate(holders);
+  if (!nodes.length) return null;
+
+  const R      = pitch * INF_HEX;
+  const spread = pitch * INF_SPREAD;
+  const reach  = Math.ceil(spread / (1.5 * R)) + 1;
+
+  // Per-system winner, so the dots can be tinted to the territory they sit in.
+  _infSysCol = new Map();
+  for (const n of nodes) _infSysCol.set(n.id, holders.get(n.aid).colour);
+
+  const cells = new Map();        // "q,r" → { q, r, x, z, hs: Map(allianceId → weight) }
+  for (const n of nodes) {
+    const p = posOf(n.id);
+    if (!p) continue;
+    const [cq, cr] = _hexRound(
+      (Math.sqrt(3) / 3 * p.x - p.z / 3) / R,
+      (2 / 3 * p.z) / R
+    );
+    for (let dq = -reach; dq <= reach; dq++) {
+      for (let dr = -reach; dr <= reach; dr++) {
+        const q = cq + dq, r = cr + dr;
+        const x = R * Math.sqrt(3) * (q + r / 2);
+        const z = R * 1.5 * r;
+        const d = Math.hypot(x - p.x, z - p.z);
+        if (d > spread) continue;
+        const f = (1 - d / spread) ** 2;
+        const k = q + ',' + r;
+        let c = cells.get(k);
+        if (!c) cells.set(k, c = { q, r, x, z, hs: new Map() });
+        c.hs.set(n.aid, (c.hs.get(n.aid) || 0) + n.w * f);
+      }
+    }
+  }
+
+  // Collapse to one winner per cell, then bucket by colour + quantised alpha so
+  // the whole field draws in a handful of batched fills instead of per-cell.
+  const byBatch = new Map();
+  const won     = new Map();      // "q,r" → { cell, aid }
+  for (const [k, c] of cells) {
+    let ba = null, bw = 0, tot = 0;
+    for (const [aid, w] of c.hs) { tot += w; if (w > bw) { bw = w; ba = aid; } }
+    if (ba == null) continue;
+    const band = Math.ceil(Math.min(1, tot * 0.55) * INF_BANDS);
+    if (band <= 0) continue;
+    const colour = holders.get(ba).colour;
+    const bk = colour + '|' + band;
+    let arr = byBatch.get(bk);
+    if (!arr) byBatch.set(bk, arr = []);
+    arr.push(c.x, c.z);
+    won.set(k, { cell: c, aid: ba });
+  }
+
+  return { byBatch, R, titles: _infTitles(won, holders) };
+}
+
+// Flood-fill the won cells into contiguous same-holder territories and place one
+// title at each one's centroid. A holder split across the map (staging pocket
+// here, home region there) rightly gets a title per blob rather than one label
+// floating in the gap between them.
+function _infTitles(won, holders) {
+  const NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+  const seen = new Set();
+  const titles = [];
+
+  for (const [k0, w0] of won) {
+    if (seen.has(k0)) continue;
+    seen.add(k0);
+    const stack = [k0];
+    let sx = 0, sz = 0, n = 0;
+    while (stack.length) {
+      const k = stack.pop();
+      const w = won.get(k);
+      sx += w.cell.x; sz += w.cell.z; n++;
+      for (const [dq, dr] of NB) {
+        const nk = (w.cell.q + dq) + ',' + (w.cell.r + dr);
+        if (seen.has(nk)) continue;
+        const nw = won.get(nk);
+        if (!nw || nw.aid !== w0.aid) continue;
+        seen.add(nk);
+        stack.push(nk);
+      }
+    }
+    if (n < INF_TITLE_MIN) continue;      // too small to be worth naming
+    titles.push({ x: sx / n, z: sz / n, aid: w0.aid, cells: n,
+                  colour: holders.get(w0.aid).colour });
+  }
+  // Biggest first: the declutter pass below keeps whichever it reaches first, so
+  // a major bloc's title always wins its ground over a small neighbour's.
+  titles.sort((a, b) => b.cells - a.cells);
+  return titles;
+}
+
+function _infInvalidate() { _infKey = ''; _infBufKey = ''; }
+
+// The --mono custom property, resolved to something canvas will actually accept.
+// Re-read each call (once per frame) rather than cached, so a theme switch that
+// changes the stack takes effect without a reload.
+function _monoStack() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--mono').trim();
+  return v || 'monospace';
+}
+
+// Anything drawn ON a territory — its title, its system dots — comes from the
+// same colour as the territory itself, and _allianceColor's hsl(h,62%,42%) over
+// a field of hsl(h,62%,42%) is nearly invisible. Lift it well clear of the
+// background while keeping the hue, so it still reads as belonging to the
+// ground under it.
+function _infLighten(colour) {
+  const hsl = /^hsl\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*\)$/.exec(colour);
+  if (hsl) return `hsl(${hsl[1]},${Math.min(100, +hsl[2] + 18)}%,78%)`;
+  const hex = /^#([0-9a-f]{6})$/i.exec(colour);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    const mix = c => Math.round(c + (255 - c) * 0.5);
+    return `rgb(${mix((n >> 16) & 255)},${mix((n >> 8) & 255)},${mix(n & 255)})`;
+  }
+  return colour;
+}
+
+// Territory titles — who actually owns the ground you're looking at, in the
+// holder's own colour so a title reads as belonging to the blob under it. Drawn
+// LAST by each view (unlike the field itself, which goes underneath everything)
+// so nothing overprints them.
+//
+// Sized off the caller's own region-title size, which the views compute
+// differently and clamp between their own bounds — so they pass those bounds in
+// too, and the scale below rides them: biggest zoomed right in, more restrained
+// at the galaxy overview where the names have to share the screen.
+function _drawInfluenceTitles(ctx, W, H, baseFont, baseMin, baseMax) {
+  if (!_infActive() || !_infCells || !_infCells.titles.length) return;
+
+  // baseFont is the caller's own region-title size, clamped between its bounds —
+  // used here purely as a normalised "how zoomed in am I" for the lerp.
+  const t01 = baseMax > baseMin ? (baseFont - baseMin) / (baseMax - baseMin) : 1;
+  const fs  = INF_TITLE_PX_OUT + (INF_TITLE_PX_IN - INF_TITLE_PX_OUT) * t01;
+
+  ctx.save();
+  // Resolve --mono to a real family list. Canvas 2D parses `font` as a CSS
+  // shorthand VALUE, not as a declaration, so var() never gets substituted — the
+  // whole string fails to parse and the assignment is silently dropped, leaving
+  // the context on its default 10px sans-serif. (Verified: setting
+  // "30.4px var(--mono, monospace)" reads back "10px sans-serif".) Every other
+  // ctx.font in this file still has that bug and is drawing at 10px sans-serif.
+  ctx.font         = `${fs.toFixed(1)}px ${_monoStack()}`;
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor  = 'rgba(0,0,0,0.95)';
+  ctx.shadowBlur   = 7;
+
+  // A territory only gets named once it's big enough ON SCREEN to carry the
+  // name — hex area × cells × zoom². That's what makes this readable at a
+  // glance: zoomed out to the whole galaxy you get the handful of blocs that
+  // actually own the picture, and smaller holders name themselves as you zoom
+  // into them, instead of 85 labels fighting over the same pixels at every zoom.
+  const cellArea = 2.598 * _infCells.R * _infCells.R * _zoom * _zoom;
+
+  // Greedy declutter: titles are pre-sorted biggest-territory-first, so a small
+  // holder never elbows a major bloc's name off its own space.
+  const placed = [];
+  for (const t of _infCells.titles) {
+    const name = _allianceNames[t.aid] || _allianceTickers[t.aid];
+    if (!name) continue;                        // still resolving — skip, not "Alliance 99…"
+    const [cx, cy] = _w2c(t.x, t.z);
+    if (cx < -60 || cx > W + 60 || cy < -30 || cy > H + 30) continue;
+    const textW = ctx.measureText(name).width;
+    if (t.cells * cellArea < textW * fs * INF_TITLE_ROOM) continue;
+    const halfW = textW / 2 + fs * 0.4;
+    if (placed.some(p => Math.abs(p.cx - cx) < p.halfW + halfW && Math.abs(p.cy - cy) < fs * 1.8)) continue;
+    placed.push({ cx, cy, halfW });
+    ctx.fillStyle = _infLighten(t.colour);
+    ctx.fillText(name, cx, cy);
+  }
+  ctx.restore();
+}
+
+// Paint the field, then composite it twice: once flat (the territory) and once
+// blurred and additive (the glow). posOf maps a system id to its {x,z} in the
+// caller's coordinate space, so all three views share this one drawer.
+function _drawInfluenceField(ctx, W, H, posOf) {
+  if (!_infActive()) return;
+
+  const key = [_viewMode, _regionView, _overlay, Object.keys(_sovMap).length, _fnfLoaded].join('|');
+  if (key !== _infKey) {
+    _infKey = key;
+    _infCells = _infBuildCells(posOf);
+    _infBufKey = '';
+    // Resolve the names for the titles. Fires once per rebuild (the key guard
+    // above), and re-renders when they land so titles appear without a nudge.
+    if (_infCells && _infCells.titles.length) {
+      _fetchAllianceIdents(_infCells.titles.map(t => t.aid))
+        .then(changed => { if (changed) _scheduleRender(); });
+    }
+  }
+  const F = _infCells;
+  if (!F || !F.byBatch.size) return;
+
+  if (!_infBuf || _infBuf.width !== W || _infBuf.height !== H) {
+    _infBuf = document.createElement('canvas');
+    _infBuf.width = W; _infBuf.height = H;
+    _infBufKey = '';
+  }
+
+  // A hair of overlap kills the antialiased hairlines that would otherwise show
+  // every hex seam inside what should read as one solid territory.
+  const rPx = F.R * _zoom * 1.02;
+  if (rPx < 0.35) return;                       // zoomed out past usefulness
+
+  // Repaint the buffer only when the view actually moved — a still map composites
+  // two cached drawImage calls per frame instead of rebuilding tens of thousands
+  // of hexes.
+  const tkey = `${key}|${W}x${H}|${_panX.toFixed(1)}|${_panY.toFixed(1)}|${_zoom}`;
+  if (_infBufKey !== tkey) {
+    _infBufKey = tkey;
+    const b = _infBuf.getContext('2d');
+    b.clearRect(0, 0, W, H);
+    const m = rPx * 2;
+    for (const [k, xs] of F.byBatch) {
+      const cut  = k.lastIndexOf('|');
+      b.fillStyle   = k.slice(0, cut);
+      b.globalAlpha = (Number(k.slice(cut + 1)) / INF_BANDS) * INF_FILL;
+      b.beginPath();
+      for (let i = 0; i < xs.length; i += 2) {
+        const [cx, cy] = _w2c(xs[i], xs[i + 1]);
+        if (cx < -m || cx > W + m || cy < -m || cy > H + m) continue;
+        for (let v = 0; v < 6; v++) {
+          const a  = Math.PI / 180 * (60 * v - 30);   // pointy-top
+          const px = cx + rPx * Math.cos(a), py = cy + rPx * Math.sin(a);
+          if (v === 0) b.moveTo(px, py); else b.lineTo(px, py);
+        }
+        b.closePath();
+      }
+      b.fill();
+    }
+    b.globalAlpha = 1;
+  }
+
+  ctx.save();
+  ctx.globalAlpha = INF_GLOW;
+  ctx.globalCompositeOperation = 'lighter';
+  // Glow scales with the tiles themselves, so the bloom looks the same whether
+  // you're at the galaxy overview or zoomed into one region.
+  ctx.filter = `blur(${Math.max(4, Math.min(INF_BLUR_MAX, rPx * 3)).toFixed(1)}px)`;
+  ctx.drawImage(_infBuf, 0, 0);
+  ctx.filter = 'none';
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.drawImage(_infBuf, 0, 0);
+  ctx.restore();
 }
 
 // Flat, solid, straight gate links for the modern view: thin neutral grey for
@@ -746,102 +1194,21 @@ function _pickStubDir(px, pz, cX, cZ, blocked, free) {
   return best;
 }
 
-// Compute clean schematic NODE positions for one region from its intra-region gate
-// graph: a LAYERED grid (BFS depth = row, ordered columns = slot) whose long axis is a
-// straight vertical spine, with dead-end spurs hung off at right angles. Returns
-// { sys, pos:Map(id→{x,z}) centred on the origin, adj, inRegion }. Pure (no globals) —
-// shared by the single-region view and the galaxy overview.
-function _computeRegionPositions(regionId) {
+// The intra-region gate graph for one region: its systems, the adjacency between
+// them, and a membership set. Node POSITIONS no longer come from here — see
+// _buildRegionLayout, which uses the force layout instead. (This used to also
+// compute a layered BFS grid; that produced the tall vertical ribbon and its only
+// consumer now discards it, so it's gone — `git log` has it if it's ever wanted.)
+// Pure (no globals beyond _systems / _jumps).
+function _regionGraph(regionId) {
   const sys = _systems.filter(s => s.regionId === regionId && s.id < 31000000);
-  const pos = new Map();
   const inRegion = new Set(sys.map(s => s.id));
   const adj = new Map(sys.map(s => [s.id, []]));
-  if (!sys.length) return { sys, pos, adj, inRegion };
+  if (!sys.length) return { sys, adj, inRegion };
 
   for (const j of _jumps) if (inRegion.has(j.from) && inRegion.has(j.to)) adj.get(j.from).push(j.to);
   for (const [k, v] of adj) adj.set(k, [...new Set(v)]);
-  const deg = (id) => adj.get(id).length;
-
-  const bfs = (src) => {
-    const dist = new Map([[src, 0]]);
-    const q = [src];
-    for (let qi = 0; qi < q.length; qi++) {
-      const u = q[qi], du = dist.get(u);
-      for (const v of adj.get(u)) if (!dist.has(v)) { dist.set(v, du + 1); q.push(v); }
-    }
-    return dist;
-  };
-
-  // Spine = an approximate diameter (double BFS); root + far2 are its endpoints.
-  let seed = sys[0].id;
-  for (const s of sys) if (deg(s.id) === 1) { seed = s.id; break; }
-  let dseed = bfs(seed), root = seed, fd = -1;
-  for (const [id, dv] of dseed) if (dv > fd) { fd = dv; root = id; }
-  const depth = bfs(root);
-  let far2 = root, fd2 = -1;
-  for (const [id, dv] of depth) if (dv > fd2) { fd2 = dv; far2 = id; }
-  let maxD = 0; for (const dv of depth.values()) maxD = Math.max(maxD, dv);
-  for (const s of sys) if (!depth.has(s.id)) depth.set(s.id, ++maxD);   // isolated → below
-
-  const isLeaf = (id) => deg(id) === 1 && id !== root && id !== far2 && deg(adj.get(id)[0]) >= 2;
-
-  const layers = [];
-  for (const s of sys) {
-    if (isLeaf(s.id)) continue;
-    const dv = depth.get(s.id);
-    (layers[dv] || (layers[dv] = [])).push(s.id);
-  }
-
-  const slot = new Map();
-  for (let dv = 0; dv < layers.length; dv++) {
-    const layer = layers[dv];
-    if (!layer || !layer.length) continue;
-    const bc = new Map();
-    for (const id of layer) {
-      let sum = 0, c = 0;
-      for (const v of adj.get(id)) if (slot.has(v)) { sum += slot.get(v); c++; }
-      bc.set(id, c ? sum / c : 0);
-    }
-    layer.sort((a, b) => (bc.get(a) - bc.get(b)) || (a - b));
-    let prev = -Infinity, sumAssigned = 0, sumBc = 0;
-    const assigned = [];
-    for (const id of layer) {
-      let s = Math.round(bc.get(id));
-      if (s <= prev) s = prev + 1;
-      prev = s; assigned.push(s); sumAssigned += s; sumBc += bc.get(id);
-    }
-    const shift = Math.round((sumBc - sumAssigned) / layer.length);
-    layer.forEach((id, i) => slot.set(id, assigned[i] + shift));
-  }
-
-  for (const id of slot.keys()) pos.set(id, { x: slot.get(id) * _REGION_CELL, z: depth.get(id) * _REGION_CELL });
-
-  // Hang each leaf one cell off its parent in a clean outward direction.
-  const ck = (x, z) => Math.round(x / _REGION_CELL) + '|' + Math.round(z / _REGION_CELL);
-  let cX0 = 0, cZ0 = 0; for (const p of pos.values()) { cX0 += p.x; cZ0 += p.z; } cX0 /= (pos.size || 1); cZ0 /= (pos.size || 1);
-  const occ = new Set(); for (const p of pos.values()) occ.add(ck(p.x, p.z));
-  const edgeDirs = (id, here) => {
-    const set = new Set();
-    for (const v of adj.get(id)) { const vp = pos.get(v); if (vp) { const i = _dir8(vp.x - here.x, vp.z - here.z); if (i >= 0) set.add(i); } }
-    return set;
-  };
-  for (const s of sys) {
-    if (!isLeaf(s.id)) continue;
-    const P = adj.get(s.id)[0], pp = pos.get(P);
-    if (!pp) { pos.set(s.id, { x: 0, z: depth.get(s.id) * _REGION_CELL }); continue; }
-    const free = (i) => !occ.has(ck(pp.x + _REGION_DIRS[i][0] * _REGION_CELL, pp.z + _REGION_DIRS[i][1] * _REGION_CELL));
-    const di = _pickStubDir(pp.x, pp.z, cX0, cZ0, edgeDirs(P, pp), free);
-    const lx = pp.x + _REGION_DIRS[di][0] * _REGION_CELL, lz = pp.z + _REGION_DIRS[di][1] * _REGION_CELL;
-    occ.add(ck(lx, lz));
-    pos.set(s.id, { x: lx, z: lz });
-  }
-
-  // Centre the cluster on the origin (so the galaxy view can place + rotate it).
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of pos.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
-  const mx = (minX + maxX) / 2, mz = (minZ + maxZ) / 2;
-  for (const p of pos.values()) { p.x -= mx; p.z -= mz; }
-  return { sys, pos, adj, inRegion };
+  return { sys, adj, inRegion };
 }
 
 // Single-region view layout: clean node positions + clickable inter-region gate
@@ -850,8 +1217,35 @@ function _buildRegionLayout(regionId) {
   const cached = _regionCache.get(regionId);
   if (cached) { _regionLayout = cached.layout; _regionExits = cached.exits; _regionLayoutId = regionId; return _regionLayout; }
 
-  const { sys, pos, adj, inRegion } = _computeRegionPositions(regionId);
-  const map = pos, exits = [];
+  // Node positions come from the force layout. The previous layered grid put BFS
+  // depth on one axis and slot-within-layer on the other, so a chain-shaped
+  // region (most of null) came out as a ribbon tens of layers long and two or
+  // three wide — a narrow vertical stack down the middle of a landscape canvas,
+  // with the whole width wasted either side.
+  // The force layout is seeded from the systems' true positions and relaxes every
+  // gate to one rest length, so a region keeps its real shape and spreads over
+  // both axes. It's the same layout the galaxy overview's clusters already use.
+  const { sys, adj, inRegion } = _regionGraph(regionId);
+  const map = new Map(), exits = [];
+  for (const [id, p] of _regionForceLayout(sys.map(s => s.id), adj)) {
+    map.set(id, { x: p.x * _REGION_CELL, z: p.z * _REGION_CELL });
+  }
+
+  // Lay the region's long axis across the canvas. Regions are elongated in real
+  // space and the direction is arbitrary, so an unrotated Delve arrives 1650×1980
+  // — overflowing a landscape viewport vertically while leaving the sides empty.
+  // Rotating the dominant axis (same 2-D PCA the overview orients clusters with)
+  // onto the horizontal spends the space we actually have. Done BEFORE the exit
+  // stubs below so they're placed against the final positions.
+  if (map.size > 2) {
+    const ang = _pcaAngle([...map.values()]);
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    for (const p of map.values()) {
+      const x = p.x * ca - p.z * sa;
+      p.z = p.x * sa + p.z * ca;
+      p.x = x;
+    }
+  }
 
   if (sys.length) {
     const ck = (x, z) => Math.round(x / _REGION_CELL) + '|' + Math.round(z / _REGION_CELL);
@@ -1504,6 +1898,8 @@ function _renderGalaxyModern() {
   const g = _buildGalaxyModern(), gp = g.gpos;
   if (!gp.size) return;
 
+  _drawInfluenceField(ctx, W, H, id => gp.get(id));
+
   const off = (ax, ay, bx, by) => (ax < -40 && bx < -40) || (ax > W + 40 && bx > W + 40) || (ay < -40 && by < -40) || (ay > H + 40 && by > H + 40);
   const lineW = Math.max(0.12, Math.min(1.1, _zoom * 22));
 
@@ -1552,9 +1948,12 @@ function _renderGalaxyModern() {
   }
 
   // Region labels at the cluster centres (highlight the one under the cursor).
+  // Hidden while the influence field is up — its territory titles sit in the same
+  // place and say more; the hovered region still highlights via its cluster.
+  const regionFs = Math.max(9, Math.min(15, _zoom * 30));
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `bold ${Math.max(9, Math.min(15, _zoom * 30))}px var(--mono, monospace)`;
-  for (const lb of g.labels) {
+  ctx.font = `bold ${regionFs}px var(--mono, monospace)`;
+  if (!_infActive()) for (const lb of g.labels) {
     const [lx, ly] = _w2c(lb.x, lb.z);
     if (lx < -80 || lx > W + 80 || ly < -30 || ly > H + 30) continue;
     ctx.fillStyle = (_hoveredRegion === lb.regionId) ? 'rgba(245,215,150,1)' : 'rgba(205,215,235,0.5)';
@@ -1563,6 +1962,8 @@ function _renderGalaxyModern() {
     ctx.shadowBlur = 0;
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+  _drawInfluenceTitles(ctx, W, H, regionFs, 9, 15);   // matches regionFs' own clamp
 
   // Route markers + pending-endpoint + "you are here" — drawn last, on top of
   // everything, same order as classic's equivalent block.
@@ -1577,13 +1978,25 @@ function _renderGalaxyModern() {
 // extend past the viewport and you pan/scroll, DOTLAN-style). Align the spine top.
 function _fitRegion() {
   if (!_regionLayout || !_regionLayout.size || !_canvas) return;
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity;
-  for (const p of _regionLayout.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); }
-  const w = (maxX - minX) || 1;
-  // 0.8 floor keeps cell spacing ≥ ~88 px (pills are ≤ ~80 px), so nothing overlaps.
-  _zoom = Math.min(1.0, Math.max(0.8, (_canvas.width - 140) / w));
-  _panX = _canvas.width / 2 - ((minX + maxX) / 2) * _zoom;
-  _panY = 70 - minZ * _zoom;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const grow = (x, z) => {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  };
+  for (const p of _regionLayout.values()) grow(p.x, p.z);
+  for (const e of (_regionExits || [])) grow(e.x, e.z);   // keep gateway boxes in frame
+
+  const w = (maxX - minX) || 1, h = (maxZ - minZ) || 1;
+  // Fit BOTH axes — fitting width alone left a tall layout running off the bottom
+  // while the sides sat empty. PAD leaves room for the pills themselves (they're a
+  // fixed screen size, so they overhang their point) and the title/back-link.
+  const PAD_X = 150, PAD_Y = 130;
+  const fit = Math.min((_canvas.width - PAD_X) / w, (_canvas.height - PAD_Y) / h);
+  // Floor keeps neighbouring pills off each other: the layout guarantees 0.8 ×
+  // _REGION_CELL between any two systems, and pills don't scale with zoom.
+  _zoom = Math.min(1.15, Math.max(0.6, fit));
+  _panX = _canvas.width  / 2 - ((minX + maxX) / 2) * _zoom;
+  _panY = _canvas.height / 2 - ((minZ + maxZ) / 2) * _zoom + 22;   // clear the title
 }
 
 // Exit box (if any) under a screen point — uses the screen rect each box stored on
@@ -1655,6 +2068,12 @@ function _renderRegion() {
     ctx.textAlign = 'left';
     return;
   }
+
+  // No influence field here on purpose. It's a galaxy-scale idea — "who holds
+  // what across New Eden" — and inside one region it degenerates: a region has
+  // essentially one holder, so the field is a flat wash, and the region layout
+  // is a schematic grid rather than real space, so the territory shape it drew
+  // would be an artifact of the grid rather than anything true.
 
   // Gate links — thin solid grey straight lines.
   ctx.beginPath();
@@ -1797,6 +2216,8 @@ function _render() {
   // for the schematic DOTLAN-style panel look.
   ctx.fillStyle = _modern ? '#12141a' : '#000000';
   ctx.fillRect(0, 0, W, H);
+
+  _drawInfluenceField(ctx, W, H, id => _sysById[id] && { x: _sysById[id].wx, z: _sysById[id].wz });
 
   // ── Jump connections ────────────────────────────────────────────────────────
   // Two passes: ordinary intra-region gates as faint grey dashed lines, and
@@ -2047,9 +2468,14 @@ function _render() {
   // names appear from the initial zoom and fade out right as system names appear
   // (dotR → SYS_LABEL_DOTR). The sovereignty overlay additionally shows the
   // dominant alliance ticker and switches earlier (dotR < 2.5).
+  //
+  // Suppressed entirely while the influence field is up: its territory titles
+  // occupy the same space and answer the same question better, and the two sets
+  // of labels stacked on one another was just noise. That takes the dominant
+  // ticker with it — the titles already name the holder, at more length.
   const _isSov          = _overlay === 'sovereignty';
   const _regionLabelMax = _isSov ? 2.5 : SYS_LABEL_DOTR;
-  if (dotR < _regionLabelMax) {
+  if (dotR < _regionLabelMax && !_infActive()) {
     // Fade out smoothly as the system-name threshold approaches.
     const fadeSpan = _isSov ? 1.2 : 0.9;
     ctx.globalAlpha  = Math.min(1, (_regionLabelMax - dotR) / fadeSpan);
@@ -2092,6 +2518,12 @@ function _render() {
     ctx.textAlign    = 'left';
     ctx.textBaseline = 'alphabetic';
   }
+
+  // Territory titles ride the same size curve as the region titles above, but
+  // outside the `dotR < _regionLabelMax` gate: region names hand over to system
+  // names as you zoom in, whereas "who owns this" is the one thing you still
+  // want answered once you're down among the systems.
+  _drawInfluenceTitles(ctx, W, H, Math.max(10, Math.min(14, _zoom * _MAP_WORLD / 85)), 10, 14);
 
   // ── Route node markers (start/end/waypoints) — drawn for both overlays ──────
   _drawRouteMarkers(ctx, W, H, _routeIds,     _routeWaypointIds,     '#60c8ff', '#9fd4ff', 7, -14); // stargate (blue)
@@ -2263,7 +2695,7 @@ async function _showInfo(system) {
     <div class="map-info-row">
       <span class="map-info-label">JUMP BRIDGE</span>
       <span class="map-info-value" style="color:${jb ? '#ffd700' : 'var(--text-3)'};">
-        ${jb ? '◈ IHUB Present' : 'None'}
+        ${jb ? '◈ Bridge endpoint' : 'None'}
       </span>
     </div>
     <div class="map-info-row">
@@ -2526,6 +2958,20 @@ function _initToolbar() {
     });
   }
 
+  const infBtn = document.getElementById('mapInfToggle');
+  if (infBtn) {
+    infBtn.addEventListener('click', () => {
+      _showInf = !_showInf;
+      infBtn.classList.toggle('active', _showInf);
+      // Under Friends & Foes the field is drawn from the standings, so make sure
+      // they're loaded — otherwise the first paint would be all neutral.
+      if (_showInf && _overlay === 'fnf' && !_fnfLoaded) {
+        _loadFnfStandings().then(() => { _infInvalidate(); _updateLegend(); _scheduleRender(); });
+      }
+      _scheduleRender();
+    });
+  }
+
   const zoomIn  = document.getElementById('mapZoomIn');
   const zoomOut = document.getElementById('mapZoomOut');
   const zoomFit = document.getElementById('mapZoomFit');
@@ -2729,14 +3175,12 @@ function _onResize() {
 
 // ── Live ESI data ─────────────────────────────────────────────────────────────
 async function _loadLiveData() {
-  const [sovR, incR, jbR] = await Promise.allSettled([
+  const [sovR, incR] = await Promise.allSettled([
     window.eveAPI.mapGetSovereignty(),
     window.eveAPI.mapGetIncursions(),
-    window.eveAPI.mapGetJumpBridges(),
   ]);
   if (sovR.status === 'fulfilled') _sovMap = sovR.value || {};
   if (incR.status === 'fulfilled') _incSet = new Set(incR.value || []);
-  if (jbR.status  === 'fulfilled') _jbSet  = new Set(jbR.value  || []);
 
   // Recompute region dominant holders then fetch tickers (async, re-renders when done)
   _computeRegionDomSov();
@@ -2757,6 +3201,9 @@ async function _loadSavedBridges() {
       ? b.filter(p => Array.isArray(p) && p.length === 2).map(p => [Number(p[0]), Number(p[1])])
       : [];
   } catch (_) { _savedBridges = []; }
+  // Endpoint markers follow the bridge list — rebuilt here so an import shows up
+  // without a reload, same as the arcs.
+  _jbSet = new Set(_savedBridges.flat());
   if (_loaded) _scheduleRender();
 }
 window.mapReloadBridges = function () { _loadSavedBridges(); };

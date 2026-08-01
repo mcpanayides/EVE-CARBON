@@ -15,7 +15,7 @@
     "build-win": "npm run fetch-sde && electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builderhttps://www.netflix.com/watch/81198900?trackId=253766150&tctx=11%2C3%2C12f93fec-64a6-4534-938c-d4dd795a0eff-56779020%2CNES_8CE6A9BBA77D9B7CE37321EF1DB2D2-BDC0A082BF6430-2BB05B89F9_p_1785530409898%2CNES_8CE6A9BBA77D9B7CE37321EF1DB2D2_p_1785530409898%2C%2C%2C%2C81198900%2CVideo%3A81198900%2CminiDpPlayButton install-app-deps"
   },
   "build": {
     "appId": "com.eve.carbon",

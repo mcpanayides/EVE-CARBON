@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./styles/palette.css"/><!-- consolidated data palette — before theme so themes can override -->
   <!-- Active theme (all colour tokens). Swapped at runtime by palette.js;
        the pre-paint script below restores the last choice before first paint. -->
-  <link rel="stylesheet" id="themeStylesheet" href="./styles/theme-carbon.css"/>
+  <link rel="stylesheet" id="themeStylesheet" href="./styles/theme-default.css"/>
   <link rel="stylesheet" href="./styles/pages-characters.css"/>
   <link rel="stylesheet" href="./styles/dashboard.css"/>
   <link rel="stylesheet" href="./styles/industry-blueprints.css"/>
@@ -62,7 +62,10 @@
     try {
       var t = JSON.parse(localStorage.getItem('eve-theme-css') || 'null');
       var link = document.getElementById('themeStylesheet');
-      if (t && link) {
+      // Ignore themes removed from the app (legacy Carbon/Sirius) — keep the
+      // built-in default already set on the link above.
+      var GONE = { 'theme-carbon.css': 1, 'theme-sirius.css': 1 };
+      if (t && link && !(t.file && GONE[t.file])) {
         if (t.file)      link.setAttribute('href', './styles/' + t.file);
         else if (t.path) link.setAttribute('href', 'file:///' + encodeURI(t.path.replace(/\\/g, '/')));
       }
@@ -654,9 +657,9 @@
         <button class="settings-menu-btn"          data-settings-tab="industry">GEZ Tracker</button>
         <button class="settings-menu-btn"          data-settings-tab="calendar">Calendar</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
-        <!-- Colour Palette tab retired — the glass tint (Background tab) is the
-             single colour control now. Code kept intact; unhide to restore. -->
-        <button class="settings-menu-btn"          data-settings-tab="palette" style="display:none;">Colour Palette</button>
+        <!-- Colour Palette tab — the 16-swatch editor (recolour every token).
+             The glass tint (Background tab) is a separate surface-tint control. -->
+        <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
         <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
       </div>
       <!-- General tab -->

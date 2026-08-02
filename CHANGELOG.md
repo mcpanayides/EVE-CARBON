@@ -6,6 +6,36 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.7.3] - 2026-08-02
+Map legibility in empire space, three security patches, and a guard so a broken
+build on `main` can't go unnoticed again.
+
+### Fixes
+- **Region maps no longer overlap their own system names in empire space.** The
+  Modern per-region view sizes each name pill from the text it actually contains, and
+  once the canvas font fix in 1.7.1 took effect those widths became real for the first
+  time. The zoom floor was still the constant tuned for the old (silently ignored)
+  font, so long empire names collided — The Forge opened with 16 pairs of pills sitting
+  on top of each other. The floor is now measured from the widest label and the closest
+  pair in the layout. Null-sec regions are unchanged; empire regions open slightly
+  closer in and pan.
+
+### Security
+- **js-yaml 5.2.1 → 5.2.3** (high) — denial of service via exponential parsing of flow
+  collections. Reached only by the one-time legacy YAML theme migration.
+- **tar 7.5.20 → 7.5.22** (medium) — denial of service via uncontrolled recursion on
+  crafted long-path archives.
+- **brace-expansion 5.0.7 → 5.0.9** (high) — denial of service via unbounded expansion
+  causing an out-of-memory crash.
+
+  `npm audit` now reports zero vulnerabilities.
+
+### Maintenance
+- **A red CI run on `main` now opens an issue** with a link to the failing run, and
+  closes it again once CI is green. A corrupted `postinstall` sat on `main` unnoticed
+  through a whole release cycle and cost 1.7.1 its Windows installer; this makes that
+  state impossible to miss.
+
 ## [1.7.2] - 2026-08-01
 Ships the Windows build that 1.7.1 couldn't produce, and fixes the "Start with Windows"
 switch. Everything in 1.7.1 (below) is included — if you're on Windows, this is the

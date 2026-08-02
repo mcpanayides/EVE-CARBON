@@ -18,8 +18,11 @@ function setSettingsTab(tab) {
 
 // ─── General Settings Tab ──────────────────────────────────────────────────────
 // "Start with Windows" and "Minimize to tray". Both apply immediately on toggle
-// (no SAVE needed): launch-at-login is written to the OS, minimize-to-tray is
-// persisted in config and the main process creates/removes the tray icon.
+// (no SAVE needed) and both are persisted in config: launch-at-login is also
+// written to the OS (see the note on set-launch-at-login in main.js — Electron
+// can't read its own Windows entry back on a path containing spaces, so config
+// is what the switch reflects), and minimize-to-tray makes the main process
+// create or remove the tray icon.
 async function populateGeneralSettings() {
   const startToggle    = document.getElementById('startWithWindowsToggle');
   const trayToggle     = document.getElementById('minimizeToTrayToggle');
@@ -34,7 +37,7 @@ async function populateGeneralSettings() {
   startToggle.onchange = async () => {
     try {
       const enabled = await window.eveAPI.setLaunchAtLogin(startToggle.checked);
-      startToggle.checked = !!enabled;   // reflect what actually took effect
+      startToggle.checked = !!enabled;   // reflect the setting that was recorded
       showToast(enabled ? 'EVE Carbon will start with Windows.'
                         : 'EVE Carbon will no longer start with Windows.', 'success');
     } catch (e) {

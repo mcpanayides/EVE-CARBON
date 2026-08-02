@@ -6,6 +6,30 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [1.7.2] - 2026-08-01
+Ships the Windows build that 1.7.1 couldn't produce, and fixes the "Start with Windows"
+switch. Everything in 1.7.1 (below) is included — if you're on Windows, this is the
+1.7.1 release.
+
+### Fixes
+- **The Windows installer is back.** 1.7.1 published only the macOS `.dmg`: the
+  `postinstall` script in `package.json` had a URL accidentally pasted into the middle
+  of it (`electron-builder<url> install-app-deps`), so `npm install` failed on the
+  runner. That took out the release pipeline's test gate, and the Windows build job —
+  which waits on that gate — never started. The macOS job survived because a POSIX
+  shell splits the mangled command on the URL's `&` characters and still exits 0, while
+  `cmd.exe` fails outright.
+- **"Start with Windows" no longer switches itself back off.** The toggle was writing
+  the Windows Run-key entry correctly all along — the *read-back* was wrong. Electron's
+  `getLoginItemSettings()` splits the registry value on spaces without honouring the
+  quotes around the path, so on any profile whose path contains a space (`C:\Users\Mia
+  Panayides\…`, i.e. most people) it failed to match its own entry and reported
+  `openAtLogin: false`. Settings then set the switch to "what actually took effect" and
+  it flipped straight back off. (`executableWillLaunchAtLogin` is no better — measured
+  `true` even with the entry deleted outright.) The preference is now stored in
+  `config.json` like Minimize to Tray, with the OS call as the effect rather than the
+  source of truth.
+
 ## [1.7.1] - 2026-08-01
 A galaxy-map release. Sovereignty data is flowing again after CCP retired the endpoint
 it came from, there's a new **Influence** overlay that paints alliance territory as a

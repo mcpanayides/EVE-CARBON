@@ -531,20 +531,47 @@ ipcMain.handle('save-jump-bridges', (_, arr) => {
 });
 
 // ── App preferences: "Start with Windows" + "Minimize to tray" (Settings ▸ General) ──
-// launchAtLogin lives in the OS (a per-user Run registry entry on Windows), so
-// app.getLoginItemSettings() is the source of truth. minimizeToTray is ours,
-// persisted in config.json.
+// The launch-at-login WRITE goes to the OS (a per-user Run registry entry on
+// Windows). The READ does NOT come back from Electron, because on Windows it
+// can't be trusted whenever the executable path contains a space — which is any
+// default install under a two-word user name, e.g. C:\Users\Mia Panayides\…
+//
+// Measured on such a profile, with the Run entry present and enabled:
+//   getLoginItemSettings() -> { openAtLogin: false, executableWillLaunchAtLogin: true }
+// and its launchItems[] report every space-containing entry chopped at the
+// space (path "C:\Users\Mia", the rest shoved into args) — Electron is
+// splitting the registry value on whitespace without honouring the quotes, so
+// its match against process.execPath fails. `executableWillLaunchAtLogin` is no
+// better: it still reported true after the entry was deleted outright.
+//
+// So openAtLogin read false however the toggle was set, the Settings UI did
+// `checked = <what took effect>`, and the switch flipped itself straight back
+// off — looking broken while the registry entry was in fact written correctly.
+// Our own config is the source of truth for what the user asked for; the OS
+// call is the effect. minimizeToTray already worked this way.
+function _readLaunchAtLogin() {
+  try {
+    const cfg = loadConfig();
+    if (cfg.app && typeof cfg.app.launchAtLogin === 'boolean') return cfg.app.launchAtLogin;
+  } catch (_) {}
+  // Nothing recorded yet (upgrade from a build that only asked the OS). Fall
+  // back to the OS answer — wrong-but-false at worst, and self-corrects the
+  // first time the toggle is used.
+  try { return !!app.getLoginItemSettings().openAtLogin; } catch (_) { return false; }
+}
+
 ipcMain.handle('get-app-preferences', () => {
   let minimizeToTray = false;
   try {
     const cfg = loadConfig();
     minimizeToTray = !!(cfg.app && cfg.app.minimizeToTray);
   } catch (_) {}
-  return { launchAtLogin: app.getLoginItemSettings().openAtLogin, minimizeToTray };
+  return { launchAtLogin: _readLaunchAtLogin(), minimizeToTray };
 });
 
 ipcMain.handle('set-launch-at-login', (_, enabled) => {
-  const opts = { openAtLogin: !!enabled };
+  const on = !!enabled;
+  const opts = { openAtLogin: on };
   // In a packaged build process.execPath is EVE-Carbon.exe, so the default
   // registration launches the real app. In development it's the bare
   // node_modules electron.exe; registering that WITHOUT the app path makes
@@ -555,8 +582,13 @@ ipcMain.handle('set-launch-at-login', (_, enabled) => {
     opts.args = [path.resolve(process.argv[1] || __dirname)];
   }
   app.setLoginItemSettings(opts);
-  // Read back from the OS so the UI reflects what actually took effect.
-  return app.getLoginItemSettings().openAtLogin;
+  try {
+    const cfg = loadConfig();
+    cfg.app = cfg.app || {};
+    cfg.app.launchAtLogin = on;
+    saveConfig(cfg);
+  } catch (_) { /* the OS setting still applied — don't fail the toggle over this */ }
+  return on;
 });
 
 ipcMain.handle('set-minimize-to-tray', (_, enabled) => {

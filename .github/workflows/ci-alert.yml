@@ -35,59 +35,60 @@ jobs:
           WF_URL: ${{ github.event.workflow_run.html_url }}
           WF_BRANCH: ${{ github.event.workflow_run.head_branch }}
           WF_SHA: ${{ github.event.workflow_run.head_sha }}
-        script: |
-          const TITLE = 'CI is failing on main';
-          const { WF_NAME, WF_CONCLUSION, WF_URL, WF_BRANCH, WF_SHA } = process.env;
-          const short = WF_SHA.slice(0, 7);
+        with:
+          script: |
+            const TITLE = 'CI is failing on main';
+            const { WF_NAME, WF_CONCLUSION, WF_URL, WF_BRANCH, WF_SHA } = process.env;
+            const short = WF_SHA.slice(0, 7);
 
-          // Find our tracking issue by exact title — no label needed, so this
-          // works on a fresh repo with no label set up.
-          const open = await github.paginate(github.rest.issues.listForRepo, {
-            owner: context.repo.owner, repo: context.repo.repo,
-            state: 'open', per_page: 100,
-          });
-          const existing = open.find(i => i.title === TITLE && !i.pull_request);
+            // Find our tracking issue by exact title — no label needed, so this
+            // works on a fresh repo with no label set up.
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', per_page: 100,
+            });
+            const existing = open.find(i => i.title === TITLE && !i.pull_request);
 
-          if (WF_CONCLUSION === 'failure' || WF_CONCLUSION === 'timed_out') {
-            const body = [
-              `**${WF_NAME}** finished \`${WF_CONCLUSION}\` on \`${WF_BRANCH}\` (${short}).`,
-              '',
-              WF_URL,
-              '',
-              'Fix this before cutting a tag — the release pipeline runs the same',
-              'gate, so a red run here means the build jobs will not produce',
-              'installers.',
-            ].join('\n');
+            if (WF_CONCLUSION === 'failure' || WF_CONCLUSION === 'timed_out') {
+              const body = [
+                `**${WF_NAME}** finished \`${WF_CONCLUSION}\` on \`${WF_BRANCH}\` (${short}).`,
+                '',
+                WF_URL,
+                '',
+                'Fix this before cutting a tag — the release pipeline runs the same',
+                'gate, so a red run here means the build jobs will not produce',
+                'installers.',
+              ].join('\n');
 
-            if (existing) {
+              if (existing) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: existing.number, body,
+                });
+                core.notice(`Commented on existing CI-failure issue #${existing.number}`);
+              } else {
+                const made = await github.rest.issues.create({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  title: TITLE, body,
+                });
+                core.notice(`Opened CI-failure issue #${made.data.number}`);
+              }
+              core.setFailed(`${WF_NAME} is ${WF_CONCLUSION} on ${WF_BRANCH}`);
+              return;
+            }
+
+            // Green again — close the tracker so it only ever reflects the current
+            // state. Only CI on main clears it; a tag build going green doesn't
+            // prove main itself is healthy.
+            if (WF_CONCLUSION === 'success' && WF_NAME === 'CI' && WF_BRANCH === 'main' && existing) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: existing.number, body,
+                issue_number: existing.number,
+                body: `Green again on \`main\` (${short}) — ${WF_URL}`,
               });
-              core.notice(`Commented on existing CI-failure issue #${existing.number}`);
-            } else {
-              const made = await github.rest.issues.create({
+              await github.rest.issues.update({
                 owner: context.repo.owner, repo: context.repo.repo,
-                title: TITLE, body,
+                issue_number: existing.number, state: 'closed',
               });
-              core.notice(`Opened CI-failure issue #${made.data.number}`);
+              core.notice(`Closed CI-failure issue #${existing.number}`);
             }
-            core.setFailed(`${WF_NAME} is ${WF_CONCLUSION} on ${WF_BRANCH}`);
-            return;
-          }
-
-          // Green again — close the tracker so it only ever reflects the current
-          // state. Only CI on main clears it; a tag build going green doesn't
-          // prove main itself is healthy.
-          if (WF_CONCLUSION === 'success' && WF_NAME === 'CI' && WF_BRANCH === 'main' && existing) {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: existing.number,
-              body: `Green again on \`main\` (${short}) — ${WF_URL}`,
-            });
-            await github.rest.issues.update({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: existing.number, state: 'closed',
-            });
-            core.notice(`Closed CI-failure issue #${existing.number}`);
-          }

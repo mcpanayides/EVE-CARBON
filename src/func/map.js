@@ -2003,6 +2003,42 @@ function _renderGalaxyModern() {
 // Open the region at a fixed, overlap-free zoom: fit the layout width to the
 // viewport but clamp so cell spacing never drops below the pill size (big regions
 // extend past the viewport and you pan/scroll, DOTLAN-style). Align the spine top.
+// Smallest zoom at which no two name pills can touch, for the region currently
+// laid out: the widest pill (measured in the font the pills actually draw in)
+// over the closest pair the layout produced. Cached per region — the O(n²) pass
+// is a few thousand comparisons on region open, not per frame.
+const REGION_PILL_GAP = 6;   // px of daylight to leave between two pills
+let _regionFloor = null, _regionFloorId = null;
+function _regionZoomFloor() {
+  if (_regionFloorId === _regionLayoutId && _regionFloor != null) return _regionFloor;
+  const pts = [..._regionLayout.values()];
+  if (pts.length < 2 || !_ctx) return 0.6;
+
+  _ctx.save();
+  _ctx.font = _mono(11);                      // must match _renderRegion's pill font
+  let maxPill = 0;
+  for (const id of _regionLayout.keys()) {
+    const s = _sysById[id];
+    if (!s) continue;
+    const wpx = _ctx.measureText(s.name).width + 14;   // + padX * 2
+    if (wpx > maxPill) maxPill = wpx;
+  }
+  _ctx.restore();
+
+  let minSep = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const d = Math.hypot(pts[i].x - pts[j].x, pts[i].z - pts[j].z);
+      if (d < minSep) minSep = d;
+    }
+  }
+  if (!isFinite(minSep) || minSep <= 0) return 0.6;
+
+  _regionFloorId = _regionLayoutId;
+  _regionFloor = Math.max(0.6, (maxPill + REGION_PILL_GAP) / minSep);
+  return _regionFloor;
+}
+
 function _fitRegion() {
   if (!_regionLayout || !_regionLayout.size || !_canvas) return;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -2019,9 +2055,13 @@ function _fitRegion() {
   // fixed screen size, so they overhang their point) and the title/back-link.
   const PAD_X = 150, PAD_Y = 130;
   const fit = Math.min((_canvas.width - PAD_X) / w, (_canvas.height - PAD_Y) / h);
-  // Floor keeps neighbouring pills off each other: the layout guarantees 0.8 ×
-  // _REGION_CELL between any two systems, and pills don't scale with zoom.
-  _zoom = Math.min(1.15, Math.max(0.6, fit));
+  // Zoom floor keeps neighbouring pills off each other. It has to be measured,
+  // not a constant: pills are a fixed screen size while the layout is in world
+  // units, so the floor is (widest label) ÷ (tightest pair). A constant 0.6 was
+  // fine for null-sec — six-character names, ~54px pills — but empire regions
+  // carry names like "New Caldari" at ~87px, and 0.6 only buys 66px of gap, so
+  // The Forge opened with 16 pairs of pills sitting on top of each other.
+  _zoom = Math.max(_regionZoomFloor(), Math.min(1.15, fit));
   _panX = _canvas.width  / 2 - ((minX + maxX) / 2) * _zoom;
   _panY = _canvas.height / 2 - ((minZ + maxZ) / 2) * _zoom + 22;   // clear the title
 }

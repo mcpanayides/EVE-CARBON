@@ -55,13 +55,24 @@ function removeThemePreview() {
   document.getElementById('eve-theme-preview')?.remove();
 }
 
-// ── Global UI transparency ────────────────────────────────────────────────────
-// Themes bake an alpha into their surface colours (and some, like Sirius, are
-// fully opaque). This lets the user set one transparency level that's applied to
-// every panel/surface on top of any theme — so the background image shows
-// through. Implemented as an inline override on :root (wins over the theme
-// stylesheet); cleared + re-derived each time so a theme switch reads the
-// new theme's true colours.
+// ── Global panel opacity ──────────────────────────────────────────────────────
+// Themes bake an alpha into their surface colours (and some are fully opaque).
+// This applies the user's one "Panel opacity" setting on top of any theme, so
+// the wallpaper shows through. Implemented as an inline override on :root,
+// cleared + re-derived each time so a theme switch reads the new theme's true
+// colours.
+//
+// ONLY WHEN GLASS IS OFF, and that caveat is the whole story. glass.css declares
+// the same --bg-* tokens on `body.glass-on`, and custom properties inherit
+// downward — so a value set here on :root is shadowed by body's for the entire
+// visible UI. There used to be a separate "UI Transparency" slider in the
+// palette tab doing exactly this, and with glass on (the default) it wrote a
+// variable nothing read: measured, the real panel background was byte-identical
+// before and after dragging it end to end.
+//
+// So there is now ONE control — "Panel opacity" in Wallpaper and Colour — and it
+// takes whichever path actually works: --glass-tint-alpha under glass (handled
+// by applyGlass), these inline overrides without it.
 const UI_SURFACE_VARS = ['--bg-panel','--bg-card','--bg-card-deep','--bg-deep','--bg-input','--bg-modal','--bg-surface'];
 
 function _parseRgb(str) {
@@ -76,9 +87,14 @@ function _parseRgb(str) {
   return null;
 }
 
-function getUiTransparency() {            // percent see-through, 0–60
-  const v = parseFloat(localStorage.getItem('eve-ui-transparency'));
-  return isNaN(v) ? 30 : Math.max(0, Math.min(60, v));
+/** The one panel-opacity setting, shared with the glass controls in ui.js. */
+function getPanelOpacity() {
+  try {
+    const s = (typeof _getGlassSettings === 'function') ? _getGlassSettings() : null;
+    const a = s && Number(s.tintAlpha);
+    if (Number.isFinite(a)) return Math.max(0.05, Math.min(1, a));
+  } catch (_) { /* fall through to the default */ }
+  return 0.45;
 }
 
 function applyUiTransparency() {
@@ -86,7 +102,11 @@ function applyUiTransparency() {
   // Clear prior inline overrides so getComputedStyle reads the active theme's
   // real surface colours (not a previously-applied alpha).
   UI_SURFACE_VARS.forEach(v => root.style.removeProperty(v));
-  const alpha = +(1 - getUiTransparency() / 100).toFixed(3);
+  // Under glass, body.glass-on owns these tokens and shadows anything set here.
+  // Writing them anyway is what made the old slider look functional while doing
+  // nothing at all — so this path stands down and leaves it to applyGlass.
+  if (document.body && document.body.classList.contains('glass-on')) return;
+  const alpha = +getPanelOpacity().toFixed(3);
   const cs = getComputedStyle(root);
   UI_SURFACE_VARS.forEach(v => {
     const rgb = _parseRgb(cs.getPropertyValue(v));
@@ -113,23 +133,51 @@ async function initTheme() {
 
 // ── Palette settings tab ──────────────────────────────────────────────────────
 
+// The palette, named for what each colour DOES rather than what hue it happens
+// to be today. "Red" tells you nothing about what changes when you edit it — and
+// it becomes an outright lie the moment somebody sets it to blue. The job is the
+// stable thing; the hue is the setting.
+//
+// Three groups, because they carry different risk:
+//
+//   STATUS     meaning-bearing. These are how the app says "this went well" or
+//              "this is dangerous", so they are read as language, not decoration.
+//              Swapping Positive and Negative would invert every gain and loss
+//              in the app.
+//   DATA       value categories and chart series. Free to restyle to taste —
+//              they separate things visually and mean nothing on their own.
+//   STRUCTURE  the surfaces everything else sits on.
+//
+// The `key` is the on-disk name and is NOT renamed: it is what themes already
+// written to userData/themes/*.css store, and changing it would silently reset
+// every custom theme somebody has made.
+//
+// baby_blue, indigo and cyan were dropped. They were offered here and written
+// into every saved theme, but nothing in the app ever read them — you could pick
+// any colour and nothing changed. A control that does nothing is worse than a
+// missing one, because it costs the user a decision and then ignores it.
 const SWATCH_SLOTS = [
-  { key: 'red',        label: 'Red' },
-  { key: 'teal',       label: 'Teal' },
-  { key: 'purple',     label: 'Purple' },
-  { key: 'pink',       label: 'Pink' },
-  { key: 'baby_blue',  label: 'Baby Blue' },
-  { key: 'green',      label: 'Green' },
-  { key: 'yellow',     label: 'Yellow' },
-  { key: 'orange',     label: 'Orange' },
-  { key: 'gold',       label: 'Gold' },
-  { key: 'indigo',     label: 'Indigo' },
-  { key: 'cyan',       label: 'Cyan' },
-  { key: 'blue',       label: 'Blue' },
-  { key: 'background', label: 'Background' },
-  { key: 'panel',      label: 'Panel' },
-  { key: 'text',       label: 'Text' },
-  { key: 'border',     label: 'Border' },
+  { key: 'red',    group: 'status', label: 'Negative',  desc: 'Losses, danger, alerts' },
+  { key: 'green',  group: 'status', label: 'Positive',  desc: 'Gains, success, online' },
+  { key: 'gold',   group: 'status', label: 'Caution',   desc: 'Warnings, holding states' },
+  { key: 'yellow', group: 'status', label: 'Contested', desc: 'Contested, unknown basis' },
+  { key: 'blue',   group: 'status', label: 'Info',      desc: 'Info accents, badges' },
+
+  { key: 'teal',   group: 'data',   label: 'Liquid',    desc: 'Wallet balances, progress' },
+  { key: 'purple', group: 'data',   label: 'Assets',    desc: 'Asset and stock values' },
+  { key: 'pink',   group: 'data',   label: 'Series 1',  desc: 'Extra chart series' },
+  { key: 'orange', group: 'data',   label: 'Series 2',  desc: 'Extra series, secondary warnings' },
+
+  { key: 'background', group: 'structure', label: 'Background', desc: 'App backdrop' },
+  { key: 'panel',      group: 'structure', label: 'Panel',      desc: 'Cards and panels' },
+  { key: 'text',       group: 'structure', label: 'Text',       desc: 'Primary text' },
+  { key: 'border',     group: 'structure', label: 'Border',     desc: 'Dividers and outlines' },
+];
+
+const SWATCH_GROUPS = [
+  { id: 'status',    title: 'STATUS',    hint: 'these carry meaning' },
+  { id: 'data',      title: 'DATA',      hint: 'charts and value categories' },
+  { id: 'structure', title: 'STRUCTURE', hint: 'surfaces and text' },
 ];
 
 let _allThemes     = [];
@@ -162,11 +210,8 @@ function renderSwatches(editable) {
   grid.innerHTML = '';
   grid.style.cssText = 'display:flex; flex-direction:column; gap:16px;';
 
-  const eveSlots        = SWATCH_SLOTS.slice(0, 12);
-  const structuralSlots = SWATCH_SLOTS.slice(12);
-
   function makePill(slot, isStructural) {
-    const { key, label } = slot;
+    const { key, label, desc } = slot;
     const color   = _editSwatches?.[key] || getSwatchColor(_currentTheme, key);
     const isHex   = typeof color === 'string' && color.startsWith('#');
     const textCol = isHex && isLightColor(color) ? 'rgba(0,0,0,0.50)' : 'rgba(255,255,255,0.65)';
@@ -231,40 +276,46 @@ function renderSwatches(editable) {
 
     const lbl = document.createElement('div');
     lbl.textContent = label;
-    lbl.style.cssText = 'font-size:10px; color:var(--text-4); font-family:var(--mono); letter-spacing:.06em; text-align:center; padding-top:1px;';
+    lbl.style.cssText = 'font-size:10px; color:var(--text-2); font-family:var(--mono); letter-spacing:.06em; text-align:center; padding-top:1px;';
 
     wrap.appendChild(pill);
     wrap.appendChild(lbl);
+
+    // What this colour actually drives. The name says which job it does; this
+    // says where you will see it change, which is the part that lets somebody
+    // edit with intent instead of guessing and checking.
+    if (desc) {
+      const sub = document.createElement('div');
+      sub.textContent = desc;
+      sub.style.cssText = 'font-size:9px; color:var(--text-4); text-align:center; line-height:1.25;';
+      pill.title = editable ? `Edit ${label} — ${desc}` : `${label} — ${desc}`;
+      wrap.appendChild(sub);
+    }
     return wrap;
   }
 
-  function makeRow(slots, isStructural) {
+  // One heading per group, so the risk of editing each is visible before you do.
+  function makeHeading(g) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'display:flex; align-items:center; gap:10px;';
+    sep.innerHTML = `
+      <div style="font-size:9px; letter-spacing:.12em; color:var(--text-4); font-family:var(--mono); flex-shrink:0;">${g.title}</div>
+      <div style="font-size:9px; color:var(--text-4); opacity:.75; flex-shrink:0;">${g.hint}</div>
+      <div style="flex:1; border-top:1px solid var(--border-e);"></div>
+    `;
+    return sep;
+  }
+
+  for (const g of SWATCH_GROUPS) {
+    const slots = SWATCH_SLOTS.filter(s => s.group === g.id);
+    if (!slots.length) continue;
+    grid.appendChild(makeHeading(g));
     const row = document.createElement('div');
-    row.style.cssText = `display:grid; grid-template-columns:repeat(${slots.length},1fr); gap:8px;`;
-    slots.forEach(s => row.appendChild(makePill(s, isStructural)));
-    return row;
+    // A shared minimum so pills line up across groups of different sizes.
+    row.style.cssText = 'display:grid; grid-template-columns:repeat(auto-fit,minmax(92px,1fr)); gap:8px;';
+    slots.forEach(s => row.appendChild(makePill(s, g.id === 'structure')));
+    grid.appendChild(row);
   }
-
-  // EVE palette — 4 cols × 3 rows
-  const eveGrid = document.createElement('div');
-  eveGrid.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
-  for (let i = 0; i < 12; i += 4) {
-    eveGrid.appendChild(makeRow(eveSlots.slice(i, i + 4), false));
-  }
-  grid.appendChild(eveGrid);
-
-  // Separator + label
-  const sep = document.createElement('div');
-  sep.style.cssText = 'display:flex; align-items:center; gap:10px;';
-  sep.innerHTML = `
-    <div style="flex:1; border-top:1px solid var(--border-e);"></div>
-    <div style="font-size:9px; letter-spacing:.12em; color:var(--text-4); font-family:var(--mono); flex-shrink:0;">STRUCTURE</div>
-    <div style="flex:1; border-top:1px solid var(--border-e);"></div>
-  `;
-  grid.appendChild(sep);
-
-  // Structural — single row of 4
-  grid.appendChild(makeRow(structuralSlots, true));
 }
 
 function setEditMode(active) {
@@ -335,18 +386,7 @@ function bindPaletteEvents() {
     select.addEventListener('change', () => loadTheme(select.value));
   }
 
-  // UI transparency slider — live global control over panel see-through.
-  const tSlider = document.getElementById('uiTransparencySlider');
-  const tVal    = document.getElementById('uiTransparencyVal');
-  if (tSlider) {
-    tSlider.value = getUiTransparency();
-    if (tVal) tVal.textContent = `${tSlider.value}%`;
-    tSlider.addEventListener('input', () => {
-      if (tVal) tVal.textContent = `${tSlider.value}%`;
-      try { localStorage.setItem('eve-ui-transparency', String(tSlider.value)); } catch {}
-      applyUiTransparency();
-    });
-  }
+  // Panel opacity lives in Wallpaper and Colour (ui.js) — one control, one setting.
 
   // Apply theme
   document.getElementById('themeApplyBtn')?.addEventListener('click', async () => {

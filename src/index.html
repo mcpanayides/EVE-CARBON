@@ -13,6 +13,7 @@
   <!-- Active theme (all colour tokens). Swapped at runtime by palette.js;
        the pre-paint script below restores the last choice before first paint. -->
   <link rel="stylesheet" id="themeStylesheet" href="./styles/theme-default.css"/>
+  <link rel="stylesheet" href="./styles/signals.css"/><!-- AFTER the theme: operational signals are not themeable -->
   <link rel="stylesheet" href="./styles/pages-characters.css"/>
   <link rel="stylesheet" href="./styles/dashboard.css"/>
   <link rel="stylesheet" href="./styles/industry-blueprints.css"/>
@@ -660,7 +661,7 @@
         <!-- Colour Palette tab — the 16-swatch editor (recolour every token).
              The glass tint (Background tab) is a separate surface-tint control. -->
         <button class="settings-menu-btn"          data-settings-tab="palette">Colour Palette</button>
-        <button class="settings-menu-btn"          data-settings-tab="background">Background</button>
+        <button class="settings-menu-btn"          data-settings-tab="background">Wallpaper and Colour</button>
       </div>
       <!-- General tab -->
       <div id="settingsTabGeneral" class="settings-tab" style="display:none;">
@@ -689,6 +690,41 @@
               </div>
               <label class="switch">
                 <input type="checkbox" id="minimizeToTrayToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Write a diagnostic log</div>
+                <div class="settings-toggle-desc">
+                  Record what the app does to a file, so a bug report can carry evidence instead of a description.
+                  Access tokens, sign-in codes and your user folder are stripped out before anything is written,
+                  so the file is safe to attach. Off by default; turn it on, reproduce the problem, then report it.
+                </div>
+                <div class="settings-toggle-desc" id="fileLogNotice" style="display:none;"></div>
+                <div id="fileLogActions" style="display:none; margin-top:6px; gap:8px; flex-wrap:wrap;">
+                  <button class="fc-track-btn fc-invite-btn" id="fileLogRevealBtn">Show log file</button>
+                  <button class="fc-track-btn fc-invite-btn" id="fileLogClearBtn">Clear log</button>
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="fileLogToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Demo Mode</div>
+                <div class="settings-toggle-desc">
+                  Run against a separate, fully-populated example profile — three pilots with assets, wallets, industry and planets — for screenshots, walkthroughs and trying things out.
+                  Your real characters and data are untouched, and the demo profile is rebuilt on every launch.
+                </div>
+                <div class="settings-toggle-desc" id="demoModeNotice" style="display:none;"></div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="demoModeToggle">
                 <span class="switch-slider"></span>
               </label>
             </div>
@@ -921,20 +957,6 @@
             </div>
           </div>
 
-          <!-- Divider -->
-          <div style="border-top:1px solid var(--border-e);"></div>
-
-          <!-- UI transparency -->
-          <div>
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <div style="font-size:10px; letter-spacing:.1em; color:var(--text-4); font-family:var(--mono); text-transform:uppercase;">UI Transparency</div>
-              <span id="uiTransparencyVal" style="font-size:11px; color:var(--accent); font-family:var(--mono);">30%</span>
-            </div>
-            <input id="uiTransparencySlider" type="range" min="0" max="60" value="30" style="width:100%;">
-            <div style="font-size:11px; color:var(--text-3); line-height:1.6; margin-top:6px;">
-              How see-through panels are — lets a background image show through. Applies to whichever theme is active.
-            </div>
-          </div>
 
           <!-- Divider -->
           <div style="border-top:1px solid var(--border-e);"></div>
@@ -1162,6 +1184,17 @@
               <span style="font-size:13px; color:var(--text-1);">Enable reeded glass</span>
             </label>
 
+            <!-- OUTSIDE #glassControls on purpose: this one applies whether or
+                 not glass is on, so it must not dim with the glass-only tint
+                 and blur controls below. -->
+            <div class="ui-settings-row" style="display:block; margin-bottom:14px;">
+              <label>Panel opacity <span id="glassTintAlphaVal" style="color:var(--text-3);font-family:var(--mono);">52%</span></label>
+              <input id="glassTintAlphaSlider" type="range" min="15" max="90" value="52" style="width:100%; margin-top:6px;" />
+              <div style="font-size:11px; color:var(--text-3); line-height:1.5; margin-top:6px;">
+                How see-through panels are, so the wallpaper shows through. Applies with or without glass.
+              </div>
+            </div>
+
             <div id="glassControls" style="display:flex; flex-direction:column; gap:14px;">
               <div style="display:flex; align-items:center; gap:12px;">
                 <label style="font-size:12px; color:var(--text-2); min-width:110px;">Tint</label>
@@ -1176,10 +1209,6 @@
                                 border-radius:6px; background:none; cursor:pointer;" />
                   <span id="glassTintHex" style="font-size:11px; font-family:var(--mono); color:var(--text-3);">#8A4DBE</span>
                 </span>
-              </div>
-              <div class="ui-settings-row" style="display:block;">
-                <label>Panel opacity <span id="glassTintAlphaVal" style="color:var(--text-3);font-family:var(--mono);">52%</span></label>
-                <input id="glassTintAlphaSlider" type="range" min="15" max="90" value="52" style="width:100%; margin-top:6px;" />
               </div>
               <div class="ui-settings-row" style="display:block;"
                    title="Scales the frosted-glass blur of the app's own surfaces. The Windows acrylic blur of the desktop behind the app is fixed by the OS.">
@@ -1414,6 +1443,7 @@
 <!-- ════════════════════════════════════════════════════════════════════════ -->
 <script src="./func/categories.js"></script>
 <script src="./state.js"></script>
+<script src="./shared/esi.js"></script><!-- BEFORE utils.js: its fetch wrapper needs window.Esi at load -->
 <script src="./utils.js"></script>
 <script src="./shared/theme-vars.js"></script>
 <script src="./func/palette.js"></script>
@@ -1429,6 +1459,10 @@
 <script src="./func/dashboard.js"></script>
 <script src="./func/bugs.js"></script>
 <script src="./func/planetary-interaction.js"></script>
+<script src="./shared/intel-row.js"></script>
+<script src="./func/fc_intel.js"></script>
+<script src="./func/fc_intel_rules.js"></script>
+<script src="./func/fc_intel_patterns.js"></script>
 <script src="./func/map.js"></script>
 <script src="./func/jump-math.js"></script>  <!-- pure jump range/fuel math; must precede jump-planner.js -->
 <script src="./func/jump-planner.js"></script>
@@ -1507,7 +1541,7 @@
     setSdeLight('downloading');
     if (typeof showToast === 'function') showToast('Star map (SDE) out of date — downloading update in the background…', 'info');
     const onProgress = () => setSdeLight('downloading');
-    window.eveAPI.on('sde-update-progress', onProgress);
+    const stopSdeProgress = window.eveAPI.on('sde-update-progress', onProgress);
     try {
       const res = await window.eveAPI.sdeDownloadUpdate();
       if (res && res.success) {
@@ -1527,7 +1561,7 @@
         if (typeof showToast === 'function') showToast(`Star map update failed: ${e.message}`, 'error');
       }
     } finally {
-      window.eveAPI.off('sde-update-progress', onProgress);
+      stopSdeProgress?.();
     }
   }
 
@@ -1592,7 +1626,7 @@
       if (progressLbl) progressLbl.textContent = stage;
       if (progressBar) progressBar.style.width = percent + '%';
     };
-    window.eveAPI.on('sde-update-progress', onProgress);
+    const stopSdeProgress = window.eveAPI.on('sde-update-progress', onProgress);
 
     try {
       const result = await window.eveAPI.sdeDownloadUpdate();
@@ -1629,7 +1663,7 @@
       if (btn) { btn.disabled = false; }
       if (btnIcon) { btnIcon.textContent = '⟳'; }
     } finally {
-      window.eveAPI.off('sde-update-progress', onProgress);
+      stopSdeProgress?.();
     }
   };
 })();
@@ -1988,11 +2022,11 @@
       if (bar)   bar.style.width = percent + '%';
       if (label) label.textContent = stage;
     };
-    window.eveAPI.on('updater-download-progress', onProgress);
+    const stopDlProgress = window.eveAPI.on('updater-download-progress', onProgress);
 
     try {
       const result = await window.eveAPI.updaterDownloadAndInstall(url);
-      window.eveAPI.off('updater-download-progress', onProgress);
+      stopDlProgress?.();
 
       if (result?.success) {
         const label = document.getElementById('verDlStage');
@@ -2002,7 +2036,7 @@
         throw new Error(result?.error || 'Download failed');
       }
     } catch (e) {
-      window.eveAPI.off('updater-download-progress', onProgress);
+      stopDlProgress?.();
       body.innerHTML = `<div style="color:var(--danger);font-size:13px;">Download failed: ${e.message}</div>
         <div style="font-size:12px;color:var(--text-3);margin-top:8px;">
           <a href="#" id="verFallbackLink" style="color:var(--accent);">Open GitHub releases page instead</a>

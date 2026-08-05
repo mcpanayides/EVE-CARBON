@@ -267,6 +267,21 @@ const DASHBOARD_WIDGETS = {
     w: 4, h: 5, minW: 2, minH: 4,
     body: '<div id="dashboardBeehiveWidget"><div class="dashboard-widget-loading">Loading…</div></div>',
   },
+  // Inbound hostiles from the intel channels (Fleet Commander -> Early Warning).
+  // Read-only here: the watcher is configured on that page and keeps running
+  // whether or not this widget is on the grid.
+  earlyWarning: {
+    icon: 'radar', title: 'EARLY WARNING',
+    // Taller than it looks like it needs: at h:8 only two contacts fitted, and
+    // a warning panel that hides the third-nearest hostile is worse than one
+    // that takes a little more grid. Wider, too, since the rows became the same
+    // six columns the Early Warning page uses — at w:4 the pilot name, which is
+    // what identifies the contact, was the first thing to be clipped.
+    // Existing saved layouts keep their own size; this is the default for a new
+    // grid or after a reset.
+    w: 5, h: 11, minW: 3, minH: 5,
+    body: '<div id="dashboardEarlyWarning"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
   // NOTE: the incursion alert is intentionally NOT a grid widget — it is an
   // always-on banner pinned above the grid (#allianceIncursionAlert in
   // pageLoader.js) that only appears when an incursion is active.
@@ -640,12 +655,19 @@ async function _checkBeehiveGoon() {
   return _beehiveGoon;
 }
 
+// --signal-*, NOT --pal-*. This is a traffic light, and it used to be wired to
+// the themeable palette — so recolouring "losses" recoloured STAND DOWN with it,
+// and the one indicator that has to be unmistakable mid-op could end up rendered
+// in whatever hue somebody picked for a chart. See src/styles/signals.css.
+//
+// The label is doing as much work as the colour, deliberately: red/green is the
+// pair most commonly confused, so the state is always spelled out in words too.
 function _beehiveMeta(status) {
   switch (status) {
-    case 'green':  return { color: 'var(--pal-green)', label: 'RUNNING',    sub: 'Up and running — good to go' };
-    case 'yellow': return { color: 'var(--pal-gold)',  label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
-    case 'red':    return { color: 'var(--pal-red)',   label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
-    default:       return { color: 'var(--text-3)',    label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
+    case 'green':  return { color: 'var(--signal-go)',   label: 'RUNNING',    sub: 'Up and running — good to go' };
+    case 'yellow': return { color: 'var(--signal-hold)', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
+    case 'red':    return { color: 'var(--signal-stop)', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+    default:       return { color: 'var(--text-3)',      label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
   }
 }
 
@@ -690,6 +712,92 @@ async function initBeehiveWidget() {
   }
   try { const s = await window.eveAPI.getBeehiveStatus(); if (s) _beehiveLast = s; } catch (_) {}
   renderBeehiveWidget();
+}
+
+// ── Early Warning widget ──────────────────────────────────────────────────────
+// A read-only view of the intel engine's live contacts. The engine itself runs
+// in the main process and is configured on Fleet Commander -> Early Warning; if
+// it isn't running, this says so and points there rather than pretending to be
+// quiet, which would read as "no hostiles" instead of "not looking".
+//
+// The floating pop-out (src/html/intel-widget.html) exists for flying over the
+// game; this is for when you're already in the app.
+const EW_POLL_MS = 3000;
+let _ewTimer = null;
+let _ewAlertBound = false;
+
+function renderEarlyWarningWidget(contacts, status) {
+  const el = document.getElementById('dashboardEarlyWarning');
+  if (!el) return;
+
+  if (!status || !status.running) {
+    el.innerHTML = `<div class="ew-idle">
+      <span class="material-symbols-outlined">radar</span>
+      <div class="ew-idle-text">
+        Not watching.
+        <span class="ew-idle-hint">Pick your intel channels and who to watch.</span>
+      </div>
+      <button class="pi-dash-link-btn ew-idle-btn">SET UP ›</button>
+    </div>`;
+    el.querySelector('.ew-idle-btn')?.addEventListener('click', _ewNavToSetup);
+    return;
+  }
+  // Pilot tracks carry a heading; bare system reports only earn a row up close.
+  const rows = (contacts || []).filter(c => c.kind === 'pilot' || c.jumps <= 3).slice(0, 12);
+  const n = (status.origins || []).length;
+  const head = `<div class="ew-head">${n ? `${n} character${n === 1 ? '' : 's'} · ${status.reach} systems`
+                                        : 'NO POSITION MONITORED'}</div>`;
+  if (!rows.length) {
+    el.innerHTML = head + '<div class="ew-clear">No contacts in range.</div>';
+    return;
+  }
+  // The SAME row builder the Early Warning page and the floating pop-out use
+  // (src/shared/intel-row.js). This widget kept its own two-line markup and its
+  // own copies of the urgency, band and ETA helpers, and it duly drifted: the
+  // page moved to columns and this stayed behind showing a different shape for
+  // the same data. Compact mode drops REGION, which is what a dashboard tile has
+  // room for. The pop-out is served pre-rendered HTML and already loads fc.css,
+  // so it inherits this automatically.
+  el.innerHTML = head + IntelRow.headerHtml({ compact: true })
+    + rows.map(c => IntelRow.rowHtml(c, { compact: true, relative: true })).join('');
+}
+
+// Straight to the tab, not just the page. navigateFcTab() has to run AFTER
+// navigateToPage('fc') — the FC page builds its tab content on entry and would
+// otherwise overwrite the tab we just selected with the remembered one.
+function _ewNavToSetup() {
+  if (typeof navigateToPage === 'function') navigateToPage('fc');
+  // A frame later, once initFcPage() has restored its own last tab.
+  setTimeout(() => {
+    if (typeof navigateFcTab === 'function') navigateFcTab('intel');
+  }, 0);
+}
+
+async function _ewTick() {
+  // Stop polling once the widget is gone (removed from the grid, or the whole
+  // dashboard torn down) — an orphaned 3s timer would run for the session.
+  if (!document.getElementById('dashboardEarlyWarning')) {
+    if (_ewTimer) { clearInterval(_ewTimer); _ewTimer = null; }
+    return;
+  }
+  try {
+    const [contacts, status] = await Promise.all([
+      window.eveAPI.intelContacts(),
+      window.eveAPI.intelStatus(),
+    ]);
+    renderEarlyWarningWidget(contacts, status);
+  } catch (_) { /* engine not built yet; the next tick retries */ }
+}
+
+function initEarlyWarningWidget() {
+  if (!_ewAlertBound) {
+    _ewAlertBound = true;
+    // Alerts are pushed, so the widget doesn't wait up to 3s to show one.
+    window.eveAPI.on('intel-alert', () => _ewTick());
+  }
+  if (_ewTimer) clearInterval(_ewTimer);
+  _ewTick();
+  _ewTimer = setInterval(_ewTick, EW_POLL_MS);
 }
 
 // Personal + corporation active jobs (active / ready / paused) for every
@@ -1029,6 +1137,8 @@ async function loadDashboard() {
 
   // Beehive status widget (if present) — independent of ESI/characters, fill it now.
   if (document.getElementById('dashboardBeehiveWidget')) initBeehiveWidget();
+  // Same for early warning: local intel, no ESI needed.
+  if (document.getElementById('dashboardEarlyWarning')) initEarlyWarningWidget();
 
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
@@ -2455,7 +2565,7 @@ async function _marketTrend(typeId) {
   let result = null;
   try {
     const hist = await window.eveAPI.esiFetch(
-      `https://esi.evetech.net/v1/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`
+      `https://esi.evetech.net/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`
     );
     if (Array.isArray(hist) && hist.length >= 2) {
       const today = Number(hist[hist.length - 1].average);

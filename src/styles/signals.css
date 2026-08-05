@@ -1,0 +1,37 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   signals.css — OPERATIONAL SIGNAL COLOURS. Deliberately not themeable.
+
+   Everything else in this app is the user's to recolour (see palette.css and
+   the Settings palette editor). These three are not, because they are not
+   decoration — they are a traffic light, and a traffic light whose red can be
+   set to blue has stopped being a traffic light.
+
+   The case that forced the split: the Beehive stand-down indicator was wired to
+   --pal-red / --pal-gold / --pal-green. Recolouring the palette recoloured the
+   stand-down light with it, so "STAND DOWN" could be rendered in whatever hue
+   the user had chosen for losses — on a signal whose whole job is to be
+   unmistakable at a glance, mid-op.
+
+     --signal-go     running, clear, safe to proceed
+     --signal-hold   holding, winding down, proceed with caution
+     --signal-stop   stopped, stand down, do not proceed
+
+   NOT OVERRIDABLE, by construction: this file is linked AFTER the
+   #themeStylesheet, so a theme cannot win against it, and the palette editor's
+   live preview only ever emits the swatch variables — it has no way to name
+   these. Adding a --signal-* to a theme file will simply have no effect, which
+   is the intended outcome rather than an oversight.
+
+   The values match the palette's own defaults, so nothing looks different
+   out of the box; what changed is that they can no longer drift.
+
+   COLOUR IS NEVER THE ONLY CUE. Red/green is exactly the pair most commonly
+   confused, so every signal that uses these also carries a word — RUNNING,
+   HOLDING, STAND DOWN — and the colour reinforces the text rather than
+   replacing it. Keep it that way when adding new ones.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --signal-go:   #4ada8a;
+  --signal-hold: #e3b341;
+  --signal-stop: #e0564b;
+}

@@ -1,6 +1,6 @@
 ﻿const { ipcMain, BrowserWindow } = require('electron');
 
-const ESI_BASE = 'https://esi.evetech.net';
+const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
 // Assets are considered stale after 6 hours. The ESI assets endpoint itself
 // caches for 1 hour, so anything under that is guaranteed-identical data; 6h is
@@ -47,7 +47,7 @@ function registerAssetHandlers({
     let totalPages = 1;
     while (true) {
       const { data, xPages } = await httpGetFull(
-        `${ESI_BASE}/v3/characters/${characterId}/assets/?page=${page}&datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/assets/?page=${page}&datasource=tranquility`,
         authHdr
       );
       if (page === 1) totalPages = xPages || 1;
@@ -119,7 +119,7 @@ function registerAssetHandlers({
         const chunk = nameable.slice(i, i + 1000);
         try {
           const res = await httpPost(
-            `${ESI_BASE}/v1/characters/${characterId}/assets/names/?datasource=tranquility`,
+            `${ESI_BASE}/characters/${characterId}/assets/names/?datasource=tranquility`,
             chunk, authHdr
           );
           if (Array.isArray(res)) {

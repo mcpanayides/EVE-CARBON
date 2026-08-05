@@ -7,7 +7,7 @@ const envPath = app.isPackaged
 require('dotenv').config({ path: envPath, quiet: true }); // quiet: suppress dotenv's startup tip line
 
 // ── Now safe to require everything else ────────────────────────────────────────
-const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage } = require('electron');
+const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session } = require('electron');
 const https = require('https');
 const http  = require('http');
 const crypto = require('crypto');
@@ -27,14 +27,26 @@ app.on('web-contents-created', (_evt, contents) => {
   } catch (_) {}
 });
 
-const { APP_USER_AGENT, ESI_COMPATIBILITY_DATE } = require('./src/app_ident');
+// Demo mode (--demo) redirects userData AND EVE_CARBON_DATA_DIR at a throwaway
+// profile. It has to happen here — before requestSingleInstanceLock() below,
+// which is keyed on userData (so a demo instance can run alongside a normal
+// one instead of quitting on the lock), and before initPaths() reads either
+// value. On a normal launch this is a no-op.
+const demoMode = require('./src/demo_mode');
+const demoPaths = demoMode.redirectPaths(app);
+// Wipe here, at module load, while nothing has opened the files yet — the
+// character DB is opened during app.whenReady() and cannot be deleted after.
+if (demoPaths) demoMode.reset(demoPaths);
+
+const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 const resfileBackgrounds      = require('./src/resfile_backgrounds');
 const sdeFetch                = require('./src/sde_fetch');
 const createLocator           = require('./src/locator');
 const charInfoDb              = require('./src/character_info_db');
 const jabberDataDb            = require('./src/jabber_data_db');
 const { registerAccountHandlers }   = require('./src/ipc/accounts_ipc');
-const { registerCharacterHandlers } = require('./src/ipc/character_ipc');
+const characterIpc = require('./src/ipc/character_ipc');
+const { registerCharacterHandlers } = characterIpc;
 const { registerEsiHandlers }       = require('./src/ipc/esi_ipc');
 const { registerBlueprintHandlers } = require('./src/ipc/blueprint_ipc');
 const { registerAssetHandlers }     = require('./src/ipc/assets_ipc');
@@ -42,11 +54,15 @@ const { registerStationHandlers }   = require('./src/ipc/station_ipc');
 const { registerConfigHandlers }    = require('./src/ipc/config_ipc');
 const { registerPingFileHandlers }  = require('./src/ipc/ping_ipc');
 const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
+const { registerIntelHandlers }      = require('./src/ipc/intel_ipc');
 const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
 const { initPresence, getPresenceCount } = require('./src/presence');
+const netLog = require('./src/net_log');
+const fileLog = require('./src/file_log');
+const requestBroker = require('./src/request_broker');
 
 // Global reference to the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -114,7 +130,6 @@ const SSO_TOKEN_URL  = 'https://login.eveonline.com/v2/oauth/token';
 // v2 verify — the unversioned /oauth/verify is legacy; CCP's 2026 "spring
 // cleaning" names /v2/oauth/verify as the drop-in replacement (same payload).
 const SSO_VERIFY_URL = 'https://login.eveonline.com/v2/oauth/verify';
-const ESI_BASE       = 'https://esi.evetech.net';
 // Terminal logs are UTF-8; a Windows console in a non-UTF-8 code page renders
 // glyphs like — ✓ ✗ … as mojibake (тАФ / тЬУ …). Strip to ASCII for stdout logs
 // only — the in-app HTML console (renderer process) keeps the real glyphs.
@@ -476,6 +491,17 @@ let locator = null;
 function getLocator() {
   if (!locator) locator = createLocator({
     httpGet, readCache, writeCache, getValidToken,
+    // NPC stations come from the local SDE rather than a remote mirror — both
+    // of those 404 (see syncStationDatabase in src/locator.js).
+    getSdeDb: () => sdeDb,
+    // ONE view of the ESI error budget. The locator used to keep its own 420
+    // cooldown for the unauthenticated calls it makes through its own transport,
+    // so a 420 seen there did not pause the authenticated reads going out
+    // through httpGet — and vice versa. Two half-blind rate limiters kept
+    // feeding each other's cooldowns; these three make it one.
+    esiGateWait: _esiGateWait,
+    esiNote:     _esiNoteResponse,
+    esiBudget,
     // Every known character id. The locator falls back to OTHER characters'
     // tokens when the owning character can't read a structure's name — any
     // character with docking ACL (and the read_structures scope) can resolve
@@ -591,6 +617,47 @@ ipcMain.handle('set-launch-at-login', (_, enabled) => {
   return on;
 });
 
+// ── Diagnostic log ───────────────────────────────────────────────────────────
+// Off by default; the toggle lives in Settings → General. Everything written is
+// redacted on the way in (see src/file_log.js), so the file is safe to attach to
+// a bug report — which is the whole reason it exists.
+ipcMain.handle('log-get-state', () => fileLog.stat());
+
+ipcMain.handle('log-set-enabled', (_, enabled) => {
+  const on = fileLog.setEnabled(!!enabled);
+  try {
+    const cfg = loadConfig();
+    cfg.app = cfg.app || {};
+    cfg.app.fileLog = on;
+    saveConfig(cfg);
+  } catch (_) { /* the runtime setting still applied */ }
+  return fileLog.stat();
+});
+
+// The last lines, for the bug report to attach. Bounded and redacted.
+ipcMain.handle('log-tail', (_, opts) => fileLog.tail(opts || {}));
+
+ipcMain.handle('log-clear', () => fileLog.clear());
+
+// Show the file in Explorer/Finder rather than opening it — a 4MB text file in
+// the default editor is not what "where is it?" means.
+ipcMain.handle('log-reveal', () => {
+  const s = fileLog.stat();
+  if (!s.path) return false;
+  try {
+    if (s.exists) shell.showItemInFolder(s.path);
+    else shell.openPath(s.dir);
+    return true;
+  } catch (_) { return false; }
+});
+
+// Renderer lines. `send`, not `invoke`: logging must never make the UI wait, and
+// a dropped line is preferable to a stalled render.
+ipcMain.on('log-write', (_e, entry) => {
+  if (!entry) return;
+  fileLog.write(entry.level || 'info', entry.source || 'ui', entry.message);
+});
+
 ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
   const cfg = loadConfig();
   cfg.app = cfg.app || {};
@@ -598,6 +665,36 @@ ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
   saveConfig(cfg);
   applyMinimizeToTray(cfg.app.minimizeToTray);
   return cfg.app.minimizeToTray;
+});
+
+// ── Demo mode ────────────────────────────────────────────────────────────────
+// `active` is what this session actually booted into; `enabled` is what the
+// toggle is set to. They differ between flipping the switch and restarting,
+// which is exactly what the Settings row needs to know to show its notice.
+//
+// Note both go through demoMode, NOT loadConfig()/saveConfig(): those write
+// whichever profile is current, and in demo mode that's the throwaway one that
+// gets wiped on launch — so turning demo mode off from inside it would never
+// stick. demoMode.setEnabled always writes the real profile's config.
+ipcMain.handle('get-demo-mode', () => ({
+  enabled: demoMode.isEnabled(app),
+  active:  !!demoPaths,
+  forced:  process.argv.includes('--demo') || /^(1|true|yes)$/i.test(String(process.env.EVE_CARBON_DEMO || '')),
+  profile: demoPaths ? demoPaths.userDataDir : null,
+}));
+
+ipcMain.handle('set-demo-mode', (_, enabled) => {
+  const on = demoMode.setEnabled(app, enabled);
+  return { enabled: on, active: !!demoPaths, restartRequired: on !== !!demoPaths };
+});
+
+// Relaunch so the new setting takes effect. --demo is stripped from the args
+// deliberately: leaving it on would override the config the user just turned
+// off and the app would come back in demo mode anyway.
+ipcMain.handle('restart-app', () => {
+  const args = process.argv.slice(1).filter(a => a !== '--demo' && !a.startsWith('--demo-'));
+  app.relaunch({ args });
+  app.exit(0);
 });
 
 // ── Anonymous presence counter (status-bar "N online") — see src/presence.js ──
@@ -627,7 +724,10 @@ ipcMain.handle('get-trade-profile', async (_, characterId) => {
 // classify blue (+5/+10) vs red (-5/-10). Requires esi-alliances.read_contacts.v1;
 // a token predating that scope returns { ok:false, needsReauth:true }. Cached per
 // alliance for 1 hour. Returns { ok, allianceId, standings:{ contactId: standing } }.
-ipcMain.handle('get-alliance-contacts', async (_, characterId, allianceId) => {
+// Extracted so the intel service can reuse this EXACT path — same cache key,
+// same 1-hour TTL, same 403/re-auth handling. A second route to the same
+// paginated endpoint would double the calls for identical data.
+async function fetchAllianceContacts(characterId, allianceId) {
   if (!characterId || !allianceId) return { ok: false, error: 'no alliance' };
   const cacheKey = `alliance_contacts_${allianceId}`;
   const cached = readCache(cacheKey);
@@ -639,7 +739,7 @@ ipcMain.handle('get-alliance-contacts', async (_, characterId, allianceId) => {
     let page = 1, totalPages = 1;
     while (true) {
       const { data, xPages } = await httpGetFull(
-        `${ESI_BASE}/v2/alliances/${allianceId}/contacts/?datasource=tranquility&page=${page}`, authHdr
+        `${ESI_BASE}/alliances/${allianceId}/contacts/?datasource=tranquility&page=${page}`, authHdr
       );
       if (page === 1) totalPages = xPages || 1;
       if (Array.isArray(data)) for (const c of data) standings[c.contact_id] = c.standing;
@@ -655,7 +755,11 @@ ipcMain.handle('get-alliance-contacts', async (_, characterId, allianceId) => {
     }
     return { ok: false, error: msg };
   }
-});
+}
+
+ipcMain.handle('get-alliance-contacts', (_, characterId, allianceId) =>
+  fetchAllianceContacts(characterId, allianceId));
+
 
 // EvE-Scout public wormhole map (Thera + Turnur connections). No auth needed.
 // Returns [{ inId, inName, inClass, outId, outName, inSig, outSig, whType, maxShip,
@@ -859,7 +963,7 @@ ipcMain.handle('fc-get-character-fleet', async (_, characterId) => {
   try {
     const token = await getValidToken(characterId);
     const data  = await httpGet(
-      `${ESI_BASE}/v1/characters/${characterId}/fleet/?datasource=tranquility`,
+      `${ESI_BASE}/characters/${characterId}/fleet/?datasource=tranquility`,
       { Authorization: `Bearer ${token}` }
     );
     return {
@@ -885,7 +989,7 @@ ipcMain.handle('fc-get-fleet-members', async (_, characterId, fleetId) => {
   try {
     const token = await getValidToken(characterId);
     const data  = await httpGet(
-      `${ESI_BASE}/v1/fleets/${fleetId}/members/?datasource=tranquility`,
+      `${ESI_BASE}/fleets/${fleetId}/members/?datasource=tranquility`,
       { Authorization: `Bearer ${token}` }
     );
     const members = (Array.isArray(data) ? data : []).map(m => ({
@@ -923,7 +1027,7 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
   catch (e) { return { ok: false, error: 'token: ' + e.message }; }
 
   const authHdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-  const base    = `${ESI_BASE}/v1/fleets/${fleetId}`;
+  const base    = `${ESI_BASE}/fleets/${fleetId}`;
 
   const esiGet = async (url) => {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -1340,23 +1444,22 @@ ipcMain.handle('fit-get-fittings', async (_, characterId) => {
   try { token = await getValidToken(characterId); }
   catch (e) { return { ok: false, error: 'token: ' + e.message }; }
   const hdr = { Authorization: `Bearer ${token}` };
-  // The fittings route version has changed over time — try v2 then v1 so a 404
-  // on the wrong version doesn't look like a failure.
-  for (const ver of ['v2', 'v1']) {
-    try {
-      const res = await fetch(`${ESI_BASE}/${ver}/characters/${characterId}/fittings/?datasource=tranquility`, { headers: hdr });
-      if (res.status === 404) continue;                 // wrong version — try the other
-      if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings access (esi-fittings.read_fittings.v1).' };
-      if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
-      const data = await res.json();
-      const fittings = (Array.isArray(data) ? data : []).map(f => ({
-        fittingId: f.fitting_id, name: f.name, description: f.description, shipTypeId: f.ship_type_id,
-        items: (f.items || []).map(i => ({ typeId: i.type_id, flag: i.flag, quantity: i.quantity })),
-      }));
-      return { ok: true, fittings };
-    } catch (e) { return { ok: false, error: e.message }; }
-  }
-  return { ok: false, error: 'Fittings endpoint returned 404 on both v1 and v2.' };
+  // ONE call. This used to loop ['v2','v1'] treating a 404 as "wrong guess, try
+  // the other", because the route's version kept changing underneath us — the
+  // exact problem compatibility dates exist to end. The unversioned path plus
+  // X-Compatibility-Date pins the behaviour, so a 404 here means what a 404
+  // should mean.
+  try {
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, { headers: hdr });
+    if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings access (esi-fittings.read_fittings.v1).' };
+    if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
+    const data = await res.json();
+    const fittings = (Array.isArray(data) ? data : []).map(f => ({
+      fittingId: f.fitting_id, name: f.name, description: f.description, shipTypeId: f.ship_type_id,
+      items: (f.items || []).map(i => ({ typeId: i.type_id, flag: i.flag, quantity: i.quantity })),
+    }));
+    return { ok: true, fittings };
+  } catch (e) { return { ok: false, error: e.message }; }
 });
 
 // Save a fit to the game (ESI). Requires esi-fittings.write_fittings.v1.
@@ -1371,17 +1474,14 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
       items: (fitting.items || []).map(i => ({ type_id: i.typeId, flag: i.flag, quantity: i.quantity })),
     };
     const hdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    for (const ver of ['v2', 'v1']) {
-      const res = await fetch(`${ESI_BASE}/${ver}/characters/${characterId}/fittings/?datasource=tranquility`, {
-        method: 'POST', headers: hdr, body: JSON.stringify(body),
-      });
-      if (res.status === 404) continue;                 // wrong version — try the other
-      if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings write access (esi-fittings.write_fittings.v1).' };
-      if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
-      const j = await res.json().catch(() => ({}));
-      return { ok: true, fittingId: j.fitting_id };
-    }
-    return { ok: false, error: 'Fittings endpoint returned 404 on both v1 and v2.' };
+    // One call — see the note on the read path above.
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, {
+      method: 'POST', headers: hdr, body: JSON.stringify(body),
+    });
+    if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings write access (esi-fittings.write_fittings.v1).' };
+    if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
+    const j = await res.json().catch(() => ({}));
+    return { ok: true, fittingId: j.fitting_id };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -1429,7 +1529,7 @@ ipcMain.handle('mail-get-headers', async (_, characterId, opts = {}) => {
     const qs = new URLSearchParams({ datasource: 'tranquility' });
     if (opts.labelId != null && opts.labelId !== '') qs.set('labels', String(opts.labelId));
     if (opts.lastMailId) qs.set('last_mail_id', String(opts.lastMailId));
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/?${qs}`, { headers: auth.hdr });
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/?${qs}`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail headers');
     const rows = await res.json();
     const mails = (Array.isArray(rows) ? rows : []).map(m => ({
@@ -1452,7 +1552,7 @@ ipcMain.handle('mail-get-body', async (_, characterId, mailId) => {
   if (auth.error) return auth.error;
   if (!mailId) return { ok: false, error: 'no mail id' };
   try {
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail body');
     const m = await res.json();
     return { ok: true, mail: {
@@ -1473,7 +1573,7 @@ ipcMain.handle('mail-get-labels', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/v3/characters/${characterId}/mail/labels/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/labels/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail labels');
     const d = await res.json();
     const labels = (d.labels || []).map(l => ({
@@ -1489,7 +1589,7 @@ ipcMain.handle('mail-get-lists', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/lists/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/lists/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mailing lists');
     const rows = await res.json();
     return { ok: true, lists: (Array.isArray(rows) ? rows : []).map(l => ({ id: l.mailing_list_id, name: l.name })) };
@@ -1513,7 +1613,7 @@ ipcMain.handle('mail-send', async (_, characterId, mail) => {
       subject:       (mail.subject || '').slice(0, 1000),
       recipients:    recipients.map(r => ({ recipient_id: Number(r.id), recipient_type: r.type })),
     };
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/?datasource=tranquility`, {
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/?datasource=tranquility`, {
       method: 'POST', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!res.ok) return await _mailErr(res, 'send mail');
@@ -1533,7 +1633,7 @@ ipcMain.handle('mail-update', async (_, characterId, mailId, patch = {}) => {
     if (typeof patch.read === 'boolean') body.read = patch.read;
     if (Array.isArray(patch.labels))     body.labels = patch.labels.map(Number);
     if (!Object.keys(body).length) return { ok: false, error: 'nothing to update' };
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
       method: 'PUT', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!res.ok) return await _mailErr(res, 'update mail');
@@ -1555,7 +1655,7 @@ ipcMain.handle('contracts-get', async (_, characterId) => {
     const all = [];
     for (let page = 1; page <= 10; page++) {
       const res = await fetch(
-        `${ESI_BASE}/v1/characters/${characterId}/contracts/?datasource=tranquility&page=${page}`,
+        `${ESI_BASE}/characters/${characterId}/contracts/?datasource=tranquility&page=${page}`,
         { headers: auth.hdr });
       if (res.status === 403) {
         return { ok: false, needsReauth: true,
@@ -1607,7 +1707,7 @@ ipcMain.handle('contracts-get-items', async (_, characterId, contractId) => {
   if (!contractId) return { ok: false, error: 'no contract id' };
   try {
     const res = await fetch(
-      `${ESI_BASE}/v1/characters/${characterId}/contracts/${contractId}/items/?datasource=tranquility`,
+      `${ESI_BASE}/characters/${characterId}/contracts/${contractId}/items/?datasource=tranquility`,
       { headers: auth.hdr });
     // 404 is normal: courier and loan contracts carry no item list.
     if (res.status === 404) return { ok: true, items: [] };
@@ -1746,7 +1846,7 @@ ipcMain.handle('notif-get', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/v6/characters/${characterId}/notifications/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/notifications/?datasource=tranquility`, { headers: auth.hdr });
     if (res.status === 403) {
       return { ok: false, needsReauth: true,
                error: 'Re-authenticate this character to grant notification access (esi-characters.read_notifications.v1).' };
@@ -1786,7 +1886,7 @@ ipcMain.handle('mail-delete', async (_, characterId, mailId) => {
   if (auth.error) return auth.error;
   if (!mailId) return { ok: false, error: 'no mail id' };
   try {
-    const res = await fetch(`${ESI_BASE}/v1/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
       method: 'DELETE', headers: auth.hdr,
     });
     if (!res.ok) return await _mailErr(res, 'delete mail');
@@ -1797,6 +1897,27 @@ ipcMain.handle('mail-delete', async (_, characterId, mailId) => {
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;   // second instance is quitting — don't init/open
   initPaths();
+
+  // Opt-in diagnostic log (Settings → General). Off by default. Started first so
+  // a failure during the rest of this sequence — the SDE, the character DB — is
+  // actually in the file, since those are the failures nobody can currently
+  // report because they happen before any window exists to show them.
+  try {
+    fileLog.init({ userDataPath, config: loadConfig() });
+  } catch (e) { console.warn('[log] init failed:', e.message); }
+
+  // Opt-in network recorder (EVE_CARBON_NET_LOG=1, or "netLog": true under "app"
+  // in config.json). Off by default and it never alters a request — it wraps
+  // http(s).request and the session's webRequest purely to count what goes out,
+  // so "is the app hammering the network?" can be answered from a CSV instead of
+  // a guess. Started before anything else so nothing escapes the count.
+  try {
+    netLog.init({
+      userDataPath,
+      config:  loadConfig(),
+      session: session.defaultSession,
+    });
+  } catch (e) { console.warn('[net-log] init failed:', e.message); }
 
   // Anonymous "N online" heartbeat — off unless PRESENCE_URL is configured
   // (see infra/presence-worker). Always on otherwise, no user opt-out.
@@ -1814,6 +1935,19 @@ app.whenReady().then(async () => {
     await charInfoDb.initCharacterDb(appDataDir);
   } catch (e) {
     console.error('[charInfoDb] init failed, continuing:', e.message);
+  }
+  // Populate the (just-wiped) demo profile. After initCharacterDb because the
+  // seeder writes through the app's own DB functions, which need the connection
+  // open. Failure here means a thinner demo, never a failed launch.
+  if (demoPaths && !demoMode.shouldKeep()) {
+    try {
+      const t0 = Date.now();
+      const { characters } = await require('./src/demo_data').seed({ ...demoPaths, charInfoDb });
+      console.log(`[demo] seeded ${characters.length} characters in ${Date.now() - t0}ms: ` +
+                  characters.map(c => c.name).join(', '));
+    } catch (e) {
+      console.error('[demo] seeding failed, continuing with an empty profile:', e.message);
+    }
   }
   try {
     await jabberDataDb.initJabberDb(appDataDir, userDataPath);
@@ -1906,7 +2040,29 @@ app.whenReady().then(async () => {
     readCache,
     writeCache,
     getSdeDb: () => sdeDb,
+    getSdeMd5Path,
   });
+  // Intel early-warning. Registered but idle: the service builds its SDE index
+  // and starts tailing chat logs only when the renderer calls intel-start, so a
+  // user who never opens the tool pays nothing for it.
+  const intelHandlers = registerIntelHandlers({
+    ipcHandle, getSdeDb: () => sdeDb, loadConfig, saveConfig, loadDB, charInfoDb,
+    httpGet, httpPost,
+    // Where the long-term pattern history is kept (intel-patterns.json).
+    userDataPath,
+    // Contact-sheet standings, so a rule can say "-10 within 8 jumps".
+    getAllianceContacts: fetchAllianceContacts,
+    // Reuses the app's existing zKillboard import (10-min cache + 30-day stale
+    // fallback in character_ipc.js) rather than opening a second path to zKill.
+    getZkillFeed: (kind, entityId) => characterIpc.registered.fetchZkillFeed
+      ? characterIpc.registered.fetchZkillFeed(kind, entityId)
+      : Promise.resolve(null),
+  });
+  // Begin watching intel channels without waiting for anyone to open the page.
+  // Deliberately not awaited: building the system index reads the SDE, and the
+  // window should not sit blank behind it. No-ops unless the user has opted in
+  // AND configured channels.
+  intelHandlers.autoStart().catch(e => console.warn('[intel] auto-start:', e.message));
   registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig });
   registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThemesDir });
   registerForumHandlers({ ipcHandle });
@@ -1921,7 +2077,7 @@ app.whenReady().then(async () => {
   // card if that character has a fleet advert up — player clicks it in-game.
   ipcHandle('open-character-info-window', async (_, { characterId, targetId }) => {
     const token = await getValidToken(characterId);
-    const url   = `https://esi.evetech.net/v1/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
+    const url   = `https://esi.evetech.net/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
     const res   = await fetch(url, {
       method:  'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -2260,6 +2416,27 @@ function saveJumpBridges(arr) {
 //   • When the error budget runs low (Remain ≤ 10) we pause proactively.
 //   • When a bucket (X-Ratelimit-Remaining) runs dry we back off briefly.
 let _esiBlockUntil = 0;   // ms epoch — no ESI requests before this
+// Last seen X-Esi-Error-Limit-Remain, and when. CCP's budget refills on its own
+// reset clock, so a stale reading must not be trusted indefinitely.
+let _esiErrorRemain   = 100;
+let _esiErrorRemainAt = 0;
+const ESI_REMAIN_STALE_MS = 60_000;
+
+/**
+ * How much error budget is left, as far as we know.
+ *
+ * `blockedFor` is the current pause; `remain` is the headroom. Speculative
+ * callers should consult this BEFORE spending a request they expect to fail —
+ * once the budget hits zero CCP returns 420 for everything, which takes out
+ * every other ESI feature in the app, not just the caller that drained it.
+ */
+function esiBudget() {
+  const fresh = Date.now() - _esiErrorRemainAt < ESI_REMAIN_STALE_MS;
+  return {
+    remain:     fresh ? _esiErrorRemain : 100,
+    blockedFor: Math.max(0, _esiBlockUntil - Date.now()),
+  };
+}
 
 // Pin ESI requests to a known-good compatibility date (see app_ident.js) —
 // scoped to esi.evetech.net only, same as the gate above, so it never leaks
@@ -2272,7 +2449,14 @@ function _esiGateWait(url) {
   if (!/esi\.evetech\.net/i.test(String(url))) return Promise.resolve();
   const wait = _esiBlockUntil - Date.now();
   if (wait <= 0) return Promise.resolve();
-  return new Promise(r => setTimeout(r, Math.min(wait, 65000)));
+  // JITTER, and it is not cosmetic. Every request queued behind a pause used to
+  // resume in the same millisecond, so the instant a 420 cooldown expired the
+  // whole backlog fired at once and drained the refilled budget straight back to
+  // zero — which is the 10→9→8→…→3 cascade in the logs. Spreading the release
+  // over a few seconds lets the first few answers update the budget before the
+  // rest commit to going.
+  const jitter = Math.floor(Math.random() * 3000);
+  return new Promise(r => setTimeout(r, Math.min(wait + jitter, 65000)));
 }
 
 // Shared by both response shapes below: Node's http.IncomingMessage
@@ -2283,6 +2467,14 @@ function _esiNoteResponseCore(url, statusCode, getHeader) {
   if (!/esi\.evetech\.net/i.test(String(url))) return;
   const remain = parseInt(getHeader('x-esi-error-limit-remain') ?? '', 10);
   const reset  = parseInt(getHeader('x-esi-error-limit-reset')  ?? '', 10);
+  // Remember the headroom, not just the pause. Callers that make SPECULATIVE
+  // requests — ones they expect to 403, like probing a structure nobody has
+  // docking rights to — can then stand down while the budget is thin and leave
+  // what is left for calls that were actually going to succeed.
+  if (isFinite(remain)) {
+    _esiErrorRemain   = remain;
+    _esiErrorRemainAt = Date.now();
+  }
   if (statusCode === 420) {
     const pause = (isFinite(reset) ? reset : 60) + 1;
     _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + pause * 1000);
@@ -2377,8 +2569,11 @@ if (typeof _origGlobalFetch === 'function') {
   };
 }
 
-async function httpGet(url, headers = {}) {
-  await _esiGateWait(url);
+// One transport for both shapes. httpGet and httpGetFull were near-identical
+// copies; they now share this, which also hands the response headers back so the
+// broker can read the origin's own cache lifetime off them.
+// Resolves { value, xPages, headers }.
+function _httpJsonRaw(url, headers = {}) {
   const cached = _readEtagEntry(url);
   return new Promise((resolve, reject) => {
     const reqHeaders = { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ..._esiCompatHeader(url), ...headers };
@@ -2400,52 +2595,15 @@ async function httpGet(url, headers = {}) {
         // Not Modified — the ETag we sent still matches, reuse the stored body
         // instead of parsing the (deliberately empty) 304 response.
         if (res.statusCode === 304 && cached) {
-          try { return resolve(JSON.parse(cached.body)); } catch { /* corrupt cache entry — fall through */ }
-        }
-        if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
-        if (res.headers['etag']) _writeEtagEntry(url, { etag: res.headers['etag'], body: data });
-        try { resolve(JSON.parse(data)); } catch { reject(new Error('JSON parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(20000, () => { req.destroy(); reject(new Error('Timeout')); });
-    req.end();
-  });
-}
- 
-// Like httpGet but also returns the ESI X-Pages header.
-// Use this for paginated ESI endpoints so we never stop early.
-// Returns: { data: parsedBody, xPages: number }
-async function httpGetFull(url, headers = {}) {
-  await _esiGateWait(url);
-  const cached = _readEtagEntry(url);
-  return new Promise((resolve, reject) => {
-    const reqHeaders = { 'User-Agent': APP_USER_AGENT, 'Accept': 'application/json', ..._esiCompatHeader(url), ...headers };
-    if (cached?.etag) reqHeaders['If-None-Match'] = cached.etag;
-    const req = https.request(url, { headers: reqHeaders }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        _esiNoteResponse(url, res);
-        if (res.statusCode === 429 || res.statusCode === 420) {
-          const retryAfter = parseInt(res.headers['retry-after'] || res.headers['x-esi-error-limit-reset'] || '60', 10);
-          if (res.statusCode === 429) _esiBlockUntil = Math.max(_esiBlockUntil, Date.now() + retryAfter * 1000);
-          return reject(Object.assign(
-            new Error(`HTTP ${res.statusCode}: ${url}`),
-            { retryAfter, isRateLimit: true }
-          ));
-        }
-        if (res.statusCode === 304 && cached) {
-          try { return resolve({ data: JSON.parse(cached.body), xPages: cached.xPages ?? 1 }); } catch { /* corrupt cache entry — fall through */ }
+          try {
+            return resolve({ value: JSON.parse(cached.body), xPages: cached.xPages ?? 1, headers: res.headers });
+          } catch { /* corrupt cache entry — fall through */ }
         }
         if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}: ${url}`));
         const xPages = parseInt(res.headers['x-pages'] || '1', 10);
         if (res.headers['etag']) _writeEtagEntry(url, { etag: res.headers['etag'], body: data, xPages });
         try {
-          resolve({
-            data: JSON.parse(data),
-            xPages,
-          });
+          resolve({ value: JSON.parse(data), xPages, headers: res.headers });
         } catch { reject(new Error('JSON parse error')); }
       });
     });
@@ -2453,6 +2611,35 @@ async function httpGetFull(url, headers = {}) {
     req.setTimeout(20000, () => { req.destroy(); reject(new Error('Timeout')); });
     req.end();
   });
+}
+
+// Both GET helpers go through the broker: identical concurrent calls collapse to
+// one request, a response still inside the lifetime the origin declared is
+// served without a round trip, and each host gets a concurrency ceiling. See
+// src/request_broker.js for why. The error-limit gate stays INSIDE the perform
+// callback so it only costs a wait on requests that actually go out.
+async function httpGet(url, headers = {}) {
+  const r = await requestBroker.get(url, headers, async () => {
+    await _esiGateWait(url);
+    const { value, headers: h } = await _httpJsonRaw(url, headers);
+    return { value, headers: h };
+  });
+  return r;
+}
+
+// Like httpGet but also returns the ESI X-Pages header.
+// Use this for paginated ESI endpoints so we never stop early.
+// Returns: { data: parsedBody, xPages: number }
+async function httpGetFull(url, headers = {}) {
+  // Keyed apart from httpGet's entry for the same URL: this one caches the page
+  // count alongside the body, and handing a bare body to a paginating caller
+  // would make it think there was only ever one page.
+  const r = await requestBroker.get(url + '#full', headers, async () => {
+    await _esiGateWait(url);
+    const { value, xPages, headers: h } = await _httpJsonRaw(url, headers);
+    return { value: { data: value, xPages }, headers: h };
+  });
+  return r;
 }
 
 // ─── ESI retry wrapper ────────────────────────────────────────────────────────
@@ -2543,7 +2730,31 @@ const bpCache   = {};
 const callbackServerState = { server: null, start: null };
  
 // ─── Token refresh ────────────────────────────────────────────────────────────
+// One refresh per character, however many callers want the token.
+//
+// Measured: 21 POSTs to /v2/oauth/token in 1.6s on launch, and another 16 in a
+// second later. Every caller found the same expired token and every caller
+// started its own refresh — and only one of those writes wins, so the rest were
+// pure waste racing to overwrite each other.
+const _tokenRefreshes = new Map();   // characterId -> Promise<accessToken>
+
 async function getValidToken(characterId) {
+  // Demo mode has no real tokens and must never try to refresh one. Left to run,
+  // the refresh gets invalid_grant from CCP, which flags the account
+  // needsReauth and pops a "3 characters need to log back in" toast — on camera,
+  // over whatever you were demonstrating. Failing plainly here keeps that flag
+  // unset and lets every page fall back to its seeded local data, which is the
+  // whole point of the demo profile.
+  if (demoPaths) throw new Error('demo mode — live ESI disabled');
+  const running = _tokenRefreshes.get(String(characterId));
+  if (running) return running;
+  const p = _getValidTokenUncoalesced(characterId)
+    .finally(() => _tokenRefreshes.delete(String(characterId)));
+  _tokenRefreshes.set(String(characterId), p);
+  return p;
+}
+
+async function _getValidTokenUncoalesced(characterId) {
   const db = loadDB();
   const account = db.accounts[characterId];
   if (!account) throw new Error('Account not found');
@@ -2679,6 +2890,59 @@ ipcHandle('widget-popout-content', (_e, { id, html, title }) => {
 });
 
 // Always-on-top pin toggle from the popout titlebar
+// ─── Intel early-warning widget ───────────────────────────────────────────────
+// A floating, always-on-top-capable window showing inbound contacts, meant to
+// sit over the game client while you fly.
+//
+// Deliberately NOT a dashboard widget mirror like the ones above. Those render
+// in a hidden host on the dashboard page and stream their HTML out, which means
+// they only update while the main window's renderer is doing that work. This
+// one has to keep counting down while the app is minimised to tray and the
+// dashboard is nowhere in sight, so it talks to the intel service directly over
+// the same IPC the Early Warning page uses.
+let intelWidgetWin = null;
+
+function createIntelWidgetWindow() {
+  if (intelWidgetWin && !intelWidgetWin.isDestroyed()) { intelWidgetWin.focus(); return intelWidgetWin; }
+  const glass = acrylicSupported();
+  intelWidgetWin = new BrowserWindow({
+    // Wide enough for the whole row — time, system, ships, size, type, ETA —
+    // without the role tags clipping. Still narrow enough to sit beside the
+    // game rather than over it.
+    width: 470, height: 460,
+    minWidth: 300, minHeight: 180,
+    resizable: true,
+    skipTaskbar: false,
+    ...(glass
+      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
+      : { frame: false, backgroundColor: '#070b14' }),
+    icon: appIconPath() || undefined,
+    webPreferences: {
+      preload:          path.join(__dirname, 'src', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false,
+    },
+  });
+  intelWidgetWin.loadFile(path.join(__dirname, 'src', 'html', 'intel-widget.html'));
+  intelWidgetWin.on('closed', () => { intelWidgetWin = null; });
+  return intelWidgetWin;
+}
+
+ipcHandle('intel-widget-open',  () => { createIntelWidgetWindow(); return { success: true }; });
+ipcHandle('intel-widget-close', () => {
+  if (intelWidgetWin && !intelWidgetWin.isDestroyed()) intelWidgetWin.close();
+  return { success: true };
+});
+ipcHandle('intel-widget-pin', (_e, pinned) => {
+  // 'screen-saver' level so it stays above a fullscreen-windowed EVE client —
+  // the ordinary 'floating' level loses to it.
+  if (intelWidgetWin && !intelWidgetWin.isDestroyed()) intelWidgetWin.setAlwaysOnTop(!!pinned, 'screen-saver');
+  return { pinned: !!pinned };
+});
+ipcHandle('intel-widget-state', () => ({
+  open: !!(intelWidgetWin && !intelWidgetWin.isDestroyed()),
+}));
+
 ipcHandle('widget-popout-pin', (_e, { id, pinned }) => {
   const win = widgetPopouts.get(id);
   if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!pinned, 'screen-saver');
@@ -2820,7 +3084,10 @@ function acrylicSupported() {
 
 function createWindow() {
   const glass = acrylicSupported();
-  const win = new BrowserWindow({
+  // Demo mode pins an exact window size (default 1600x900, --demo-size=WxH to
+  // change it) so a screen recording is captured 1:1 instead of being resampled
+  // from a mismatched region — the usual cause of soft-looking demo footage.
+  const win = new BrowserWindow(demoMode.windowOptions({
     width: 1800,
     height: 1200,
     minWidth: 900,
@@ -2837,7 +3104,7 @@ function createWindow() {
       nodeIntegration: false,
       webviewTag: true,   // enables the embedded <webview> on the Forums page
     }
-  });
+  }));
 
   // DEVELOPER PANEL
   //win.webContents.openDevTools();
@@ -2883,7 +3150,7 @@ async function resolveImplantSlots(typeIds) {
     }
     try {
       const typeData = await httpGet(
-        `${ESI_BASE}/v3/universe/types/${id}/?datasource=tranquility`
+        `${ESI_BASE}/universe/types/${id}/?datasource=tranquility`
       );
       const attrs = typeData?.dogma_attributes || [];
       // Attribute 331 = implantSlot (value 1-10)
@@ -2918,7 +3185,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 1. Character sheet
   try {
     report('character_info', 'Fetching character sheet…');
-    const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`, authHdr);
+    const info = await httpGet(`${ESI_BASE}/characters/${characterId}/?datasource=tranquility`, authHdr);
     await charInfoDb.upsertCharacterInfo(characterId, info);
     summary.steps.info = 'ok';
     report('character_info', `✓ ${info.name || characterName}`);
@@ -2930,7 +3197,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 2. Wallet balance
   try {
     report('wallet', 'Fetching wallet balance…');
-    const balance = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
+    const balance = await httpGet(`${ESI_BASE}/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
     await charInfoDb.insertWalletSnapshot(characterId, typeof balance === 'number' ? balance : 0);
     summary.steps.wallet = `${balance} ISK`;
     report('wallet', `✓ ${(balance || 0).toLocaleString()} ISK`);
@@ -2942,7 +3209,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 3. Current location
   try {
     report('location', 'Fetching current location…');
-    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    const loc = await httpGet(`${ESI_BASE}/characters/${characterId}/location/?datasource=tranquility`, authHdr);
     let stationName = null;
     try {
       if (loc.station_id) {
@@ -2972,7 +3239,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 4. Current ship
   try {
     report('ship', 'Fetching current ship…');
-    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    const ship = await httpGet(`${ESI_BASE}/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
     let typeName = '';
     if (ship.ship_type_id) {
       try {
@@ -2991,7 +3258,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 5. Active implants (clones endpoint gives both active implants + jump clones)
   try {
     report('implants', 'Fetching implants & clones…');
-    const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
+    const cloneData = await httpGet(`${ESI_BASE}/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
  
     // Active implants require esi-clones.read_implants.v1 scope.
     // DO NOT silently swallow errors -- a 403/401 means the token is missing
@@ -2999,7 +3266,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     let activeImplants = [];
     let implantFetchError = null;
     try {
-      const raw = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+      const raw = await httpGet(`${ESI_BASE}/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
       activeImplants = Array.isArray(raw) ? raw : [];
       console.log(`[CharSync] implants raw ESI for ${characterId}:`, JSON.stringify(activeImplants));
     } catch (implantErr) {
@@ -3079,7 +3346,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     let totalPages = 1;
     while (true) {
       const { data, xPages } = await httpGetFullWithRetry(
-        `${ESI_BASE}/v3/characters/${characterId}/assets/?page=${page}&datasource=tranquility`, authHdr
+        `${ESI_BASE}/characters/${characterId}/assets/?page=${page}&datasource=tranquility`, authHdr
       );
       if (page === 1) {
         totalPages = xPages || 1;
@@ -3178,7 +3445,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     let totalBPPages = 1;
     while (true) {
       const { data, xPages } = await httpGetFullWithRetry(
-        `${ESI_BASE}/v3/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr
+        `${ESI_BASE}/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr
       );
       if (page === 1) totalBPPages = xPages || 1;
       allBPs = allBPs.concat(data || []);
@@ -3218,7 +3485,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   try {
     report('wallet_journal', 'Fetching wallet journal…');
     const journal = await httpGet(
-      `${ESI_BASE}/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
+      `${ESI_BASE}/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
       authHdr
     );
     if (Array.isArray(journal)) {
@@ -3235,7 +3502,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   try {
     report('wallet_transactions', 'Fetching wallet transactions…');
     const raw = await httpGet(
-      `${ESI_BASE}/v1/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
+      `${ESI_BASE}/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
       authHdr
     );
     if (Array.isArray(raw)) {
@@ -3262,7 +3529,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   try {
     report('loyalty_points', 'Fetching loyalty points…');
     const lpRaw = await httpGet(
-      `${ESI_BASE}/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`,
+      `${ESI_BASE}/characters/${characterId}/loyalty/points/?datasource=tranquility`,
       authHdr
     );
     if (Array.isArray(lpRaw)) {
@@ -3358,7 +3625,7 @@ async function statusCharacterSync(characterId) {
 
   // Current location (+ station/structure + system names)
   try {
-    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    const loc = await httpGet(`${ESI_BASE}/characters/${characterId}/location/?datasource=tranquility`, authHdr);
     let stationName = null;
     try {
       if (loc.station_id)        { const s = await getLocator().resolveLocation(loc.station_id,   characterId); stationName = s?.name || null; }
@@ -3371,7 +3638,7 @@ async function statusCharacterSync(characterId) {
 
   // Current ship
   try {
-    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    const ship = await httpGet(`${ESI_BASE}/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
     let typeName = '';
     if (ship.ship_type_id) { try { const nm = await resolveNames([ship.ship_type_id]); typeName = nm[ship.ship_type_id] || ''; } catch (_) {} }
     await charInfoDb.upsertShip(characterId, ship, typeName);
@@ -3379,7 +3646,7 @@ async function statusCharacterSync(characterId) {
 
   // Active implants — no stale gate; preserve DB rows if the fetch itself fails.
   try {
-    const raw   = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+    const raw   = await httpGet(`${ESI_BASE}/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
     const ids   = [...new Set(Array.isArray(raw) ? raw : [])];
     const names = ids.length ? await resolveNames(ids) : {};
     const slots = ids.length ? await resolveImplantSlots(ids) : {};
@@ -3411,7 +3678,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
   // 1. Character sheet
   try {
     report('character_info', 'Fetching character sheet…');
-    const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`, authHdr);
+    const info = await httpGet(`${ESI_BASE}/characters/${characterId}/?datasource=tranquility`, authHdr);
     await charInfoDb.upsertCharacterInfo(characterId, info);
     summary.steps.info = 'ok';
     report('character_info', `✓ ${info.name || characterName}`);
@@ -3420,7 +3687,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
   // 2. Wallet balance
   try {
     report('wallet', 'Fetching wallet balance…');
-    const balance = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
+    const balance = await httpGet(`${ESI_BASE}/characters/${characterId}/wallet/?datasource=tranquility`, authHdr);
     await charInfoDb.insertWalletSnapshot(characterId, typeof balance === 'number' ? balance : 0);
     summary.steps.wallet = `${balance} ISK`;
     report('wallet', `✓ ${(balance || 0).toLocaleString()} ISK`);
@@ -3429,7 +3696,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
   // 3. Current location
   try {
     report('location', 'Fetching current location…');
-    const loc = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/location/?datasource=tranquility`, authHdr);
+    const loc = await httpGet(`${ESI_BASE}/characters/${characterId}/location/?datasource=tranquility`, authHdr);
     let stationName = null;
     try {
       if (loc.station_id)  { const s = await getLocator().resolveLocation(loc.station_id,  characterId); stationName = s?.name || null; }
@@ -3447,7 +3714,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
   // 4. Current ship
   try {
     report('ship', 'Fetching current ship…');
-    const ship = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
+    const ship = await httpGet(`${ESI_BASE}/characters/${characterId}/ship/?datasource=tranquility`, authHdr);
     let typeName = '';
     if (ship.ship_type_id) { try { const nm = await resolveNames([ship.ship_type_id]); typeName = nm[ship.ship_type_id] || ''; } catch (_) {} }
     await charInfoDb.upsertShip(characterId, ship, typeName);
@@ -3467,11 +3734,11 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
       report('implants', `⏩ implants fresh (${Math.round(implantAge / 60000)} min old), skipping ESI call`);
     } else {
       report('implants', 'Fetching implants & clones…');
-      const cloneData = await httpGet(`${ESI_BASE}/v3/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
+      const cloneData = await httpGet(`${ESI_BASE}/characters/${characterId}/clones/?datasource=tranquility`, authHdr);
       let activeImplants = [];
       let implantFetchError = null;
       try {
-        const raw = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
+        const raw = await httpGet(`${ESI_BASE}/characters/${characterId}/implants/?datasource=tranquility`, authHdr);
         activeImplants = Array.isArray(raw) ? raw : [];
         console.log(`[CharSync] coreSync implants raw ESI for ${characterId}:`, JSON.stringify(activeImplants));
       } catch (implantErr) {
@@ -3523,7 +3790,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     report('blueprints', 'Fetching blueprints…');
     let allBPs = [], page = 1, totalBPPages = 1;
     while (true) {
-      const { data, xPages } = await httpGetFull(`${ESI_BASE}/v3/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr);
+      const { data, xPages } = await httpGetFull(`${ESI_BASE}/characters/${characterId}/blueprints/?page=${page}&datasource=tranquility`, authHdr);
       if (page === 1) totalBPPages = xPages || 1;
       allBPs = allBPs.concat(data);
       report('blueprints', `  page ${page}/${totalBPPages}: ${allBPs.length} blueprints…`);
@@ -3553,7 +3820,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     if (Date.now() - lastSync >= WALLET_JOURNAL_STALE_MS) {
       report('wallet_journal', 'Fetching wallet journal…');
       const journal = await httpGet(
-        `${ESI_BASE}/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
+        `${ESI_BASE}/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`,
         authHdr
       );
       if (Array.isArray(journal)) {
@@ -3564,7 +3831,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
  
       // Wallet transactions (fetched alongside journal on same cadence)
       const raw = await httpGet(
-        `${ESI_BASE}/v1/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/wallet/transactions/?datasource=tranquility`,
         authHdr
       );
       if (Array.isArray(raw)) {
@@ -3584,7 +3851,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
  
       // Loyalty points (same cadence)
       const lpRaw = await httpGet(
-        `${ESI_BASE}/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/loyalty/points/?datasource=tranquility`,
         authHdr
       );
       if (Array.isArray(lpRaw)) {
@@ -3611,7 +3878,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
   try {
     report('trade_profile', 'Fetching trade skills…');
     const ACCOUNTING_ID = 16622, BROKER_RELATIONS_ID = 3446;
-    const skillsData = await httpGet(`${ESI_BASE}/v4/characters/${characterId}/skills/?datasource=tranquility`, authHdr);
+    const skillsData = await httpGet(`${ESI_BASE}/characters/${characterId}/skills/?datasource=tranquility`, authHdr);
     const skills = Array.isArray(skillsData?.skills) ? skillsData.skills : [];
     await charInfoDb.replaceSkills(characterId, skills);   // full list — used by jump planner etc.
     const lvl = (id) => (skills.find(s => s.skill_id === id)?.active_skill_level) || 0;
@@ -3623,7 +3890,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
 
   try {
     report('trade_profile', 'Fetching standings…');
-    const standings = await httpGet(`${ESI_BASE}/v1/characters/${characterId}/standings/?datasource=tranquility`, authHdr);
+    const standings = await httpGet(`${ESI_BASE}/characters/${characterId}/standings/?datasource=tranquility`, authHdr);
     if (Array.isArray(standings)) {
       await charInfoDb.replaceStandings(characterId, standings);
       summary.steps.standings = `${standings.length} entries`;
@@ -3697,7 +3964,7 @@ async function resolveNames(ids) {
     for (let i = 0; i < stillMissing.length; i += 1000) {
       const chunk = stillMissing.slice(i, i + 1000);
       try {
-        const result = await httpPost(`${ESI_BASE}/v3/universe/names/?datasource=tranquility`, chunk);
+        const result = await httpPost(`${ESI_BASE}/universe/names/?datasource=tranquility`, chunk);
         const fresh  = [];
         result.forEach(r => {
           nameCache[r.id] = r.name;

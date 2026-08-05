@@ -230,7 +230,7 @@ async function repairAssetLocations() {
       logToConsole(`[Locations] ${data.msg}`, data.done ? 'success' : 'info');
     }
   };
-  if (window.eveAPI?.on) window.eveAPI.on('repair-progress', onProgress);
+  const stopProgress = window.eveAPI?.on?.('repair-progress', onProgress);
 
   showToast('Re-resolving structure names — this can take a few minutes…', 'info');
   try {
@@ -240,7 +240,7 @@ async function repairAssetLocations() {
   } catch (e) {
     showToast(`Location repair failed: ${e.message}`, 'error');
   } finally {
-    if (window.eveAPI?.off) window.eveAPI.off('repair-progress', onProgress);
+    stopProgress?.();
     if (btn) { btn.textContent = btn._orig || '⚲ RESOLVE NAMES'; btn.disabled = false; }
   }
 }
@@ -737,13 +737,22 @@ function renderAssetTree() {
         // Blueprints have no /icon on the image server (it 400s) — originals use
         // /bp and copies use /bpc (distinct border colours, matching the game).
         // is_bpc is 0 (original), 1 (copy) or null (not a blueprint).
-        const bpcNum    = asset.is_bpc == null ? null : Number(asset.is_bpc);
-        const bpVariant = bpcNum === 1 ? 'bpc' : (bpcNum === 0 ? 'bp' : null);
+        //
+        // is_bpc is only populated for rows that came from the blueprint sync;
+        // a blueprint reached any other way arrives null and used to fall back to
+        // /icon, which 400s for every blueprint type. Measured: 29 such URLs
+        // requested ~4x each in one session, all failing. So when the type
+        // metadata says this IS a blueprint, ask for /bp rather than a variant
+        // the server has already told us does not exist.
+        const bpcNum     = asset.is_bpc == null ? null : Number(asset.is_bpc);
+        const meta       = typeMetaCache[asset.type_id];
+        const isBlueprint = bpcNum != null || /blueprint/i.test((meta && meta.category) || '');
+        const bpVariant  = bpcNum === 1 ? 'bpc' : (isBlueprint ? 'bp' : null);
         const iconHtml = asset.type_id
           ? `<img class="asset-type-icon" src="https://images.evetech.net/types/${asset.type_id}/${bpVariant || 'icon'}?size=32" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />`
           : `<span class="asset-type-icon-placeholder"></span>`;
 
-        const md         = typeMetaCache[asset.type_id];
+        const md         = meta;
         const grp        = md ? (md.group || '')    : '';
         const cat        = md ? (md.category || '') : '';
         // Spell out original vs copy in the Category column (was just "Blueprint").
@@ -1411,7 +1420,7 @@ async function loadJournalEntries(characterId) {
   } catch (e) { /* fall through */ }
   // Fallback: live ESI call if DB is empty (e.g. character never synced yet)
   try {
-    const url  = `https://esi.evetech.net/v6/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`;
+    const url  = `https://esi.evetech.net/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`;
     const data = await window.eveAPI.esiFetch(url).catch(() => null);
     if (Array.isArray(data) && data.length) return data;
   } catch (e) { /* ignore */ }
@@ -1426,7 +1435,7 @@ async function loadLPData(characterId) {
   } catch (e) { /* fall through */ }
   // Fallback: live ESI call if DB is empty
   try {
-    const url  = `https://esi.evetech.net/v1/characters/${characterId}/loyalty/points/?datasource=tranquility`;
+    const url  = `https://esi.evetech.net/characters/${characterId}/loyalty/points/?datasource=tranquility`;
     const data = await window.eveAPI.esiFetch(url).catch(() => null);
     if (Array.isArray(data)) return data;
   } catch (e) { /* ignore */ }

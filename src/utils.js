@@ -182,6 +182,14 @@ function logToConsole(message, type = 'info') {
       consoleLog.removeChild(consoleLog.lastChild);
     }
   }
+
+  // ── Mirror to the diagnostic log file, when it's switched on ──────────────
+  // The history above is 200 lines held in memory and gone when the app closes,
+  // which is exactly the wrong shape for "it broke last night". The main process
+  // decides whether anything is actually recorded (Settings → General); this
+  // side just offers the line and never waits for an answer.
+  try { window.eveAPI?.logWrite?.({ level: type, source: 'ui', message: String(message) }); }
+  catch (_) { /* logging must never break the thing that was being logged */ }
 }
 
 // ── Console expand/collapse (initialised once on DOMContentLoaded) ────────────
@@ -258,28 +266,29 @@ function openExternal(url) {
   a.href = url; a.target = '_blank'; a.click();
 }
 // ── ESI identification (best practices) ───────────────────────────────────────
-// Every renderer-side ESI call must identify the app. Chromium silently drops
-// User-Agent overrides, so ESI's documented fallback is the X-User-Agent
-// header. Wrapping fetch ONCE here covers every call site (dashboard, assets,
-// jabber, fleetup, cost-index, …) with app name/version + contact + source.
-// Pinned the same way as the main process (see src/app_ident.js) — a
-// deliberately-tested ESI behaviour snapshot, not "whatever today is". Bump
-// both together after testing against newer ESI behaviour.
-const ESI_COMPATIBILITY_DATE = '2026-07-20';
-
+// Every renderer-side ESI call must identify the app and pin its compatibility
+// date. Chromium silently drops User-Agent overrides, so ESI's documented
+// fallback is X-User-Agent. Wrapping fetch ONCE here covers every call site
+// (dashboard, assets, jabber, cost-index, …).
+//
+// The strings come from window.Esi (src/shared/esi.js), which the main process
+// uses too. They used to be written out here AND in src/app_ident.js AND inline
+// in src/html/ping-alert.html — and they had already drifted: ping-alert sent
+// X-User-Agent but no X-Compatibility-Date, so that window was talking to a
+// different snapshot of ESI than the rest of the app, silently.
 (function () {
-  const IDENT_BASE = '(miachristinapanayides@gmail.com; +https://github.com/mcpanayides/EVE-CARBON)';
-  let _xua = `EVE-Carbon/dev ${IDENT_BASE}`;
+  const Esi = window.Esi;
+  if (!Esi) return;   // shared/esi.js failed to load — never break fetch over it
   try {
-    window.eveAPI?.getAppVersion?.().then(v => { if (v) _xua = `EVE-Carbon/${v} ${IDENT_BASE}`; }).catch(() => {});
+    window.eveAPI?.getAppVersion?.().then(v => Esi.setVersion(v)).catch(() => {});
   } catch (_) {}
   const _origFetch = window.fetch;
   window.fetch = function (input, init) {
     try {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
-      if (/esi\.evetech\.net/i.test(url)) {
+      if (Esi.isEsi(url)) {
         init = init || {};
-        init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua, 'X-Compatibility-Date': ESI_COMPATIBILITY_DATE };
+        init.headers = { ...(init.headers || {}), ...Esi.headers({ renderer: true }) };
       }
     } catch (_) { /* never break a fetch over identification */ }
     return _origFetch.call(this, input, init);

@@ -434,7 +434,7 @@ async function _mailLookupRecipient() {
   }
 
   const res = await window.eveAPI.esiFetch(
-    'https://esi.evetech.net/v1/universe/ids/?datasource=tranquility',
+    'https://esi.evetech.net/universe/ids/?datasource=tranquility',
     { method: 'POST', body: [name] },
   ).catch(() => null);
 

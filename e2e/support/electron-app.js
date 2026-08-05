@@ -49,11 +49,20 @@ const test = base.test.extend({
       env: childEnv,
     });
 
+    // Hung onto the app object so specs that need to inspect files the app
+    // WROTE (or relaunch against the same profile) can find the throwaway
+    // directory — see the `profile` fixture below.
+    app.__profile = { userDataDir, dataDir, childEnv, args: [REPO_ROOT, `--user-data-dir=${userDataDir}`] };
+
     await use(app);
 
     await app.close().catch(() => {});
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   },
+
+  // Paths + launch args of the isolated profile this test is running against.
+  // Only specs asserting on persisted state need it.
+  profile: async ({ electronApp }, use) => { await use(electronApp.__profile); },
 
   window: async ({ electronApp }, use) => {
     const window = await electronApp.firstWindow();

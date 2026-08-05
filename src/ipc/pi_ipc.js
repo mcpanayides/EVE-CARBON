@@ -8,7 +8,7 @@
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ESI_BASE = 'https://esi.evetech.net';
+const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
 // ─── PI storage-type registry ─────────────────────────────────────────────────
 // Built dynamically from the SDE at first sync so every planet-specific
@@ -185,7 +185,7 @@ async function syncPIForCharacter(
   const authHdr    = { Authorization: `Bearer ${accessToken}` };
   const storageTypes = await buildStorageTypes(getSdeDb ? getSdeDb() : null);
   const colonies = await httpGet(
-    `${ESI_BASE}/v1/characters/${characterId}/planets/?datasource=tranquility`,
+    `${ESI_BASE}/characters/${characterId}/planets/?datasource=tranquility`,
     authHdr
   );
 
@@ -201,7 +201,7 @@ async function syncPIForCharacter(
 
     try {
       const detail = await httpGet(
-        `${ESI_BASE}/v3/characters/${characterId}/planets/${c.planet_id}/?datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/planets/${c.planet_id}/?datasource=tranquility`,
         authHdr
       );
 

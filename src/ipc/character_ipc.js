@@ -1,6 +1,6 @@
 ﻿const { ipcMain } = require('electron');
 
-const ESI_BASE = 'https://esi.evetech.net';
+const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
 /**
  * registerCharacterHandlers
@@ -15,6 +15,10 @@ const ESI_BASE = 'https://esi.evetech.net';
  * @param {function} deps.readCache        - reads from persistent cache
  * @param {function} deps.writeCache       - writes to persistent cache
  */
+// Populated during registration so main.js can hand specific fetchers to other
+// subsystems without re-implementing them.
+const registered = {};
+
 function registerCharacterHandlers({
   ipcHandle,
   charInfoDb,
@@ -75,7 +79,7 @@ function registerCharacterHandlers({
   // clear_other_waypoints=true sets this as the sole destination.
   ipcHandle('set-autopilot-destination', async (_, { characterId, systemId }) => {
     const token = await getValidToken(characterId);
-    const url   = `${ESI_BASE}/v2/ui/autopilot/waypoint/?add_to_beginning=false`
+    const url   = `${ESI_BASE}/ui/autopilot/waypoint/?add_to_beginning=false`
                 + `&clear_other_waypoints=true&destination_id=${systemId}&datasource=tranquility`;
     const res   = await fetch(url, {
       method:  'POST',
@@ -112,7 +116,7 @@ function registerCharacterHandlers({
     const sleep   = ms => new Promise(r => setTimeout(r, ms));
     let first = true, count = 0;
     for (const systemId of systemIds) {
-      const url = `${ESI_BASE}/v2/ui/autopilot/waypoint/?add_to_beginning=false`
+      const url = `${ESI_BASE}/ui/autopilot/waypoint/?add_to_beginning=false`
                 + `&clear_other_waypoints=${first}&destination_id=${systemId}&datasource=tranquility`;
       const res = await fetch(url, { method: 'POST', headers });
       if (!res.ok) {
@@ -140,7 +144,7 @@ function registerCharacterHandlers({
 
     try {
       const token  = await getValidToken(characterId);
-      const url    = `${ESI_BASE}/latest/characters/${characterId}/industry/jobs/?datasource=tranquility`;
+      const url    = `${ESI_BASE}/characters/${characterId}/industry/jobs/?datasource=tranquility`;
       const jobs   = await httpGet(url, { Authorization: `Bearer ${token}` });
       if (!Array.isArray(jobs)) return [];
 
@@ -196,7 +200,7 @@ function registerCharacterHandlers({
       corporationId = readCache(corpKey);
       if (!corporationId) {
         const info = await httpGet(
-          `${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
+          `${ESI_BASE}/characters/${characterId}/?datasource=tranquility`,
           { Authorization: `Bearer ${token}` }
         );
         corporationId = info && info.corporation_id;
@@ -214,7 +218,7 @@ function registerCharacterHandlers({
       let page = 1, xPages = 1;
       do {
         const { data, xPages: xp } = await httpGetFull(
-          `${ESI_BASE}/latest/corporations/${corporationId}/industry/jobs/?datasource=tranquility&page=${page}`,
+          `${ESI_BASE}/corporations/${corporationId}/industry/jobs/?datasource=tranquility&page=${page}`,
           { Authorization: `Bearer ${token}` }
         );
         if (Array.isArray(data)) jobs.push(...data);
@@ -264,7 +268,7 @@ function registerCharacterHandlers({
     const key = `corp_of_${characterId}`;
     let id = readCache(key);
     if (!id) {
-      const info = await httpGet(`${ESI_BASE}/v5/characters/${characterId}/?datasource=tranquility`,
+      const info = await httpGet(`${ESI_BASE}/characters/${characterId}/?datasource=tranquility`,
                                  { Authorization: `Bearer ${token}` });
       id = info && info.corporation_id;
       if (id) writeCache(key, id, 1);   // 24h — corp moves are rare
@@ -293,7 +297,7 @@ function registerCharacterHandlers({
       let page = 1, xPages = 1;
       do {
         const { data, xPages: xp } = await httpGetFull(
-          `${ESI_BASE}/v1/characters/${characterId}/mining/?datasource=tranquility&page=${page}`,
+          `${ESI_BASE}/characters/${characterId}/mining/?datasource=tranquility&page=${page}`,
           { Authorization: `Bearer ${token}` }
         );
         if (Array.isArray(data)) rows.push(...data);
@@ -340,7 +344,7 @@ function registerCharacterHandlers({
       let page = 1, xPages = 1;
       do {
         const { data, xPages: xp } = await httpGetFull(
-          `${ESI_BASE}/v1/corporation/${corporationId}/mining/observers/?datasource=tranquility&page=${page}`,
+          `${ESI_BASE}/corporation/${corporationId}/mining/observers/?datasource=tranquility&page=${page}`,
           { Authorization: `Bearer ${token}` }
         );
         if (Array.isArray(data)) observers.push(...data);
@@ -352,7 +356,7 @@ function registerCharacterHandlers({
         let p2 = 1, xp2 = 1;
         do {
           const { data, xPages: xx } = await httpGetFull(
-            `${ESI_BASE}/v1/corporation/${corporationId}/mining/observers/${obs.observer_id}/?datasource=tranquility&page=${p2}`,
+            `${ESI_BASE}/corporation/${corporationId}/mining/observers/${obs.observer_id}/?datasource=tranquility&page=${p2}`,
             { Authorization: `Bearer ${token}` }
           );
           if (Array.isArray(data)) data.forEach(d => entries.push({
@@ -392,7 +396,7 @@ function registerCharacterHandlers({
       let page = 1, xPages = 1;
       do {
         const { data, xPages: xp } = await httpGetFull(
-          `${ESI_BASE}/v1/corporation/${corporationId}/mining/extractions/?datasource=tranquility&page=${page}`,
+          `${ESI_BASE}/corporation/${corporationId}/mining/extractions/?datasource=tranquility&page=${page}`,
           { Authorization: `Bearer ${token}` }
         );
         if (Array.isArray(data)) rows.push(...data);
@@ -426,7 +430,7 @@ function registerCharacterHandlers({
       const cached   = readCache(cacheKey);
       if (cached) return cached;
       const stats = await httpGet(
-        `${ESI_BASE}/v1/characters/${characterId}/fw/stats/?datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/fw/stats/?datasource=tranquility`,
         { Authorization: `Bearer ${token}` }
       );
       const result = { ok: true, stats: stats || {} };
@@ -451,7 +455,7 @@ function registerCharacterHandlers({
 
     try {
       const token = await getValidToken(characterId);
-      const url   = `${ESI_BASE}/v2/characters/${characterId}/skillqueue/?datasource=tranquility`;
+      const url   = `${ESI_BASE}/characters/${characterId}/skillqueue/?datasource=tranquility`;
       const queue = await httpGet(url, { Authorization: `Bearer ${token}` });
       if (!Array.isArray(queue)) return [];
 
@@ -582,7 +586,11 @@ function registerCharacterHandlers({
   // `kind` is 'character' or 'corporation'. Corp feeds show every kill/loss the
   // corp was on (not just the logged-in pilot), which is what powers the
   // Killboard's corp overviews. isLoss is judged against the matching id field.
-  ipcHandle('get-zkill-feed', async (_, kind, entityId, page = 1) => {
+  // Extracted so the intel early-warning service can reuse this EXACT path —
+  // same cache key, same 10-minute TTL, same stale fallback. Opening a second
+  // route to zKillboard would double the request rate against an API that
+  // explicitly asks consumers to cache hard.
+  async function fetchZkillFeed(kind, entityId, page = 1) {
     if (!entityId) return null;
     const ek = kind === 'corporation' ? 'corporation' : 'character';
     const cacheKey = `zkill_feed_v2_${ek}_${entityId}_p${page}`;
@@ -634,7 +642,10 @@ function registerCharacterHandlers({
       console.warn(`get-zkill-feed failed for ${ek} ${entityId}:`, e.message || e);
       return null;
     }
-  });
+  }
+
+  ipcHandle('get-zkill-feed', (_, kind, entityId, page = 1) => fetchZkillFeed(kind, entityId, page));
+  registered.fetchZkillFeed = fetchZkillFeed;
 
   // ─── IPC: PI colonies (from CharDB) ──────────────────────────────────────
   ipcHandle('get-pi-colonies', async (_, characterId) => {
@@ -652,7 +663,7 @@ function registerCharacterHandlers({
     try {
       const token  = await getValidToken(characterId);
       const orders = await httpGet(
-        `${ESI_BASE}/v2/characters/${characterId}/orders/?datasource=tranquility`,
+        `${ESI_BASE}/characters/${characterId}/orders/?datasource=tranquility`,
         { Authorization: `Bearer ${token}` }
       );
       const result = Array.isArray(orders) ? orders : [];
@@ -681,7 +692,7 @@ function registerCharacterHandlers({
   ipcHandle('get-wallet', async (_, characterId) => {
     try {
       const token         = await getValidToken(characterId);
-      const url           = `${ESI_BASE}/v1/characters/${characterId}/wallet/?datasource=tranquility`;
+      const url           = `${ESI_BASE}/characters/${characterId}/wallet/?datasource=tranquility`;
       const walletBalance = await httpGet(url, { Authorization: `Bearer ${token}` });
       if (typeof walletBalance === 'number') return walletBalance;
       const snap = await _latestWalletSnapshot(characterId);
@@ -712,4 +723,4 @@ function registerCharacterHandlers({
   });
 }
 
-module.exports = { registerCharacterHandlers };
+module.exports = { registerCharacterHandlers, registered };

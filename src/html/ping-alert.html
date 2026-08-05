@@ -26,6 +26,7 @@
     } catch (e) {}
   })();
   </script>
+  <script src="../shared/esi.js"></script><!-- ESI base/date/identity — one definition -->
 </head>
 <body>
   <!-- Enable glass unless the user turned it off in Settings (same 'eve-glass'
@@ -137,19 +138,22 @@
   </div>
 
   <script>
-    // ESI identification (best practices): same X-User-Agent wrapper as the
-    // main window's utils.js — this popup fetches ESI directly too.
+    // ESI identification — from the SHARED client, not another inline copy.
+    // The copy that used to live here sent X-User-Agent but NOT
+    // X-Compatibility-Date, so this window was quietly talking to a different
+    // snapshot of ESI than the rest of the app. That is what duplicating a
+    // constant across three files eventually buys you.
     (function () {
-      const IDENT_BASE = '(miachristinapanayides@gmail.com; +https://github.com/mcpanayides/EVE-CARBON)';
-      let _xua = `EVE-Carbon/dev ${IDENT_BASE}`;
-      try { window.eveAPI?.getAppVersion?.().then(v => { if (v) _xua = `EVE-Carbon/${v} ${IDENT_BASE}`; }).catch(() => {}); } catch (_) {}
+      const Esi = window.Esi;
+      if (!Esi) return;
+      try { window.eveAPI?.getAppVersion?.().then(v => Esi.setVersion(v)).catch(() => {}); } catch (_) {}
       const _origFetch = window.fetch;
       window.fetch = function (input, init) {
         try {
           const url = typeof input === 'string' ? input : (input && input.url) || '';
-          if (/esi\.evetech\.net/i.test(url)) {
+          if (Esi.isEsi(url)) {
             init = init || {};
-            init.headers = { ...(init.headers || {}), 'X-User-Agent': _xua };
+            init.headers = { ...(init.headers || {}), ...Esi.headers({ renderer: true }) };
           }
         } catch (_) {}
         return _origFetch.call(this, input, init);
@@ -169,7 +173,7 @@
         }
       } catch(e) {}
       const res = await fetch(
-        'https://esi.evetech.net/v1/universe/ids/?datasource=tranquility',
+        'https://esi.evetech.net/universe/ids/?datasource=tranquility',
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([systemName]) }
       );
       if (!res.ok) throw new Error(`ESI ${res.status} resolving system`);
@@ -196,7 +200,7 @@
       if (!img) return;
       try {
         const res = await fetch(
-          'https://esi.evetech.net/v1/universe/ids/?datasource=tranquility',
+          'https://esi.evetech.net/universe/ids/?datasource=tranquility',
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) }
         );
         if (!res.ok) return;
@@ -422,7 +426,7 @@
           const charId   = accounts[0]?.characterId;
           if (!charId) throw new Error('No character logged in');
           const esiRes = await fetch(
-            'https://esi.evetech.net/v1/universe/ids/?datasource=tranquility',
+            'https://esi.evetech.net/universe/ids/?datasource=tranquility',
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) }
           );
           if (!esiRes.ok) throw new Error(`ESI ${esiRes.status}`);

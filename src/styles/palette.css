@@ -1,18 +1,23 @@
 /* ══════════════════════════════════════════════════════════════════════════
    palette.css — THE consolidated data palette.
 
-   Eight hues drive every chart series, KPI value, badge, ticker and status
+   Nine hues drive every chart series, KPI value, badge, ticker and status
    colour across the app. Nothing outside this file (and the theme files that
-   override it) should hardcode one of these hues — reference the token:
+   override it) should hardcode one of these hues — reference the token.
 
-     --pal-red     losses, danger, incursion alerts, TOTAL NET WORTH value
-     --pal-green   gains, success, RUNNING/online states
-     --pal-teal    liquid ISK, progress-almost-done
-     --pal-gold    warnings, holding states, PI storage-full
-     --pal-purple  asset values
-     --pal-blue    info, male badge, hisec-ish accents
-     --pal-pink    chart series, female badge
-     --pal-orange  chart series, secondary warnings
+   The Settings editor names these for the JOB rather than the hue, because the
+   hue is the setting and the job is the stable thing (see SWATCH_SLOTS in
+   src/func/palette.js). Both names are given here so the two stay in step:
+
+     --pal-red     "Negative"   losses, danger, incursion alerts, net worth
+     --pal-green   "Positive"   gains, success, RUNNING/online states
+     --pal-gold    "Caution"    warnings, holding states, PI storage-full
+     --pal-yellow  "Contested"  contested systems, unknown cost basis
+     --pal-blue    "Info"       info, badges, hisec-ish accents
+     --pal-teal    "Liquid"     liquid ISK, progress-almost-done
+     --pal-purple  "Assets"     asset values
+     --pal-pink    "Series 1"   chart series, badges
+     --pal-orange  "Series 2"   chart series, secondary warnings
 
    Load order: AFTER base.css, BEFORE the #themeStylesheet link. These are the
    DEFAULTS (tuned to the Carbon look); built-in and user themes override the
@@ -31,6 +36,11 @@
   --pal-blue:   #4a9fd4;
   --pal-pink:   #e47baf;
   --pal-orange: #f58c42;
+  /* Referenced by finances.css (contested / no-basis markers) but never defined
+     here, so it only ever worked through the inline var() fallback at each call
+     site — which meant the Contested swatch could not restyle the default theme.
+     Defined now, matching that fallback so nothing changes visually. */
+  --pal-yellow: #d4a04a;
 
   /* Chart series — resolved by JS via getComputedStyle for canvas charts. */
   --chart-1: var(--pal-red);

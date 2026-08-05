@@ -135,7 +135,7 @@ async function _performCharacterSync(id) {
       logToConsole(msg, level);
     }
   };
-  if (window.eveAPI && window.eveAPI.on) window.eveAPI.on('char-sync-progress', progressHandler);
+  const stopProgress = window.eveAPI?.on?.('char-sync-progress', progressHandler);
 
   showToast(`Syncing all data for character ${id}…`, 'info');
 
@@ -162,7 +162,7 @@ async function _performCharacterSync(id) {
     if (typeof logToConsole === 'function') logToConsole(`✗ Sync failed: ${err.message}`, 'error');
     showToast(`Sync failed: ${err.message}`, 'error');
   } finally {
-    if (window.eveAPI && window.eveAPI.off) window.eveAPI.off('char-sync-progress', progressHandler);
+    stopProgress?.();
 
     // Start the 1-minute cooldown now and free the dedupe slot.
     _syncCooldownUntil[id] = Date.now() + SYNC_COOLDOWN_MS;

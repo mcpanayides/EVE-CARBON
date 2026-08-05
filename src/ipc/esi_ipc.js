@@ -1,8 +1,77 @@
-const { APP_USER_AGENT } = require('../app_ident');
+const { APP_USER_AGENT, ESI_BASE } = require('../app_ident');   // ESI_BASE: one definition, src/shared/esi.js
 ﻿const { ipcMain } = require('electron');
 
-const ESI_BASE      = 'https://esi.evetech.net';
 const FUZZWORK_BASE = 'https://www.fuzzwork.co.uk';
+
+// ─── Fuzzwork blueprint API ───────────────────────────────────────────────────
+// The endpoint is https://www.fuzzwork.co.uk/blueprint/api/blueprint.php?typeid=N
+//
+// It was previously called as /api/blueprint.php (no /blueprint prefix) with
+// &runs=1&me=0&pe=0 appended. That path does not exist, so EVERY call 404'd —
+// and because the SDE is only the *primary* source, an install without the SDE
+// downloaded fell through to this for every blueprint and every component in a
+// tree. Fuzzwork's operator got in touch about the volume of 404s; this is a
+// free service run by one person, and we were the ones being rude.
+//
+// The parameters were meaningless too: the API returns BASE quantities and has
+// no notion of runs, ME or PE. The ME maths already happens on our side
+// (applyMEBonus in src/func/blueprints.js), so nothing is lost by dropping them.
+//
+// The response is NOT { materials: [...] } — it nests them per activity:
+//   { requestedid, blueprintDetails: { productTypeID, productTypeName,
+//     productQuantity, ... }, activityMaterials: { "1": [{typeid,name,quantity}],
+//     "8": [...] }, blueprintSkills, decryptors }
+// Activity 1 is manufacturing, 11 is reactions, 8 is invention. So even with the
+// path corrected, reading `data.materials` would have found nothing.
+const FUZZWORK_BLUEPRINT_URL = (typeId) =>
+  `${FUZZWORK_BASE}/blueprint/api/blueprint.php?typeid=${typeId}`;
+
+// Politeness, since this is somebody's free service: after this many consecutive
+// failures, stop asking for a while rather than turning an outage on their end
+// into a retry storm from ours.
+const FUZZWORK_TRIP_AFTER = 5;
+const FUZZWORK_TRIP_MS    = 30 * 60 * 1000;
+let _fuzzFails = 0;
+let _fuzzMuteUntil = 0;
+
+/** Fuzzwork's shape -> ours, or null when it has nothing usable. */
+function _fuzzworkMaterials(data, typeId) {
+  const acts = data && data.activityMaterials;
+  if (!acts || typeof acts !== 'object') return null;
+  // Manufacturing first, then reactions. Invention (8) is not a build recipe.
+  const rows = Array.isArray(acts['1']) && acts['1'].length ? acts['1']
+             : Array.isArray(acts['11']) && acts['11'].length ? acts['11']
+             : null;
+  if (!rows) return null;
+  const d = data.blueprintDetails || {};
+  return {
+    materials: rows
+      .filter(m => m && m.typeid != null)
+      .map(m => ({ typeid: m.typeid, quantity: m.quantity, name: m.name || `Type ${m.typeid}` })),
+    blueprintTypeID: typeId,
+    // The old call returned no product info at all; it comes free here.
+    productTypeID:   d.productTypeID   ?? null,
+    productTypeName: d.productTypeName ?? null,
+    productQuantity: d.productQuantity ?? 1,
+  };
+}
+
+async function fetchFuzzworkBlueprint(typeId, httpGet) {
+  if (Date.now() < _fuzzMuteUntil) return null;
+  try {
+    const data = await httpGet(FUZZWORK_BLUEPRINT_URL(typeId));
+    _fuzzFails = 0;
+    return _fuzzworkMaterials(data, typeId);
+  } catch (e) {
+    if (++_fuzzFails >= FUZZWORK_TRIP_AFTER) {
+      _fuzzMuteUntil = Date.now() + FUZZWORK_TRIP_MS;
+      _fuzzFails = 0;
+      console.warn(`[fuzzwork] ${FUZZWORK_TRIP_AFTER} consecutive failures (${e.message}) — ` +
+                   `standing down for ${Math.round(FUZZWORK_TRIP_MS / 60000)} min.`);
+    }
+    return null;
+  }
+}
 
 // Curated high-traffic market staples for the bottom ticker (minerals, PLEX/skill
 // tokens, fuel blocks, popular hulls, ore). Type IDs resolved from the SDE.
@@ -82,12 +151,12 @@ function registerEsiHandlers({
     return fetchText(url);
   });
 
-  // ─── IPC: ESI type search ─────────────────────────────────────────────────
-  ipcHandle('esi-search', async (_, query) => {
-    return httpGet(
-      `${ESI_BASE}/v2/search/?categories=inventory_type&search=${encodeURIComponent(query)}&strict=false&datasource=tranquility`
-    );
-  });
+  // The public ESI /search/ endpoint is GONE — it is absent from
+  // /meta/openapi.json at our pinned date; only the authenticated
+  // /characters/{id}/search remains. The handler that called it was orphaned
+  // anyway (exposed on preload as eveAPI.search, called by nothing), so it was
+  // removed rather than repointed. Type search is served locally from the SDE —
+  // see sde-type-search further down.
 
   // Batched blueprint → manufactured product lookup (LP store optimiser values
   // BPC offers by what they build). activityID 1 = manufacturing; `quantity` is
@@ -126,7 +195,7 @@ function registerEsiHandlers({
     const cached   = readCache(cacheKey);
     if (cached) return cached;
     try {
-      const offers = await httpGet(`${ESI_BASE}/v1/loyalty/stores/${corpId}/offers/?datasource=tranquility`);
+      const offers = await httpGet(`${ESI_BASE}/loyalty/stores/${corpId}/offers/?datasource=tranquility`);
       const rows = (Array.isArray(offers) ? offers : []).map(o => ({
         offerId:  o.offer_id,
         typeId:   o.type_id,
@@ -162,7 +231,7 @@ function registerEsiHandlers({
     const cached   = readCache(cacheKey);
     if (cached) return cached;
     try {
-      const data = await httpGet(`${ESI_BASE}/v1/markets/prices/?datasource=tranquility`);
+      const data = await httpGet(`${ESI_BASE}/markets/prices/?datasource=tranquility`);
       // Convert array to map keyed by type_id for O(1) lookup
       const map = {};
       if (Array.isArray(data)) {
@@ -200,7 +269,7 @@ function registerEsiHandlers({
     if (cached) return cached.pct;          // may be null (no history) — still cached
     let pct = null;
     try {
-      const hist = await httpGet(`${ESI_BASE}/v1/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`);
+      const hist = await httpGet(`${ESI_BASE}/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`);
       if (Array.isArray(hist) && hist.length >= 2) {
         const today = Number(hist[hist.length - 1].average);
         const prev  = Number(hist[hist.length - 2].average);
@@ -330,6 +399,7 @@ function registerEsiHandlers({
     return fetchHubPrices(typeIds, 'jita');
   });
 
+
   // ─── IPC: Blueprint materials — SDE primary, Fuzzwork fallback ──────────────
   // Returns { materials: [{ typeid, name, quantity }], blueprintTypeID }
   ipcHandle('get-blueprint-materials', async (_, typeId) => {
@@ -357,12 +427,13 @@ function registerEsiHandlers({
       }
     }
 
-    // Fuzzwork fallback (may 404 for newer/capital BPs)
-    try {
-      const data = await httpGet(`${FUZZWORK_BASE}/api/blueprint.php?typeid=${typeId}&runs=1&me=0&pe=0`);
-      bpCache[typeId] = data;
-      return data;
-    } catch (_) {}
+    // Fuzzwork fallback. Only reached when the SDE has nothing — which, on an
+    // install where the SDE hasn't downloaded, is every blueprint there is.
+    const fuzz = await fetchFuzzworkBlueprint(typeId, httpGet);
+    if (fuzz) {
+      bpCache[typeId] = fuzz;
+      return fuzz;
+    }
 
     const emptyData = { materials: [], blueprintTypeID: typeId };
     bpCache[typeId] = emptyData;
@@ -409,12 +480,10 @@ function registerEsiHandlers({
       } catch (_) {}
     }
 
-    // Fuzzwork fallback
-    try {
-      const data = await httpGet(`${FUZZWORK_BASE}/api/blueprint.php?producttypeid=${productTypeId}&runs=1&me=0&pe=0`);
-      bpCache[key] = data;
-      return data;
-    } catch (_) {}
+    // NO Fuzzwork fallback here. The API takes `typeid` (a blueprint) and has no
+    // reverse product lookup: ?producttypeid=… answers 200 with an EMPTY body,
+    // so every miss was a wasted request that could only ever fail to parse.
+    // The SDE above is the only source for this, and it is a complete one.
 
     const noResult = { [productTypeId]: null };
     bpCache[key] = noResult;
@@ -1116,3 +1185,7 @@ function registerEsiHandlers({
 }
 
 module.exports = { registerEsiHandlers };
+// Exposed for tests: the Fuzzwork URL builder and its response adapter. Both got
+// this wrong for a long time without anything failing loudly — the URL 404'd and
+// the adapter read a key that does not exist — so they are pinned here.
+module.exports._fuzzwork = { FUZZWORK_BLUEPRINT_URL, _fuzzworkMaterials };

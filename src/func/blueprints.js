@@ -273,7 +273,7 @@ async function _indGetCostIndex(systemId) {
   try {
     let systems = (typeof _ciAllSystems !== 'undefined' && _ciAllSystems) ? _ciAllSystems : null;
     if (!systems) {
-      systems = await window.eveAPI.esiFetch('https://esi.evetech.net/latest/industry/systems/?datasource=tranquility');
+      systems = await window.eveAPI.esiFetch('https://esi.evetech.net/industry/systems/?datasource=tranquility');
     }
     (Array.isArray(systems) ? systems : []).forEach(s => {
       const mfg = (s.cost_indices || []).find(c => c.activity === 'manufacturing' || c.activity === 1);
@@ -976,8 +976,16 @@ function bindLibraryEvents() {
 
 async function openBlueprintDetail(bp) {
   // Show the results panel and hide the list
-  const listSection = document.getElementById('bpLibList')?.closest('div[style*="flex-direction:column"]')
-                   || document.getElementById('bpLibList')?.parentElement;
+  // BY ID. This used to search upward for an ancestor whose inline style
+  // CONTAINED the substring "flex-direction:column", and that is a trap: the
+  // markup authors the attribute without spaces, but the first time JavaScript
+  // touches element.style.* the browser re-serialises the whole attribute in
+  // canonical form — "flex-direction: column", WITH a space. The selector then
+  // stops matching this wrapper, .closest() keeps walking, and the next match up
+  // the tree is #page-industry — so opening a blueprint a second time hid the
+  // entire Industry page. The sub-nav and the BACK button live inside it, so the
+  // window went blank with nothing left to click, which reads as a freeze.
+  const listSection = document.getElementById('bpLibWrapper');
   const resultsDiv  = document.getElementById('results');
   if (!resultsDiv) return;
 
@@ -1379,7 +1387,9 @@ function renderMaterialRow(mat, prices = {}) {
 }
 
 // ─── Fuzzwork fallback ────────────────────────────────────────────────────────
-// Used when SDE is unavailable. Applies ME bonus to Fuzzwork base quantities.
+// Used when the SDE has nothing. Fuzzwork returns BASE quantities — its API has
+// no notion of ME, runs or PE (we used to send those as query parameters, which
+// did nothing but help make the request wrong), so the ME maths is ours to do.
 
 async function fetchFuzzworkMaterials(typeId, me) {
   const data = await window.eveAPI.getBlueprintMaterials(typeId);
@@ -1399,9 +1409,12 @@ async function fetchFuzzworkMaterials(typeId, me) {
 
   return {
     materials,
-    productTypeId: null,
-    productName:   null,
-    productQty:    1,
+    // Product details come back with the materials now. The old call could not
+    // supply them, so the detail view lost its product name and output quantity
+    // whenever it fell back here.
+    productTypeId: data.productTypeID   ?? null,
+    productName:   data.productTypeName ?? null,
+    productQty:    data.productQuantity ?? 1,
   };
 }
 

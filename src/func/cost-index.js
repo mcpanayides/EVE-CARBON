@@ -265,7 +265,7 @@ async function loadCIData(forceRefresh = false) {
 
     if (!_ciAllSystems || forceRefresh) {
       // ESI endpoint returns all systems with cost indexes
-      const resp = await window.eveAPI.esiFetch('https://esi.evetech.net/latest/industry/systems/?datasource=tranquility');
+      const resp = await window.eveAPI.esiFetch('https://esi.evetech.net/industry/systems/?datasource=tranquility');
       if (!Array.isArray(resp)) throw new Error('Unexpected ESI response format');
       _ciAllSystems = resp;
 

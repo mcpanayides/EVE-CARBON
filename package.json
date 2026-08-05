@@ -1,12 +1,14 @@
 {
   "name": "eve-carbon",
   "productName": "EVE Carbon",
-  "version": "1.7.3",
+  "version": "2.0.0",
   "author": "Mia Christina Panayides",
   "description": "EVE Online desktop companion for industrialists: recursive blueprint calculations, live ESI wealth tracking, industry job monitoring, and integrated Jabber comms.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "demo": "electron . --demo",
+    "demo:shots": "node scripts/demo-shots.js",
     "lint": "node scripts/lint.js",
     "test": "node --test",
     "coverage": "node --test --experimental-test-coverage",

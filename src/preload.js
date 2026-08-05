@@ -1,5 +1,28 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Main→renderer push channels the renderer is allowed to listen on.
+const IPC_EVENT_CHANNELS = [
+  'account-added',
+  'auth-error',
+  'char-sync-progress',
+  'jabber-status',
+  'jabber-message',
+  'beehive-status',
+  'presence-count',
+  'ping-file-updated',
+  'ping-alert-data',
+  'repair-progress',
+  'sde-update-progress',
+  'updater-download-progress',
+  'intel-reports',
+  'intel-alert',
+  'intel-status',
+];
+
+// caller fn → channel → [wrapper, …]. Weak so a handler going out of scope in
+// the renderer doesn't pin an entry here; see the note on `on` below.
+const _listenerRegistry = new WeakMap();
+
 contextBridge.exposeInMainWorld('eveAPI', {
 
   // Full character sync → character_information.db (manual SYNC button)
@@ -65,7 +88,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   searchMarketTypes:     (q, lim)  => ipcRenderer.invoke('sde-search-market-types', q, lim),
   // Batched exact name → { id, name, volume } lookup (bulk appraisal).
   sdeTypesByNames:       (names)   => ipcRenderer.invoke('sde-types-by-names', names),
-  search:                (q)       => ipcRenderer.invoke('esi-search', q),
   getNames:              (ids)     => ipcRenderer.invoke('esi-names', ids),
   getBlueprintMaterials: (id)      => ipcRenderer.invoke('get-blueprint-materials', id),
   findBpForProduct:      (id)      => ipcRenderer.invoke('find-bp-for-product', id),
@@ -92,6 +114,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getZkillStats:             (entityId, kind)          => ipcRenderer.invoke('get-zkill-stats', entityId, kind),
   getZkillFeed:              (kind, entityId, page)    => ipcRenderer.invoke('get-zkill-feed', kind, entityId, page),
   modernLayoutGet:           ()                        => ipcRenderer.invoke('modern-layout-get'),
+  modernLayoutCacheGet:      ()                        => ipcRenderer.invoke('modern-layout-cache-get'),
+  modernLayoutCachePut:      (layout)                  => ipcRenderer.invoke('modern-layout-cache-put', layout),
+  mapBuildRegionLayouts:     (job)                     => ipcRenderer.invoke('map-build-region-layouts', job),
   setAutopilotDestination:   (characterId, systemId)   => ipcRenderer.invoke('set-autopilot-destination', { characterId, systemId }),
   setAutopilotRoute:         (characterId, systemIds)  => ipcRenderer.invoke('set-autopilot-route', { characterId, systemIds }),
 
@@ -150,6 +175,38 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // App preferences (General tab): start-with-Windows + minimize-to-tray
   getAppPreferences: ()        => ipcRenderer.invoke('get-app-preferences'),
+
+  // ── Diagnostic log ───────────────────────────────────────────────────────
+  logGetState:   ()        => ipcRenderer.invoke('log-get-state'),
+  logSetEnabled: (enabled) => ipcRenderer.invoke('log-set-enabled', enabled),
+  logTail:       (opts)    => ipcRenderer.invoke('log-tail', opts),
+  logClear:      ()        => ipcRenderer.invoke('log-clear'),
+  logReveal:     ()        => ipcRenderer.invoke('log-reveal'),
+  // Fire-and-forget: logging must never make the UI wait on the main process.
+  logWrite:      (entry)   => ipcRenderer.send('log-write', entry),
+  // ── Intel early-warning ──────────────────────────────────────────────────
+  intelDiscoverChannels: ()          => ipcRenderer.invoke('intel-discover-channels'),
+  intelGetConfig:        ()          => ipcRenderer.invoke('intel-get-config'),
+  intelSetConfig:        (patch)     => ipcRenderer.invoke('intel-set-config', patch),
+  intelStart:            (opts)      => ipcRenderer.invoke('intel-start', opts),
+  intelStop:             ()          => ipcRenderer.invoke('intel-stop'),
+  intelStatus:           ()          => ipcRenderer.invoke('intel-status'),
+  intelSetOrigin:        (systemId)  => ipcRenderer.invoke('intel-set-origin', systemId),
+  intelMonitorableCharacters: ()     => ipcRenderer.invoke('intel-monitorable-characters'),
+  intelWidgetOpen:       ()          => ipcRenderer.invoke('intel-widget-open'),
+  intelWidgetClose:      ()          => ipcRenderer.invoke('intel-widget-close'),
+  intelWidgetPin:        (pinned)    => ipcRenderer.invoke('intel-widget-pin', pinned),
+  intelWidgetState:      ()          => ipcRenderer.invoke('intel-widget-state'),
+  intelGetRules:         ()          => ipcRenderer.invoke('intel-get-rules'),
+  intelSetRules:         (rules)     => ipcRenderer.invoke('intel-set-rules', rules),
+  intelSetMonitored:     (charIds)   => ipcRenderer.invoke('intel-set-monitored', charIds),
+  intelContacts:         ()          => ipcRenderer.invoke('intel-contacts'),
+  intelFeed:             (limit)     => ipcRenderer.invoke('intel-feed', limit),
+  intelPatterns:         ()          => ipcRenderer.invoke('intel-patterns'),
+  intelClearPatterns:    ()          => ipcRenderer.invoke('intel-clear-patterns'),
+  getDemoMode:       ()        => ipcRenderer.invoke('get-demo-mode'),
+  setDemoMode:       (enabled) => ipcRenderer.invoke('set-demo-mode', enabled),
+  restartApp:        ()        => ipcRenderer.invoke('restart-app'),
   setLaunchAtLogin:  (enabled) => ipcRenderer.invoke('set-launch-at-login', enabled),
   setMinimizeToTray: (enabled) => ipcRenderer.invoke('set-minimize-to-tray', enabled),
   getPresenceCount:   ()        => ipcRenderer.invoke('presence-get-count'),
@@ -261,25 +318,58 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // ── IPC event listeners ───────────────────────────────────────────────────
   // Single `on` definition covering all allowed channels.
   // The callback receives (...args) — the ipcRenderer _event object is stripped.
+  //
+  // `on` RETURNS AN UNSUBSCRIBE FUNCTION — prefer it over `off`.
+  //
+  // The listener actually handed to ipcRenderer is a wrapper (it strips the
+  // event object), never the caller's `fn`. So the old
+  // `off: (ch, fn) => ipcRenderer.removeListener(ch, fn)` could never match:
+  // removeListener compares by reference, and `fn` was never registered. Every
+  // off() call in the app was a silent no-op and the listeners accumulated for
+  // the life of the window — one more per structure repair, character sync, SDE
+  // update or updater download, each re-running its handler forever.
+  //
+  // Keeping the wrapper in a registry fixes off(), but that still relies on the
+  // caller's function arriving across contextBridge with a stable identity.
+  // The returned unsubscribe closes over its own wrapper and needs no identity
+  // at all, so it works regardless — use it.
   on: (channel, fn) => {
-    const allowed = [
-      'account-added',
-      'auth-error',
-      'char-sync-progress',
-      'jabber-status',
-      'jabber-message',
-      'beehive-status',
-      'presence-count',
-      'ping-file-updated',
-      'ping-alert-data',
-      'repair-progress',
-      'sde-update-progress',
-      'updater-download-progress',
-    ];
-    if (allowed.includes(channel)) {
-      ipcRenderer.on(channel, (_, ...args) => fn(...args));
-    }
+    if (!IPC_EVENT_CHANNELS.includes(channel)) return () => {};
+    const wrapper = (_, ...args) => fn(...args);
+    ipcRenderer.on(channel, wrapper);
+
+    let bucket = _listenerRegistry.get(fn);
+    if (!bucket) { bucket = new Map(); _listenerRegistry.set(fn, bucket); }
+    let wrappers = bucket.get(channel);
+    if (!wrappers) { wrappers = []; bucket.set(channel, wrappers); }
+    wrappers.push(wrapper);
+
+    // A channel quietly climbing past this is the signature of the bug above
+    // coming back: a subscribe site being re-entered without a matching
+    // unsubscribe. Warn rather than fail — it's a leak, not a crash.
+    const n = ipcRenderer.listenerCount(channel);
+    if (n > 20) console.warn(`[preload] ${n} listeners on "${channel}" — likely a missing unsubscribe`);
+
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      ipcRenderer.removeListener(channel, wrapper);
+      const w = _listenerRegistry.get(fn)?.get(channel);
+      if (w) {
+        const i = w.indexOf(wrapper);
+        if (i >= 0) w.splice(i, 1);
+      }
+    };
   },
 
-  off: (channel, fn) => ipcRenderer.removeListener(channel, fn),
+  // Kept for callers that still pass the original function. Removes one wrapper
+  // registered for that (fn, channel). Only works when `fn` arrives with a
+  // stable identity across the bridge — the unsubscribe returned by `on` does
+  // not have that caveat, so prefer it.
+  off: (channel, fn) => {
+    const wrappers = _listenerRegistry.get(fn)?.get(channel);
+    const wrapper  = wrappers && wrappers.pop();
+    if (wrapper) ipcRenderer.removeListener(channel, wrapper);
+  },
 });

@@ -1321,3 +1321,23 @@ body.glass-on .active-jobs-list thead tr {
   backdrop-filter: blur(calc(8px * var(--glass-blur-scale, 1)));
   -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale, 1)));
 }
+/* ── Early Warning widget ──────────────────────────────────────────────────
+   Read-only view of the intel engine (Fleet Commander → Early Warning). Badge
+   classes (.intel-tag / .intel-band-* / .intel-role-*) are shared with that
+   page via fc.css so the two can never disagree about what a colour means. */
+.ew-head   { font-family: var(--mono); font-size: 10px; color: var(--text-3);
+             padding: 2px 0 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.ew-clear  { padding: 14px 0; text-align: center; font-size: 11px; color: var(--pal-green); }
+.ew-idle   { display: flex; align-items: center; gap: 10px; padding: 12px 2px;
+             font-size: 11px; color: var(--text-3); }
+.ew-idle-text { flex: 1; min-width: 0; }
+.ew-idle-btn  { align-self: center; }
+.ew-idle .material-symbols-outlined { font-size: 22px; color: var(--text-3); opacity: 0.6; }
+.ew-idle-hint { display: block; color: var(--text-3); opacity: 0.75; }
+
+/* The contact rows themselves come from src/shared/intel-row.js and are styled
+   by fc.css (.ir-*), shared with the Early Warning page and the floating
+   pop-out. This widget used to carry its own two-line markup and duly drifted
+   out of step with the page; there is now one layout and one stylesheet for it.
+   Only the widget's own chrome — the idle state, the header and the all-clear
+   line — is styled here. */

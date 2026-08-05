@@ -1,4 +1,4 @@
-const { APP_USER_AGENT } = require('./app_ident');
+const { APP_USER_AGENT, ESI_BASE } = require('./app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 // ─── locator.js ───────────────────────────────────────────────────────────────
 // Centralised EVE location resolver.
 //
@@ -42,14 +42,69 @@ const { APP_USER_AGENT } = require('./app_ident');
 const https = require('https');
 const tls = require('tls');
 
-const ESI_BASE                = 'https://esi.evetech.net';
 const ADAM4EVE_BASE           = 'https://www.adam4eve.eu';
 const ZKILLBOARD_BASE         = 'https://zkillboard.com';
 const HAMMERTIME_BASE         = 'https://stop.hammerti.me.uk';
 const PLAYER_STRUCTURE_MIN_ID = 1_000_000_000_000;
 
+// Headroom a SPECULATIVE ESI call must leave behind. CCP allows 100 errors per
+// window; a structure probe that 403s costs one. Structure resolution is a
+// sweep — dozens of probes back to back — so it has to stop while there is still
+// budget left for the calls that were going to succeed. Everything else in the
+// app shares this budget, and at zero CCP 420s the lot.
+const SPECULATIVE_MIN_BUDGET = 30;
+
+// ── Circuit breaker for the free fallback sources ────────────────────────────
+// Hammertime, zKillboard and adam4eve are community services that go down. When
+// one does, it fails the SAME way for every structure — and a sweep over a few
+// hundred assets then produces a few hundred identical failures and a few
+// hundred identical log lines, which is how a real signal gets buried.
+//
+// (Observed 2026-08-04: stop.hammerti.me.uk began serving a self-signed
+// "TRAEFIK DEFAULT CERT", so every request failed certificate validation. That
+// is their proxy losing its certificate, not something this app can work around
+// — and it must not be "fixed" by turning verification off.)
+//
+// After a few consecutive failures the host is left alone for a while and the
+// reason is logged ONCE.
+const HOST_TRIP_AFTER = 3;
+const HOST_TRIP_MS    = 30 * 60 * 1000;
+const _hostFail = new Map();   // host -> { count, until, reason }
+
+function _hostIsDown(host) {
+  const e = _hostFail.get(host);
+  return !!(e && e.until > Date.now());
+}
+
+function _noteHostFailure(host, err) {
+  const e = _hostFail.get(host) || { count: 0, until: 0, reason: '' };
+  e.count++;
+  e.reason = err && err.message ? err.message : String(err);
+  if (e.count >= HOST_TRIP_AFTER && e.until <= Date.now()) {
+    e.until = Date.now() + HOST_TRIP_MS;
+    console.warn(`[locator] ${host} failed ${e.count}x (${e.reason}) — skipping it for ` +
+                 `${Math.round(HOST_TRIP_MS / 60000)} min. Structure names will fall back to other sources.`);
+  }
+  _hostFail.set(host, e);
+}
+
+function _noteHostOk(host) {
+  if (_hostFail.has(host)) _hostFail.delete(host);
+}
+
+const _hostOf = (url) => { try { return new URL(url).host; } catch { return String(url); } };
+
+function _resetBreaker() { _hostFail.clear(); }
+
 // Module-level ESI 420 cooldown tracker (shared across all locator instances)
 let _esiErrorLimitUntil = 0;
+
+// The main process's view of the ESI error budget, injected by createLocator.
+// Without it this file kept its OWN 420 cooldown for the unauthenticated calls
+// it makes through its own transport, while the authenticated reads went out
+// through main's httpGet behind a different one — so a 420 observed on one path
+// did nothing to stop the other, and the two kept refilling each other's holes.
+let _esiHooks = null;
 
 // True when a stored/cached "name" is not actually a real name: an ESI error
 // body that leaked in from an older build, or a generic fallback. Such values
@@ -112,7 +167,16 @@ function fetchHtml(url, timeoutMs = 12000, _redirects = 0) {
 }
 
 // ─── Tiny raw JSON fetcher ────────────────────────────────────────────────────
-function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
+// Goes through the SAME ESI gate as the rest of the app when one is wired in,
+// so a pause anywhere is a pause everywhere.
+async function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
+  if (_esiHooks && _esiHooks.esiGateWait) {
+    try { await _esiHooks.esiGateWait(url); } catch { /* never block on the gate */ }
+  }
+  return _fetchJsonRaw(url, timeoutMs, _redirects);
+}
+
+function _fetchJsonRaw(url, timeoutMs = 12000, _redirects = 0) {
   return new Promise((resolve, reject) => {
     if (_redirects > 3) return reject(new Error('too many redirects'));
     let opts;
@@ -120,6 +184,12 @@ function fetchJson(url, timeoutMs = 12000, _redirects = 0) {
     catch (e) { return reject(new Error(`Invalid URL: ${url}`)); }
 
     const req = https.request(opts, (res) => {
+      // Report EVERY ESI response — 403s included — to the shared budget
+      // tracker. The 403s are the ones that actually drain it; by the time a 420
+      // arrives the damage is already done.
+      if (_esiHooks && _esiHooks.esiNote) {
+        try { _esiHooks.esiNote(url, res); } catch { /* never break the fetch */ }
+      }
       if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
         res.resume();
         const next = res.headers.location.startsWith('http')
@@ -234,7 +304,10 @@ function fetchJsonInsecure(url, timeoutMs = 12000) {
 module.exports = function createLocator({ httpGet, readCache, writeCache, getValidToken,
                                           getAllCharacterIds,
                                           getStationById, upsertNpcStations, upsertUpwellStructures,
-                                          resolveNamesFromSde, getCachedNames, putCachedNames }) {
+                                          resolveNamesFromSde, getCachedNames, putCachedNames,
+                                          esiGateWait, esiNote, esiBudget, getSdeDb }) {
+  // One shared view of the error budget — see the note on _esiHooks above.
+  if (esiGateWait || esiNote || esiBudget) _esiHooks = { esiGateWait, esiNote, esiBudget };
 
   // ── In-memory name cache (survives the session, avoids redundant ESI calls) ─
   const _nameCache = {};
@@ -243,11 +316,31 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // Set by fetchJson when HTTP 420 is received. Structure lookups wait
   // until the cooldown expires before hitting ESI again.
   async function _waitForEsiCooldown() {
-    const wait = _esiErrorLimitUntil - Date.now();
+    // The longer of our own cooldown and the app-wide one: a 420 seen by any
+    // other feature is just as much a reason for us to stand down.
+    const shared = esiBudget ? esiBudget().blockedFor : 0;
+    const wait   = Math.max(_esiErrorLimitUntil - Date.now(), shared);
     if (wait > 0) {
-      console.log(`[locator] ESI 420 cooldown — waiting ${Math.ceil(wait / 1000)}s before next structure lookup`);
-      await new Promise(r => setTimeout(r, wait));
+      console.log(`[locator] ESI cooldown — waiting ${Math.ceil(wait / 1000)}s before next structure lookup`);
+      // Staggered, so a queue of structure lookups does not resume in lockstep
+      // and drain the refilled budget the instant it comes back.
+      await new Promise(r => setTimeout(r, wait + Math.floor(Math.random() * 2000)));
     }
+  }
+
+  /**
+   * Is there enough error budget to spend on a request we EXPECT to fail?
+   *
+   * Reading a structure nobody has docking rights to is a guess: it 403s far
+   * more often than it succeeds, and each 403 costs a point. Those guesses must
+   * stand down long before the necessary calls do — the whole failure mode here
+   * is a speculative sweep draining the budget to zero and taking every other
+   * ESI feature in the app down with it.
+   */
+  function _canSpeculate() {
+    if (!esiBudget) return true;
+    const b = esiBudget();
+    return b.blockedFor === 0 && b.remain > SPECULATIVE_MIN_BUDGET;
   }
 
   // ── _persistToStationDb ──────────────────────────────────────────────────────
@@ -325,7 +418,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       for (const chunk of chunks) {
         try {
           const body   = JSON.stringify(chunk);
-          const urlObj = new URL(`${ESI_BASE}/v3/universe/names/?datasource=tranquility`);
+          const urlObj = new URL(`${ESI_BASE}/universe/names/?datasource=tranquility`);
           const result = await new Promise((resolve, reject) => {
             const req = https.request({
               hostname: urlObj.hostname,
@@ -406,6 +499,11 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // the ESI error budget low on secondary (geo-only) lookups and repeat syncs.
   async function _authStructureRead(id, primaryCharacterId, crossChar = true) {
     await _waitForEsiCooldown();
+    // The cross-character sweep costs one 403 per character without access, so
+    // it is the single biggest spender here. With the budget thin, fall back to
+    // the owning character alone rather than abandoning the lookup entirely —
+    // one probe still has a real chance and costs at most one point.
+    if (crossChar && !_canSpeculate()) crossChar = false;
     const candidates = crossChar
       ? _structureLookupCandidates(primaryCharacterId)
       : (primaryCharacterId ? [String(primaryCharacterId)] : []);
@@ -413,7 +511,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       try {
         const token = await getValidToken(cid);
         const data  = await httpGet(
-          `${ESI_BASE}/v2/universe/structures/${id}/?datasource=tranquility`,
+          `${ESI_BASE}/universe/structures/${id}/?datasource=tranquility`,
           { Authorization: `Bearer ${token}` }
         );
         if (data && (data.name || data.solar_system_id)) return data;
@@ -470,6 +568,11 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // Tries authenticated (owning character only) first, then public (unauthed).
   // Returns {} on failure.
   async function _esiStructureGeo(id, characterId) {
+    // A SECOND speculative pair of ESI calls, on a structure whose name has
+    // already failed to resolve — so by definition the reads it is about to
+    // make have just failed. Caught by a test that expected one probe and saw
+    // two: gating the name lookup alone left this one spending freely behind it.
+    if (!_canSpeculate()) return {};
     const authData = await _authStructureRead(id, characterId, false);
     if (authData && authData.solar_system_id) {
       return {
@@ -478,9 +581,10 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       };
     }
     // Public (works for structures with an open market or service)
+    if (!_canSpeculate()) return {};
     try {
       const data = await fetchJson(
-        `${ESI_BASE}/v2/universe/structures/${id}/?datasource=tranquility`
+        `${ESI_BASE}/universe/structures/${id}/?datasource=tranquility`
       );
       if (data && data.solar_system_id) {
         return {
@@ -561,9 +665,12 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
 
     // ── Step 2: Public ESI (unauthed) ────────────────────────────────────────
     // Many structures with public market/services respond to unauthed requests.
-    try {
+    // Skipped while the error budget is thin: this is the most speculative call
+    // in the chain (a structure the authenticated read just failed on rarely
+    // answers unauthenticated) and the free sources below cost ESI nothing.
+    if (_canSpeculate()) try {
       const data = await fetchJson(
-        `${ESI_BASE}/v2/universe/structures/${id}/?datasource=tranquility`
+        `${ESI_BASE}/universe/structures/${id}/?datasource=tranquility`
       );
       if (data && data.name) {
         const result = {
@@ -582,8 +689,9 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     // Community-sourced database for structures players can't dock at.
     // Returns name, solarSystemID, ownerID without any authentication.
     // Docs: https://stop.hammerti.me.uk/api/
-    try {
+    if (!_hostIsDown(_hostOf(HAMMERTIME_BASE))) try {
       const data = await fetchJsonInsecure(`${HAMMERTIME_BASE}/api/structure/${id}/`);
+      _noteHostOk(_hostOf(HAMMERTIME_BASE));
       // Response: { "name": "...", "solarSystemID": 30000142, "ownerID": 1234, ... }
       if (data && (data.name || data.solarSystemID)) {
         const name = data.name || null;
@@ -608,15 +716,17 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
         }
       }
     } catch (e) {
-      console.log(`[locator] Hammertime fallback failed for ${id}: ${e.message}`);
+      // Logged once per outage by the breaker rather than once per structure.
+      _noteHostFailure(_hostOf(HAMMERTIME_BASE), e);
     }
 
     // ── Step 4: Zkillboard structure page ────────────────────────────────────
     // Zkillboard indexes most structures that have ever appeared in killmails.
     // Skipped for structures already known to be unresolvable — these HTML
     // scrapes carry 12 s timeouts and have failed repeatedly already.
-    if (!skipScrapes) try {
+    if (!skipScrapes && !_hostIsDown(_hostOf(ZKILLBOARD_BASE))) try {
       const html = await fetchHtml(`${ZKILLBOARD_BASE}/location/id/${id}/`);
+      _noteHostOk(_hostOf(ZKILLBOARD_BASE));
 
       // ─── Suppress Cloudflare/Not Found Console Spam ───
       const rawTitleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -667,16 +777,16 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       // Log a snippet so we can tune the regex if zkillboard changes their layout
       console.log(`[locator] Zkillboard parse miss for ${id}, title snippet: ${html.slice(html.indexOf('<title'), html.indexOf('<title') + 200)}`);
     } catch (e) {
-      // Ignore our manual silent skip error, otherwise log it
-      if (e.message !== 'SILENT_SKIP') {
-        console.log(`[locator] Zkillboard fallback failed for ${id}: ${e.message}`);
-      }
+      // A silent skip is "not indexed", not an outage — it must not trip the
+      // breaker or one missing structure would disable the source for everyone.
+      if (e.message !== 'SILENT_SKIP') _noteHostFailure(_hostOf(ZKILLBOARD_BASE), e);
     }
 
     // ── Step 5: adam4eve structure_history page ───────────────────────────────
     // Title format: "A4E - Structure history 'NAME'" or "A4E - Structure history for 'NAME'"
-    if (!skipScrapes) try {
+    if (!skipScrapes && !_hostIsDown(_hostOf(ADAM4EVE_BASE))) try {
       const html  = await fetchHtml(`${ADAM4EVE_BASE}/structure_history.php?id=${id}`);
+      _noteHostOk(_hostOf(ADAM4EVE_BASE));
       // Match: history 'NAME'  or  history "NAME"  or  history for 'NAME'
       const match = html.match(/<title[^>]*>[^<]*[Hh]istory(?:\s+for)?\s+['"]([^'"]{3,120})['"]/);
       if (match && match[1]) {
@@ -701,7 +811,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       }
       console.log(`[locator] adam4eve parse miss for ${id}, title: ${html.slice(html.indexOf('<title'), html.indexOf('<title') + 200)}`);
     } catch (e) {
-      console.log(`[locator] adam4eve fallback failed for ${id}: ${e.message}`);
+      _noteHostFailure(_hostOf(ADAM4EVE_BASE), e);
     }
 
     // ── Step 6: Give up gracefully — but still try to get geo data ───────────
@@ -806,7 +916,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
         if (!resolvedFromDb) {
           try {
             const st = await httpGet(
-              `${ESI_BASE}/v2/universe/stations/${id}/?datasource=tranquility`
+              `${ESI_BASE}/universe/stations/${id}/?datasource=tranquility`
             );
             result.name            = st.name                                 || null;
             result.solar_system_id = st.system_id || st.solar_system_id || null;
@@ -822,7 +932,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
         // ── Bare solar system (or constellation / region) ID ───────────────
         try {
           const sys = await httpGet(
-            `${ESI_BASE}/v4/universe/systems/${id}/?datasource=tranquility`
+            `${ESI_BASE}/universe/systems/${id}/?datasource=tranquility`
           );
           if (sys && sys.system_id) {
             result.solar_system_id = id;
@@ -835,7 +945,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       if (result.solar_system_id) {
         try {
           const sys = await httpGet(
-            `${ESI_BASE}/v4/universe/systems/${result.solar_system_id}/?datasource=tranquility`
+            `${ESI_BASE}/universe/systems/${result.solar_system_id}/?datasource=tranquility`
           );
           result.solar_system_name = sys.name             || null;
           result.security_status   = sys.security_status  ?? null;
@@ -846,7 +956,7 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
       if (result.constellation_id) {
         try {
           const con = await httpGet(
-            `${ESI_BASE}/v1/universe/constellations/${result.constellation_id}/?datasource=tranquility`
+            `${ESI_BASE}/universe/constellations/${result.constellation_id}/?datasource=tranquility`
           );
           result.constellation_name = con.name      || null;
           result.region_id          = con.region_id || null;
@@ -976,10 +1086,10 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // ── syncStationDatabase ──────────────────────────────────────────────────────
   // Populates the local npc_stations and upwell_structures tables.
   //
-  // NPC stations  — Hoboleaks SDE mirror (stastations.json).
-  //                 Fuzzwork dropped their staStations.json endpoint; Hoboleaks
-  //                 is the authoritative community SDE mirror for this data.
-  //                 System/region names resolved in bulk via ESI /v3/universe/names/.
+  // NPC stations  — the LOCAL SDE (data/sde.sql, staStations joined to
+  //                 mapSolarSystems/mapRegions). No network at all. The remote
+  //                 mirrors this used to try are both 404 — see the note on the
+  //                 constants below.
   //
   // Upwell structs — ESI removed the ?filter=public query parameter from
   //                 /v1/universe/structures/ so there is no longer a public
@@ -1000,11 +1110,23 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // (the IPC handler in main.js) so the UI can show "already fresh" without
   // having to duplicate the timestamp logic here.
   //
-  // Primary: Hoboleaks SDE mirror. Fallback: Fuzzwork (may lag behind SDE).
-  const HOBOLEAKS_STATIONS_URL =
-    'https://sde.hoboleaks.space/tq/stastations.json';
-  const FUZZWORK_STATIONS_URL =
-    'https://www.fuzzwork.co.uk/dump/latest/staStations.json';
+  // NPC stations come from OUR OWN SDE. There is nothing to fetch.
+  //
+  // This used to try sde.hoboleaks.space/tq/stastations.json and fall back to
+  // fuzzwork.co.uk/dump/latest/staStations.json. Probed 2026-08-05: BOTH 404.
+  // Hoboleaks answers NoSuchKey for the whole /tq/ prefix, and Fuzzwork's
+  // /dump/latest/ directory listing contains only database dumps and a csv/
+  // folder — no staStations.json, which suggests that URL was never right.
+  // So the sync could not have worked in a long time: the fetch threw, the catch
+  // logged, and zero stations were written. It just quietly cost two failed
+  // requests a run, one of them a 404 at the service whose operator got in touch
+  // about exactly that (see the note above fetchFuzzworkBlueprint in
+  // src/ipc/esi_ipc.js).
+  //
+  // data/sde.sql already carries all 5 210 of them, indexed, with system and
+  // region names and security from mapSolarSystems/mapRegions — which also
+  // retires the ~6 ESI /universe/names/ POSTs this used to make to resolve those
+  // names. Local, complete, offline, and free.
 
   async function syncStationDatabase({ httpPost: _httpPost } = {}) {
     // _httpPost is injected from main.js (it needs the full POST helper).
@@ -1041,57 +1163,27 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     let npcCount    = 0;
     let upwellCount = 0;
 
-    // ── PART 1: NPC stations from Hoboleaks SDE mirror ───────────────────────
-    // Hoboleaks mirrors the EVE SDE and publishes stastations.json in the same
-    // shape that Fuzzwork's staStations.json used:
-    //   { "stationID": 60000004, "stationName": "...", "solarSystemID": ...,
-    //     "regionID": ..., "security": 0.946 }
-    // The endpoint returns an OBJECT keyed by stationID, not an array.
-    console.log('[StationSync] Fetching NPC station list from Hoboleaks SDE...');
+    // ── PART 1: NPC stations, straight from the local SDE ────────────────────
+    console.log('[StationSync] Reading NPC stations from the local SDE...');
     try {
-      let raw;
-      try {
-        raw = await fetchJson(HOBOLEAKS_STATIONS_URL, 60000);
-        console.log('[StationSync] Hoboleaks fetch OK.');
-      } catch (hobErr) {
-        console.warn(`[StationSync] Hoboleaks failed (${hobErr.message}), trying Fuzzwork fallback...`);
-        raw = await fetchJson(FUZZWORK_STATIONS_URL, 60000);
-        console.log('[StationSync] Fuzzwork fallback fetch OK.');
-      }
-      // Both sources return an object { "60000004": { stationID, stationName, ... }, ... }
-      const stations = Array.isArray(raw) ? raw : Object.values(raw);
-      console.log(`[StationSync] Returned ${stations.length} NPC station records.`);
+      const sdeDb = getSdeDb && getSdeDb();
+      if (!sdeDb) throw new Error('SDE not available — station sync needs the static data');
 
-      // Batch-resolve system + region names via ESI names POST.
-      const systemIds = [...new Set(stations.map(s => s.solarSystemID).filter(Boolean))];
-      const regionIds = [...new Set(stations.map(s => s.regionID).filter(Boolean))];
-      const allGeoIds = [...new Set([...systemIds, ...regionIds])];
-
-      const geoNames  = {};
-      const GEO_CHUNK = 1000;
-      for (let i = 0; i < allGeoIds.length; i += GEO_CHUNK) {
-        const chunk = allGeoIds.slice(i, i + GEO_CHUNK);
-        try {
-          const result = await doPost(
-            `${ESI_BASE}/v3/universe/names/?datasource=tranquility`, chunk
-          );
-          if (Array.isArray(result)) result.forEach(r => { geoNames[r.id] = r.name; });
-        } catch (e) {
-          console.warn(`[StationSync] ESI names chunk failed: ${e.message}`);
-        }
-      }
-
-      const npcRows = stations
-        .filter(s => s.stationID >= 60_000_000 && s.stationID < 64_000_000 && s.stationName)
-        .map(s => ({
-          id:                s.stationID,
-          name:              s.stationName,
-          solar_system_id:   s.solarSystemID   || null,
-          solar_system_name: geoNames[s.solarSystemID] || null,
-          region_id:         s.regionID        || null,
-          region_name:       geoNames[s.regionID]      || null,
-          security_status:   s.security        != null ? s.security : null,
-        }));
+      // The 60m-64m range is the NPC station block; everything above it is a
+      // player structure and belongs to PART 2.
+      const npcRows = await sdeDb.all(`
+        SELECT s.stationID        AS id,
+               s.stationName      AS name,
+               s.solarSystemID    AS solar_system_id,
+               sys.solarSystemName AS solar_system_name,
+               sys.regionID       AS region_id,
+               r.regionName       AS region_name,
+               sys.security       AS security_status
+          FROM staStations s
+          LEFT JOIN mapSolarSystems sys ON sys.solarSystemID = s.solarSystemID
+          LEFT JOIN mapRegions      r   ON r.regionID        = sys.regionID
+         WHERE s.stationID >= 60000000 AND s.stationID < 64000000
+           AND s.stationName IS NOT NULL`);
 
       // Upsert in 500-row chunks to stay within SQLite's parameter limits.
       const CHUNK = 500;
@@ -1151,3 +1243,10 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
     isKnownUnresolvable,
   };
 };
+
+// The fallback-source circuit breaker, exposed for tests. Pure module state, no
+// network — the wiring into the fetch paths is by inspection, because those
+// fetchers are not injectable and a test that exercised them would have to make
+// real requests to community services that are sometimes down.
+module.exports._breaker = { _hostIsDown, _noteHostFailure, _noteHostOk, _resetBreaker, _hostOf,
+                            HOST_TRIP_AFTER, HOST_TRIP_MS };

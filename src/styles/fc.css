@@ -163,3 +163,320 @@
 }
 .fc-pilot { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-1); }
 .fc-pilot img { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+
+/* ─── Fleet Commander · Early Warning (intel channels) ─────────────────────────
+   Urgency is expressed with the shared --pal-* tokens so themes recolour it
+   along with everything else — never hardcode these hues (see palette.css). */
+
+.intel-ew        { min-width: 0; }
+.intel-bar       { justify-content: space-between; align-items: center; }
+.intel-bar-left,
+.intel-bar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.intel-status        { font-size: 11px; color: var(--text-3); }
+.intel-status-ok     { color: var(--pal-green); }
+.intel-status-warn   { color: var(--pal-gold); }
+.intel-field         { font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+.intel-num           { width: 62px; }
+
+/* STACKED, not side by side. Seven columns do not fit in half a window: the
+   pilot name and the hull chips are the first things to get clipped, and those
+   are exactly the two the row exists to tell you. Full width each, with contacts
+   on top (usually a handful of rows) and the feed taking the rest. */
+.intel-grid  { display: grid; grid-template-columns: minmax(0, 1fr);
+               grid-template-rows: minmax(110px, 0.75fr) minmax(0, 1fr);
+               gap: 12px; flex: 1; min-height: 0; padding: 0 18px 16px; }
+.intel-panel { display: flex; flex-direction: column; min-height: 0;
+               background: var(--bg-card-deep); border: 1px solid var(--border); border-radius: 8px; }
+.intel-panel-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-2);
+                     padding: 10px 14px; border-bottom: 1px solid var(--border); flex: none; }
+.intel-hint  { font-weight: 400; letter-spacing: 0; color: var(--text-3); margin-left: 6px; }
+
+.intel-contacts, .intel-feed { overflow-y: auto; flex: 1; min-height: 0; }
+
+/* A contact row leads with TIME, not distance: "5 jumps" means nothing to an FC
+   mid-siege, "90s" is an instruction. */
+.intel-contact      { display: flex; gap: 12px; align-items: center;
+                      padding: 9px 14px; border-bottom: 1px solid var(--border);
+                      border-left: 3px solid transparent; }
+.intel-contact-eta  { flex: none; width: 62px; text-align: center; }
+.intel-eta-val      { font-family: var(--mono, monospace); font-size: 17px; font-weight: 700; line-height: 1.1; }
+.intel-eta-lbl      { font-size: 10px; color: var(--text-3); }
+.intel-contact-body { min-width: 0; flex: 1; }
+.intel-contact-name { font-size: 13px; font-weight: 600; color: var(--text-1);
+                      display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.intel-contact-meta { font-size: 11px; color: var(--text-3); margin-top: 2px;
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.intel-tag          { font-size: 9px; letter-spacing: 0.06em; padding: 1px 5px; border-radius: 3px;
+                      border: 1px solid var(--border); color: var(--text-3); }
+.intel-tag-inbound  { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+
+.intel-critical     { border-left-color: var(--pal-red); }
+.intel-critical .intel-eta-val { color: var(--pal-red); }
+.intel-warning      { border-left-color: var(--pal-gold); }
+.intel-warning .intel-eta-val  { color: var(--pal-gold); }
+.intel-watch        { border-left-color: var(--border); }
+.intel-watch .intel-eta-val    { color: var(--text-2); }
+
+.intel-alert-banner { display: flex; align-items: center; gap: 10px; margin: 0 18px;
+                      padding: 10px 14px; border-radius: 6px; font-size: 13px;
+                      border: 1px solid var(--pal-gold); color: var(--text-1);
+                      background: var(--bg-surface); }
+.intel-alert-banner.intel-critical { border-color: var(--pal-red); }
+
+.intel-feed-row   { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto;
+                    gap: 8px; align-items: baseline; padding: 5px 14px; font-size: 11px;
+                    border-bottom: 1px solid var(--border); }
+.intel-feed-clear { opacity: 0.5; }
+.intel-feed-time  { font-family: var(--mono, monospace); color: var(--text-3); }
+.intel-feed-sys   { font-weight: 700; color: var(--pal-teal); overflow: hidden; text-overflow: ellipsis; }
+.intel-feed-body  { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.intel-feed-ch    { font-size: 10px; color: var(--text-3); }
+
+.intel-ch-modal { max-width: 560px; }
+.intel-ch-help  { font-size: 11px; color: var(--text-3); margin-bottom: 10px; }
+.intel-ch-list  { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+.intel-ch-row   { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center;
+                  gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.intel-ch-row:hover { background: var(--bg-hover); }
+.intel-ch-name  { font-size: 12px; color: var(--text-1); }
+.intel-ch-when  { font-size: 10px; color: var(--text-3); }
+.intel-ch-dir   { font-size: 10px; color: var(--text-3); margin-top: 8px; word-break: break-all; }
+
+/* Channel-picker modal sits on the shared .modal-backdrop/.modal pattern. */
+.intel-ch-modal { padding: 18px; width: 560px; max-width: 92vw; }
+.intel-ch-modal h3 { margin: 0 0 6px; font-size: 14px; color: var(--text-1); }
+.intel-ch-modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* Monitored-characters dropdown. Anchored to its button rather than a modal:
+   toggling who's watched happens mid-op and must not cover the contact list. */
+.intel-dd-wrap  { position: relative; }
+.intel-dd-active { background: var(--accent-dim, var(--bg-hover)); }
+.intel-dd-menu  { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
+                  min-width: 300px; max-height: 340px; overflow-y: auto;
+                  background: var(--bg-modal); border: 1px solid var(--border);
+                  border-radius: 6px; padding: 6px; }
+.intel-dd-head  { font-size: 10px; letter-spacing: 0.06em; color: var(--text-3); padding: 4px 8px 6px; }
+.intel-dd-foot  { font-size: 10px; color: var(--text-3); padding: 6px 8px 2px; border-top: 1px solid var(--border); }
+.intel-dd-empty { font-size: 11px; color: var(--text-3); padding: 10px; }
+.intel-dd-row   { display: grid; grid-template-columns: 20px 10px minmax(0, 1fr) auto;
+                  gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.intel-dd-row:hover { background: var(--bg-hover); }
+.intel-dd-disabled  { opacity: 0.45; cursor: not-allowed; }
+.intel-dd-dot    { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: 0.4; }
+.intel-dd-online { background: var(--pal-green); opacity: 1; }
+.intel-dd-name   { font-size: 12px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; }
+.intel-dd-loc    { font-size: 10px; color: var(--text-3); }
+
+/* Killmail-sourced feed rows read differently from chat: objective, not chatter. */
+.intel-feed-kill .intel-feed-sys  { color: var(--pal-red); }
+.intel-feed-kill .intel-feed-body { color: var(--pal-red); }
+
+/* Jumps lead (hard number from the gate graph); ETA is secondary and marked as
+   an estimate, dimmer again when the contact's speed hasn't been measured. */
+.intel-eta-unit  { font-size: 11px; font-weight: 400; opacity: 0.6; margin-left: 1px; }
+.intel-eta-guess { opacity: 0.55; font-style: italic; }
+
+/* Threat roles. Only tackle is loud — it's the one that changes the decision. */
+.intel-role-tackle  { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+.intel-role-capital { border-color: var(--pal-purple); color: var(--pal-purple); font-weight: 700; }
+.intel-role-cloaky  { border-color: var(--pal-blue); color: var(--pal-blue); }
+.intel-role-ewar    { border-color: var(--pal-gold); color: var(--pal-gold); }
+.intel-role-logi    { border-color: var(--pal-green); color: var(--pal-green); }
+
+/* Gang size. Only 'fleet' is loud — the others are information, not an alarm. */
+.intel-sel          { font-size: 11px; padding: 1px 4px; }
+.intel-band-solo    { border-color: var(--border); color: var(--text-3); }
+.intel-band-small   { border-color: var(--pal-teal); color: var(--pal-teal); }
+.intel-band-large   { border-color: var(--pal-gold); color: var(--pal-gold); font-weight: 700; }
+.intel-band-fleet   { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+
+/* Custom alert rules. Rules read as sentences in the list — the point is that
+   you can scan what's armed without opening each one. */
+.intel-rules-modal { padding: 18px; width: 640px; max-width: 94vw; }
+.intel-rules-modal h3 { margin: 0 0 6px; font-size: 14px; color: var(--text-1); }
+.intel-rules-modal .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.intel-rules-spacer { flex: 1; }
+.intel-rules-list  { max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+
+.intel-rule       { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+                    gap: 10px; align-items: center; padding: 8px 10px;
+                    border-bottom: 1px solid var(--border); }
+.intel-rule-off   { opacity: 0.5; }
+.intel-rule-sw    { flex: none; }
+.intel-rule-body  { min-width: 0; }
+.intel-rule-name  { width: 100%; background: transparent; border: 1px solid transparent;
+                    color: var(--text-1); font-size: 12px; font-weight: 600; padding: 1px 4px; border-radius: 3px; }
+.intel-rule-name:hover, .intel-rule-name:focus { border-color: var(--border); background: var(--bg-input); }
+.intel-rule-desc  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.intel-rule-desc b { color: var(--text-2); font-weight: 600; }
+.intel-rule-del   { color: var(--pal-red); border-color: var(--pal-red); }
+
+.intel-rule-modal  { padding: 18px; width: 560px; max-width: 94vw; }
+.intel-rule-modal h3 { margin: 0 0 6px; font-size: 14px; color: var(--text-1); }
+.intel-rule-modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.intel-rf         { display: block; font-size: 11px; color: var(--text-2); margin-bottom: 9px; }
+.intel-rf input[type="text"], .intel-rf input:not([type]), .intel-rf input[type="number"] {
+                    display: block; width: 100%; margin-top: 3px; }
+.intel-rf-hint    { color: var(--text-3); font-size: 10px; margin-left: 4px; }
+.intel-rf-row     { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 9px; }
+.intel-rf-row .intel-rf { margin-bottom: 0; }
+.intel-rf-row .intel-rf input { width: 92px; display: inline-block; }
+.intel-rf-choices { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.intel-rf-chk     { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); }
+.intel-rf-chk input { width: auto; }
+
+/* Feed chips — the parser already knows what each token was, so the feed shows
+   that rather than reprinting the raw line. */
+.intel-feed-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-width: 0; }
+.ifc              { font-size: 10px; padding: 1px 5px; border-radius: 3px;
+                    border: 1px solid var(--border); color: var(--text-2); white-space: nowrap; }
+.ifc-sys          { border-color: var(--pal-teal); color: var(--pal-teal); font-weight: 700; }
+.ifc-j            { margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--border);
+                    opacity: 0.8; font-weight: 400; }
+.ifc-pilot        { border-color: var(--border); color: var(--text-1); }
+.ifc-ship         { border-color: var(--pal-blue); color: var(--pal-blue); }
+.ifc-count        { border-color: var(--pal-gold); color: var(--pal-gold); font-weight: 700; }
+.ifc-clear        { border-color: var(--pal-green); color: var(--pal-green); }
+.ifc-camp,
+.ifc-red          { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+.ifc-kill         { border-color: var(--pal-red); color: var(--pal-red); }
+
+/* Patterns — habits rather than live contacts. The visual job here is to keep
+   statistics from looking more authoritative than their sample warrants, so the
+   sample line is styled as prominently as the findings and the full 24-hour
+   distribution is drawn rather than only the hours that passed the test. */
+.intel-pat-modal   { padding: 18px; width: 680px; max-width: 94vw; }
+.intel-pat-modal h3 { margin: 0 0 6px; font-size: 14px; color: var(--text-1); }
+.intel-pat-modal .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.intel-pat-body    { max-height: 62vh; overflow-y: auto; }
+.intel-pat-sample  { font-size: 11px; color: var(--text-2); padding: 8px 10px; margin-bottom: 12px;
+                     border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); }
+.intel-pat-sample b { color: var(--text-1); }
+.intel-pat-dim     { color: var(--text-3); }
+
+.intel-pat-notready { display: flex; gap: 10px; align-items: flex-start; padding: 16px;
+                      border: 1px dashed var(--border); border-radius: 6px; font-size: 12px;
+                      color: var(--text-2); }
+.intel-pat-notready .material-symbols-outlined { font-size: 22px; color: var(--text-3); }
+.intel-pat-notready .intel-pat-dim { margin-top: 4px; line-height: 1.5; }
+
+.intel-pat-section { margin-bottom: 16px; }
+.intel-pat-title   { font-size: 10px; letter-spacing: 0.08em; color: var(--label-muted);
+                     margin-bottom: 6px; }
+
+/* One column per hour. Height is DAYS the hour saw activity, not sightings —
+   a single busy night must not out-draw a habit (see patterns.js). */
+.intel-pat-chart   { display: flex; align-items: flex-end; gap: 2px; height: 92px;
+                     padding: 6px 8px 0; border: 1px solid var(--border); border-radius: 6px; }
+.intel-pat-bar     { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end;
+                     height: 100%; min-width: 0; }
+.intel-pat-bar-fill { background: var(--pal-teal); opacity: 0.35; border-radius: 2px 2px 0 0;
+                      min-height: 1px; }
+.intel-pat-bar-hot .intel-pat-bar-fill { background: var(--pal-red); opacity: 1; }
+.intel-pat-bar-lbl { font-size: 8px; color: var(--text-3); text-align: center; height: 11px;
+                     font-family: var(--mono, monospace); }
+.intel-pat-verdict { font-size: 11px; color: var(--text-2); margin-top: 6px; line-height: 1.5; }
+.intel-pat-verdict b { color: var(--text-1); }
+
+.intel-pat-route   { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+                     padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.intel-pat-route-path { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+.intel-pat-arrow   { color: var(--text-3); font-size: 11px; }
+.intel-pat-route-n { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.intel-pat-entries { display: flex; gap: 6px; flex-wrap: wrap; }
+.intel-pat-entry   { font-size: 11px; padding: 3px 7px; border: 1px solid var(--border);
+                     border-radius: 3px; color: var(--text-2); }
+
+/* ── Intel rows (src/shared/intel-row.js) ────────────────────────────────────
+   One grid, used by the Early Warning page AND the floating pop-out, so the two
+   windows cannot drift apart.
+
+     time · region · system · ships · size · types · ETA
+
+   Reads left to right as the question an FC asks: when, whereabouts, exactly
+   where, what is it flying, how many, what can it do, how long have I got. The
+   two hard numbers anchor the right edge so they scan down a column, and the
+   two that decide whether you act — what and how many — sit mid-row where the
+   eye lands. */
+.ir-row        { display: grid; align-items: center; gap: 8px;
+                 grid-template-columns: 58px 84px minmax(70px, auto) minmax(0, 1fr) auto auto 74px;
+                 padding: 5px 12px; border-bottom: 1px solid var(--border);
+                 font-size: 11px; border-left: 3px solid transparent; }
+/* The pop-out drops REGION — it is the least actionable column and the window
+   is deliberately narrow enough to sit beside the game.
+   SHIPS keeps a hard floor here: with auto-width SIZE and TYPE columns, a
+   contact carrying three role tags squeezed the ships cell to nothing and the
+   row lost both the pilot name and the hulls — the two things it exists to say.
+   TYPE gives way instead, because a clipped tag is still legible as a colour. */
+.ir-compact    { grid-template-columns: 40px minmax(56px, auto) minmax(104px, 1fr) auto minmax(0, auto) 58px;
+                 padding: 4px 8px; gap: 6px; }
+.ir-compact .ir-types { overflow: hidden; }
+.ir-compact .ir-pilot { min-width: 56px; }
+.ir-head       { position: sticky; top: 0; z-index: 1; background: var(--bg-panel);
+                 font-size: 9px; letter-spacing: 0.08em; color: var(--label-muted);
+                 border-bottom: 1px solid var(--border); }
+.ir-head span  { overflow: hidden; text-overflow: ellipsis; }
+.ir-clear      { opacity: 0.5; }
+
+.ir-time       { font-family: var(--mono, monospace); color: var(--text-3); white-space: nowrap; }
+.ir-region     { color: var(--text-3); overflow: hidden; text-overflow: ellipsis;
+                 white-space: nowrap; }
+.ir-system     { font-weight: 700; white-space: nowrap; padding: 1px 6px; border-radius: 3px;
+                 border: 1px solid var(--border); }
+/* The game's own three-way split — null, low and high are different problems. */
+.sec-null      { color: var(--pal-red);   border-color: var(--pal-red); }
+.sec-low       { color: var(--pal-gold);  border-color: var(--pal-gold); }
+.sec-high      { color: var(--pal-green); border-color: var(--pal-green); }
+.sec-unknown   { color: var(--pal-teal);  border-color: var(--pal-teal); }
+
+/* NEVER wraps. A wrapped cell makes the row taller than its neighbours, and a
+   table of variable-height rows cannot be scanned down a column — which is the
+   entire reason for laying this out as a grid. Content that does not fit is
+   clipped; the full text is on the row's tooltip. */
+.ir-what       { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap;
+                 min-width: 0; overflow: hidden; }
+/* The pilot name identifies the contact, so it gets space before the hulls do
+   and never shrinks below a readable prefix — "D…" names nobody. */
+.ir-pilot      { color: var(--text-1); font-weight: 600; white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis;
+                 flex: 0 1 auto; min-width: 96px; }
+/* Chips keep their natural width and get clipped at the cell edge rather than
+   being squeezed — a row of one-letter ship names is worse than three whole
+   ones and a clean cut. */
+.ir-what > .ir-ship,
+.ir-what > .ir-flag,
+.ir-what > .intel-tag { flex: 0 0 auto; }
+.ir-ship       { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+                 color: var(--pal-blue); border: 1px solid var(--border);
+                 border-radius: 3px; padding: 0 5px 0 2px; }
+/* A picture of a Sabre is recognised faster than the word, and recognising
+   tackle a second sooner is the whole product. Never load-bearing though — the
+   name is always there and the icon hides itself if it fails. */
+.ir-ship-icon  { width: 16px; height: 16px; border-radius: 2px; flex-shrink: 0; }
+.ir-flag       { font-size: 9px; padding: 1px 5px; border-radius: 3px;
+                 border: 1px solid var(--border); color: var(--text-3); white-space: nowrap; }
+.ir-flag-clear { border-color: var(--pal-green); color: var(--pal-green); }
+.ir-flag-camp,
+.ir-flag-red   { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+.ir-flag-kill  { border-color: var(--pal-red); color: var(--pal-red); }
+
+.ir-size,
+.ir-types      { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ir-eta        { display: flex; align-items: baseline; justify-content: flex-end; gap: 5px;
+                 white-space: nowrap; }
+.ir-jumps      { font-family: var(--mono, monospace); font-size: 13px; color: var(--text-1); }
+.ir-j          { font-size: 9px; color: var(--text-3); margin-left: 1px; }
+.ir-etaval     { font-size: 10px; color: var(--text-3); }
+
+.ir-row.intel-critical { border-left-color: var(--pal-red); }
+.ir-row.intel-warning  { border-left-color: var(--pal-gold); }
+.ir-row.intel-watch    { border-left-color: transparent; }
+.ir-row.ir-head        { border-left-color: transparent; }
+
+/* On a live contact row: where this one has historically gone next. Only ever
+   shown when the history cleared its own evidence bar, and coloured only when
+   the habit points TOWARD us — the one version that changes a decision. */
+.intel-tag-predict     { border-color: var(--pal-blue); color: var(--pal-blue); }
+.intel-predict-closer  { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }

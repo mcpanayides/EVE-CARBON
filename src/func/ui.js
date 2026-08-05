@@ -57,6 +57,133 @@ async function populateGeneralSettings() {
       showToast(`Couldn't update tray setting: ${e.message}`, 'error');
     }
   };
+
+  await populateFileLogSetting();
+  await populateDemoModeSetting();
+}
+
+// ─── Diagnostic log toggle ────────────────────────────────────────────────────
+// Applies immediately, unlike Demo Mode — the file opens or closes on the spot,
+// so there is nothing to restart for. The notice line carries the two facts that
+// decide whether someone trusts it: how big the file has got, and that it is
+// scrubbed before anything is written.
+async function populateFileLogSetting() {
+  const toggle  = document.getElementById('fileLogToggle');
+  const notice  = document.getElementById('fileLogNotice');
+  const actions = document.getElementById('fileLogActions');
+  if (!toggle || !notice || !actions) return;
+  if (!window.eveAPI?.logGetState) { toggle.closest('.settings-toggle-row')?.remove(); return; }
+
+  const size = (bytes) => (bytes < 1024 ? `${bytes} B`
+    : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+
+  const paint = (state) => {
+    toggle.checked = !!state.enabled;
+    actions.style.display = state.exists ? 'flex' : 'none';
+    if (state.enabled) {
+      notice.style.display = '';
+      notice.textContent = state.exists
+        ? `Recording to ${state.path} · ${size(state.bytes)}`
+        : `Recording to ${state.path}`;
+    } else if (state.exists) {
+      notice.style.display = '';
+      notice.textContent = `Not recording. An earlier log is still on disk (${size(state.bytes)}).`;
+    } else {
+      notice.style.display = 'none';
+      notice.textContent = '';
+    }
+  };
+
+  try { paint(await window.eveAPI.logGetState()); }
+  catch (_) { return; }
+
+  toggle.onchange = async () => {
+    const wanted = toggle.checked;
+    try {
+      const state = await window.eveAPI.logSetEnabled(wanted);
+      paint(state);
+      showToast(wanted
+        ? 'Diagnostic logging on. Reproduce the problem, then use Report a Bug.'
+        : 'Diagnostic logging off.', 'success');
+    } catch (e) {
+      toggle.checked = !wanted;
+      showToast(`Couldn't change logging: ${e.message}`, 'error');
+    }
+  };
+
+  document.getElementById('fileLogRevealBtn').onclick = async () => {
+    try { await window.eveAPI.logReveal(); }
+    catch (e) { showToast(`Couldn't open the log folder: ${e.message}`, 'error'); }
+  };
+
+  document.getElementById('fileLogClearBtn').onclick = async () => {
+    if (!confirm('Delete the diagnostic log and start a fresh one?')) return;
+    try { paint(await window.eveAPI.logClear()); showToast('Log cleared.', 'success'); }
+    catch (e) { showToast(`Couldn't clear the log: ${e.message}`, 'error'); }
+  };
+}
+
+// ─── Demo Mode toggle ─────────────────────────────────────────────────────────
+// Unlike the two switches above, this one CANNOT apply immediately: which
+// profile the app runs against is decided at boot, before any window exists
+// (see src/demo_mode.js). So the toggle persists the choice and offers a
+// restart, and the notice line underneath always says which state you're
+// actually in versus which you've asked for.
+async function populateDemoModeSetting() {
+  const toggle = document.getElementById('demoModeToggle');
+  const notice = document.getElementById('demoModeNotice');
+  if (!toggle || !notice) return;
+  if (!window.eveAPI?.getDemoMode) { toggle.closest('.settings-toggle-row')?.remove(); return; }
+
+  const paint = (state) => {
+    toggle.checked  = !!state.enabled;
+    toggle.disabled = !!state.forced;
+    if (state.forced) {
+      // Launched with --demo or EVE_CARBON_DEMO: the flag outranks the toggle,
+      // so showing an operable switch would be a lie.
+      notice.style.display = '';
+      notice.textContent = 'Forced on by the --demo command-line flag — the toggle is ignored this session.';
+      return;
+    }
+    if (!!state.enabled !== !!state.active) {
+      notice.style.display = '';
+      notice.textContent = state.enabled
+        ? 'Restart EVE Carbon to switch to the demo profile.'
+        : 'Restart EVE Carbon to return to your real profile.';
+      return;
+    }
+    if (state.active) {
+      notice.style.display = '';
+      notice.textContent = 'Demo profile is active — nothing here is your real data.';
+      return;
+    }
+    notice.style.display = 'none';
+    notice.textContent = '';
+  };
+
+  try { paint(await window.eveAPI.getDemoMode()); }
+  catch (_) { return; }
+
+  toggle.onchange = async () => {
+    const wanted = toggle.checked;
+    try {
+      const state = await window.eveAPI.setDemoMode(wanted);
+      paint({ ...state, forced: false });
+      if (state.restartRequired) {
+        const msg = wanted
+          ? 'Demo mode on. Restart to load the demo profile.'
+          : 'Demo mode off. Restart to return to your real profile.';
+        showToast(msg, 'success');
+        if (window.eveAPI.restartApp && confirm(`${msg}\n\nRestart now?`)) {
+          await window.eveAPI.restartApp();
+        }
+      }
+    } catch (e) {
+      toggle.checked = !wanted;   // revert — nothing was persisted
+      showToast(`Couldn't update demo mode: ${e.message}`, 'error');
+    }
+  };
 }
 
 // ─── PLEX for Good (nav) ────────────────────────────────────────────────────────
@@ -104,7 +231,7 @@ async function _pollEveStatus() {
   const count = document.getElementById('eveStatusCount');
   if (!light) return;
   try {
-    const res = await fetch('https://esi.evetech.net/latest/status/?datasource=tranquility',
+    const res = await fetch('https://esi.evetech.net/status/?datasource=tranquility',
                             { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s  = await res.json();
@@ -441,6 +568,12 @@ function _saveGlassSettings(s) {
 async function applyGlass(s) {
   const root = document.documentElement.style;
   document.body.classList.toggle('glass-on', !!s.enabled);
+  // Panel opacity is ONE setting taking one of two paths. Under glass,
+  // --glass-tint-alpha below drives it (glass.css declares the --bg-* tokens on
+  // body.glass-on). Without glass, nothing declares them there, so the inline
+  // :root overrides in palette.js apply instead. Re-run on every change so
+  // toggling glass hands over cleanly rather than leaving a stale override.
+  if (typeof applyUiTransparency === 'function') applyUiTransparency();
 
   // Resolve the tint: OS accent colour, or the custom pick
   let rgb = _rgbStrToArr(s.tintRgb) || [138, 77, 190];

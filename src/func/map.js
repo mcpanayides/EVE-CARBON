@@ -1327,19 +1327,61 @@ let _galaxyModern = null;   // { gpos:Map(id→{x,z}), labels:[{regionId,name,x,
 // previously-saved layout still lives here permanently: it wins over the
 // algorithm wholesale, every load, via _buildGalaxyModern() below.
 let _savedModernLayout = null;    // parsed userData layout (null = algorithmic)
+// Same shape, but written by the app rather than by hand: the result of the
+// last algorithmic build, kept on disk and keyed by SDE version. See
+// _persistModernLayout() at the foot of _buildGalaxyModern().
+let _cachedModernLayout = null;
 
-function _modernLayoutFromSaved(saved) {
+// BUMP THIS whenever _buildGalaxyModern's output changes — new constants, a
+// different relaxation, a moved special-case region, anything. The disk cache
+// is keyed on the SDE version, which says nothing about the algorithm, so
+// without this every existing user would keep their old map forever and only
+// fresh installs would see the change. Cheap insurance: a bump costs one
+// rebuild, forgetting it costs a bug that is invisible on your own machine.
+const LAYOUT_ALGO_VERSION = 9;   // matches the "flat layout v9" log line below
+
+function _modernLayoutFromSaved(saved, source = 'CUSTOM') {
   try {
     if (!saved || !saved.systems) return null;
+    const t0 = performance.now();
     const gpos = new Map();
     for (const [id, xz] of Object.entries(saved.systems)) {
       if (Array.isArray(xz) && xz.length === 2) gpos.set(Number(id), { x: xz[0], z: xz[1] });
     }
     if (!gpos.size) return null;
     const labels = Array.isArray(saved.labels) ? saved.labels : [];
-    console.log(`[map] modern layout: using CUSTOM saved layout (${gpos.size} systems)`);
+    console.log(`[map] modern layout: using ${source} saved layout ` +
+                `(${gpos.size} systems, ${Math.round(performance.now() - t0)}ms)`);
     return { gpos, labels, pitch: Number(saved.pitch) || 22 };
   } catch (_) { return null; }
+}
+
+// Hand the just-computed layout to the main process so the next launch can skip
+// the ~1.6s rebuild. Fire-and-forget: the map is already on screen by the time
+// this resolves, and a failed write only costs us the rebuild next time.
+// New Eden's k-space is ~5 250 systems. Anything far below that is a partial
+// build, not a small galaxy.
+const MIN_CACHEABLE_SYSTEMS = 4000;
+
+function _persistModernLayout({ gpos, labels, pitch }) {
+  if (!window.eveAPI?.modernLayoutCachePut) return;
+  // NEVER cache a partial build. _buildGalaxyModern can be entered before the
+  // galaxy data has loaded — a ResizeObserver fires as soon as the map viewport
+  // gets laid out — and returns an empty result. Writing that to disk would pin
+  // an empty map for this SDE version, and since the cache short-circuits the
+  // algorithm on every later launch, nothing would ever rebuild it. Observed in
+  // e2e before this guard existed: "built in 1ms (0 systems)" followed by
+  // "layout cached".
+  if (!gpos || gpos.size < MIN_CACHEABLE_SYSTEMS) return;
+  try {
+    const systems = {};
+    // Rounded to 0.01 world units — far below a pixel at any zoom, and it takes
+    // the file from ~1.1 MB of full doubles to ~200 KB.
+    for (const [id, p] of gpos) systems[id] = [Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100];
+    window.eveAPI.modernLayoutCachePut({ systems, labels, pitch, algo: LAYOUT_ALGO_VERSION })
+      .then(ok => ok && console.log('[map] modern layout cached for this SDE version'))
+      .catch(() => {});
+  } catch (_) { /* caching is an optimisation, never a requirement */ }
 }
 
 // Dominant-axis angle of a point cloud (2-D PCA) — used to orient each cluster.
@@ -1349,6 +1391,81 @@ function _pcaAngle(pts) {
   let cxx = 0, cxz = 0, czz = 0;
   for (const p of pts) { const dx = p.x - mx, dz = p.z - mz; cxx += dx * dx; cxz += dx * dz; czz += dz * dz; }
   return 0.5 * Math.atan2(2 * cxz, cxx - czz);
+}
+
+// The three Jove regions are unreachable by players and render as degenerate
+// streaks — the reference map filters them out too.
+const _JOVE_REGIONS = new Set(['A821-A', 'J7HZ-F', 'UUA-F4']);
+
+// Which regions the Modern view lays out, which systems are in each, and the
+// gate graph joining them. Extracted because TWO things consume them now: the
+// layout itself, and the worker-pool prefetch that front-runs it. If those two
+// ever disagreed about a region's membership, the prefetched positions would be
+// silently applied to the wrong systems — so they read from one definition.
+function _modernRegionIds() {
+  return Object.keys(_regionCentroids).map(Number)
+    .filter(r => r < 11000000 && _regions[r] && !_JOVE_REGIONS.has(_regions[r]));
+}
+
+function _modernRegionSystems(r) {
+  return _systems.filter(s => s.regionId === r && s.id < 31000000);
+}
+
+function _modernAdjacency() {
+  const adj = new Map();
+  for (const j of _jumps) {
+    const a = _sysById[j.from], b = _sysById[j.to];
+    if (!a || !b) continue;
+    if (!adj.has(j.from)) adj.set(j.from, []);
+    adj.get(j.from).push(j.to);
+  }
+  return adj;
+}
+
+// Region layouts computed on the main process's worker pool before the first
+// Modern render (null = not available, lay them out here instead).
+let _prefetchedRegionLayouts = null;   // Map(regionId → Map(systemId → {x, z}))
+let _layoutPending = false;            // a worker-pool build is in flight
+
+// Hand the per-region relaxations to the main process, which spreads them over
+// a worker pool sized to the machine. ~1.4s of the Modern map's ~1.6s build is
+// this work, and in here it blocks the only thread that draws.
+//
+// Must finish BEFORE the first Modern render or it's wasted effort — hence the
+// await at its call site rather than a fire-and-forget. Every failure path
+// leaves _prefetchedRegionLayouts null and costs only the old freeze.
+async function _prefetchRegionLayouts() {
+  if (_savedModernLayout || _cachedModernLayout) return;   // layout already known
+  if (!window.eveAPI?.mapBuildRegionLayouts) return;       // older preload
+  const t0 = performance.now();
+  _layoutPending = true;
+  try {
+    const adj = {}, seeds = {}, regions = [];
+    for (const [from, tos] of _modernAdjacency()) adj[from] = tos;
+    for (const r of _modernRegionIds()) {
+      if (_regions[r] === 'Pochven') continue;   // hand-built triangle, never relaxed
+      const sys = _modernRegionSystems(r);
+      if (!sys.length) continue;
+      regions.push({ regionId: r, ids: sys.map(s => s.id) });
+      for (const s of sys) seeds[s.id] = [s.wx, s.wz];
+    }
+    if (!regions.length) return;
+
+    const res     = await window.eveAPI.mapBuildRegionLayouts({ regions, adj, seeds });
+    const layouts = res?.layouts || {};
+    const got     = new Map();
+    for (const [rid, pairs] of Object.entries(layouts)) {
+      if (Array.isArray(pairs) && pairs.length) got.set(Number(rid), new Map(pairs));
+    }
+    _prefetchedRegionLayouts = got.size ? got : null;
+    console.log(`[map] region layouts: ${got.size}/${regions.length} from ${res?.workers || 0} worker(s) — ` +
+                `${res?.ms || 0}ms compute, ${Math.round(performance.now() - t0)}ms wall`);
+  } catch (e) {
+    _prefetchedRegionLayouts = null;
+    console.warn('[map] region-layout prefetch failed, laying out in renderer instead:', e.message);
+  } finally {
+    _layoutPending = false;
+  }
 }
 
 // Per-region force layout — the reference 2D-mode look. Springs pull EVERY
@@ -1548,16 +1665,25 @@ function _buildGalaxyModern() {
   // real data loading afterwards would never re-trigger a rebuild), which is
   // exactly what a blank Modern map with no systems/regions/hint text was.
   if (_galaxyModern && _galaxyModern.gpos.size) return _galaxyModern;
+  // A worker-pool build is already in flight. Laying out here would do that
+  // exact work a second time, on the one thread that draws — which is what an
+  // await yields the event loop for, so a ResizeObserver landing mid-prefetch
+  // used to trigger the full 1.8s build and throw the workers' result away.
+  // Deliberately not memoised into _galaxyModern: the map is still in its
+  // loading state, and the next call rebuilds properly.
+  if (_layoutPending) return { gpos: new Map(), labels: [], pitch: 22 };
   // A hand-curated saved layout (the in-app editor) beats the algorithm.
   const custom = _modernLayoutFromSaved(_savedModernLayout);
   if (custom) { _galaxyModern = custom; return _galaxyModern; }
+  // Then our own cached result for this SDE version. The layout is a pure
+  // function of the static data — no randomness anywhere below — so a cache hit
+  // is the identical map, for ~10ms instead of ~1.6s of blocked UI thread.
+  const cached = _modernLayoutFromSaved(_cachedModernLayout, 'CACHED');
+  if (cached) { _galaxyModern = cached; return _galaxyModern; }
   console.log('[map] modern flat layout v9 — Pochven rose, Exordium newbie-blue pinned below');
+  const _t0 = performance.now();
   const gpos = new Map(), labels = [];
-  // The three Jove regions are unreachable by players and render as degenerate
-  // streaks — the reference map filters them out too.
-  const JOVE = new Set(['A821-A', 'J7HZ-F', 'UUA-F4']);
-  const rids = Object.keys(_regionCentroids).map(Number)
-    .filter(r => r < 11000000 && _regions[r] && !JOVE.has(_regions[r]));
+  const rids = _modernRegionIds();
 
   // CCP flat-map look (in-game "flattened" style):
   //   • one dot pitch everywhere (GRID_UNIT) — a region's footprint follows its
@@ -1570,18 +1696,12 @@ function _buildGalaxyModern() {
   const GRID_UNIT = 22;   // world units between adjacent systems, everywhere
 
   // Global k-space gate adjacency (feeds every constellation mini-grid).
-  const adjAll = new Map();
-  for (const j of _jumps) {
-    const a = _sysById[j.from], b = _sysById[j.to];
-    if (!a || !b) continue;
-    if (!adjAll.has(j.from)) adjAll.set(j.from, []);
-    adjAll.get(j.from).push(j.to);
-  }
+  const adjAll = _modernAdjacency();
 
   // 1) Per region: constellation clumps → local relaxation into one cluster.
   const clusters = [];
   for (const r of rids) {
-    const sys = _systems.filter(s => s.regionId === r && s.id < 31000000);
+    const sys = _modernRegionSystems(r);
     if (!sys.length) continue;
 
     // One force layout over the whole region: every gate edge relaxes to the
@@ -1600,7 +1720,11 @@ function _buildGalaxyModern() {
         rad = Math.max(rad, Math.hypot(p.x, p.z));
       }
     } else {
-      const layout = _regionForceLayout(sys.map(s => s.id), adjAll);
+      // Prefer the worker pool's result; fall back to relaxing it here. Both
+      // run the same kernel (src/region_layout.js is a verbatim port), so the
+      // fallback is a slower route to the same map, not a different one.
+      const layout = _prefetchedRegionLayouts?.get(r)
+                  || _regionForceLayout(sys.map(s => s.id), adjAll);
       for (const [id, p] of layout) {
         const rx = p.x * GRID_UNIT, rz = p.z * GRID_UNIT;
         local.set(id, { x: rx, z: rz });
@@ -1707,6 +1831,8 @@ function _buildGalaxyModern() {
   // Final dot pitch in world units — the renderer sizes dots from this so
   // neighbouring systems can never merge into a blob at any refit scale.
   _galaxyModern = { gpos, labels, pitch: GRID_UNIT * s };
+  console.log(`[map] modern layout built in ${Math.round(performance.now() - _t0)}ms (${gpos.size} systems)`);
+  _persistModernLayout(_galaxyModern);
   return _galaxyModern;
 }
 
@@ -4161,9 +4287,23 @@ async function initMapPage() {
     _initErrorState();
   }
   _updateLegend();
-  // Hand-curated layout (if the user saved one) — must be in hand before the
-  // first Modern render so it wins over the algorithm.
-  try { _savedModernLayout = await window.eveAPI.modernLayoutGet(); } catch (_) { _savedModernLayout = null; }
+  // Both saved layouts must be in hand before the first Modern render, or the
+  // algorithm runs anyway and the load was wasted. Fetched together — two
+  // small IPC reads, no reason to serialise them.
+  try {
+    const [handmade, autoCached] = await Promise.all([
+      window.eveAPI.modernLayoutGet(),
+      window.eveAPI.modernLayoutCacheGet?.() ?? null,
+    ]);
+    _savedModernLayout = handmade;
+    // Drop a cache written by an older layout algorithm — the SDE key it was
+    // stored under can't detect that. Discarding it here (rather than at the
+    // point of use) means every later check is a plain truthiness test.
+    _cachedModernLayout = (autoCached && autoCached.algo === LAYOUT_ALGO_VERSION) ? autoCached : null;
+    if (autoCached && !_cachedModernLayout) {
+      console.log(`[map] discarding cached layout from algorithm v${autoCached.algo} (current is v${LAYOUT_ALGO_VERSION})`);
+    }
+  } catch (_) { _savedModernLayout = null; _cachedModernLayout = null; }
 
   _setMapState('loading');
 
@@ -4182,6 +4322,10 @@ async function initMapPage() {
     _layoutWormholeBlock();     // J-space grid to the right of the (final) galaxy
     _computeRegionCentroids(); // must come after normalisation & _regions are set
     _populateRegionSelect();   // fill the Modern-view region picker
+
+    // Must precede _onResize(): that calls _fitGalaxy() → _buildGalaxyModern(),
+    // and a layout that arrives after the build has already run is wasted.
+    await _prefetchRegionLayouts();
 
     _loaded = true;
     _onResize(); // Size the canvas now that data is ready; calls _fitGalaxy()

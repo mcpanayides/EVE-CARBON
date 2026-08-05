@@ -120,6 +120,22 @@ Example:
             style="height:80px;"
             placeholder="Any extra context, links, or workarounds you've found..."></textarea>
         </div>
+
+        <!-- Shown only when diagnostic logging is switched on. The report goes to
+             a PUBLIC issue tracker, so attaching the log is an explicit, visible
+             choice with a preview rather than something that happens quietly. -->
+        <div class="bug-field" id="bugLogField" style="margin-top:16px; display:none;">
+          <label class="bug-label" style="display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="bugIncludeLog" checked>
+            Attach the last part of the diagnostic log
+          </label>
+          <div class="bug-required-note" id="bugLogSummary" style="margin-top:4px;"></div>
+          <button class="icon-btn" id="bugLogPreviewBtn" type="button"
+                  style="margin-top:6px;">PREVIEW WHAT WILL BE SENT</button>
+          <pre id="bugLogPreview" class="field-input"
+               style="display:none; max-height:180px; overflow:auto; white-space:pre-wrap;
+                      font-size:11px; margin-top:6px;"></pre>
+        </div>
       </div>
     </div>
 
@@ -170,8 +186,60 @@ Example:
     injectBugModal();
     populateBugAccounts();
     bindBugEvents();
+    populateBugLogSection();
     document.getElementById('bugReportBackdrop').style.display = 'flex';
     document.getElementById('bugSummary').focus();
+  }
+
+  // ─── Diagnostic log attachment ───────────────────────────────────────────────
+  // Only offered when logging is actually on (Settings → General). This report
+  // opens a PUBLIC GitHub issue, so attaching a log has to be a visible, checked
+  // decision with a preview of the exact text — never something that happens
+  // quietly on the user's behalf. The log is redacted before it is ever written
+  // (see src/file_log.js), and the preview shows the same text that gets sent, so
+  // what you see is genuinely what leaves the machine.
+  let bugLogTail = '';
+
+  async function populateBugLogSection() {
+    const field   = document.getElementById('bugLogField');
+    const summary = document.getElementById('bugLogSummary');
+    const preview = document.getElementById('bugLogPreview');
+    if (!field || !summary) return;
+
+    bugLogTail = '';
+    field.style.display = 'none';
+    if (preview) { preview.style.display = 'none'; preview.textContent = ''; }
+
+    if (!window.eveAPI?.logGetState) return;
+    let state;
+    try { state = await window.eveAPI.logGetState(); } catch (_) { return; }
+    if (!state?.enabled || !state.exists) return;   // nothing worth offering
+
+    try { bugLogTail = await window.eveAPI.logTail(); } catch (_) { return; }
+    if (!bugLogTail) return;
+
+    field.style.display = '';
+    const lines = bugLogTail.split('\n').length;
+    summary.textContent =
+      `${lines} recent lines. Access tokens, sign-in codes and your user folder are removed. ` +
+      `This report opens a public GitHub issue — check the preview before submitting.`;
+
+    const btn = document.getElementById('bugLogPreviewBtn');
+    if (btn && preview) {
+      btn.onclick = () => {
+        const showing = preview.style.display !== 'none';
+        preview.style.display = showing ? 'none' : '';
+        preview.textContent = bugLogTail;
+        btn.textContent = showing ? 'PREVIEW WHAT WILL BE SENT' : 'HIDE PREVIEW';
+      };
+    }
+  }
+
+  /** The log block to append, or '' when there is nothing or it was declined. */
+  function bugLogBlock() {
+    const box = document.getElementById('bugIncludeLog');
+    if (!bugLogTail || !box || !box.checked) return '';
+    return bugLogTail;
   }
 
   function closeBugReport() {
@@ -270,6 +338,13 @@ Example:
       '───────────────────────────────────────────────',
       notes,
       '',
+      ...(bugLogBlock() ? [
+        '───────────────────────────────────────────────',
+        'DIAGNOSTIC LOG (last lines, redacted)',
+        '───────────────────────────────────────────────',
+        bugLogBlock(),
+        '',
+      ] : []),
       '═══════════════════════════════════════════════',
     ].join('\n');
 
@@ -299,12 +374,38 @@ Example:
       '',
       '### Additional notes',
       notes,
+      ...(bugLogBlock() ? [
+        '',
+        '<details><summary>Diagnostic log (last lines, redacted)</summary>',
+        '',
+        '```',
+        bugLogBlock(),
+        '```',
+        '</details>',
+      ] : []),
     ].join('\n');
 
-    const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`
+    let issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`
       + `?title=${encodeURIComponent(subject)}`
       + `&labels=bug`
       + `&body=${encodeURIComponent(issueBody)}`;
+
+    // A GitHub issue is created by navigating to a URL, and browsers give up
+    // somewhere past ~8k characters — silently, by simply not opening. The log
+    // is the expendable part, so it is dropped rather than losing the report the
+    // user actually wrote, and they are told it happened.
+    const URL_LIMIT = 7500;
+    let logDropped = false;
+    if (issueUrl.length > URL_LIMIT && bugLogBlock()) {
+      const withoutLog = issueBody.slice(0, issueBody.indexOf('<details>')).trimEnd()
+        + '\n\n_(Diagnostic log omitted — too long for a pre-filled issue. '
+        + 'It is in the email draft, and on disk via Settings → General → Show log file.)_';
+      issueUrl = `https://github.com/${GITHUB_REPO}/issues/new`
+        + `?title=${encodeURIComponent(subject)}`
+        + `&labels=bug`
+        + `&body=${encodeURIComponent(withoutLog)}`;
+      logDropped = true;
+    }
 
     try {
       if (window.eveAPI && window.eveAPI.openExternalUrl) {
@@ -314,7 +415,9 @@ Example:
       }
     } catch (_) { /* ignore — the email draft still opened */ }
 
-    showToast('Opened an email draft and a pre-filled GitHub issue.', 'success');
+    showToast(logDropped
+      ? 'Opened an email draft and a GitHub issue — the log was too long for the issue, but it is in the email.'
+      : 'Opened an email draft and a pre-filled GitHub issue.', 'success');
     logToConsole(`Bug report: mail client + GitHub issue (${GITHUB_REPO}).`, 'success');
     closeBugReport();
   }

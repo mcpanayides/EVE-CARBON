@@ -6,6 +6,83 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [2.0.0] - 2026-08-05
+Early Warning: a full intel system that reads your in-game channels and tells you
+what is coming, how far out, and how long you have. Plus a rebuilt ESI client
+after a review from CCP developer relations, and a Fuzzwork fix after their
+operator got in touch.
+
+Major, because how the app talks to every external service changed.
+
+### Added
+- **Early Warning (Fleet Commander → Early Warning).** Reads your intel channels
+  and tracks each contact's distance OVER TIME, so it can tell a gang closing on
+  you from one ratting five jumps away. Built for the case where reacting late is
+  fatal — barges sieged in a belt need 60–120 seconds to break, align and go.
+  Validated against 12 023 real intel messages.
+  - **Jumps lead, ETA follows.** Distance comes from the stargate graph and is
+    exact; time is inferred from the contact's observed speed, so it is shown as
+    "~2m" and dimmed further when that speed has not been measured yet.
+  - **Track and trace.** A gang reported by four people across three channels is
+    ONE contact, keyed on its membership so the row follows it from gate to gate
+    rather than becoming a new contact in every system.
+  - **Gang sizing** — solo / gang / large / fleet, with an optional sound above a
+    size you choose.
+  - **Custom alerts** — watchlist pilots, hulls, threat roles, gang size, bubbles,
+    "only when closing", and contact-sheet standings ("a −10 within 8 jumps").
+  - **Patterns** — which gates hostiles habitually come through and what hour they
+    turn up, and it says nothing until there is enough history to mean something.
+  - **Resumes after a restart** by replaying the last five minutes of the log, so
+    a relaunch mid-op does not start blind. The replay itself never alerts.
+  - **Live killmails (optional)** from zKillboard, which work with EVE closed.
+  - Floating pop-out and a dashboard widget, sharing one row layout.
+- **Diagnostic log (Settings → General).** Off by default. Records what the app
+  does to a file so a bug report can carry evidence. Access tokens, sign-in codes
+  and your user folder are stripped BEFORE anything is written, so the file is
+  safe to attach — and the bug reporter shows you exactly what will be sent.
+- **Demo Mode (Settings → General)** — a separate, fully-populated example profile
+  for screenshots and walkthroughs. Your real data is untouched.
+
+### Changed
+- **One ESI client.** `ESI_BASE` was declared in eight files with full URLs
+  hard-coded in a dozen more; there is now a single definition in
+  `src/shared/esi.js` used by every window.
+- **Versioned ESI routes are gone.** All 90 `/vN/` calls now use unversioned paths
+  with `X-Compatibility-Date`, per CCP's guidance — new ESI routes are
+  unversioned-only, so this stops a slow-motion breakage. Verified offline against
+  ESI's OpenAPI spec rather than by probing.
+- **Colour palette named for the job, not the hue** — Negative, Positive, Caution,
+  Contested, Info, Liquid, Assets, Series 1–2 — each with a note on what it drives.
+  Three swatches that were wired to nothing are gone.
+- **Operational signals are no longer themeable.** The Beehive stand-down light was
+  wired to the palette, so recolouring "losses" recoloured STAND DOWN with it.
+- **Settings → Background is now "Wallpaper and Colour"**, and Panel opacity is a
+  single control that works with glass on or off.
+
+### Fixed
+- **Fuzzwork 404 flood.** Every blueprint lookup called a path that does not exist,
+  and because Fuzzwork sits behind the local SDE the failure was invisible to us
+  while generating a 404 per blueprint at a free service run by one person. The
+  parameters were meaningless and the response shape was misread as well. Thanks to
+  Steve for getting in touch. The NPC station sync had the same fault twice more
+  and now reads from the local SDE — no network at all.
+- **Blank Industry page when viewing a second blueprint.** A selector matched an
+  inline style by substring; the browser rewrites that attribute the first time
+  JavaScript touches it, after which the selector hid the entire page — sub-nav,
+  back button and all. It read as a frozen window.
+- **UI transparency slider did nothing** in the default configuration, because glass
+  redefines the same tokens further down the cascade.
+- **ESI error-budget drain.** Structure lookups ran two half-blind rate limiters
+  that kept refilling each other's holes, and every queued request resumed in the
+  same millisecond after a pause. Speculative lookups now stand down first.
+- **Fleet position changes re-measure existing contacts** instead of comparing two
+  different rulers.
+
+### Removed
+- The public ESI `/search/` endpoint, which CCP has retired and nothing called.
+
+---
+
 ## [1.7.3] - 2026-08-02
 Map legibility in empire space, three security patches, and a guard so a broken
 build on `main` can't go unnoticed again.

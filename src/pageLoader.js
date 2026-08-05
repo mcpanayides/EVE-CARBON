@@ -282,6 +282,10 @@ const PAGE_HTML = {
           <button class="industry-sub-btn fc-sub-btn" data-fc-tab="fitting">
             <span class="industry-sub-icon material-symbols-outlined">build</span>Fitting Simulator
           </button>
+          <button class="industry-sub-btn fc-sub-btn" data-fc-tab="intel"
+                  title="Early warning from in-game intel channels — hostiles closing on the fleet">
+            <span class="industry-sub-icon material-symbols-outlined">radar</span>Early Warning
+          </button>
           <button class="industry-sub-btn fc-sub-btn" data-fc-tab="fleetfight"
                   title="Give CCP advance notice of a large fleet fight so they can reinforce the node">
             <span class="industry-sub-icon material-symbols-outlined">campaign</span>Fleet Fight Notify

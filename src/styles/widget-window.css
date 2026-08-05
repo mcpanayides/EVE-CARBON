@@ -49,7 +49,15 @@ body.glass-on { background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alp
   flex: 1; min-height: 0;
   overflow-y: auto;
   padding: 10px 12px;
+  /* A column so a widget CAN opt into filling the window (see .beehive-motd
+     below). Everything keeps its natural height by default, so this changes
+     nothing for widgets that don't ask for it. */
+  display: flex;
+  flex-direction: column;
 }
+/* Default for mirrored content: natural height, exactly as it sized in the
+   dashboard grid. Only elements that explicitly override this stretch. */
+.pw-content > * { flex: 0 0 auto; }
 .pw-content::-webkit-scrollbar       { width: 4px; }
 .pw-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
@@ -60,7 +68,92 @@ body.glass-on { background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alp
 .pw-content .dashboard-widget-popout { display: none !important; }
 .pw-content button { pointer-events: none; }
 
+/* ── Beehive MOTD ──────────────────────────────────────────────────────────
+   In the dashboard the MOTD is capped at 120px so one widget can't dominate
+   its row. Popped out, the window IS the widget, and that cap left a scrollbar
+   inside a short box with dead space beneath it — the user resized the window
+   and nothing grew. Here it takes the remaining height instead, so there is
+   one scrollbar, on the element that actually overflows.
+
+   The chain has to be unbroken: the mirrored markup nests the <pre> inside the
+   widget's own body div, and that div sizes to its content unless it is told
+   otherwise. Flexing only the <pre> did nothing — its parent measured 386px
+   inside a 157px shell. Both links are set here. */
+#dashboardBeehiveWidget {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.pw-content .beehive-motd {
+  /* Basis 0, NOT auto. With `auto` the box lays out at its content height
+     first, so a long MOTD in a small window overflowed the shell and scrolled
+     the whole widget instead of itself. Basis 0 means "take exactly the space
+     that's left", which fills a tall window and shrinks into a short one. */
+  flex: 1 1 0;
+  min-height: 0;          /* a flex child otherwise refuses to shrink below its
+                             content, defeating the line above */
+  max-height: none;       /* the dashboard's 120px cap does not apply here */
+}
+
 .pw-empty {
   padding: 24px 0; text-align: center;
   color: var(--text-3); font-family: var(--mono); font-size: 11px;
 }
+
+/* ══ Intel early-warning widget (html/intel-widget.html) ══════════════════════
+   Its own floating window rather than a mirrored dashboard widget, because it
+   has to keep counting down while the app is in the tray. Denser than the main
+   page: this is read at a glance, over the game, mid-fight. */
+
+.iw-status {
+  flex: none;
+  padding: 5px 12px;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--pal-green);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.iw-status-off { color: var(--pal-gold); }
+
+.iw-list { flex: 1; min-height: 0; overflow-y: auto; }
+.iw-list::-webkit-scrollbar       { width: 4px; }
+.iw-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.iw-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+}
+/* Jumps lead here too — the exact number. Time is inferred and sits below. */
+.iw-jumps {
+  flex: none; width: 34px; text-align: center;
+  font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1;
+}
+.iw-j    { font-size: 10px; font-weight: 400; opacity: 0.55; }
+.iw-body { min-width: 0; flex: 1; }
+.iw-name {
+  font-size: 12px; font-weight: 600; color: var(--text-1);
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+}
+.iw-meta {
+  font-size: 10px; color: var(--text-3); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Urgency reuses the shared intel colours so the widget and the page agree. */
+.iw-row.intel-critical { border-left-color: var(--pal-red); }
+.iw-row.intel-critical .iw-jumps { color: var(--pal-red); }
+.iw-row.intel-warning  { border-left-color: var(--pal-gold); }
+.iw-row.intel-warning .iw-jumps  { color: var(--pal-gold); }
+.iw-row.intel-watch    { border-left-color: var(--border); }
+.iw-row.intel-watch .iw-jumps    { color: var(--text-2); }
+
+/* A brief edge flash on a new alert: visible in peripheral vision when the
+   window is parked at the side of the screen and you're looking at the game. */
+@keyframes iwFlash {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50%      { box-shadow: inset 0 0 0 3px var(--pal-red); }
+}
+body.iw-flash { animation: iwFlash 0.45s ease-in-out 3; }

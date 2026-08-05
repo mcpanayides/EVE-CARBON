@@ -1,6 +1,6 @@
 ﻿const { ipcMain } = require('electron');
 
-const ESI_BASE = 'https://esi.evetech.net';
+const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
 /**
  * registerBlueprintHandlers

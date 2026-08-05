@@ -37,7 +37,7 @@ async function resolvePlanetNames(planetIds) {
   await Promise.allSettled(missing.map(async id => {
     try {
       const res = await fetch(
-        `https://esi.evetech.net/latest/universe/planets/${id}/?datasource=tranquility`
+        `https://esi.evetech.net/universe/planets/${id}/?datasource=tranquility`
       );
       if (res.ok) {
         const j = await res.json();

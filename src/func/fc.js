@@ -115,6 +115,11 @@ function navigateFcTab(tab) {
   // Leaving the composition tab tears down the polling loop so it never runs in
   // the background against a hidden page.
   if (currentFcTab === 'composition' && tab !== 'composition') _fcStopTracking();
+  // Leaving Early Warning stops the contact refresh, but NOT the watcher — the
+  // whole point is that it keeps warning you while you're on another tab.
+  if (currentFcTab === 'intel' && tab !== 'intel' && typeof teardownIntelEarlyWarning === 'function') {
+    teardownIntelEarlyWarning();
+  }
   currentFcTab = tab;
   try { localStorage.setItem('fcLastTab', tab); } catch (_) {}
 
@@ -131,6 +136,8 @@ function navigateFcTab(tab) {
     if (typeof renderFitting === 'function') renderFitting(mount);
   } else if (tab === 'fleetfight') {
     renderFleetFightNotify(mount);
+  } else if (tab === 'intel') {
+    if (typeof renderIntelEarlyWarning === 'function') renderIntelEarlyWarning(mount);
   }
 }
 

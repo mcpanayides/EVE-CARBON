@@ -4,7 +4,9 @@ const { app } = require('electron');
 const fs   = require('fs');
 const path = require('path');
 
-const ESI_BASE = 'https://esi.evetech.net';
+const galaxyLayout = require('../galaxy_layout');
+
+const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
 // Sovereignty comes from ONE endpoint now. CCP retired /v1/sovereignty/map/ and
 // /v1/sovereignty/structures/ in the compatibility-date snapshot of 2026-05-19
@@ -48,13 +50,71 @@ async function _fetchSovSystems({ httpGet, writeCache }) {
 // When present it wins over the algorithmic layout wholesale.
 const _modernLayoutPath = () => path.join(app.getPath('userData'), 'modern-map-layout.json');
 
-function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb }) {
+function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb, getSdeMd5Path }) {
 
   // ── Custom Modern-map layout: persist / load / reset ───────────────────────
   ipcHandle('modern-layout-get', async () => {
     try { return JSON.parse(fs.readFileSync(_modernLayoutPath(), 'utf8')); }
     catch (_) { return null; }   // no custom layout saved yet
   });
+
+  // ── Computed Modern-map layout cache ──────────────────────────────────────
+  // Building the flat galaxy layout costs ~1.6s of solid CPU on the renderer's
+  // only thread — 67 per-region force relaxations over 5 500 systems. It is
+  // also a PURE FUNCTION of the SDE: no randomness anywhere in the layout path,
+  // so the same static data always yields the same positions. There is
+  // therefore no reason to compute it more than once per SDE version.
+  //
+  // Keyed on the SDE build number in data/sde.md5, which the SDE updater
+  // rewrites whenever the static data changes — a new SDE invalidates the cache
+  // automatically, and a corrupt/absent key just means "recompute", never
+  // "serve a wrong map".
+  //
+  // Distinct from modern-map-layout.json above: that one is HAND-CURATED and
+  // outranks both this cache and the algorithm.
+  const _autoLayoutPath = () => path.join(app.getPath('userData'), 'modern-map-layout.auto.json');
+
+  function _sdeVersion() {
+    try {
+      const v = fs.readFileSync(getSdeMd5Path(), 'utf8').trim();
+      return v || null;
+    } catch (_) { return null; }
+  }
+
+  ipcHandle('modern-layout-cache-get', async () => {
+    const version = _sdeVersion();
+    if (!version) return null;          // can't prove freshness → recompute
+    try {
+      const saved = JSON.parse(fs.readFileSync(_autoLayoutPath(), 'utf8'));
+      if (!saved || saved.sdeVersion !== version || !saved.systems) return null;
+      return saved;
+    } catch (_) { return null; }
+  });
+
+  ipcHandle('modern-layout-cache-put', async (_e, layout) => {
+    const version = _sdeVersion();
+    if (!version || !layout || !layout.systems) return false;
+    try {
+      fs.writeFileSync(_autoLayoutPath(),
+        JSON.stringify({ ...layout, sdeVersion: version, builtAt: Date.now() }));
+      return true;
+    } catch (e) {
+      console.warn('[map] could not cache the computed layout:', e.message);
+      return false;   // a failed cache write must never break the map
+    }
+  });
+  // Relax the per-region gate graphs on a worker pool (see src/galaxy_layout.js)
+  // so the renderer doesn't spend ~1.4s of its only thread on them. Whatever
+  // comes back is used; whatever doesn't, map.js lays out itself.
+  ipcHandle('map-build-region-layouts', async (_e, job) => {
+    try {
+      return await galaxyLayout.buildRegionLayouts(job || {});
+    } catch (e) {
+      console.warn('[map] parallel region layout failed:', e.message);
+      return { layouts: {}, ms: 0, workers: 0, failed: -1 };
+    }
+  });
+
   // ── Alliance-space incursion alert (dashboard widget) ─────────────────────
   // Given the character's allianceId, returns every incursion-infested system
   // that falls within that alliance's sovereign space, with names resolved.
@@ -69,7 +129,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       // Full incursion objects (different key from the id-only list)
       let incursions = readCache('map_incursions_full');
       if (!incursions) {
-        incursions = await httpGet(`${ESI_BASE}/v1/incursions/?datasource=tranquility`);
+        incursions = await httpGet(`${ESI_BASE}/incursions/?datasource=tranquility`);
         if (!Array.isArray(incursions)) incursions = [];
         writeCache('map_incursions_full', incursions, 1 / 48);
       }
@@ -168,7 +228,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       if (cached) { result[id] = cached; return; }
       try {
         const data = await httpGet(
-          `${ESI_BASE}/v3/alliances/${id}/?datasource=tranquility`
+          `${ESI_BASE}/alliances/${id}/?datasource=tranquility`
         );
         if (data && (data.ticker || data.name)) {
           const ident = { ticker: data.ticker || null, name: data.name || null };
@@ -236,7 +296,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     const cached = readCache(key);
     if (cached) return cached;
     try {
-      const data = await httpGet(`${ESI_BASE}/v1/incursions/?datasource=tranquility`);
+      const data = await httpGet(`${ESI_BASE}/incursions/?datasource=tranquility`);
       const ids  = [];
       if (Array.isArray(data)) {
         for (const inc of data) {

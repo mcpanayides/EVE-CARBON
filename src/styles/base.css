@@ -642,6 +642,10 @@ input[type="range"] { accent-color: var(--accent); }
 .switch input:checked + .switch-slider         { background: var(--accent); border-color: var(--accent); }
 .switch input:checked + .switch-slider::before  { transform: translate(18px, -50%); background: #fff; }
 .switch input:focus-visible + .switch-slider    { box-shadow: 0 0 0 2px var(--accent); }
+/* A disabled switch has to LOOK disabled — otherwise it reads as an ordinary
+   control that silently ignores clicks. (Demo Mode does this when --demo forces
+   it on, and explains why in the row's notice line.) */
+.switch input:disabled + .switch-slider         { opacity: 0.45; cursor: not-allowed; }
 /* ── SETTINGS DRAWER BUTTONS ─────────────────────────────────────────────────── */
 /* Override calc-btn (defined in industry-blueprints.css) inside the settings     */
 /* drawer so the SYNC and SAVE buttons match the dark-grey nav-btn aesthetic.     */

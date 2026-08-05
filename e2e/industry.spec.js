@@ -68,3 +68,35 @@ test('switching sub-tabs updates the active state', async ({ window }) => {
   await expect(oreBtn).toHaveClass(/active/);
   await expect(bpBtn).not.toHaveClass(/active/);
 });
+
+// Opening a blueprint TWICE. The first open worked; the second used to blank the
+// whole page — the detail panel rendered into zero height while the library kept
+// the space, so the window looked frozen with no sub-nav and no way back.
+//
+// The cause was a selector that searched upward for an ancestor whose inline
+// style CONTAINED "flex-direction:column". The markup writes that without
+// spaces, but the first time JavaScript touches element.style.* the browser
+// re-serialises the attribute canonically — with a space — so the selector then
+// matched #page-industry instead and hid the entire page.
+test('opening a blueprint twice still shows the detail, and never hides the page', async ({ window }) => {
+  await window.locator('.industry-sub-btn[data-industry-tab="blueprints"]').click();
+  await expect(window.locator('#bpLibList')).toBeVisible({ timeout: 15_000 });
+
+  const open = async (pass) => {
+    await window.locator('#bpLibList .bp-view-btn').first().click();
+    // Visible, not merely present: the failure mode rendered the whole detail
+    // into a container with no height, so "exists" would have passed throughout.
+    await expect(window.locator('#backToBpLib'), `pass ${pass}: back button`)
+      .toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('#page-industry'), `pass ${pass}: the page itself`)
+      .toBeVisible();
+    const h = await window.locator('#results').evaluate(el => el.getBoundingClientRect().height);
+    expect(h, `pass ${pass}: the detail panel has height`).toBeGreaterThan(100);
+    await window.locator('#backToBpLib').click();
+    await expect(window.locator('#bpLibList')).toBeVisible({ timeout: 10_000 });
+  };
+
+  await open(1);
+  await open(2);   // used to blank the page
+  await open(3);
+});

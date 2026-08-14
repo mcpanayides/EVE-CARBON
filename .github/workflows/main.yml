@@ -85,6 +85,12 @@ jobs:
         run: npm ci
 
       - name: Create .env file
+        # shell: bash, ALWAYS. Windows runners default to PowerShell, where the
+        # `if [ -z ... ]` below is a parse error — which is exactly how v3.0.0
+        # shipped a .dmg and no .exe: this step died before the build ran, while
+        # the macOS job (bash by default) sailed through. Every other multi-line
+        # step in this file already declares it.
+        shell: bash
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
@@ -163,6 +169,12 @@ jobs:
         run: npm ci
 
       - name: Create .env file
+        # shell: bash, ALWAYS. Windows runners default to PowerShell, where the
+        # `if [ -z ... ]` below is a parse error — which is exactly how v3.0.0
+        # shipped a .dmg and no .exe: this step died before the build ran, while
+        # the macOS job (bash by default) sailed through. Every other multi-line
+        # step in this file already declares it.
+        shell: bash
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env

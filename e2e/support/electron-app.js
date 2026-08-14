@@ -20,6 +20,28 @@ const { seedUserData, seedCharacterDb, FAKE_CHAR_ID, FAKE_CHAR_NAME } = require(
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 
+// Windows releases file handles asynchronously, so the profile directory is
+// still locked for a moment after app.close() resolves — Chromium's own
+// Network/ and cache/ files in particular. A bare rmSync therefore throws EBUSY
+// often enough to fail a release: three separate runs died in teardown, on three
+// different files, with every test passing.
+//
+// Retry briefly, then give up quietly. This is a temp directory the OS will
+// reclaim; failing a green test run over cleanup is strictly worse than leaving
+// a few megabytes behind.
+async function removeProfile(dir, attempts = 12) {
+  for (let i = 0; i < attempts; i++) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); return; }
+    catch (e) {
+      if (i === attempts - 1) {
+        console.warn(`[e2e] could not remove ${dir}: ${e.code || e.message} — leaving it for the OS`);
+        return;
+      }
+      await new Promise(r => setTimeout(r, 250));
+    }
+  }
+}
+
 const test = base.test.extend({
   // Fresh isolated userData + character DB per test, torn down after.
   electronApp: async ({}, use) => {
@@ -57,7 +79,7 @@ const test = base.test.extend({
     await use(app);
 
     await app.close().catch(() => {});
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
+    await removeProfile(tmpRoot);
   },
 
   // Paths + launch args of the isolated profile this test is running against.

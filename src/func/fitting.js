@@ -888,7 +888,6 @@ function _fitIsFighter(d)     { return (d.f?.categoryId ?? d.categoryId) === 87;
 function _fitDroneUsedM3()    { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.qty * (d.f?.volume || 0), 0); }
 function _fitDroneActiveBw()  { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.active * (d.f?.attrs?.[1272] || 0), 0); }
 function _fitDroneActiveN()   { return _fitState.drones.filter(d => !_fitIsFighter(d)).reduce((s, d) => s + d.active, 0); }
-function _fitFighterSqSize(d) { return d.f?.attrs?.[2215] || 1; }
 
 // ── Fighters live in LAUNCH TUBES — one squadron per tube (in-game model). ──
 // Hulls limit squadrons by TYPE: fighterLightSlots / SupportSlots / HeavySlots
@@ -908,7 +907,6 @@ function _fitFighterTypeCount(type) {
   return (_fitState.fighters || []).filter(t => t && _fitFighterType(t.f) === type).length;
 }
 function _fitFighterUsedM3()  { return (_fitState.fighters || []).reduce((s, t) => s + (t ? t.units * (t.f?.volume || 0) : 0), 0); }
-function _fitFighterActiveSq(){ return (_fitState.fighters || []).filter(t => t && t.active).length; }
 
 // Load a squadron into a tube. Enforces tube count, per-type squadron slots and
 // fighter-bay volume; auto-clamps units to what the bay can still hold.

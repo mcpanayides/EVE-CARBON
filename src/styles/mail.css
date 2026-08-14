@@ -180,6 +180,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Which mailbox a mail arrived in — only rendered in the combined "All
+   characters" view, where the sender alone does not tell you who received it. */
+.mail-row-box {
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--label-muted, var(--text-3));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Unread: brighter text + accent marker, matching the nav's active treatment. */
 .mail-row.unread .mail-row-from    { color: var(--value-bright, var(--text-1)); font-weight: 700; }
 .mail-row.unread .mail-row-subject { color: var(--text-1); }
@@ -305,8 +318,12 @@
   text-transform: uppercase;
 }
 
-.mail-compose-row { display: flex; gap: 8px; }
+.mail-compose-row { display: flex; gap: 8px; align-items: center; }
 .mail-compose-row .mail-input { flex: 1; }
+/* From picker: the sending character. Sized to the name rather than filling the
+   row, so it reads as a field rather than another recipient box. */
+.mail-compose-row > .mail-meta-label { flex: 0 0 auto; }
+.mail-from-select { flex: 0 1 240px; cursor: pointer; }
 
 .mail-input, .mail-textarea {
   background: var(--bg-deep);

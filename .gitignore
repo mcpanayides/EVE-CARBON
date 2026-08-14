@@ -70,3 +70,9 @@ Users*AppData*/
 
 # Screenshots from scripts/demo-shots.js — regenerable output, not source.
 demo-shots/
+
+# graphify knowledge graph — regenerable output, not source. Rebuild with
+# `graphify .` (see CLAUDE.md). ~14MB: graph.json + graph.html are a few MB each,
+# cache/semantic holds one file per extracted doc, and graphify writes a dated
+# backup folder of the previous graph on every rebuild.
+graphify-out/

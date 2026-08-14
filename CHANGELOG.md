@@ -6,6 +6,80 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [3.0.0] - 2026-08-12
+Jabber becomes a real chat client, the dashboard gets a kill ticker and honest
+resizing, and two installer/database faults that only ever showed up in shipped
+builds are fixed.
+
+### Jabber
+- **Chat rooms.** A rooms rail beside the broadcast feed: join rooms, read them,
+  and talk back. Unread badges count how many *people* have spoken since you last
+  looked, not how many messages — one person posting forty lines is not forty
+  things to catch up on. Read state lives in the database, so it survives a
+  restart.
+- **Find rooms.** Service discovery (XEP-0030) against your conference server,
+  which is offered as `conference.<your domain>` and stays editable. Name and
+  description columns, a filter once a server returns more than a dozen, and
+  double-click to join — instead of having to know a room's exact address.
+- **Room history.** Archived messages are fetched with MAM (XEP-0313), paged
+  backwards from the oldest message held, deduplicated by archive id so a re-pull
+  never doubles a room, and dated by when they were *sent*. The MAM namespace is
+  negotiated per room, so a server that answers "bad-request" is now reported as
+  "this room keeps no archive" rather than as a dead button.
+- **Room subject and occupants.** The MOTD banner under the room title with its
+  links live, and the occupant roster on the right, ranked by affiliation then
+  role. Composer gains emoji, a link builder and formatting.
+- **The broadcast feed is broadcasts again.** Room chat was reaching it two ways:
+  messages were classified as room chat only if this app had joined the room, and
+  the feed's history query had no filter at all. Now routed by stanza type and
+  read with `room_jid IS NULL`. A Broadcasts / Alerts / All filter separates
+  structure-alert bots from fleet pings.
+
+### Dashboard
+- **Top Kills ticker** — a full-width marquee of your most valuable kills over 90
+  days, roster-wide or per character, from the same cached zKillboard feed the
+  Killboard page uses.
+- **Widgets ask what to show when you add them.** Character Wallet, Job Watch and
+  Top Kills pick their subject in the add menu rather than carrying a dropdown
+  forever in a tile that has no room for one.
+- **Widgets resize honestly.** Content compacts through seven measured steps
+  instead of being cut off: media shrinks first, then secondary lines, and the
+  one fact a widget exists for is the last thing to go. The Active Jobs table
+  drops columns by priority rather than scrolling ACTIVITY and PROGRESS off the
+  right edge.
+- **Latest Ping** now matches the pop-out layout section for section, with the
+  formup, comms and doctrine links actually clickable.
+- A refresh control beside the ✕, and an unread mail badge that is correct before
+  you ever open the Mail page.
+
+### Fixed
+- **All-users installs.** `character_information.db` was created inside the
+  install directory, which works for a per-user install and fails completely for
+  an all-users one — Program Files is not writable and SQLite cannot create its
+  WAL sidecar. It also meant every Windows account shared one set of characters,
+  and that an update deleted the database. Now in `userData`, with a one-time
+  migration that brings an existing database across.
+- **Upgrading an existing Jabber database.** The room columns were indexed in the
+  same batch that created the table, so on any database that predated chat rooms
+  the batch aborted with "no such column: room_jid" and the migration below it
+  never ran. Order is now tables → columns → indexes.
+- Asset containers are priced by their contents — an Asset Safety Wrap showed
+  N/A while holding a fortune. Numeric sorts now order the station and character
+  groups too, not just the items inside them.
+- Mail and Killboard default to All characters and remember the choice.
+- The presence heartbeat says why it is off instead of silently disabling itself,
+  and a release build with an empty `PRESENCE_URL` secret is now flagged in CI.
+
+### Testing
+- A stress fixture at real-user scale — 90 characters, 100,000 assets, nested
+  containers — plus `npm run stress:data` and `npm run stress:render`. It found a
+  45-second Assets render on its first run; see TODO.md.
+- `e2e/widget-fit.spec.js` measures widget content fit at every size and asserts
+  no widget hides content.
+- 315 unit tests, 89 e2e.
+
+---
+
 ## [2.0.0] - 2026-08-05
 Early Warning: a full intel system that reads your in-game channels and tells you
 what is coming, how far out, and how long you have. Plus a rebuilt ESI client

@@ -4,8 +4,8 @@
 // The View button queries SDE materials and applies the blueprint's real ME/TE.
 
 // NOTE: allLibBPs, filterPerfectOnly, searchTimer, manualSearchTimer,
-// currentIndustryTab, selectedBpTypeId, selectedME, selectedTE, and ESI_IMAGE
-// are all declared in state.js which loads before this file. Do not re-declare them here.
+// currentIndustryTab, selectedBpTypeId, and ESI_IMAGE are all declared in
+// state.js which loads before this file. Do not re-declare them here.
 
 // ─── Load & filter ────────────────────────────────────────────────────────────
 
@@ -16,12 +16,7 @@ async function loadBlueprintLibrary() {
   _renderBpLibLoadingState();   // show bar immediately if the tab is already open
 
   try {
-    let bps = [];
-    try {
-      bps = await window.eveAPI.getAllBlueprintsFromDb();
-    } catch (_) {
-      bps = await window.eveAPI.getAllBlueprints();
-    }
+    const bps = await window.eveAPI.getAllBlueprintsFromDb();
 
     allLibBPs = Array.isArray(bps) ? bps : [];
     allLibBPs.sort((a, b) => (a.type_name || a.name || '').localeCompare(b.type_name || b.name || ''));
@@ -965,9 +960,6 @@ function bindLibraryEvents() {
 
   const libSort = document.getElementById('bpLibSort');
   if (libSort) libSort.addEventListener('change', () => handleLibraryFilter());
-
-  const toggleBtn = document.getElementById('toggleLibraryBtn');
-  if (toggleBtn) toggleBtn.addEventListener('click', toggleLibraryView);
 }
 
 // ─── Blueprint Detail Panel ───────────────────────────────────────────────────
@@ -1347,45 +1339,6 @@ async function renderComponentTreePanel(container, bp, rootMaterials = null) {
   await rebuild();
 }
 
-// Renders a single material row with EVE icon, name, quantity, and optional Jita price
-function renderMaterialRow(mat, prices = {}) {
-  const isComponent = mat.isComponent;
-  const p           = prices[mat.typeId];
-  const unitPrice   = p?.sell > 0 ? p.sell : (p?.buy || 0);
-  const totalCost   = unitPrice * mat.adjustedQty;
-  const saved       = mat.baseQty - mat.adjustedQty;
-
-  return `
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;
-                border-radius:4px;
-                background:${isComponent ? 'var(--bg-card)' : 'transparent'};
-                border:1px solid ${isComponent ? 'var(--border)' : 'transparent'};">
-      <img src="${ESI_IMAGE}/${mat.typeId}/icon?size=32"
-           onerror="this.src='${ESI_IMAGE}/0/icon?size=32';"
-           style="width:28px;height:28px;border-radius:3px;flex-shrink:0;">
-      <span style="flex:1;color:${isComponent ? 'var(--tier-top)' : 'var(--text-1)'};
-                   font-family:var(--font);font-size:13px;font-weight:${isComponent ? '600' : '400'};">
-        ${isComponent ? '◈ ' : ''}${escHtml(mat.name || `Type ${mat.typeId}`)}
-      </span>
-      <span style="font-family:var(--mono);color:var(--text-1);font-size:12px;
-                   font-weight:600;min-width:70px;text-align:right;flex-shrink:0;">
-        ×${mat.adjustedQty.toLocaleString()}
-        ${saved > 0
-          ? `<span style="font-size:9px;color:var(--success);margin-left:3px;" title="ME saves ${saved.toLocaleString()}">−${saved.toLocaleString()}</span>`
-          : ''}
-      </span>
-      <span style="font-family:var(--mono);color:var(--text-3);font-size:11px;
-                   min-width:100px;text-align:right;flex-shrink:0;">
-        ${unitPrice > 0 ? formatNumber(unitPrice) + ' ISK' : '—'}
-      </span>
-      <span style="font-family:var(--mono);font-size:11px;font-weight:${totalCost > 0 ? '600' : '400'};
-                   color:${totalCost > 0 ? 'var(--text-1)' : 'var(--text-3)'};
-                   min-width:110px;text-align:right;flex-shrink:0;">
-        ${totalCost > 0 ? formatNumber(totalCost) : '—'}
-      </span>
-    </div>`;
-}
-
 // ─── Fuzzwork fallback ────────────────────────────────────────────────────────
 // Used when the SDE has nothing. Fuzzwork returns BASE quantities — its API has
 // no notion of ME, runs or PE (we used to send those as query parameters, which
@@ -1614,65 +1567,6 @@ function renderFlatMaterialList(flatMap, depth, prices = {}) {
     </div>` : ''}`;
 }
 
-// Legacy tree HTML renderer (kept for renderTreeResults compatibility)
-function generateTreeHTML(treeNodes) {
-  if (!treeNodes?.length) return '';
-  return `
-    <ul style="list-style:none;padding-left:20px;border-left:1px dashed var(--border);margin-top:8px;">
-      ${treeNodes.map(node => {
-        const isComponent = node.subTree && node.subTree.length > 0;
-        return `
-          <li style="margin:8px 0;">
-            <div style="display:flex;justify-content:space-between;align-items:center;
-                        padding:6px 10px;
-                        background:${isComponent ? 'var(--bg-card)' : 'transparent'};
-                        border:1px solid ${isComponent ? 'var(--border)' : 'transparent'};
-                        border-radius:var(--radius);">
-              <span style="color:${isComponent ? 'var(--tier-top)' : 'var(--text-1)'};
-                           font-family:var(--font);font-weight:${isComponent ? '600' : '400'};">
-                ${isComponent ? '◈' : '⬡'} ${escHtml(node.name)}
-              </span>
-              <span style="font-family:var(--mono);color:var(--text-2);">×${node.quantity.toLocaleString()}</span>
-            </div>
-            ${isComponent ? generateTreeHTML(node.subTree) : ''}
-          </li>`;
-      }).join('')}
-    </ul>`;
-}
-
-function renderTreeResults(blueprintName, meLevel, materialTree) {
-  const resArea = document.getElementById('results');
-  resArea.innerHTML = `
-    <div class="panel" style="padding:20px;overflow-y:auto;height:100%;">
-      <button onclick="backToLibrary()" style="margin-bottom:20px;padding:6px 12px;
-        background:var(--bg-hover);border:1px solid var(--border);color:var(--text-1);
-        cursor:pointer;border-radius:var(--radius);font-family:var(--mono);font-size:11px;">
-        ← BACK TO LIBRARY
-      </button>
-      <h2 style="font-size:26px;margin-bottom:8px;color:var(--text-1);">${escHtml(blueprintName)}</h2>
-      <div style="display:flex;gap:10px;margin-bottom:24px;">
-        <span style="background:var(--bg-card);padding:4px 8px;border-radius:3px;
-                     font-family:var(--mono);font-size:11px;border:1px solid var(--border);">
-          ME: <span style="color:var(--success);">${meLevel}</span>
-        </span>
-        <span style="background:var(--bg-card);padding:4px 8px;border-radius:3px;
-                     font-family:var(--mono);font-size:11px;border:1px solid var(--border);">
-          BATCH: <span style="color:var(--accent);">1 RUN</span>
-        </span>
-      </div>
-      <div style="background:var(--bg-panel);padding:20px;border:1px solid var(--border);border-radius:6px;">
-        <h3 style="font-size:12px;letter-spacing:0.1em;color:var(--text-3);
-                   margin-bottom:15px;font-family:var(--mono);">FULL MANUFACTURING CHAIN</h3>
-        ${generateTreeHTML(materialTree)}
-      </div>
-    </div>`;
-}
-
-function backToLibrary() {
-  document.getElementById('mainLibraryView').style.display = 'flex';
-  document.getElementById('results').style.display         = 'none';
-}
-
 // ─── Industry page tab routing ────────────────────────────────────────────────
 
 function initIndustryPage() {
@@ -1828,9 +1722,6 @@ function navigateIndustryTab(tab) {
 
   } else if (tab === 'moon') {
     renderMoonReformatter(right);
-
-  } else if (tab === 'planet-size') {
-    renderPlanetSizeMapper(right);
 
   } else {
     const labels = {
@@ -2188,115 +2079,6 @@ function renderMoonReformatter(container) {
     input.value = ''; refresh(); input.focus();
   });
   refresh();
-}
-
-// ─── Planet Size Mapper ───────────────────────────────────────────────────────
-// Lists every planet in a region with its diameter (km), grouped by
-// constellation, biggest first. Bigger planets give more room to spread PI
-// extractor heads — shorter runs, more nodes. All from the local SDE, no ESI.
-const PLANET_TYPE_COLORS = {
-  Barren: '#b8956a', Temperate: '#4ec9b0', Gas: '#9b8cc4', Ice: '#7fb4d4',
-  Lava: '#e0712d', Oceanic: '#3a8fd0', Plasma: '#d04ec0', Storm: '#c4a23a',
-};
-
-async function renderPlanetSizeMapper(container) {
-  container.innerHTML = `
-    <div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-                  padding:12px 18px;border-bottom:1px solid var(--border);
-                  background:var(--bg-card);flex-shrink:0;">
-        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">PLANET SIZE MAPPER</span>
-        <span id="psStat" style="font-family:var(--mono);font-size:11px;color:var(--text-2);"></span>
-        <div style="display:flex;gap:8px;margin-left:auto;align-items:center;">
-          <select id="psRegion" class="field-input" style="width:210px;padding:5px 8px;font-size:12px;cursor:pointer;">
-            <option value="">Select region…</option>
-          </select>
-          <select id="psType" class="field-input" style="width:140px;padding:5px 8px;font-size:12px;cursor:pointer;">
-            <option value="">All types</option>
-            ${Object.keys(PLANET_TYPE_COLORS).map(t => `<option value="${t}">${t}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <div id="psBody" style="flex:1;overflow-y:auto;min-height:0;">
-        <div class="empty-state" style="margin-top:60px;">
-          <div class="empty-icon">🪐</div>
-          <div class="empty-title">Pick a region</div>
-          <div class="empty-sub">Planet diameters help you spot the best PI worlds — bigger = more room to spread extractor heads.</div>
-        </div>
-      </div>
-    </div>`;
-
-  const regionSel = container.querySelector('#psRegion');
-  const typeSel   = container.querySelector('#psType');
-  const body      = container.querySelector('#psBody');
-  const stat      = container.querySelector('#psStat');
-  let _planets = [];
-
-  try {
-    const regions = await window.eveAPI.sdeGetPlanetRegions();
-    (regions || []).forEach(r => {
-      const o = document.createElement('option'); o.value = r.id; o.textContent = r.name; regionSel.appendChild(o);
-    });
-  } catch (_) {}
-
-  async function loadRegion() {
-    if (!regionSel.value) {
-      body.innerHTML = `<div class="empty-state" style="margin-top:60px;"><div class="empty-icon">🪐</div><div class="empty-title">Pick a region</div></div>`;
-      stat.textContent = ''; return;
-    }
-    body.innerHTML = `<div class="loading-row" style="padding:40px;text-align:center;">Loading planets…</div>`;
-    try { _planets = await window.eveAPI.sdeGetRegionPlanets(Number(regionSel.value)) || []; }
-    catch (_) { _planets = []; }
-    render();
-  }
-
-  function render() {
-    const type    = typeSel.value;
-    const planets = type ? _planets.filter(p => p.type === type) : _planets;
-    if (!planets.length) {
-      body.innerHTML = `<div class="loading-row" style="padding:40px;text-align:center;">No planets match.</div>`;
-      stat.textContent = '0 planets'; return;
-    }
-    // Group by constellation; constellations ordered by their biggest planet,
-    // planets within each ordered by diameter (largest first).
-    const groups = new Map();
-    planets.forEach(p => { (groups.get(p.con) || groups.set(p.con, []).get(p.con)).push(p); });
-    const sections = [...groups.entries()].map(([con, ps]) => {
-      ps.sort((a, b) => b.diameterKm - a.diameterKm);
-      return { con, ps, max: ps[0].diameterKm };
-    }).sort((a, b) => b.max - a.max);
-
-    body.innerHTML = sections.map(sec => `
-      <div class="ps-con">
-        <div class="ps-con-head">
-          <span class="ps-chev">▼</span>
-          <span class="ps-con-name">${escHtml(sec.con)}</span>
-          <span class="ps-con-meta">${sec.ps.length} planet${sec.ps.length !== 1 ? 's' : ''} · biggest Ø ${sec.max.toLocaleString()} km</span>
-        </div>
-        <table class="ps-table"><tbody>
-          ${sec.ps.map(p => `
-            <tr>
-              <td class="ps-pname">${escHtml(p.name)}</td>
-              <td><span class="ps-type" style="color:${PLANET_TYPE_COLORS[p.type] || 'var(--text-2)'};">${escHtml(p.type)}</span></td>
-              <td class="ps-dim">${escHtml(p.sys)}</td>
-              <td class="ps-dim ps-right">${p.sec.toFixed(1)}</td>
-              <td class="ps-diam ps-right">${p.diameterKm.toLocaleString()} km</td>
-            </tr>`).join('')}
-        </tbody></table>
-      </div>`).join('');
-    stat.textContent = `${planets.length} planets · ${sections.length} constellations`;
-
-    body.querySelectorAll('.ps-con-head').forEach(h => h.addEventListener('click', () => {
-      const tbl  = h.nextElementSibling;
-      const chev = h.querySelector('.ps-chev');
-      const hide = tbl.style.display !== 'none';
-      tbl.style.display = hide ? 'none' : '';
-      chev.textContent  = hide ? '▶' : '▼';
-    }));
-  }
-
-  regionSel.addEventListener('change', loadRegion);
-  typeSel.addEventListener('change', render);
 }
 
 // ─── Active Jobs Page ─────────────────────────────────────────────────────────
@@ -2697,7 +2479,6 @@ async function renderActiveJobsPage(container) {
 
 // ─── Stubs (prevent crashes) ──────────────────────────────────────────────────
 function buildCategoryBrowse()        { console.log('Category build stub'); }
-function handleBlueprintSearch(query) { console.log('Search stub:', query); }
 // handleManualSearchInput is expected to be defined in the search/calculator module.
 // This fallback prevents a ReferenceError if it hasn't loaded yet.
 if (typeof handleManualSearchInput === 'undefined') {
@@ -3264,47 +3045,47 @@ const ICE_DATA = [
     products: { 'Heavy Water': 69, 'Liquid Ozone': 35, 'Oxygen Isotopes': 414, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Clear Icicle',          typeId: 28443, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Clear Icicle',          typeId: 28434, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 69, 'Liquid Ozone': 35, 'Helium Isotopes': 414, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Dark Glitter',          typeId: 28444, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Dark Glitter',          typeId: 28435, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 691, 'Liquid Ozone': 1381, 'Strontium Clathrates': 69 },
   },
   {
-    name: 'Compressed Enriched Clear Icicle', typeId: 28445, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Enriched Clear Icicle', typeId: 28436, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Helium Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Gelidus',               typeId: 28446, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Gelidus',               typeId: 28437, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 345, 'Liquid Ozone': 691, 'Strontium Clathrates': 104 },
   },
   {
-    name: 'Compressed Glacial Mass',          typeId: 28447, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Glacial Mass',          typeId: 28438, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 69, 'Liquid Ozone': 35, 'Hydrogen Isotopes': 414, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Glare Crust',           typeId: 28448, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Glare Crust',           typeId: 28439, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 1381, 'Liquid Ozone': 691, 'Strontium Clathrates': 35 },
   },
   {
-    name: 'Compressed Krystallos',            typeId: 28449, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Krystallos',            typeId: 28440, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 173, 'Liquid Ozone': 691, 'Strontium Clathrates': 173 },
   },
   {
-    name: 'Compressed Pristine White Glaze',  typeId: 28450, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Pristine White Glaze',  typeId: 28441, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Nitrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Smooth Glacial Mass',   typeId: 28451, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Smooth Glacial Mass',   typeId: 28442, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Hydrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Thick Blue Ice',        typeId: 28452, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Thick Blue Ice',        typeId: 28443, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Oxygen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed White Glaze',           typeId: 28453, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed White Glaze',           typeId: 28444, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 69, 'Liquid Ozone': 35, 'Nitrogen Isotopes': 414, 'Strontium Clathrates': 1 },
   },
 ];

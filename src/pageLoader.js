@@ -30,7 +30,7 @@ const PAGE_HTML = {
            style="display:none; padding:20px; border-bottom:1px solid var(--border); background:var(--bg-card);">
         <div class="selected-character-card">
           <div style="display:flex; gap:16px; align-items:center;">
-            <img id="selectedCharPortrait" src="" alt=""
+            <img id="selectedCharPortrait" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""
                  style="width:64px; height:64px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;" />
             <div style="flex:1;">
               <div style="font-size:11px; color:var(--text-2); letter-spacing:0.1em; margin-bottom:4px; font-weight:600;">
@@ -87,6 +87,13 @@ const PAGE_HTML = {
             Command center — net worth, industry jobs, and character status.
           </div>
         </div>
+        <!-- Re-renders the widgets in place (what Ctrl+R was being used for when a
+             widget paints blank). _injectPageSpinners moves this into the same
+             top-right group as the spinner and the ✕. -->
+        <button id="dashboardRefreshBtn" class="page-header-btn" onclick="refreshDashboardPage()"
+                title="Reload the dashboard widgets">
+          <span class="material-symbols-outlined">refresh</span>
+        </button>
         <button class="close-page-btn" onclick="closePage('dashboard')">&#x2715;</button>
       </div>
       <div class="page-content"
@@ -99,7 +106,7 @@ const PAGE_HTML = {
         <div class="dashboard-grid-toolbar">
           <div class="dashboard-grid-addwrap">
             <button class="dashboard-add-widget-btn" onclick="toggleAddWidgetMenu(event)">
-              <span class="material-symbols-outlined" style="font-size:16px;">add</span> Add Widget
+              <span class="material-symbols-outlined" style="font-size:18px;">add</span> Add Widget
             </button>
             <div id="dashboardAddWidgetMenu" class="dashboard-add-widget-menu" style="display:none;"></div>
           </div>
@@ -173,9 +180,6 @@ const PAGE_HTML = {
           </button>
           <button class="industry-sub-btn" data-industry-tab="moon">
             <span class="industry-sub-icon material-symbols-outlined"></span>Moon Scanning
-          </button>
-          <button class="industry-sub-btn" data-industry-tab="planet-size">
-            <span class="industry-sub-icon material-symbols-outlined"></span>Planet Size Mapper
           </button>
         </div>
         <div id="industryTabContent" class="industry-content">
@@ -313,7 +317,20 @@ const PAGE_HTML = {
         </div>
         <button class="close-page-btn" onclick="closePage('pi')">✕</button>
       </div>
-      <div id="piContainer" style="height:100%; overflow-y:auto;"></div>
+      <div class="industry-layout">
+        <div class="industry-subnav">
+          <div class="industry-subnav-label">TOOLS</div>
+          <button class="pi-sub-btn industry-sub-btn active" data-pi-tab="colonies">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Colonies
+          </button>
+          <button class="pi-sub-btn industry-sub-btn" data-pi-tab="planet-size">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Planet Size Mapper
+          </button>
+        </div>
+        <div id="piTabContent" class="industry-content">
+          <!-- Populated by navigateToPage('pi') → initPiPage() → navigatePiTab('colonies') -->
+        </div>
+      </div>
     </div>`,
 
   // ── Forums ──────────────────────────────────────────────────────────────────
@@ -365,12 +382,42 @@ const PAGE_HTML = {
         <button class="close-page-btn" onclick="closePage('jabber')">&#x2715;</button>
       </div>
 
+      <!-- Rail + panes. Broadcasts (the ping feed) is a permanent first entry:
+           it is not a chat room, it is the bot feed this page was built for, and
+           it stays reachable however many rooms get added. -->
+      <div class="jabber-layout">
+        <div class="jabber-rail">
+          <div class="jabber-rail-label">Rooms</div>
+          <button class="jabber-room-btn active" data-room="__pings__">
+            <span class="material-symbols-outlined jabber-room-icon">campaign</span>
+            <span class="jabber-room-name">Broadcasts</span>
+          </button>
+          <div id="jabberRoomList"></div>
+          <button id="jabberFindRoomsBtn" class="jabber-add-room-btn">
+            <span class="material-symbols-outlined">travel_explore</span> Find rooms
+          </button>
+          <button id="jabberAddRoomBtn" class="jabber-add-room-btn">
+            <span class="material-symbols-outlined">add</span> Add by address
+          </button>
+          <div id="jabberRoomHint" class="jabber-rail-hint"></div>
+        </div>
+
+        <div class="jabber-panes">
+        <div id="jabberPingsPane" class="jabber-pane">
+
       <!-- Status + controls bar -->
       <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;
                   padding:10px 16px; border-bottom:1px solid var(--border);
                   background:var(--bg-card); flex-shrink:0;">
         <span id="jabberStatus" class="asset-summary">Connecting to Jabber...</span>
         <span style="flex:1;"></span>
+        <!-- What the feed shows. Structure-alert bots post continuously; mixed in
+             with fleet broadcasts they bury the thing you opened this page for. -->
+        <div class="jabber-feed-filter" id="jabberFeedFilter">
+          <button class="jabber-feed-btn active" data-feed="broadcast" title="Fleet broadcasts only">Broadcasts</button>
+          <button class="jabber-feed-btn" data-feed="alert" title="Structure and intel alerts">Alerts</button>
+          <button class="jabber-feed-btn" data-feed="all" title="Everything received">All</button>
+        </div>
         <span id="jabberSummary" class="asset-summary" style="white-space:nowrap;">0 pings</span>
         <!-- Zoom controls -->
         <div style="display:flex; align-items:center; gap:3px;">
@@ -384,7 +431,7 @@ const PAGE_HTML = {
                style="display:none; position:absolute; top:calc(100% + 4px); right:0; z-index:200;
                       background:var(--bg-card); border:1px solid var(--border);
                       border-radius:var(--radius); padding:8px 10px; min-width:130px;
-                      box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+                      box-shadow:0 4px 16px var(--glass-shadow);">
           </div>
         </div>
       </div>
@@ -427,6 +474,56 @@ const PAGE_HTML = {
           </tbody>
         </table>
       </div>
+        </div><!-- /jabberPingsPane -->
+
+        <!-- Chat room pane: history above, composer below. One pane reused for
+             every room; switching rooms repaints it rather than building one
+             pane per room and leaking them. -->
+        <div id="jabberRoomPane" class="jabber-pane" style="display:none;">
+          <div class="jabber-room-head">
+            <span id="jabberRoomTitle" class="jabber-room-title">—</span>
+            <span id="jabberRoomJid" class="jabber-room-jid"></span>
+            <span style="flex:1;"></span>
+            <button id="jabberLoadOlderBtn" class="jabber-cols-btn"
+                    title="Fetch older messages from the server archive">Load older</button>
+            <button id="jabberLeaveRoomBtn" class="jabber-cols-btn" title="Remove this room from your list">Leave</button>
+          </div>
+          <!-- Room subject: the MOTD banner every alliance room uses for standings,
+               links and "currently offline". Pushed on join and on every change. -->
+          <div id="jabberRoomSubject" class="jabber-room-subject" style="display:none;"></div>
+
+          <div class="jabber-room-main">
+            <div id="jabberRoomLog" class="jabber-room-log">
+              <div class="jabber-room-empty">Select a room.</div>
+            </div>
+            <aside class="jabber-room-roster">
+              <div id="jabberRosterCount" class="jabber-roster-count">0 people in room</div>
+              <div id="jabberRosterList" class="jabber-roster-list"></div>
+            </aside>
+          </div>
+
+          <div class="jabber-room-toolbar">
+            <button type="button" class="jabber-fmt-btn" data-fmt="b" title="Bold"><b>B</b></button>
+            <button type="button" class="jabber-fmt-btn" data-fmt="i" title="Italic"><i>I</i></button>
+            <button type="button" class="jabber-fmt-btn" data-fmt="u" title="Underline"><u>U</u></button>
+            <span class="jabber-toolbar-sep"></span>
+            <button type="button" class="jabber-fmt-btn" id="jabberEmojiBtn" title="Insert emoji">
+              <span class="material-symbols-outlined">mood</span>
+            </button>
+            <button type="button" class="jabber-fmt-btn" id="jabberLinkBtn" title="Insert a link">
+              <span class="material-symbols-outlined">link</span>
+            </button>
+            <div id="jabberEmojiPicker" class="jabber-emoji-picker" style="display:none;"></div>
+          </div>
+
+          <form id="jabberRoomComposer" class="jabber-room-composer" autocomplete="off">
+            <input id="jabberRoomInput" class="jabber-room-input" type="text"
+                   placeholder="Message the room…" maxlength="1000" />
+            <button id="jabberRoomSend" class="jabber-room-send" type="submit">Send</button>
+          </form>
+        </div>
+        </div><!-- /jabber-panes -->
+      </div><!-- /jabber-layout -->
     </div>`,
 
   // ── Calendar ──────────────────────────────────────────────────────────────────
@@ -469,6 +566,9 @@ const PAGE_HTML = {
           </button>
           <button class="skills-sub-btn industry-sub-btn" data-skills-tab="plans">
             <span class="industry-sub-icon material-symbols-outlined"></span>My Plans
+          </button>
+          <button class="skills-sub-btn industry-sub-btn" data-skills-tab="queues">
+            <span class="industry-sub-icon material-symbols-outlined"></span>Active Queues
           </button>
         </div>
         <div id="skillsTabContent" class="industry-content"></div>
@@ -561,6 +661,13 @@ const PAGE_HTML = {
       <div class="modal-backdrop mail-compose-backdrop" id="mailComposeBackdrop">
         <div class="mail-compose">
           <div class="mail-compose-head">New EVE Mail</div>
+          <!-- Which mailbox this is sent FROM. A reply preselects the character
+               that received the mail; any character can be picked instead. -->
+          <div class="mail-compose-row">
+            <label class="mail-meta-label" for="mailComposeFrom">From</label>
+            <select id="mailComposeFrom" class="mail-input mail-from-select"
+                    title="Which character sends this mail"></select>
+          </div>
           <div class="mail-compose-row">
             <input type="text" id="mailComposeSearch" class="mail-input"
                    placeholder="Recipient — character, corporation, alliance or mailing list"/>

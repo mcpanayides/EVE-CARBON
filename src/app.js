@@ -52,6 +52,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   await autoConnectJabber();
   prefetchAssetsBackground();
 
+  // Unread mail badge on the nav button — watched from launch so it is already
+  // correct without ever opening the Mail page.
+  if (typeof startMailUnreadWatch === 'function') startMailUnreadWatch();
+
+  // Settings ▸ Database ▸ Structure Names shows what its last run achieved.
+  if (typeof paintAssetRepairLastRun === 'function') paintAssetRepairLastRun();
+
   // Persistent bottom market ticker — delayed so its ~50 history fetches don't
   // pile onto the cold-start ESI burst (result is cached ~1h server-side after).
   if (typeof initMarketTicker === 'function') {
@@ -108,22 +115,6 @@ function closePage(page) {
   window.eveAPI.getAccounts().catch(() => []).then(accounts => {
     navigateToPage(accounts && accounts.length > 0 ? 'dashboard' : 'characters');
   });
-}
-
-// ─── syncME / syncTE ─────────────────────────────────────────────────────────
-// Called from inline oninput on sliders (e.g. inside the full calculator tab).
-// The sidebar sliders have been removed; these are now only used by
-// calculator-tab controls injected dynamically by navigateIndustryTab().
-function syncME(value) {
-  selectedME = Number(value);
-  const display = document.getElementById('meDisplay');
-  if (display) display.textContent = value;
-}
-
-function syncTE(value) {
-  selectedTE = Number(value);
-  const display = document.getElementById('teDisplay');
-  if (display) display.textContent = value;
 }
 
 // ─── calculate ────────────────────────────────────────────────────────────────

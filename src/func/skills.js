@@ -41,6 +41,19 @@ let _skLoaded    = false;
 let _skOpenGroup = null;     // expanded group in the browser
 let _skSearchHits = null;    // null = browsing groups, array = showing search results
 
+// ── Queues tab ───────────────────────────────────────────────────────────────
+// _skUnlocks is keyed "skillId:level" → [{ id, name, group, category }] and is
+// filled once per page load from the SDE (sde-skill-unlocks). Cached in module
+// state because it is immutable reference data — re-rendering on a horizon
+// change or an expand must not re-query.
+let _skUnlocks   = null;
+let _skQHorizon  = 30;       // days; null = the whole queue
+let _skQOpen     = new Set(); // "charId:position" rows expanded to show unlocks
+// Which plan the queue cards add into. Sticky across cards on purpose: building
+// one shared plan out of several characters' queues (everyone into a Hulk) means
+// picking the target once and then adding character after character.
+let _skQPlanChoice = '';     // plan id, or '' for "new plan"
+
 // ─── Training maths ──────────────────────────────────────────────────────────
 // Total SP to hold a level: 250 × rank × 2^(2.5(L−1)).
 const _skSpForLevel = (rank, level) =>
@@ -51,11 +64,6 @@ const _skSpPerMinAttrs = (attrs, def) => {
   if (!p || !s) return 0;
   return (attrs[p] || 0) + (attrs[s] || 0) / 2;
 };
-function _skSpPerMin(charId, def) {
-  const cd = _skCharData[charId];
-  return cd && def ? _skSpPerMinAttrs(cd.eff, def) : 0;
-}
-
 // Cost a plan for one character, simulating training in order so a skill listed
 // twice (to 3, then to 5) only pays the difference the second time.
 // `attrsOverride` lets the remap/implant tools re-cost against what-if attributes.
@@ -229,6 +237,7 @@ async function initSkillsPage() {
     const defs = await window.eveAPI.sdeGetSkills().catch(() => []);
     _skDefs.list = defs || [];
     _skDefs.byId = Object.fromEntries(_skDefs.list.map(d => [d.id, d]));
+    _skByName    = null;   // name lookup is derived from list — rebuild it lazily
     const g = {};
     _skDefs.list.forEach(d => { (g[d.group] = g[d.group] || []).push(d); });
     _skDefs.groups = Object.keys(g).sort().map(name => ({ name, skills: g[name].sort((a, b) => a.name.localeCompare(b.name)) }));
@@ -278,8 +287,331 @@ function _skRender(html) {
   if (host) host.innerHTML = html;
 }
 function _skRenderTab() {
-  if (_skTab === 'plans') _skRenderPlansTab();
+  if (_skTab === 'plans')  _skRenderPlansTab();
+  else if (_skTab === 'queues') _skRenderQueuesTab();
   else _skRenderPlannerTab();
+}
+
+// ─── Queues ──────────────────────────────────────────────────────────────────
+// Every character's LIVE training queue in one view, and what finishing each
+// entry actually unlocks. The planner answers "what would it cost to train X";
+// this answers "what is already being trained, and what will it buy me".
+//
+// Read-only by construction: ESI's skill queue is not writable (see the note at
+// the top of this file), so nothing here edits the queue — it reports it, and
+// hands entries to the planner when you want to work with them.
+
+const SK_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+
+// Horizons the queue is sliced by. "What do I get over the next N" is the
+// question this tab exists to answer, so it is the primary control.
+const SK_HORIZONS = [
+  { days: 1,    label: '24 hours' },
+  { days: 7,    label: '7 days'   },
+  { days: 30,   label: '30 days'  },
+  { days: 90,   label: '90 days'  },
+  { days: 365,  label: '1 year'   },
+  { days: null, label: 'Whole queue' },
+];
+
+/** Queue entries for one character, in training order, with a parsed finish date. */
+function _skQueueOf(charId) {
+  const cd = _skCharData[charId];
+  if (!cd || !Array.isArray(cd.queue)) return [];
+  return cd.queue
+    .slice()
+    .sort((a, b) => (a.position || 0) - (b.position || 0))
+    .map(q => ({ ...q, finishAt: q.finishDate ? new Date(q.finishDate).getTime() : null }))
+    // A queue can hold entries whose finish date has already passed but which ESI
+    // has not yet retired; they are done, not upcoming.
+    .filter(q => q.finishAt === null || q.finishAt > Date.now() - 60_000);
+}
+
+/** "in 3d 4h" / "in 2 months" — coarse on purpose, this is a horizon not a timer. */
+function _skWhen(ts) {
+  if (!ts) return { text: 'no date', ms: Infinity };
+  const ms = ts - Date.now();
+  if (ms <= 0) return { text: 'now', ms: 0 };
+  const mins = ms / 60000, days = ms / 86_400_000;
+  if (days >= 365) { const y = days / 365; return { text: `in ${y < 2 ? y.toFixed(1) : Math.round(y)} yr`, ms }; }
+  if (days >= 60)  return { text: `in ${Math.round(days / 30)} mo`, ms };
+  return { text: `in ${_skFmtDuration(mins)}`, ms };
+}
+
+/** Unlocks for one queue entry, bucketed by SDE category (Ship / Module / …). */
+function _skUnlocksFor(skillId, level) {
+  const list = (_skUnlocks && _skUnlocks[`${skillId}:${level}`]) || [];
+  const byCat = new Map();
+  for (const u of list) {
+    const cat = u.category || 'Other';
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat).push(u);
+  }
+  // Ships first — it is what people actually want to know — then the rest by size.
+  const order = (c) => (c === 'Ship' ? 0 : c === 'Module' ? 1 : c === 'Drone' ? 2 : c === 'Charge' ? 3 : 4);
+  return { total: list.length, cats: [...byCat.entries()].sort((a, b) => order(a[0]) - order(b[0]) || b[1].length - a[1].length) };
+}
+
+/** <option>s for the queue-card plan picker, with the sticky choice preselected. */
+function _skPlanOptions() {
+  const sel = (v) => (v === _skQPlanChoice ? ' selected' : '');
+  return `<option value=""${sel('')}>+ New plan…</option>`
+    + _skPlans.map(p =>
+        `<option value="${escHtml(p.id)}"${sel(p.id)}>${escHtml(p.name)} (${p.entries.length})</option>`
+      ).join('');
+}
+
+/** A character's queue as plan entries, in training order, resolved against the SDE. */
+function _skQueueEntries(charId) {
+  return _skQueueOf(charId)
+    .map(q => ({ skillId: q.skillId, level: q.finishedLevel }))
+    .filter(e => _skDefs.byId[e.skillId]);
+}
+
+// Merge entries into an existing plan. Levels UPGRADE rather than duplicate, so
+// pulling several characters' queues into one plan converges on the highest level
+// anyone is training — which is the point when you are building one shared plan
+// (a Hulk setup, say) that every character will be costed against.
+//
+// Returns what actually changed, because on a shared plan most of it is usually
+// already there and "Added 0 skills" is the honest answer.
+function _skMergeIntoPlan(planId, entries) {
+  const plan = _skPlans.find(p => p.id === planId);
+  if (!plan) return null;
+  let added = 0, upgraded = 0, already = 0;
+  for (const e of entries) {
+    const existing = plan.entries.find(x => x.skillId === e.skillId);
+    if (!existing) { plan.entries.push({ skillId: e.skillId, level: e.level }); added++; }
+    else if (e.level > existing.level) { existing.level = e.level; upgraded++; }
+    else already++;
+  }
+  _skSavePlans();
+  return { plan, added, upgraded, already };
+}
+
+async function _skRenderQueuesTab() {
+  const chars = _skAccounts
+    .map(a => Number(a.characterId))
+    .filter(id => _skCharData[id]);
+
+  if (!chars.length) {
+    _skRender(`<div class="sk-firstrun">
+      <h3>No character skill data</h3>
+      <p>Add a character, or re-authenticate one that is missing the
+         <b>esi-skills.read_skills.v1</b> scope, and its training queue shows up here.</p>
+    </div>`);
+    return;
+  }
+
+  // One SDE round-trip for the whole roster, so rows never appear and then
+  // reflow as unlock counts arrive. It is local SQLite and typically lands in a
+  // few ms, but paint a loading state first rather than leaving the pane empty
+  // if the SDE is cold.
+  if (!_skUnlocks) {
+    _skRender('<div class="sk-queues"><div class="sk-q-empty">Reading training queues…</div></div>');
+    const pairs = [];
+    for (const id of chars) {
+      for (const q of _skQueueOf(id)) pairs.push({ skillId: q.skillId, level: q.finishedLevel });
+    }
+    try { _skUnlocks = (await window.eveAPI.sdeSkillUnlocks(pairs)) || {}; }
+    catch (_) { _skUnlocks = {}; }   // the queue is still worth showing without them
+    // The user can change tabs while that await is in flight; do not paint the
+    // queues view over whatever they switched to.
+    if (_skTab !== 'queues') return;
+  }
+
+  const cutoff = _skQHorizon === null ? Infinity : Date.now() + _skQHorizon * 86_400_000;
+  const horizonLabel = (SK_HORIZONS.find(h => h.days === _skQHorizon) || {}).label || '';
+
+  // ── Roster roll-up ─────────────────────────────────────────────────────────
+  let idle = 0, inHorizon = 0, unlockTotal = 0;
+  const seenUnlock = new Set();
+  for (const id of chars) {
+    const q = _skQueueOf(id);
+    if (!q.length) idle++;
+    for (const e of q) {
+      if (e.finishAt && e.finishAt > cutoff) continue;
+      inHorizon++;
+      for (const u of ((_skUnlocks && _skUnlocks[`${e.skillId}:${e.finishedLevel}`]) || [])) {
+        if (!seenUnlock.has(u.id)) { seenUnlock.add(u.id); unlockTotal++; }
+      }
+    }
+  }
+
+  _skRender(`
+    <div class="sk-queues">
+      <div class="sk-q-bar">
+        <span class="sk-q-sum">
+          <b>${chars.length}</b> character${chars.length === 1 ? '' : 's'} ·
+          <b>${inHorizon}</b> skill${inHorizon === 1 ? '' : 's'} completing in ${escHtml(horizonLabel.toLowerCase())} ·
+          <b>${unlockTotal}</b> new item${unlockTotal === 1 ? '' : 's'} unlocked
+          ${idle ? `· <span class="sk-q-warn">${idle} not training</span>` : ''}
+        </span>
+        <span class="sk-q-horizon">
+          <span class="sk-eval-label">SHOW NEXT</span>
+          ${SK_HORIZONS.map(h => `<button class="sk-mini${h.days === _skQHorizon ? ' on' : ''}"
+              data-horizon="${h.days === null ? '' : h.days}">${escHtml(h.label)}</button>`).join('')}
+        </span>
+      </div>
+
+      ${chars.map(id => _skQueueCard(id, cutoff)).join('')}
+    </div>`);
+
+  _skBindQueuesTab();
+}
+
+/** One character: queue state, then its entries inside the active horizon. */
+function _skQueueCard(charId, cutoff) {
+  const q = _skQueueOf(charId);
+  const name = escHtml(_skCharName(charId));
+
+  if (!q.length) {
+    return `<div class="sk-q-card">
+      <div class="sk-q-head">
+        <span class="sk-q-name">${name}</span>
+        <span class="sk-q-warn">Not training</span>
+      </div>
+      <div class="sk-q-empty">This character has an empty skill queue.</div>
+    </div>`;
+  }
+
+  const last   = q[q.length - 1];
+  const ends   = _skWhen(last.finishAt);
+  const shown  = q.filter(e => !e.finishAt || e.finishAt <= cutoff);
+  const hidden = q.length - shown.length;
+
+  return `<div class="sk-q-card">
+    <div class="sk-q-head">
+      <span class="sk-q-name">${name}</span>
+      <span class="sk-q-meta">
+        <span class="sk-dim">${q.length} queued</span>
+        <span class="sk-dim">queue ends ${escHtml(ends.text)}</span>
+      </span>
+      <span class="sk-q-add">
+        <select class="field-input sk-q-plan-sel" data-plan-sel="${charId}"
+                title="Which plan this queue is added to">
+          ${_skPlanOptions()}
+        </select>
+        <button class="sk-mini wide" data-queue-add="${charId}"
+                title="Add this character's queued skills to the selected plan">Add</button>
+      </span>
+    </div>
+
+    ${shown.length ? `
+      <table class="sk-table sk-q-table">
+        <thead><tr>
+          <th style="width:34px;"></th>
+          <th>Skill</th>
+          <th class="sk-num" style="width:110px;">Completes</th>
+          <th style="width:auto;">Unlocks</th>
+        </tr></thead>
+        <tbody>
+          ${shown.map(e => _skQueueRow(charId, e)).join('')}
+        </tbody>
+      </table>` : `<div class="sk-q-empty">Nothing completes in this window.</div>`}
+
+    ${hidden > 0 ? `<div class="sk-q-more">${hidden} further skill${hidden === 1 ? '' : 's'} beyond this window.</div>` : ''}
+  </div>`;
+}
+
+function _skQueueRow(charId, e) {
+  const def   = _skDefs.byId[e.skillId];
+  const label = def ? def.name : `Skill ${e.skillId}`;
+  const when  = _skWhen(e.finishAt);
+  const key   = `${charId}:${e.position}`;
+  const open  = _skQOpen.has(key);
+  const { total, cats } = _skUnlocksFor(e.skillId, e.finishedLevel);
+
+  // The first entry is what is training right now; show how far through it is.
+  const pct = (e.startSp != null && e.endSp != null && e.endSp > e.startSp && e.trainingStartSp != null)
+    ? Math.max(0, Math.min(100, ((e.trainingStartSp - e.startSp) / (e.endSp - e.startSp)) * 100))
+    : null;
+
+  const summary = total === 0
+    ? '<span class="sk-dim">—</span>'
+    : cats.map(([cat, list]) => `<span class="sk-chip">${escHtml(cat)} ${list.length}</span>`).join('');
+
+  const detail = !open ? '' : `
+    <tr class="sk-q-detail"><td></td><td colspan="3">
+      ${cats.map(([cat, list]) => `
+        <div class="sk-q-cat">
+          <span class="sk-eval-label">${escHtml(cat)}</span>
+          <span class="sk-q-items">${list.slice(0, 24).map(u => escHtml(u.name)).join(' · ')}${
+            list.length > 24 ? ` <span class="sk-dim">+${list.length - 24} more</span>` : ''}</span>
+        </div>`).join('')}
+    </td></tr>`;
+
+  return `
+    <tr class="sk-q-row${e.position === 0 ? ' training' : ''}">
+      <td class="sk-num sk-dim">${e.position + 1}</td>
+      <td>
+        <span class="sk-skill-name">${escHtml(label)}</span>
+        <span class="sk-q-lvl">${SK_ROMAN[e.finishedLevel] || e.finishedLevel}</span>
+        ${pct !== null && e.position === 0
+          ? `<span class="sk-q-prog" title="${pct.toFixed(0)}% through this level"><i style="width:${pct.toFixed(1)}%"></i></span>`
+          : ''}
+      </td>
+      <td class="sk-num sk-dim">${escHtml(when.text)}</td>
+      <td>
+        ${total
+          ? `<button class="sk-q-unlock" data-unlock="${key}" aria-expanded="${open ? 'true' : 'false'}">${summary}</button>`
+          : summary}
+      </td>
+    </tr>${detail}`;
+}
+
+function _skBindQueuesTab() {
+  document.querySelectorAll('[data-horizon]').forEach(b => b.onclick = () => {
+    _skQHorizon = b.dataset.horizon === '' ? null : Number(b.dataset.horizon);
+    _skRenderQueuesTab();
+  });
+  document.querySelectorAll('[data-unlock]').forEach(b => b.onclick = () => {
+    const k = b.dataset.unlock;
+    if (_skQOpen.has(k)) _skQOpen.delete(k); else _skQOpen.add(k);
+    _skRenderQueuesTab();
+  });
+  // Remember the target plan across cards so several characters can be added to
+  // the same plan in a row without re-picking it each time.
+  document.querySelectorAll('[data-plan-sel]').forEach(s => s.onchange = () => {
+    _skQPlanChoice = s.value;
+    document.querySelectorAll('[data-plan-sel]').forEach(o => { o.value = _skQPlanChoice; });
+  });
+
+  document.querySelectorAll('[data-queue-add]').forEach(b => b.onclick = async () => {
+    const charId  = Number(b.dataset.queueAdd);
+    const entries = _skQueueEntries(charId);
+    if (!entries.length) {
+      showToast('That character has nothing in its training queue.', 'error');
+      return;
+    }
+
+    // New plan: name it, seed it with this queue, and make it the sticky choice
+    // so the next character adds into the same one.
+    if (!_skQPlanChoice) {
+      const name = await _skAskName('Name the new plan', `${_skCharName(charId)}'s queue`);
+      if (name === null) return;                       // cancelled
+      const plan = _skNewPlan(String(name).trim() || `${_skCharName(charId)}'s queue`, entries.slice());
+      _skQPlanChoice = plan.id;
+      showToast(`Created “${plan.name}” with ${entries.length} skill${entries.length === 1 ? '' : 's'}.`, 'success');
+      _skRenderQueuesTab();
+      return;
+    }
+
+    const res = _skMergeIntoPlan(_skQPlanChoice, entries);
+    if (!res) {                                        // plan deleted in another tab
+      _skQPlanChoice = '';
+      showToast('That plan no longer exists — pick another.', 'error');
+      _skRenderQueuesTab();
+      return;
+    }
+    const bits = [];
+    if (res.added)    bits.push(`${res.added} added`);
+    if (res.upgraded) bits.push(`${res.upgraded} raised to a higher level`);
+    if (res.already)  bits.push(`${res.already} already covered`);
+    showToast(`“${res.plan.name}”: ${bits.join(' · ') || 'no change'}.`,
+              res.added || res.upgraded ? 'success' : 'info');
+    _skRenderQueuesTab();                              // refresh the option counts
+  });
 }
 
 // ─── Planner ─────────────────────────────────────────────────────────────────
@@ -301,6 +633,8 @@ function _skRenderPlannerTab() {
           <option value="">Import queue from…</option>
           ${_skAccounts.map(a => `<option value="${a.characterId}">${escHtml(a.characterName)}</option>`).join('')}
         </select>
+        <button class="sk-btn" id="skPasteBtn"
+                title="Paste a skill list copied from the game or another planner">Paste skills</button>
         <button class="sk-btn" id="skExportBtn">Export / copy list</button>
       </div>
 
@@ -377,6 +711,9 @@ function _skBindPlannerControls() {
 
   const imp = document.getElementById('skImportChar');
   if (imp) imp.onchange = () => { if (imp.value) { _skImportQueue(Number(imp.value)); imp.value = ''; } };
+
+  const paste = document.getElementById('skPasteBtn');
+  if (paste) paste.onclick = () => _skPasteModal();
 
   const exp = document.getElementById('skExportBtn');
   if (exp) exp.onclick = () => _skExportModal();
@@ -809,6 +1146,175 @@ function _skImportQueue(charId) {
   _skNewPlan(`${_skCharName(charId)}'s queue`, entries);
   _skRenderPlannerTab();
   showToast(`Imported ${entries.length} skills from the queue.`, 'success');
+}
+
+// ─── Paste / clipboard import ────────────────────────────────────────────────
+// Accepts the shapes a skill list actually arrives in: this app's own text and
+// multibuy exports, an EVEMon .emp file, and the assorted "Name Level" spellings
+// that come out of the game and third-party planners.
+//
+// Name lookup is built lazily from _skDefs and cached; it is only valid once the
+// SDE skill list has loaded.
+let _skByName = null;
+function _skLookupName(s) {
+  if (!_skByName) {
+    _skByName = new Map();
+    for (const d of _skDefs.list) _skByName.set(d.name.trim().toLowerCase(), d);
+  }
+  return _skByName.get(String(s).trim().toLowerCase()) || null;
+}
+
+const SK_ROMAN_VAL = { i: 1, ii: 2, iii: 3, iv: 4, v: 5 };
+
+/**
+ * Parse pasted text into { entries, unmatched }.
+ * `defaultLevel` applies to lines that name a skill but no level (a multibuy
+ * list, for instance) — surfaced in the UI rather than guessed silently.
+ */
+function _skParsePastedSkills(text, defaultLevel = 5) {
+  const entries = [];       // { skillId, level, name }
+  const unmatched = [];
+  const seen = new Map();   // skillId -> index in entries (keep the highest level)
+
+  const push = (def, level) => {
+    const lv = Math.max(1, Math.min(5, Number(level) || defaultLevel));
+    if (seen.has(def.id)) {
+      const e = entries[seen.get(def.id)];
+      if (lv > e.level) e.level = lv;
+      return;
+    }
+    seen.set(def.id, entries.length);
+    entries.push({ skillId: def.id, level: lv, name: def.name });
+  };
+
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    let line = raw.trim();
+    if (!line) continue;
+
+    // EVEMon .emp — the whole file can be pasted in.
+    const emp = line.match(/skill="([^"]+)"[^>]*level="(\d+)"/i)
+             || line.match(/level="(\d+)"[^>]*skill="([^"]+)"/i);
+    if (emp) {
+      const name  = /^\d+$/.test(emp[1]) ? emp[2] : emp[1];
+      const level = /^\d+$/.test(emp[1]) ? emp[1] : emp[2];
+      const d = _skLookupName(name);
+      if (d) { push(d, level); } else { unmatched.push(line); }
+      continue;
+    }
+    if (line.startsWith('<')) continue;              // other XML scaffolding
+
+    // Strip list scaffolding: bullets, "1.", "1)" and trailing multibuy counts.
+    line = line.replace(/^[\s\-–—•*]+/, '')
+               .replace(/^\d+[.)]\s+/, '')
+               .replace(/\s+x\s*\d+$/i, '')
+               .replace(/\s+/g, ' ')
+               .trim();
+    if (!line) continue;
+
+    // Whole line as a name first. Some skills end in a word that would otherwise
+    // be eaten as a level token, so an exact match always wins.
+    const whole = _skLookupName(line);
+    if (whole) { push(whole, defaultLevel); continue; }
+
+    // "Name 5" · "Name V" · "Name (Level 5)" · "Name - Level V" · "Name: 5" · "Name<TAB>5"
+    const m = line.match(/^(.*?)[\s,:\-–—(]*\(?\s*(?:level|lvl|to)?\s*([1-5]|[ivx]{1,4})\s*\)?$/i);
+    if (m) {
+      const d = _skLookupName(m[1]);
+      if (d) {
+        const tok = String(m[2]).toLowerCase();
+        push(d, /^\d$/.test(tok) ? Number(tok) : (SK_ROMAN_VAL[tok] || defaultLevel));
+        continue;
+      }
+    }
+    unmatched.push(raw.trim());
+  }
+  return { entries, unmatched };
+}
+
+function _skPasteModal() {
+  const plan = _skActive();
+  if (!plan) { showToast('Create or select a plan first.', 'error'); return; }
+
+  // Live state — _skModal removes its DOM before the promise resolves, so field
+  // values are captured as they change rather than read at the end.
+  const state = { text: '', level: 5, prereqs: true, parsed: { entries: [], unmatched: [] } };
+
+  const closed = _skModal(`Paste skills into “${plan.name}”`, `
+    <div class="sk-paste">
+      <div class="sk-paste-hint">
+        One skill per line. Levels are read as <b>5</b>, <b>V</b>, <b>(Level 5)</b> or
+        <b>Lvl 5</b>; a line with no level uses the default below. Accepts this app's
+        text and multibuy exports and an EVEMon <b>.emp</b> file.
+      </div>
+      <textarea id="skPasteText" class="sk-exp-text" spellcheck="false"
+                placeholder="Caldari Battleship V&#10;Large Hybrid Turret 5&#10;Heavy Assault Cruisers (Level 1)"></textarea>
+      <div class="sk-paste-row">
+        <label class="sk-eval-label" for="skPasteLevel">LINES WITH NO LEVEL</label>
+        <select id="skPasteLevel" class="field-input">
+          ${[1, 2, 3, 4, 5].map(n => `<option value="${n}"${n === 5 ? ' selected' : ''}>Level ${n}</option>`).join('')}
+        </select>
+        <label class="sk-check"><input type="checkbox" id="skPastePrereqs" checked/> Include prerequisites</label>
+      </div>
+      <div id="skPastePreview" class="sk-paste-preview"></div>
+    </div>`, { okLabel: 'Add to plan' });
+
+  // _skModal builds its DOM synchronously, so the fields exist already.
+  const ta   = document.getElementById('skPasteText');
+  const lvl  = document.getElementById('skPasteLevel');
+  const pre  = document.getElementById('skPastePrereqs');
+  const prev = document.getElementById('skPastePreview');
+
+  const update = () => {
+    state.text    = ta ? ta.value : '';
+    state.level   = lvl ? Number(lvl.value) : 5;
+    state.prereqs = pre ? pre.checked : true;
+    state.parsed  = _skParsePastedSkills(state.text, state.level);
+    if (!prev) return;
+    const { entries, unmatched } = state.parsed;
+    if (!state.text.trim()) { prev.innerHTML = ''; return; }
+    prev.innerHTML = `
+      <div class="sk-paste-count">
+        <b>${entries.length}</b> skill${entries.length === 1 ? '' : 's'} recognised${
+          unmatched.length ? ` · <span class="sk-paste-bad">${unmatched.length} line${unmatched.length === 1 ? '' : 's'} not recognised</span>` : ''}
+      </div>
+      ${entries.length ? `<div class="sk-paste-list">${
+        entries.slice(0, 40).map(e => `${escHtml(e.name)} <span class="sk-q-lvl">${SK_ROMAN[e.level] || e.level}</span>`).join(' · ')
+      }${entries.length > 40 ? ` <span class="sk-dim">+${entries.length - 40} more</span>` : ''}</div>` : ''}
+      ${unmatched.length ? `<div class="sk-paste-list sk-paste-bad">${
+        unmatched.slice(0, 8).map(l => escHtml(l)).join('<br>')
+      }${unmatched.length > 8 ? `<br><span class="sk-dim">+${unmatched.length - 8} more</span>` : ''}</div>` : ''}`;
+  };
+
+  if (ta)  { ta.addEventListener('input', update); ta.focus(); }
+  if (lvl) lvl.addEventListener('change', update);
+  if (pre) pre.addEventListener('change', update);
+
+  // Prefill from the clipboard so the common case is one click. Not fatal if the
+  // read is refused — the box is still there to paste into by hand.
+  (async () => {
+    try {
+      const txt = await navigator.clipboard.readText();
+      if (txt && ta && !ta.value) { ta.value = txt; update(); }
+    } catch (_) { /* user pastes manually */ }
+  })();
+
+  closed.then(ok => {
+    if (ok === null) return;                       // cancelled
+    const { entries, unmatched } = state.parsed;
+    if (!entries.length) {
+      showToast(unmatched.length ? 'No skill names in that paste were recognised.' : 'Nothing to import.', 'error');
+      return;
+    }
+    let added = 0;
+    for (const e of entries) added += _skAddSkill(e.skillId, e.level, state.prereqs, true);
+    _skSavePlans();
+    _skRenderPlannerTab();
+    showToast(
+      `Added ${added} skill${added === 1 ? '' : 's'} to “${plan.name}”`
+        + (unmatched.length ? ` · ${unmatched.length} line${unmatched.length === 1 ? '' : 's'} skipped.` : '.'),
+      added ? 'success' : 'info',
+    );
+  });
 }
 
 function _skExportText(plan, fmt) {

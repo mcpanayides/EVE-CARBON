@@ -647,11 +647,6 @@ function registerCharacterHandlers({
   ipcHandle('get-zkill-feed', (_, kind, entityId, page = 1) => fetchZkillFeed(kind, entityId, page));
   registered.fetchZkillFeed = fetchZkillFeed;
 
-  // ─── IPC: PI colonies (from CharDB) ──────────────────────────────────────
-  ipcHandle('get-pi-colonies', async (_, characterId) => {
-    return charInfoDb.getCharacterPIColonies(characterId);
-  });
-
   // ─── IPC: Character market orders ────────────────────────────────────────
   // Active buy + sell orders. Used by the dashboard escrow calc and the Market
   // Orders widget. Short cache (5 min) + stale fallback so a rate-limit doesn't

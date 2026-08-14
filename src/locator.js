@@ -315,16 +315,36 @@ module.exports = function createLocator({ httpGet, readCache, writeCache, getVal
   // ── ESI error-limit guard ──────────────────────────────────
   // Set by fetchJson when HTTP 420 is received. Structure lookups wait
   // until the cooldown expires before hitting ESI again.
+  // Logged once per cooldown window, not once per waiter. Every queued structure
+  // lookup calls this, so the old line-per-caller made ten sleeping lookups read
+  // like a hot loop hammering ESI — the opposite of what is happening. One line
+  // when the hold starts, one when it lifts, with the number held.
+  let _cooldownLoggedUntil = 0;
+  let _cooldownHeld = 0;
+
   async function _waitForEsiCooldown() {
     // The longer of our own cooldown and the app-wide one: a 420 seen by any
     // other feature is just as much a reason for us to stand down.
     const shared = esiBudget ? esiBudget().blockedFor : 0;
     const wait   = Math.max(_esiErrorLimitUntil - Date.now(), shared);
-    if (wait > 0) {
-      console.log(`[locator] ESI cooldown — waiting ${Math.ceil(wait / 1000)}s before next structure lookup`);
+    if (wait <= 0) return;
+
+    const until = Date.now() + wait;
+    _cooldownHeld++;
+    if (until > _cooldownLoggedUntil + 1000) {
+      _cooldownLoggedUntil = until;
+      console.log(`[locator] ESI cooldown — holding structure lookups for ${Math.ceil(wait / 1000)}s`);
+    }
+    try {
       // Staggered, so a queue of structure lookups does not resume in lockstep
       // and drain the refilled budget the instant it comes back.
       await new Promise(r => setTimeout(r, wait + Math.floor(Math.random() * 2000)));
+    } finally {
+      _cooldownHeld--;
+      if (_cooldownHeld === 0 && _cooldownLoggedUntil) {
+        console.log('[locator] ESI cooldown lifted — resuming structure lookups');
+        _cooldownLoggedUntil = 0;
+      }
     }
   }
 

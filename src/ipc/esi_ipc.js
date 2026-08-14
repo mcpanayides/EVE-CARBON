@@ -803,6 +803,14 @@ function registerEsiHandlers({
   // ─── IPC: Planet Size Mapper (SDE, offline) ─────────────────────────────────
   // Planets are group 7 in mapDenormalize; radius is in metres. Diameter (km)
   // matters for PI — bigger planets give more room to spread extractor heads.
+  //
+  // Region and constellation MUST come from mapSolarSystems, not from the planet
+  // row. mapDenormalize carries regionID/constellationID for some groups but they
+  // are NULL on every one of the 68,407 planet rows, so the original
+  // `d.regionID = r.regionID` filter matched nothing: the region dropdown came
+  // back empty and the Planet Size Mapper could never load. Join through
+  // d.solarSystemID (populated on all planet rows) instead. Same for security —
+  // d.security is NULL here, s.security is the system's real status.
   ipcHandle('sde-get-planet-regions', async () => {
     const db = getSdeDb();
     if (!db) return [];
@@ -810,7 +818,11 @@ function registerEsiHandlers({
       return await db.all(`
         SELECT r.regionID AS id, r.regionName AS name
         FROM   mapRegions r
-        WHERE  EXISTS (SELECT 1 FROM mapDenormalize d WHERE d.regionID = r.regionID AND d.groupID = 7)
+        WHERE  EXISTS (
+                 SELECT 1
+                 FROM   mapDenormalize d
+                 JOIN   mapSolarSystems s ON s.solarSystemID = d.solarSystemID
+                 WHERE  s.regionID = r.regionID AND d.groupID = 7)
         ORDER  BY r.regionName`);
     } catch (e) { console.warn('[sde] planet regions failed:', e.message); return []; }
   });
@@ -824,16 +836,16 @@ function registerEsiHandlers({
                d.itemName        AS name,
                t.typeName        AS ptype,
                d.radius          AS radius,
-               d.security        AS sec,
+               s.security        AS sec,
                d.solarSystemID   AS sysId,
                s.solarSystemName AS sys,
-               d.constellationID AS conId,
+               s.constellationID AS conId,
                c.constellationName AS con
         FROM   mapDenormalize d
+        JOIN   mapSolarSystems  s ON s.solarSystemID = d.solarSystemID
         LEFT JOIN invTypes         t ON t.typeID = d.typeID
-        LEFT JOIN mapSolarSystems  s ON s.solarSystemID = d.solarSystemID
-        LEFT JOIN mapConstellations c ON c.constellationID = d.constellationID
-        WHERE  d.regionID = ? AND d.groupID = 7`, regionId);
+        LEFT JOIN mapConstellations c ON c.constellationID = s.constellationID
+        WHERE  s.regionID = ? AND d.groupID = 7`, regionId);
       return rows.map(p => ({
         id:         p.id,
         name:       p.name,
@@ -1051,6 +1063,81 @@ function registerEsiHandlers({
     } catch (e) {
       console.warn('sde-type-requirements failed:', e.message);
       return null;
+    }
+  });
+
+  // The inverse of sde-type-requirements: given skills a character is training,
+  // what does finishing each level actually unlock? Answers "what is this queue
+  // buying me" in ships and guns rather than skill names.
+  //
+  // Batched deliberately. A roster's combined queues run to a few hundred
+  // (skill, level) pairs, and one query per pair would be a few hundred SQLite
+  // round-trips through IPC. This is THREE queries total — one per required-skill
+  // slot — regardless of queue size, bucketed in JS afterwards.
+  //
+  // published=1 drops the unpublished test/dev hulls that would otherwise pad
+  // every list with items nobody can fly.
+  ipcHandle('sde-skill-unlocks', async (_, pairs) => {
+    const sdeDb = getSdeDb();
+    if (!sdeDb || !Array.isArray(pairs) || !pairs.length) return {};
+
+    const wanted = new Map();          // skillId -> Set(levels asked for)
+    for (const p of pairs) {
+      const id = Number(p?.skillId), lv = Number(p?.level);
+      if (!id || !lv) continue;
+      if (!wanted.has(id)) wanted.set(id, new Set());
+      wanted.get(id).add(lv);
+    }
+    if (!wanted.size) return {};
+
+    const skillIds = [...wanted.keys()];
+    const SLOTS = [[182, 277], [183, 278], [184, 279]];
+    const out = {};                    // "skillId:level" -> [{ id, name, group, category }]
+
+    try {
+      for (const [skillAttr, levelAttr] of SLOTS) {
+        // Chunked against SQLite's variable limit; a roster can hold a lot of
+        // distinct skills even though each queue is short.
+        for (let i = 0; i < skillIds.length; i += 400) {
+          const chunk = skillIds.slice(i, i + 400);
+          const rows = await sdeDb.all(
+            `SELECT CAST(COALESCE(sk.valueInt, sk.valueFloat) AS INT) AS skillId,
+                    CAST(COALESCE(lv.valueInt, lv.valueFloat) AS INT) AS lvl,
+                    t.typeID   AS id,
+                    t.typeName AS name,
+                    g.groupName    AS grp,
+                    c.categoryName AS cat
+               FROM dgmTypeAttributes sk
+               JOIN dgmTypeAttributes lv ON lv.typeID = sk.typeID AND lv.attributeID = ?
+               JOIN invTypes t ON t.typeID = sk.typeID
+               LEFT JOIN invGroups     g ON g.groupID    = t.groupID
+               LEFT JOIN invCategories c ON c.categoryID = g.categoryID
+              WHERE sk.attributeID = ?
+                AND t.published = 1
+                AND CAST(COALESCE(sk.valueInt, sk.valueFloat) AS INT) IN (${chunk.map(() => '?').join(',')})`,
+            [levelAttr, skillAttr, ...chunk],
+          );
+          for (const r of (rows || [])) {
+            if (!wanted.get(r.skillId)?.has(r.lvl)) continue;
+            const key = `${r.skillId}:${r.lvl}`;
+            (out[key] = out[key] || []).push({
+              id: r.id, name: r.name, group: r.grp || null, category: r.cat || null,
+            });
+          }
+        }
+      }
+      // A type can require the same skill in more than one slot; dedupe and sort
+      // so the renderer can just slice off the first few.
+      for (const key of Object.keys(out)) {
+        const seen = new Set();
+        out[key] = out[key]
+          .filter(x => (seen.has(x.id) ? false : seen.add(x.id)))
+          .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      }
+      return out;
+    } catch (e) {
+      console.warn('sde-skill-unlocks failed:', e.message);
+      return {};
     }
   });
 

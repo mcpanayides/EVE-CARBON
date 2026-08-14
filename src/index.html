@@ -591,17 +591,6 @@
       </nav>
     </div>
 
-    <!-- Active Character Display Panel -->
-    <div id="activeCharPanel" class="panel active-char-panel" style="display:none;">
-      <div class="active-char-header">ACTIVE CHARACTER</div>
-      <div class="active-char-card">
-        <img id="activeCharPortrait" src="" alt="active" class="active-char-portrait" />
-        <div class="active-char-info">
-          <div id="activeCharName" class="active-char-name">None</div>
-          <div id="activeCharID"   class="active-char-id">—</div>
-        </div>
-      </div>
-    </div>
   </div><!-- /sidebar -->
 
   <!-- ── Main content — pages injected here by pageLoader.js ───────────── -->
@@ -623,7 +612,7 @@
   <div class="modal" style="max-width:620px; width:95%; max-height:85vh; overflow-y:auto;">
     <div class="modal-header" style="justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:8px;">
-        <img id="materialsModalIcon" src="" alt=""
+        <img id="materialsModalIcon" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""
              style="width:28px; height:28px; border-radius:4px; border:1px solid var(--border); flex-shrink:0;" />
         <span id="materialsModalTitle">Materials</span>
       </div>
@@ -1142,6 +1131,40 @@
                 </button>
               </div>
             </div>
+
+            <!-- ── Structure names — forced re-resolve ──────────────────────
+                 Lives here, not on the Assets toolbar, because it reads as a
+                 refresh button and gets clicked repeatedly. Handler is
+                 repairAssetLocations() in src/func/assets.js. -->
+            <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+              <div style="font-size:11px; color:var(--text-3); letter-spacing:0.1em;
+                          font-family:var(--mono); margin-bottom:8px;">STRUCTURE NAMES</div>
+              <div style="display:flex; align-items:flex-start; justify-content:space-between;
+                          gap:12px; flex-wrap:wrap;">
+                <div style="max-width:560px;">
+                  <div style="font-size:12px; color:var(--text-2); line-height:1.6;">
+                    Some player-owned structures show as <code>Structure 1035…</code> instead of a
+                    name. That usually means none of your characters has docking access, so ESI
+                    will not say what it is. Names resolve on their own during the normal sync,
+                    and after a few failures the app stops retrying so it does not spend its ESI
+                    request budget on structures that will never answer.
+                    <br><br>
+                    This forces one more attempt on every unnamed structure, including the public
+                    lookup sources normally skipped. It takes a few minutes and only helps if
+                    something changed on EVE's side — you joined the owning corp, or were granted
+                    docking access. <b>It is not a refresh for the Assets page</b>, and running it
+                    repeatedly will not produce a different result.
+                  </div>
+                  <div id="repairLocationsStatus" style="font-size:12px; font-family:var(--mono);
+                       color:var(--text-3); margin-top:8px;"></div>
+                </div>
+                <button id="repairLocationsBtn" class="calc-btn"
+                        style="white-space:nowrap;"
+                        onclick="repairAssetLocations()">
+                  RESOLVE STRUCTURE NAMES
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1268,7 +1291,7 @@
                 padding:16px 20px; border-bottom:1px solid var(--border);
                 background:var(--bg-card-deep); flex-shrink:0;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <img id="journalCharPortrait" src="" alt=""
+        <img id="journalCharPortrait" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt=""
              style="width:40px;height:40px;border-radius:50%;border:1px solid var(--border);object-fit:cover;"/>
         <div>
           <div id="journalCharName"
@@ -1456,6 +1479,7 @@
 <script src="./func/cost-index.js"></script>
 <script src="./func/materials.js"></script>
 <script src="./func/jabber.js"></script>
+<script src="./func/jabber_rooms.js"></script><!-- AFTER jabber.js: shares its helpers -->
 <script src="./func/dashboard.js"></script>
 <script src="./func/bugs.js"></script>
 <script src="./func/planetary-interaction.js"></script>

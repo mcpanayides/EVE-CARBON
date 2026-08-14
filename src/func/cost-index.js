@@ -14,8 +14,17 @@ let _ciReqFactory   = false;
 let _ciReqLab       = false;
 let _ciSearchTimer  = null;
 let _ciSystemMap    = {};     // solarSystemId → { name, secStatus, regionName }
+let _ciRegions      = {};     // regionId → name; seeded from CI_REGIONS, replaced by the SDE
 
 // ── EVE region list (id → display name) ──────────────────────────────────────
+// FALLBACK ONLY — used until the SDE region list arrives (see loadCISystemDetails,
+// which overwrites _ciRegions from mapGetGalaxy). Do not extend this by hand: as a
+// hand-maintained copy it had drifted badly against the SDE — five ids carried the
+// wrong name (10000018 was labelled "The Citadel" when it is The Spire, 10000033
+// "The Bleak Lands" when it is The Citadel, 10000036 "Perrigen Falls" when it is
+// Devoid, 10000038 "The Spire" when it is The Bleak Lands, 10000070 "Cobalt Edge"
+// when it is Pochven) and seven k-space regions were missing entirely. Picking a
+// region by name therefore filtered to a different region's systems.
 const CI_REGIONS = {
   '10000001': 'Derelik',          '10000002': 'The Forge',
   '10000003': 'Vale of the Silent','10000005': 'Detorid',
@@ -50,21 +59,42 @@ const CI_REGIONS = {
   '10000068': 'Verge Vendor',     '10000069': 'Black Rise',
   '10000070': 'Cobalt Edge',
 };
+_ciRegions = { ...CI_REGIONS };
 
-// Activity ids → column keys
+// ESI activity name → column key.
+// /industry/systems/ reports `activity` as a STRING enum, not the numeric
+// blueprint activity id. This map was keyed 1/3/4/5/8/11, so every lookup missed
+// and every cost index rendered as an em-dash. Verified against the live
+// endpoint: manufacturing, researching_time_efficiency,
+// researching_material_efficiency, copying, invention, reaction.
 const CI_ACTIVITY_MAP = {
-  1: 'manufacturing',
-  3: 'te_research',
-  4: 'me_research',
-  5: 'copying',
-  8: 'invention',
-  11: 'reactions',
+  manufacturing:                   'manufacturing',
+  researching_time_efficiency:     'te_research',
+  researching_material_efficiency: 'me_research',
+  copying:                         'copying',
+  invention:                       'invention',
+  reaction:                        'reactions',
 };
 
 // ── Render the Cost Index tab ─────────────────────────────────────────────────
 
+// Rebuild the region <select> from whatever region list we currently hold,
+// preserving the active selection. Called once at render with the fallback list
+// and again once the SDE regions arrive.
+function _ciPopulateRegionSelect() {
+  const sel = document.getElementById('ciRegionSel');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— All Regions —</option>' +
+    Object.entries(_ciRegions)
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => `<option value="${id}">${escHtml(name)}</option>`)
+      .join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
 async function renderCostIndex(container) {
-  const regionOptions = Object.entries(CI_REGIONS)
+  const regionOptions = Object.entries(_ciRegions)
     .sort((a, b) => a[1].localeCompare(b[1]))
     .map(([id, name]) => `<option value="${id}">${escHtml(name)}</option>`)
     .join('');
@@ -298,38 +328,62 @@ async function loadCIData(forceRefresh = false) {
 
 // ── Load system details (name, sec, region) via eveAPI.getNames + resolveSystemNames ───
 
+// Security status and region come from the bundled SDE via mapGetGalaxy(), which
+// returns every system as { id, name, sec, regionId } plus a regionId → name map,
+// cached in the main process after the first call.
+//
+// This used to call resolveSystemNames() and read .secStatus / .regionName /
+// .regionId off each entry. That IPC resolves to locator.esiNamesPost(), which
+// returns a flat { id: "Name" } string map — so those three properties were always
+// undefined. Security rendered as "?" for every row and the region filter compared
+// against a null regionId, which matched nothing and blanked the table on any
+// region selection. Never reach for sec/region through a names endpoint; names are
+// all it returns.
 async function loadCISystemDetails(systemIds) {
-  // getNames wraps ESI POST /universe/names/ via the main-process IPC
-  const CHUNK = 800;
-  const results = [];
-  for (let i = 0; i < systemIds.length; i += CHUNK) {
-    const batch = systemIds.slice(i, i + CHUNK);
-    try {
-      const data = await window.eveAPI.getNames(batch);
-      if (Array.isArray(data)) results.push(...data);
-    } catch (e) {
-      console.warn('[CostIndex] Names batch failed:', e.message);
+  let galaxy = null;
+  try {
+    galaxy = await window.eveAPI.mapGetGalaxy();
+  } catch (e) {
+    console.warn('[CostIndex] SDE galaxy load failed:', e.message);
+  }
+
+  const sdeMap  = {};
+  const regions = (galaxy && galaxy.regions) || {};
+  for (const s of (galaxy?.systems || [])) sdeMap[s.id] = s;
+
+  // Prefer the SDE's region names over the hand-maintained fallback list.
+  if (Object.keys(regions).length) {
+    _ciRegions = { ...regions };
+    _ciPopulateRegionSelect();
+  }
+
+  // Names for anything the SDE does not carry (should be nothing, but a stale or
+  // missing SDE must not blank the whole table).
+  const missing = systemIds.filter(id => !sdeMap[id]);
+  const nameMap = {};
+  if (missing.length) {
+    const CHUNK = 800;
+    for (let i = 0; i < missing.length; i += CHUNK) {
+      try {
+        const data = await window.eveAPI.getNames(missing.slice(i, i + CHUNK));
+        if (Array.isArray(data)) {
+          data.forEach(r => {
+            if (r.category === 'solar_system' || !r.category) nameMap[r.id] = r.name;
+          });
+        }
+      } catch (e) {
+        console.warn('[CostIndex] Names batch failed:', e.message);
+      }
     }
   }
 
-  // Build quick lookup: id → name
-  const nameMap = {};
-  results.forEach(r => {
-    if (r.category === 'solar_system' || !r.category) nameMap[r.id] = r.name;
-  });
-
-  // resolveSystemNames may return { secStatus, regionName, regionId } per system
-  let resolvedNames = {};
-  try {
-    resolvedNames = await window.eveAPI.resolveSystemNames(systemIds.slice(0, 500)) || {};
-  } catch (_) {}
-
   systemIds.forEach(id => {
+    const sys = sdeMap[id];
     _ciSystemMap[id] = {
-      name:       nameMap[id] || resolvedNames[id]?.name || `System ${id}`,
-      secStatus:  resolvedNames[id]?.secStatus ?? null,
-      regionName: resolvedNames[id]?.regionName || '',
-      regionId:   resolvedNames[id]?.regionId   || null,
+      name:       sys?.name ?? nameMap[id] ?? `System ${id}`,
+      secStatus:  typeof sys?.sec === 'number' ? sys.sec : null,
+      regionName: regions[sys?.regionId] || '',
+      regionId:   sys?.regionId ?? null,
     };
   });
 }

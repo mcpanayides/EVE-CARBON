@@ -3,7 +3,7 @@
 async function openMaterialsInTab(typeId) {
   showToast('Calculating materials...', 'info');
   try {
-    const allBps = await window.eveAPI.getAllBlueprints();
+    const allBps = await window.eveAPI.getAllBlueprintsFromDb();
     const bp     = allBps.find(b => b.type_id === typeId);
     const bpName = bp ? bp.name : `Type ${typeId}`;
     const mLevel = bp ? bp.me  : 0;
@@ -470,11 +470,9 @@ function renderBpSearchDetail(container, itemName, blueprintTypeId, productTypeI
 
   // ── Open in calculator ───────────────────────────────────────────────────
   container.querySelector('#bpSearchCalcBtn').addEventListener('click', () => {
+    // Only the blueprint carries over. The calculator reads ME/TE from the
+    // blueprint's own DB record, so there is nothing else to hand off.
     if (typeof selectedBpTypeId !== 'undefined') selectedBpTypeId = blueprintTypeId;
-    if (typeof selectedME !== 'undefined') {
-      selectedME = parseInt(container.querySelector('#bpSearchME').value);
-    }
-    if (typeof selectedTE !== 'undefined') selectedTE = 0;
     if (typeof navigateIndustryTab === 'function') navigateIndustryTab('calculator');
   });
 

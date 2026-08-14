@@ -88,6 +88,14 @@ jobs:
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
+          # An unset secret substitutes to an empty string, which ships a build
+          # whose online counter silently never appears. Say so in the summary.
+          if [ -z "${{ secrets.PRESENCE_URL }}" ]; then
+            echo "::warning::PRESENCE_URL secret is empty — this build ships with the online counter disabled."
+          fi
+          if [ -z "${{ secrets.EVE_CLIENT_ID }}" ]; then
+            echo "::error::EVE_CLIENT_ID secret is empty — this build cannot authenticate."
+          fi
 
       - name: Fetch SDE
         run: node scripts/fetch-sde.js
@@ -158,6 +166,14 @@ jobs:
         run: |
           echo "EVE_CLIENT_ID=${{ secrets.EVE_CLIENT_ID }}" >> .env
           echo "PRESENCE_URL=${{ secrets.PRESENCE_URL }}" >> .env
+          # An unset secret substitutes to an empty string, which ships a build
+          # whose online counter silently never appears. Say so in the summary.
+          if [ -z "${{ secrets.PRESENCE_URL }}" ]; then
+            echo "::warning::PRESENCE_URL secret is empty — this build ships with the online counter disabled."
+          fi
+          if [ -z "${{ secrets.EVE_CLIENT_ID }}" ]; then
+            echo "::error::EVE_CLIENT_ID secret is empty — this build cannot authenticate."
+          fi
 
       - name: Fetch SDE
         run: node scripts/fetch-sde.js

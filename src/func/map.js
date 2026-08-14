@@ -1180,14 +1180,6 @@ function _pillPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// The k-space region we open by default in Modern (their first example), else the
-// first region alphabetically.
-function _defaultRegionId() {
-  for (const [rid, name] of Object.entries(_regions)) if (name === 'Period Basis') return Number(rid);
-  const ks = Object.keys(_regions).map(Number).filter(r => r < 11000000).sort((a, b) => a - b);
-  return ks[0] != null ? ks[0] : null;
-}
-
 // World-grid cell size (square so edges resolve to vertical / 45° / steeper grid
 // angles, never random ones). Big enough that name pills never overlap at the
 // default zoom.

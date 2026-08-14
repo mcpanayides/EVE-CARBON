@@ -44,10 +44,45 @@ async function initJabberDb(appDataDir, userDataDir) {
       sig             TEXT    DEFAULT NULL,        -- e.g. "skirmishbot"
       gsol_member     TEXT    DEFAULT NULL,        -- e.g. "medusacascade4"
       target_sig      TEXT    DEFAULT NULL,        -- e.g. "all"
-      eve_timecode    TEXT    DEFAULT NULL         -- e.g. "2026-05-22 16:34:42.764243"
+      eve_timecode    TEXT    DEFAULT NULL,        -- e.g. "2026-05-22 16:34:42.764243"
+
+      -- Chat rooms (MUC). NULL for direct/bot messages, which is every row that
+      -- existed before rooms were a feature — the ping feed reads those as before.
+      room_jid        TEXT    DEFAULT NULL,        -- bare room JID, e.g. corp@conference.goonfleet.com
+      sender_nick     TEXT    DEFAULT NULL,        -- occupant nick (the resource part of the from JID)
+      stanza_id       TEXT    DEFAULT NULL         -- server archive id (XEP-0313), stable per room
     );
 
+    -- Per-room read marker: the id of the last message the user has actually seen.
+    -- Unread counts are derived from this, so they survive restarts and never
+    -- depend on a window being open at the time.
+    CREATE TABLE IF NOT EXISTS jabber_room_reads (
+      room_jid      TEXT PRIMARY KEY,
+      last_read_id  INTEGER NOT NULL DEFAULT 0
+    );
+
+  `);
+
+  // ── Migrate BEFORE indexing ────────────────────────────────────────────────
+  // On a database created before rooms existed, CREATE TABLE IF NOT EXISTS is a
+  // no-op and the table still has no room_jid. Indexing that column in the same
+  // exec() as the CREATE aborted the whole batch with "no such column: room_jid"
+  // — and because the ALTER TABLE ran afterwards, the column was never added and
+  // every room message failed to store. Columns first, indexes after.
+  //
+  // ALTER TABLE ADD COLUMN is the only in-place migration SQLite offers, and it
+  // throws when the column is already there, so each is attempted on its own.
+  for (const [col, decl] of [['room_jid', 'TEXT DEFAULT NULL'], ['sender_nick', 'TEXT DEFAULT NULL'],
+                             ['stanza_id', 'TEXT DEFAULT NULL']]) {
+    try { await jabberDb.exec(`ALTER TABLE jabber_messages ADD COLUMN ${col} ${decl}`); }
+    catch (_) { /* column already present */ }
+  }
+
+  await jabberDb.exec(`
     CREATE INDEX IF NOT EXISTS idx_jm_received_at  ON jabber_messages (received_at);
+    CREATE INDEX IF NOT EXISTS idx_jm_room_jid     ON jabber_messages (room_jid);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_jm_archive
+      ON jabber_messages (room_jid, stanza_id) WHERE stanza_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_jm_who_pinged   ON jabber_messages (who_pinged);
     CREATE INDEX IF NOT EXISTS idx_jm_sig          ON jabber_messages (sig);
     CREATE INDEX IF NOT EXISTS idx_jm_eve_timecode ON jabber_messages (eve_timecode);
@@ -164,7 +199,19 @@ async function insertJabberMessage(msg) {
   }
 
   const parsed     = parseJabberMessage(msg.body || '');
-  const received_at = new Date().toISOString();
+  // Archived messages carry when they were SENT. Stamping them with now would
+  // file yesterday's conversation as having happened on load, which reorders the
+  // room and makes every unread count wrong.
+  const received_at = msg.receivedAt || new Date().toISOString();
+
+  // Already archived? The server re-sends the same messages on every history
+  // pull, so this is the normal path, not an error case.
+  if (msg.stanzaId && msg.roomJid) {
+    const existing = await jabberDb.get(
+      'SELECT id FROM jabber_messages WHERE room_jid = ? AND stanza_id = ?',
+      msg.roomJid, msg.stanzaId);
+    if (existing) return null;
+  }
 
   // node-sqlite3 named parameters require keys to include the ':' prefix.
   // Keys without it silently resolve to index 0 → SQLITE_RANGE error.
@@ -175,6 +222,9 @@ async function insertJabberMessage(msg) {
     ':from_jid':        msg.from        || '',
     ':msg_type':        msg.type        || '',
     ':is_director':     msg.isDirector  ? 1 : 0,
+    ':room_jid':        msg.roomJid     || null,
+    ':sender_nick':     msg.senderNick  || null,
+    ':stanza_id':       msg.stanzaId    || null,
     ':raw_body':        msg.body        || '',
     ':ping_timestamp':  parsed.ping_timestamp,
     ':who_pinged':      parsed.who_pinged,
@@ -194,11 +244,13 @@ async function insertJabberMessage(msg) {
     const result = await jabberDb.run(`
       INSERT INTO jabber_messages (
         received_at, from_jid, msg_type, is_director, raw_body,
+        room_jid, sender_nick, stanza_id,
         ping_timestamp, who_pinged, hurf,
         fc_name, formup_location, pap_type, comms, doctrine,
         sig, gsol_member, target_sig, eve_timecode
       ) VALUES (
         :received_at, :from_jid, :msg_type, :is_director, :raw_body,
+        :room_jid, :sender_nick, :stanza_id,
         :ping_timestamp, :who_pinged, :hurf,
         :fc_name, :formup_location, :pap_type, :comms, :doctrine,
         :sig, :gsol_member, :target_sig, :eve_timecode
@@ -215,6 +267,9 @@ async function insertJabberMessage(msg) {
       from_jid:        bindParams[':from_jid'],
       msg_type:        bindParams[':msg_type'],
       is_director:     bindParams[':is_director'],
+      room_jid:        bindParams[':room_jid'],
+      sender_nick:     bindParams[':sender_nick'],
+      stanza_id:       bindParams[':stanza_id'],
       raw_body:        bindParams[':raw_body'],
       ping_timestamp:  parsed.ping_timestamp,
       who_pinged:      parsed.who_pinged,
@@ -237,10 +292,14 @@ async function insertJabberMessage(msg) {
 
 // ─── Read helpers (optional — for future IPC queries) ─────────────────────────
 
+// History for the BROADCAST feed. room_jid IS NULL is the whole point: this used
+// to select every row, so on every page load the ping table was re-populated
+// with the full contents of every chat room as well as the broadcasts. Room
+// history has its own query (getRoomMessages).
 async function getRecentMessages(limit = 100) {
   if (!jabberDb) return [];
   return jabberDb.all(
-    'SELECT * FROM jabber_messages ORDER BY id DESC LIMIT ?',
+    'SELECT * FROM jabber_messages WHERE room_jid IS NULL ORDER BY id DESC LIMIT ?',
     limit
   );
 }
@@ -251,6 +310,74 @@ async function getMessagesBySignature(sig, limit = 100) {
     'SELECT * FROM jabber_messages WHERE sig = ? ORDER BY id DESC LIMIT ?',
     sig, limit
   );
+}
+
+// The newest DIRECTOR broadcast — the same class of message that opens the ping
+// alert window (see jabber_ipc.js). The dashboard's Latest Ping widget reads this
+// rather than the newest message of any kind, so what the widget shows and what
+// pops up are always the same thing.
+async function getLatestDirectorMessage() {
+  if (!jabberDb) return null;
+  return jabberDb.get(
+    'SELECT * FROM jabber_messages WHERE is_director = 1 ORDER BY id DESC LIMIT 1'
+  ) || null;
+}
+
+// ─── Chat rooms ───────────────────────────────────────────────────────────────
+// The ping feed and the room views read the same table through opposite filters:
+// pings are room_jid IS NULL (bots and direct messages), rooms are a specific
+// room_jid. Nothing is duplicated between them.
+
+async function getRoomMessages(roomJid, limit = 200) {
+  if (!jabberDb || !roomJid) return [];
+  const rows = await jabberDb.all(
+    'SELECT * FROM jabber_messages WHERE room_jid = ? ORDER BY id DESC LIMIT ?',
+    roomJid, limit
+  );
+  return rows.reverse();   // oldest first — chat reads downwards
+}
+
+// Unread per room: everything newer than the marker, and who said it. `speakers`
+// is what the badge is actually about — "how many people have spoken since you
+// last looked" — so it counts distinct nicks, not messages.
+// The oldest archive id we hold for a room. History is fetched backwards from
+// here, so a second "load older" continues where the first stopped instead of
+// re-reading the same page.
+async function getRoomOldestArchiveId(roomJid) {
+  if (!jabberDb || !roomJid) return null;
+  const row = await jabberDb.get(
+    `SELECT stanza_id FROM jabber_messages
+      WHERE room_jid = ? AND stanza_id IS NOT NULL
+      ORDER BY id ASC LIMIT 1`, roomJid);
+  return row?.stanza_id || null;
+}
+
+async function getRoomUnread(roomJids = []) {
+  if (!jabberDb || !roomJids.length) return {};
+  const out = {};
+  for (const jid of roomJids) {
+    const mark = await jabberDb.get(
+      'SELECT last_read_id FROM jabber_room_reads WHERE room_jid = ?', jid);
+    const since = mark?.last_read_id || 0;
+    const row = await jabberDb.get(
+      `SELECT COUNT(*) AS messages, COUNT(DISTINCT sender_nick) AS speakers
+         FROM jabber_messages WHERE room_jid = ? AND id > ?`, jid, since);
+    out[jid] = { messages: row?.messages || 0, speakers: row?.speakers || 0, lastReadId: since };
+  }
+  return out;
+}
+
+// Mark a room read up to its newest message. Called when the room is opened.
+async function markRoomRead(roomJid) {
+  if (!jabberDb || !roomJid) return 0;
+  const row = await jabberDb.get(
+    'SELECT MAX(id) AS maxId FROM jabber_messages WHERE room_jid = ?', roomJid);
+  const maxId = row?.maxId || 0;
+  await jabberDb.run(
+    `INSERT INTO jabber_room_reads (room_jid, last_read_id) VALUES (?, ?)
+     ON CONFLICT(room_jid) DO UPDATE SET last_read_id = excluded.last_read_id`,
+    roomJid, maxId);
+  return maxId;
 }
 
 async function getMessageById(id) {
@@ -276,6 +403,11 @@ module.exports = {
   insertJabberMessage,
   parseJabberMessage,   // exported so it can be unit-tested
   getRecentMessages,
+  getLatestDirectorMessage,
+  getRoomMessages,
+  getRoomOldestArchiveId,
+  getRoomUnread,
+  markRoomRead,
   getMessageById,
   getMessagesBySignature,
   wipeJabberDb,

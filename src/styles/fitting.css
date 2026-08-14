@@ -208,7 +208,7 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-tube-ico { font-size: 22px; color: var(--text-3); position: relative; z-index: 1; }
 .fw-tube-light   { color: #57c7ff; border-color: rgba(87,199,255,0.5); }
 .fw-tube-support { color: var(--pal-green); border-color: rgba(78,203,113,0.5); }
-.fw-tube-heavy   { color: var(--pal-gold); border-color: rgba(224,163,75,0.5); }
+.fw-tube-heavy   { color: var(--pal-gold); border-color: color-mix(in srgb, var(--pal-yellow) 50%, transparent); }
 
 /* Implants panel (shares the drone-bay shell). */
 .fw-imp-slotn {

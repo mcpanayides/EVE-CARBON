@@ -46,14 +46,12 @@ const SOURCE_TO_DOC = {
   // IPC modules
   'src/ipc/accounts_ipc.js':           'src/docs/apps.md',
   'src/ipc/assets_ipc.js':             'src/docs/assets.md',
-  'src/ipc/blueprint_ipc.js':          'src/docs/blueprints.md',
   'src/ipc/character_ipc.js':          'src/docs/characters.md',
   'src/ipc/config_ipc.js':             'src/docs/ui.md',
   'src/ipc/pi_ipc.js':                 'src/docs/planetary-interaction.md',
   'src/ipc/station_ipc.js':            'src/docs/locator.md',
   'src/ipc/map_ipc.js':                'src/docs/fleet-up.md',
   'src/ipc/updater_ipc.js':            'src/docs/updater.md',
-  'src/ipc/ping_ipc.js':               'src/docs/jabber.md',
 
   // Core modules
   'src/jabber_ipc.js':                 'src/docs/jabber.md',

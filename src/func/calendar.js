@@ -120,7 +120,6 @@ function _calGetImports() {
   try { const a = JSON.parse(localStorage.getItem(CAL_IMPORTS_KEY) || '[]'); return Array.isArray(a) ? a : []; }
   catch (_) { return []; }
 }
-function _calSaveImports(arr) { try { localStorage.setItem(CAL_IMPORTS_KEY, JSON.stringify(arr)); } catch (_) {} }
 
 // Build every event source: configured feeds, imported .ics, and the EVE auto
 // timers (PI extractions + industry job completions).
@@ -348,28 +347,6 @@ async function _calFetchSource(url, isForum, label, color) {
     showToast(`Calendar feed failed: ${label}`, 'error');
     return { label: (isForum ? 'Forum · ' : '') + label, color, kind: isForum ? 'forum' : 'feed', events: [], url, error: true };
   }
-}
-
-// Read a local .ics file into a session-only source.
-function _calOnFile(e) {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const events = window.IcsParse.parseIcs(String(reader.result || ''));
-      const color = CAL_COLORS[_calSources.length % CAL_COLORS.length];
-      const label = file.name.replace(/\.ics$/i, '');
-      _calSources.push({ label, color, kind: 'file', events });
-      _calSourceVis[label] = true;
-      showToast(`Imported ${events.length} event${events.length === 1 ? '' : 's'} from ${file.name}.`, 'success');
-      _calRender();
-    } catch (err) {
-      showToast('Could not parse that .ics file.', 'error');
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
 }
 
 // All visible occurrences overlapping [start,end), flattened from every source.

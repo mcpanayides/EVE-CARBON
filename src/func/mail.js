@@ -17,7 +17,14 @@ const MAIL_SYSTEM_LABELS = [
   { labelId: 8, name: 'Alliance' },
 ];
 
-let _mailChar      = null;   // characterId whose mailbox is open
+// _mailChar is a characterId, or the string 'all' for the combined mailbox.
+// In combined mode every header carries the mailbox it came from (_charId), so
+// opening, marking and deleting still act on the right character — EVE Mail is
+// per-character and there is no roster-wide endpoint. Use _mailBoxIds() rather
+// than reading _mailChar directly when you need actual character ids.
+const MAIL_ALL = 'all';
+let _mailChar      = null;   // characterId whose mailbox is open, or MAIL_ALL
+let _mailAccounts  = [];     // [{ characterId, characterName }] — the roster
 let _mailLabels    = [];     // [{ labelId, name, unreadCount }]
 let _mailLabelId   = 1;      // current folder (1 = Inbox)
 let _mailHeaders   = [];     // headers for the current folder, newest first
@@ -26,7 +33,32 @@ let _mailLists     = [];     // mailing lists this character is subscribed to
 let _mailNames     = {};     // id → name cache (senders/recipients)
 let _mailBusy      = false;
 let _mailExhausted = false;  // no more pages for this folder
+let _mailPageState = {};     // charId → { lastMailId, exhausted } for combined paging
 let _mailTab       = 'mail'; // 'mail' | 'notifications' — the page's two tabs
+
+// The chosen mailbox survives restarts, stored as the picker's own value string
+// ('all' or a character id) so it round-trips through the same parsing.
+const MAIL_BOX_KEY = 'mailSelectedBox';
+function _mailLoadBox() {
+  try { return localStorage.getItem(MAIL_BOX_KEY) || null; } catch (_) { return null; }
+}
+function _mailSaveBox(v) {
+  try { localStorage.setItem(MAIL_BOX_KEY, String(v)); } catch (_) { /* private mode */ }
+}
+
+const _mailIsAll   = () => _mailChar === MAIL_ALL;
+/** Character ids currently being read — every account in combined mode. */
+const _mailBoxIds  = () => (_mailIsAll()
+  ? _mailAccounts.map(a => Number(a.characterId))
+  : (_mailChar == null ? [] : [Number(_mailChar)]));
+/** The character a per-mailbox call should use. Falls back to the first account. */
+const _mailOneId   = () => (_mailIsAll()
+  ? Number(_mailAccounts[0]?.characterId)
+  : Number(_mailChar));
+const _mailCharName = (id) => {
+  const a = _mailAccounts.find(x => String(x.characterId) === String(id));
+  return a ? a.characterName : `ID ${id}`;
+};
 
 // The Mail page hosts both mail and the notification feed, mirroring the EVE
 // client (notifications live in the in-game mail window). Both share the
@@ -40,7 +72,9 @@ function _mailSetTab(tab) {
   if (paneNotif) paneNotif.style.display = tab === 'notifications' ? '' : 'none';
   const compose = document.getElementById('mailComposeBtn');
   if (compose) compose.style.display = tab === 'mail' ? '' : 'none';
-  if (tab === 'notifications') Promise.resolve(initNotifications(_mailChar)).catch(() => {});
+  // Notifications are per-character with no combined endpoint, so the feed shows
+  // one character even when the mailbox is set to All.
+  if (tab === 'notifications') Promise.resolve(initNotifications(_mailOneId())).catch(() => {});
 }
 
 // ─── Entry point (called by _initPageForFirstVisit in ui.js) ─────────────────
@@ -55,12 +89,19 @@ async function initMailPage() {
     _mailSetStatus('Add a character on the Characters page to read EVE Mail.');
     return;
   }
-  // Default to whichever character the rest of the app has selected (the same
-  // rule dashboard.js uses), falling back to the first account.
-  if (!_mailChar || !accounts.some(a => String(a.characterId) === String(_mailChar))) {
-    const main = accounts.find(a => String(a.characterId) === String(typeof selectedCharacterId !== 'undefined' ? selectedCharacterId : '')) || accounts[0];
-    _mailChar = main.characterId;
+  _mailAccounts = accounts;
+  // Keep whatever is open this session; otherwise restore the mailbox chosen last
+  // session, and failing that open the combined view — with more than one
+  // character, "all my mail" is the reading view you actually want. A
+  // single-character roster has no combined option and opens on that character.
+  if (_mailChar == null) {
+    const saved = _mailLoadBox();
+    if (saved) _mailChar = saved === MAIL_ALL ? MAIL_ALL : Number(saved);
   }
+  const usable = _mailIsAll()
+    ? accounts.length > 1
+    : accounts.some(a => String(a.characterId) === String(_mailChar));
+  if (!usable) _mailChar = accounts.length > 1 ? MAIL_ALL : Number(accounts[0].characterId);
   _mailRenderCharPicker(accounts);
   await _mailReload();
 }
@@ -68,16 +109,18 @@ async function initMailPage() {
 function _mailRenderCharPicker(accounts) {
   const sel = document.getElementById('mailCharSelect');
   if (!sel) return;
-  sel.innerHTML = accounts
-    .map(a => `<option value="${a.characterId}">${escHtml(a.characterName)}</option>`)
-    .join('');
+  // "All characters" first — it is the default reading view for a multi-character
+  // roster, and only offered when there is more than one mailbox to combine.
+  sel.innerHTML = (accounts.length > 1 ? `<option value="${MAIL_ALL}">All characters</option>` : '')
+    + accounts.map(a => `<option value="${a.characterId}">${escHtml(a.characterName)}</option>`).join('');
   sel.value = String(_mailChar);
   sel.onchange = async () => {
-    _mailChar = Number(sel.value);
+    _mailChar = sel.value === MAIL_ALL ? MAIL_ALL : Number(sel.value);
+    _mailSaveBox(sel.value);
     _mailLabelId = 1;
     // Reload whichever tab is showing — switching character shouldn't bounce
     // the user back to the mailbox while they're reading notifications.
-    if (_mailTab === 'notifications') await initNotifications(_mailChar);
+    if (_mailTab === 'notifications') await initNotifications(_mailOneId());
     else await _mailReload();
   };
 }
@@ -87,59 +130,117 @@ async function _mailReload() {
   _mailHeaders = [];
   _mailOpenId = null;
   _mailExhausted = false;
+  _mailPageState = {};
   _mailRenderReader(null);
   _mailSetStatus('Loading mail…');
 
-  const [labelsRes, listsRes] = await Promise.all([
-    window.eveAPI.mailGetLabels(_mailChar).catch(e => ({ ok: false, error: e.message })),
-    window.eveAPI.mailGetLists(_mailChar).catch(() => ({ ok: false })),
-  ]);
+  const ids = _mailBoxIds();
+  if (!ids.length) { _mailSetStatus('No character selected.'); return; }
 
-  if (!labelsRes.ok) { _mailShowError(labelsRes); return; }
+  // One round per mailbox, in parallel. In combined mode the unread counts are
+  // SUMMED per folder so the Inbox badge is the roster's total, which is the
+  // number that actually matters when you are reading everything at once.
+  const perChar = await Promise.all(ids.map(async id => ({
+    id,
+    labels: await window.eveAPI.mailGetLabels(id).catch(e => ({ ok: false, error: e.message })),
+    lists:  await window.eveAPI.mailGetLists(id).catch(() => ({ ok: false })),
+  })));
 
-  _mailLists = listsRes.ok ? listsRes.lists : [];
-  // Mailing lists are valid senders — seed the name cache so they resolve.
+  const usable = perChar.filter(p => p.labels.ok);
+  if (!usable.length) { _mailShowError(perChar[0].labels); return; }
+
+  // Mailing lists are valid senders — seed the name cache so they resolve. In
+  // combined mode this is the union across characters, deduped by id.
+  const listById = new Map();
+  for (const p of perChar) {
+    if (!p.lists.ok) continue;
+    for (const l of (p.lists.lists || [])) listById.set(l.id, l);
+  }
+  _mailLists = [...listById.values()];
   _mailLists.forEach(l => { _mailNames[l.id] = l.name; });
 
   // Merge ESI's labels over the known system ones so Inbox/Sent/Corp/Alliance
   // keep their familiar names and order, with custom labels after.
   const byId = new Map();
   MAIL_SYSTEM_LABELS.forEach(l => byId.set(l.labelId, { ...l, unreadCount: 0 }));
-  (labelsRes.labels || []).forEach(l => {
-    const known = byId.get(l.labelId);
-    byId.set(l.labelId, { labelId: l.labelId, name: known ? known.name : l.name, unreadCount: l.unreadCount || 0 });
-  });
+  for (const p of usable) {
+    for (const l of (p.labels.labels || [])) {
+      const known = byId.get(l.labelId);
+      byId.set(l.labelId, {
+        labelId: l.labelId,
+        name: known ? known.name : l.name,
+        unreadCount: (known?.unreadCount || 0) + (l.unreadCount || 0),
+      });
+    }
+  }
   _mailLabels = [...byId.values()];
 
   _mailRenderLabels();
-  _mailSetNavUnread(labelsRes.totalUnread);
+  // The nav badge is roster-wide. In combined mode the labels just fetched
+  // already cover every character; reading one mailbox says nothing about the
+  // others, so that case re-polls instead of reporting a partial total.
+  if (_mailIsAll() || _mailAccounts.length === 1) {
+    _mailSetNavUnread(usable.reduce((n, p) => n + (p.labels.totalUnread || 0), 0));
+  } else {
+    _mailPollUnread().catch(() => {});
+  }
+
+  // A character whose mail could not be read should not silently vanish from a
+  // combined view — say which, and carry on with the rest.
+  const failed = perChar.filter(p => !p.labels.ok);
+  if (failed.length && usable.length) {
+    console.warn('[mail] skipped mailboxes:', failed.map(p => _mailCharName(p.id)).join(', '));
+  }
+
   await _mailLoadPage(true);
 }
 
 async function _mailLoadPage(reset = false) {
   if (_mailBusy) return;
   _mailBusy = true;
-  if (reset) { _mailHeaders = []; _mailExhausted = false; }
+  if (reset) { _mailHeaders = []; _mailExhausted = false; _mailPageState = {}; }
   _mailSetStatus(reset ? 'Loading mail…' : 'Loading older mail…');
 
-  // Page backwards using the oldest id we already hold.
-  const lastMailId = _mailHeaders.length
-    ? Math.min(..._mailHeaders.map(m => m.mailId))
-    : null;
+  const ids = _mailBoxIds();
 
-  const res = await window.eveAPI
-    .mailGetHeaders(_mailChar, { labelId: _mailLabelId, lastMailId })
-    .catch(e => ({ ok: false, error: e.message }));
+  // Each mailbox pages independently — ESI's lastMailId cursor is per character,
+  // and mail ids from different characters are not comparable — so paging state
+  // is tracked per mailbox and only the ones with more to give are asked again.
+  const results = await Promise.all(ids.map(async id => {
+    const st = _mailPageState[id] || (_mailPageState[id] = { lastMailId: null, exhausted: false });
+    if (st.exhausted && !reset) return { id, skipped: true };
+    const res = await window.eveAPI
+      .mailGetHeaders(id, { labelId: _mailLabelId, lastMailId: reset ? null : st.lastMailId })
+      .catch(e => ({ ok: false, error: e.message }));
+    return { id, res };
+  }));
 
   _mailBusy = false;
-  if (!res.ok) { _mailShowError(res); return; }
 
-  // ESI returns at most 50 per call — fewer means we've reached the end.
-  if (!res.mails.length || res.mails.length < 50) _mailExhausted = true;
+  const answered = results.filter(r => !r.skipped);
+  if (answered.length && answered.every(r => !r.res.ok)) { _mailShowError(answered[0].res); return; }
 
-  const seen = new Set(_mailHeaders.map(m => m.mailId));
-  _mailHeaders.push(...res.mails.filter(m => !seen.has(m.mailId)));
+  const seen = new Set(_mailHeaders.map(m => `${m._charId}:${m.mailId}`));
+  for (const { id, res, skipped } of results) {
+    if (skipped) continue;
+    const st = _mailPageState[id];
+    if (!res.ok) { st.exhausted = true; continue; }   // stop asking a failing mailbox
+
+    // ESI returns at most 50 per call — fewer means we've reached the end.
+    if (!res.mails.length || res.mails.length < 50) st.exhausted = true;
+    if (res.mails.length) st.lastMailId = Math.min(...res.mails.map(m => m.mailId));
+
+    for (const m of res.mails) {
+      // Tag every header with the mailbox it came from. Everything downstream —
+      // opening, marking read, deleting, replying — routes on this.
+      const key = `${id}:${m.mailId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      _mailHeaders.push({ ...m, _charId: id, _charName: _mailCharName(id) });
+    }
+  }
   _mailHeaders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  _mailExhausted = ids.every(id => _mailPageState[id]?.exhausted);
 
   await _mailResolveNames(_mailHeaders.flatMap(m => [m.from, ...m.recipients.map(r => r.id)]));
   _mailRenderList();
@@ -188,43 +289,51 @@ function _mailRenderList() {
     host.innerHTML = '<div class="mail-empty">No mail in this folder.</div>';
     return;
   }
+  const showBox = _mailIsAll();
   host.innerHTML = _mailHeaders.map(m => `
-    <button class="mail-row${m.isRead ? '' : ' unread'}${m.mailId === _mailOpenId ? ' active' : ''}" data-id="${m.mailId}">
+    <button class="mail-row${m.isRead ? '' : ' unread'}${m.mailId === _mailOpenId ? ' active' : ''}"
+            data-id="${m.mailId}" data-char="${m._charId}">
       <div class="mail-row-top">
         <span class="mail-row-from">${escHtml(_mailName(m.from))}</span>
         <span class="mail-row-date">${_mailFmtDate(m.timestamp)}</span>
       </div>
       <div class="mail-row-subject">${escHtml(m.subject)}</div>
+      ${showBox ? `<div class="mail-row-box" title="Received by ${escHtml(m._charName || '')}">${escHtml(m._charName || '')}</div>` : ''}
     </button>`).join('')
     + (_mailExhausted ? '' : '<button class="mail-more-btn" id="mailMoreBtn">Load older mail</button>');
 
   host.querySelectorAll('.mail-row').forEach(row => {
-    row.onclick = () => _mailOpen(Number(row.dataset.id));
+    row.onclick = () => _mailOpen(Number(row.dataset.id), Number(row.dataset.char));
   });
   const more = document.getElementById('mailMoreBtn');
   if (more) more.onclick = () => _mailLoadPage(false);
 }
 
-async function _mailOpen(mailId) {
+// charId identifies the mailbox the mail lives in. It is required in combined
+// mode and defaults to the single open mailbox otherwise; two characters can hold
+// mails with the same id, so the pair is what identifies a message.
+async function _mailOpen(mailId, charId) {
+  const boxId = Number(charId) || _mailOneId();
   _mailOpenId = mailId;
   _mailRenderList();
   _mailRenderReader(null, 'Loading…');
 
-  const res = await window.eveAPI.mailGetBody(_mailChar, mailId).catch(e => ({ ok: false, error: e.message }));
+  const res = await window.eveAPI.mailGetBody(boxId, mailId).catch(e => ({ ok: false, error: e.message }));
   if (!res.ok) { _mailRenderReader(null, res.error || 'Could not load this mail.'); return; }
 
   await _mailResolveNames([res.mail.from, ...res.mail.recipients.map(r => r.id)]);
-  _mailRenderReader(res.mail);
+  _mailRenderReader({ ...res.mail, _charId: boxId, _charName: _mailCharName(boxId) });
 
   // Mark read in the background; reflect it locally so the list updates at once.
-  const header = _mailHeaders.find(m => m.mailId === mailId);
+  const header = _mailHeaders.find(m => m.mailId === mailId && String(m._charId) === String(boxId));
   if (header && !header.isRead) {
     header.isRead = true;
     const lbl = _mailLabels.find(l => l.labelId === _mailLabelId);
     if (lbl && lbl.unreadCount > 0) lbl.unreadCount--;
+    _mailBumpNavUnread(-1);
     _mailRenderList();
     _mailRenderLabels();
-    window.eveAPI.mailUpdate(_mailChar, mailId, { read: true }).catch(() => {});
+    window.eveAPI.mailUpdate(boxId, mailId, { read: true }).catch(() => {});
   }
 }
 
@@ -250,6 +359,7 @@ function _mailRenderReader(mail, message) {
     </div>
     <div class="mail-reader-meta">
       <span><span class="mail-meta-label">To</span> ${escHtml(mail.recipients.map(r => _mailName(r.id)).join(', ')) || '—'}</span>
+      ${mail._charName ? `<span><span class="mail-meta-label">Mailbox</span> ${escHtml(mail._charName)}</span>` : ''}
     </div>
     <div class="mail-reader-actions">
       <button class="mail-act-btn" id="mailReplyBtn">Reply</button>
@@ -262,26 +372,36 @@ function _mailRenderReader(mail, message) {
   // never assigned through innerHTML. See _mailSanitizeBody.
   host.appendChild(_mailSanitizeBody(mail.body));
 
+  const boxId = Number(mail._charId) || _mailOneId();
+
+  // Replying defaults to the character that RECEIVED it — replying as someone
+  // else is almost never what you meant, and the From picker can still change it.
   document.getElementById('mailReplyBtn').onclick = () => _mailCompose({
+    from: boxId,
     recipients: [{ id: mail.from, type: 'character', name: _mailName(mail.from) }],
     subject: /^re:/i.test(mail.subject) ? mail.subject : `Re: ${mail.subject}`,
   });
   document.getElementById('mailUnreadBtn').onclick = async () => {
-    const r = await window.eveAPI.mailUpdate(_mailChar, mail.mailId, { read: false }).catch(e => ({ ok: false, error: e.message }));
+    const r = await window.eveAPI.mailUpdate(boxId, mail.mailId, { read: false }).catch(e => ({ ok: false, error: e.message }));
     if (!r.ok) { showToast(r.error || 'Could not mark unread.', 'error'); return; }
-    const h = _mailHeaders.find(m => m.mailId === mail.mailId);
-    if (h) h.isRead = false;
+    const h = _mailHeaders.find(m => m.mailId === mail.mailId && String(m._charId) === String(boxId));
+    if (h && h.isRead) { h.isRead = false; _mailBumpNavUnread(1); }
     _mailRenderList();
     showToast('Marked unread.', 'success');
   };
-  document.getElementById('mailDeleteBtn').onclick = () => _mailDelete(mail.mailId);
+  document.getElementById('mailDeleteBtn').onclick = () => _mailDelete(mail.mailId, boxId);
 }
 
-async function _mailDelete(mailId) {
+async function _mailDelete(mailId, charId) {
+  const boxId = Number(charId) || _mailOneId();
   if (!confirm('Delete this mail? This also removes it in-game and cannot be undone.')) return;
-  const r = await window.eveAPI.mailDelete(_mailChar, mailId).catch(e => ({ ok: false, error: e.message }));
+  const r = await window.eveAPI.mailDelete(boxId, mailId).catch(e => ({ ok: false, error: e.message }));
   if (!r.ok) { showToast(r.error || 'Could not delete this mail.', 'error'); return; }
-  _mailHeaders = _mailHeaders.filter(m => m.mailId !== mailId);
+  // Drop only this character's copy — the same mail id can exist in another
+  // mailbox, and deleting there is a separate action.
+  const gone = _mailHeaders.find(m => m.mailId === mailId && String(m._charId) === String(boxId));
+  if (gone && !gone.isRead) _mailBumpNavUnread(-1);
+  _mailHeaders = _mailHeaders.filter(m => !(m.mailId === mailId && String(m._charId) === String(boxId)));
   _mailOpenId = null;
   _mailRenderList();
   _mailRenderReader(null);
@@ -396,6 +516,20 @@ function _mailCompose(prefill = {}) {
   document.getElementById('mailComposeSubject').value = prefill.subject || '';
   document.getElementById('mailComposeBody').value = prefill.body || '';
   document.getElementById('mailComposeSearch').value = '';
+
+  // From: a reply passes the character that received it; a fresh compose uses the
+  // open mailbox, and in combined mode falls back to the first account rather
+  // than leaving it ambiguous.
+  const from = document.getElementById('mailComposeFrom');
+  if (from) {
+    from.innerHTML = _mailAccounts
+      .map(a => `<option value="${a.characterId}">${escHtml(a.characterName)}</option>`)
+      .join('');
+    const want = prefill.from != null ? String(prefill.from)
+               : (_mailIsAll() ? String(_mailOneId()) : String(_mailChar));
+    if (from.querySelector(`option[value="${want}"]`)) from.value = want;
+  }
+
   _mailRenderRecipients();
   bd.style.display = 'flex';
 }
@@ -461,15 +595,21 @@ async function _mailSendCompose() {
   if (!_mailComposeTo.length) { showToast('Add at least one recipient.', 'error'); return; }
   if (!subject)               { showToast('Add a subject.', 'error'); return; }
 
+  // Send as whoever the From picker names, NOT the mailbox being read — in the
+  // combined view there is no single "current" character to fall back on.
+  const fromSel = document.getElementById('mailComposeFrom');
+  const sender  = Number(fromSel?.value) || _mailOneId();
+  if (!sender) { showToast('Pick which character sends this mail.', 'error'); return; }
+
   const btn = document.getElementById('mailComposeSendBtn');
   btn.disabled = true; btn.textContent = 'Sending…';
-  const res = await window.eveAPI.mailSend(_mailChar, {
+  const res = await window.eveAPI.mailSend(sender, {
     recipients: _mailComposeTo.map(r => ({ id: r.id, type: r.type })), subject, body,
   }).catch(e => ({ ok: false, error: e.message }));
   btn.disabled = false; btn.textContent = 'Send';
 
   if (!res.ok) { showToast(res.error || 'Could not send mail.', 'error'); return; }
-  showToast('Mail sent.', 'success');
+  showToast(`Mail sent from ${_mailCharName(sender)}.`, 'success');
   _mailCloseCompose();
   if (_mailLabelId === 2) await _mailLoadPage(true);   // viewing Sent — refresh
 }
@@ -491,12 +631,77 @@ function _mailSetStatus(msg) {
   if (el) el.textContent = msg || '';
 }
 
-// Unread badge on the nav button, mirroring the Forums/Jabber status lights.
+// ─── Nav unread badge ────────────────────────────────────────────────────────
+// The badge counts the WHOLE roster, not the open mailbox — on a nav button it
+// answers "is there mail waiting for me anywhere", which is the question the
+// combined mailbox is built around. It is watched from app start (see
+// startMailUnreadWatch) so it is already right the first time you look at it.
+const MAIL_UNREAD_KEY = 'mailNavUnread';
+let _mailNavUnread = 0;
+
 function _mailSetNavUnread(n) {
+  _mailNavUnread = Math.max(0, Number(n) || 0);
+  try { localStorage.setItem(MAIL_UNREAD_KEY, String(_mailNavUnread)); } catch (_) { /* private mode */ }
+  _mailPaintNavUnread();
+}
+
+// Local adjustment for a read/unread/delete the user just performed, so the
+// badge moves with the click instead of waiting for the next poll.
+function _mailBumpNavUnread(delta) { _mailSetNavUnread(_mailNavUnread + delta); }
+
+function _mailPaintNavUnread() {
   const el = document.getElementById('mailNavUnread');
   if (!el) return;
-  el.textContent = n > 0 ? String(n) : '';
-  el.className = n > 0 ? 'nav-status mail-nav-unread' : 'nav-status';
+  el.textContent = _mailNavUnread > 0 ? String(_mailNavUnread) : '';
+  el.className = _mailNavUnread > 0 ? 'nav-status mail-nav-unread' : 'nav-status';
+}
+
+// One poll of every character's label totals. ESI caches this endpoint for 30s,
+// so polling faster only re-reads the same body.
+const MAIL_UNREAD_POLL_MS = 30_000;
+// A character authenticated before the mail scopes existed answers 403 forever,
+// and every 403 spends the shared ESI error budget (see esi.js). Such a mailbox
+// is dropped from the poll and only re-probed occasionally, so re-authenticating
+// it still heals without a restart.
+const MAIL_NOSCOPE_RETRY_MS = 10 * 60_000;
+let _mailUnreadTimer = null;
+const _mailNoScope = new Map();   // charId → when it last refused
+
+async function _mailPollUnread() {
+  const accounts = await window.eveAPI.getAccounts().catch(() => []);
+  if (!Array.isArray(accounts) || !accounts.length) { _mailSetNavUnread(0); return; }
+
+  const now = Date.now();
+  const ask = accounts.filter(a => {
+    const refusedAt = _mailNoScope.get(Number(a.characterId));
+    return refusedAt === undefined || (now - refusedAt) > MAIL_NOSCOPE_RETRY_MS;
+  });
+  if (!ask.length) return;
+
+  const results = await Promise.all(ask.map(async a => {
+    const id = Number(a.characterId);
+    const r = await window.eveAPI.mailGetLabels(id).catch(() => ({ ok: false }));
+    if (r && r.ok) _mailNoScope.delete(id);
+    else if (r && r.needsReauth) _mailNoScope.set(id, Date.now());
+    return r;
+  }));
+
+  const usable = results.filter(r => r && r.ok);
+  // A blip must not blank a count that was right a moment ago — only publish a
+  // total when at least one mailbox answered.
+  if (!usable.length) return;
+  _mailSetNavUnread(usable.reduce((n, r) => n + (r.totalUnread || 0), 0));
+}
+
+// Started from app.js at launch: the badge must be right before the Mail page
+// has ever been opened. Paints the last known count first so it appears at once,
+// then corrects it from ESI.
+function startMailUnreadWatch() {
+  if (_mailUnreadTimer) return;   // one watcher per window
+  try { _mailNavUnread = Math.max(0, Number(localStorage.getItem(MAIL_UNREAD_KEY)) || 0); } catch (_) { /* ignore */ }
+  _mailPaintNavUnread();
+  _mailPollUnread().catch(() => {});
+  _mailUnreadTimer = setInterval(() => { _mailPollUnread().catch(() => {}); }, MAIL_UNREAD_POLL_MS);
 }
 
 // A 403 here means the character was authenticated before the mail scopes were
@@ -517,7 +722,7 @@ function _mailBindStaticControls() {
   const compose = document.getElementById('mailComposeBtn');
   if (compose) compose.onclick = () => _mailCompose();
   const refresh = document.getElementById('mailRefreshBtn');
-  if (refresh) refresh.onclick = () => (_mailTab === 'notifications' ? initNotifications(_mailChar) : _mailReload());
+  if (refresh) refresh.onclick = () => (_mailTab === 'notifications' ? initNotifications(_mailOneId()) : _mailReload());
   document.querySelectorAll('.mail-tab').forEach(b => {
     b.onclick = () => _mailSetTab(b.dataset.mailtab);
   });

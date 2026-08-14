@@ -111,68 +111,213 @@ function autoSyncOnNavigate() {
     .catch(() => {});
 }
 
+
+// Latest Jabber broadcast. Deliberately the SAME layout as the director ping
+// pop-out (src/html/ping-alert.html): alert badge and sig, a From banner, the
+// three-up FC / Formup / Comms row, PAP Type and Doctrine beneath it, the message
+// block, then Target and Sig in the footer. Same order, same labels, same
+// typography — one ping should not look like two different things depending on
+// which window it arrives in. The pop-out's autopilot button and countdown ring
+// are the only parts left out: both are actions belonging to a live alert, not
+// to a record of one.
+const _pingFcPortraitTried = new Set();
+let _pingCommsChannels = null;   // configured comms rooms, loaded once per session
+
+// A ping's formup, comms and doctrine are the three things you ACT on, and in the
+// pop-out all three are clickable. Same here, through the same IPCs, so the tile
+// is not a read-only picture of a window that does something.
+async function _pingCommsUrl(commsText) {
+  if (!commsText) return null;
+  const embedded = String(commsText).match(/https?:\/\/[^\s<>"]+/i);
+  if (embedded) return embedded[0].replace(/[.)]+$/, '');
+  if (_pingCommsChannels === null) {
+    try { _pingCommsChannels = await window.eveAPI.getCommsChannels() || []; }
+    catch (_) { _pingCommsChannels = []; }
+  }
+  const lower = String(commsText).toLowerCase();
+  for (const ch of _pingCommsChannels) {
+    if (ch.url && (ch.match || []).some(m => lower.includes(String(m).toLowerCase()))) return ch.url;
+  }
+  return null;
+}
+
+// "1DQ1-A - Keepstar" / "1DQ1-A (staging)" → "1DQ1-A". Same split the pop-out uses.
+function _pingSystemFromFormup(formup) {
+  return String(formup || '').replace(/[​-‏﻿]/g, '')
+    .trim().split(/\s+-\s+|\s+\(/)[0].trim();
+}
+
+async function _pingSetDestination(btn, formup) {
+  const systemName = _pingSystemFromFormup(formup);
+  if (!systemName || btn.disabled) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const accounts = await window.eveAPI.getAccounts().catch(() => []);
+    if (!accounts.length) throw new Error('No characters — add one first');
+    const charId = accounts.find(a => String(a.characterId) === String(selectedCharacterId))?.characterId
+                || accounts[0].characterId;
+    const systemId = await window.eveAPI.systemIdByName(systemName);
+    if (!systemId) throw new Error(`Couldn't find ${systemName}`);
+    await window.eveAPI.setAutopilotDestination(charId, systemId);
+    btn.textContent = `✓ ${orig}`;
+    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+  } catch (e) {
+    if (typeof showToast === 'function') showToast(e.message || 'Could not set destination.', 'error');
+    btn.textContent = orig; btn.disabled = false;
+  }
+}
+
+// FC portrait, resolved name → id through the SAME cache the Jabber table fills,
+// so a name looked up there is not looked up again here.
+async function _pingResolveFcPortrait(img, fcName) {
+  if (!img || !fcName) return;
+  const key = fcName.toLowerCase();
+  const cache = (typeof jabberPortraitCache !== 'undefined') ? jabberPortraitCache : null;
+
+  let id = cache ? cache.get(key) : undefined;
+  if (id === undefined && !_pingFcPortraitTried.has(key)) {
+    _pingFcPortraitTried.add(key);
+    try {
+      const res = await fetch('https://esi.evetech.net/universe/ids/?datasource=tranquility',
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) });
+      if (res.ok) {
+        const data = await res.json();
+        id = (data.characters || [])[0]?.id || null;
+        if (cache) cache.set(key, id);
+      }
+    } catch (_) { /* the portrait is decoration; the ping reads fine without it */ }
+  }
+  if (!id) return;
+  img.onload = () => img.classList.add('loaded');
+  img.src = `https://images.evetech.net/characters/${id}/portrait?size=32`;
+}
+
+// Live payloads carry `isDirector`; stored rows carry `is_director`. Both shapes
+// reach this widget, so both spellings are honoured.
+function _isDirectorPing(row) {
+  if (!row) return false;
+  return !!(row.is_director || row.isDirector);
+}
+const _pingSortKey = (row) => (row && (row.eve_timecode || row.received_at)) || '';
+
 function renderDashboardPing(ping) {
   const el = document.getElementById('dashboardPingsContent');
   if (!el) return;
 
   if (!ping) {
-    el.innerHTML = '<div class="dashboard-empty">No pings recorded.</div>';
+    // Director broadcasts only, so say so — "no pings" would read as a fault
+    // when the room has simply been quiet.
+    el.innerHTML = '<div class="dashboard-empty">No director pings yet.</div>';
     return;
   }
 
   const timeStr = ping.eve_timecode || ping.ping_timestamp || ping.received_at || '';
+  const fcName  = ping.fc_name || '';
 
-  // Type badges
-  const directorBadge = ping.is_director
-    ? `<span class="dash-ping-badge dash-ping-badge--director">Director</span>` : '';
+  // PAP type carries the urgency the pop-out conveys through colour, so the value
+  // is tinted rather than given a badge the pop-out does not have.
   const papRaw = (ping.pap_type || '').toLowerCase();
   let papCls = '';
   if (papRaw && !papRaw.includes('no pap')) {
-    papCls = (papRaw.includes('stratop') || papRaw.includes('strat')) ? 'dash-ping-badge--stratop' : 'dash-ping-badge--cta';
+    papCls = (papRaw.includes('stratop') || papRaw.includes('strat'))
+      ? ' dash-ping-value--stratop' : ' dash-ping-value--cta';
   }
-  const papBadge = papCls
-    ? `<span class="dash-ping-badge ${papCls}">${escHtml(ping.pap_type)}</span>` : '';
-  const sigBadge = ping.sig
-    ? `<span class="dash-ping-badge dash-ping-badge--sig">${escHtml(ping.sig)}</span>` : '';
-  const targetBadge = (ping.target_sig && ping.target_sig !== ping.sig)
-    ? `<span class="dash-ping-badge dash-ping-badge--sig">${escHtml(ping.target_sig)}</span>` : '';
 
-  const viewBtn = ping.id != null
-    ? `<button class="dash-ping-view-btn" data-ping-id="${ping.id}">View</button>` : '';
+  const field = (label, val, cls = '') => `
+    <div class="dash-ping-field">
+      <span class="dash-ping-label">${label}</span>
+      <span class="dash-ping-value${cls}" title="${escHtml(val || '')}">${escHtml(val || '—')}</span>
+    </div>`;
 
-  const field = (label, val, wide = false) => val
-    ? `<div class="dash-ping-field${wide ? ' dash-ping-field--wide' : ''}">
-         <span class="dash-ping-label">${label}</span>
-         <span class="dash-ping-value" title="${escHtml(val)}">${escHtml(val)}</span>
-       </div>` : '';
-
-  const docShort = ping.doctrine
-    ? ping.doctrine.replace(/https?:\/\/\S+/g, '').trim() : null;
+  // The pop-out throws the doctrine URL away; here it becomes the link, with the
+  // name beside it, because a doctrine you cannot open is half an instruction.
+  const docUrl   = (ping.doctrine || '').match(/https?:\/\/\S+/)?.[0]?.replace(/[.)]+$/, '') || '';
+  const docShort = ping.doctrine ? ping.doctrine.replace(/https?:\/\/\S+/g, '').trim() : '';
   const msgBody  = ping.hurf || ping.raw_body || '';
 
   el.innerHTML = `
     <div class="dash-ping-card">
-      <div class="dash-ping-header">
-        <div class="dash-ping-header-left">
-          <div class="dash-ping-type-row">
-            ${directorBadge}${papBadge}${sigBadge}${targetBadge}
-          </div>
-          <div class="dash-ping-from">From <span>${escHtml(ping.who_pinged || ping.gsol_member || '—')}</span></div>
+      <div class="dash-ping-titlebar">
+        <div class="dash-ping-alert">
+          <span class="dash-ping-dot"></span>${ping.is_director ? 'Director Ping' : 'Ping'}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-          <span class="dash-ping-time">${escHtml(timeStr)}</span>
-          ${viewBtn}
+        <div class="dash-ping-sig">${escHtml(ping.sig || 'Broadcast')}</div>
+        ${ping.id != null ? `<button class="dash-ping-view-btn" data-ping-id="${ping.id}">View</button>` : ''}
+      </div>
+
+      <div class="dash-ping-from-banner">
+        <span class="dash-ping-from-label">From</span>
+        <span class="dash-ping-from-name">${escHtml(ping.who_pinged || ping.gsol_member || '—')}</span>
+        <span class="dash-ping-from-time">${escHtml(timeStr)}</span>
+      </div>
+
+      <div class="dash-ping-grid">
+        <div class="dash-ping-field">
+          <span class="dash-ping-label">FC Name</span>
+          <span class="dash-ping-value dash-ping-value--hl" title="${escHtml(fcName)}">
+            <img class="dash-ping-fc-portrait" alt=""
+                 src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="/>
+            <span>${escHtml(fcName || '—')}</span>
+          </span>
+        </div>
+        <div class="dash-ping-field">
+          <span class="dash-ping-label">Formup Location</span>
+          ${ping.formup_location
+            ? `<button class="dash-ping-link" data-formup="${escHtml(ping.formup_location)}"
+                       title="Set autopilot destination">${escHtml(ping.formup_location)}</button>`
+            : '<span class="dash-ping-value">—</span>'}
+        </div>
+        <div class="dash-ping-field">
+          <span class="dash-ping-label">Comms</span>
+          ${ping.comms
+            ? `<button class="dash-ping-link dash-ping-link--hl" data-comms="${escHtml(ping.comms)}"
+                       title="Open comms">${escHtml(ping.comms)}</button>`
+            : '<span class="dash-ping-value">—</span>'}
         </div>
       </div>
-      <div class="dash-ping-fields">
-        ${field('FC', ping.fc_name)}
-        ${field('Comms', ping.comms)}
-        ${field('Formup', ping.formup_location)}
-        ${field('PAP Type', ping.pap_type)}
-        ${field('Doctrine', docShort, true)}
+
+      <div class="dash-ping-grid dash-ping-grid--2">
+        ${field('PAP Type', ping.pap_type, papCls)}
+        <div class="dash-ping-field">
+          <span class="dash-ping-label">Doctrine</span>
+          ${docUrl
+            ? `<button class="dash-ping-link" data-url="${escHtml(docUrl)}"
+                       title="${escHtml(docUrl)}">${escHtml(docShort || 'Open doctrine')}</button>`
+            : `<span class="dash-ping-value" title="${escHtml(docShort)}">${escHtml(docShort || '—')}</span>`}
+        </div>
       </div>
-      ${msgBody ? `<div class="dash-ping-msg">${escHtml(msgBody)}</div>` : ''}
+
+      <div class="dash-ping-msg-block">
+        <div class="dash-ping-label">Message</div>
+        <div class="dash-ping-msg">${escHtml(msgBody || '—')}</div>
+      </div>
+
+      <div class="dash-ping-footer">
+        Target: <span class="dash-ping-accent">${escHtml(ping.target_sig || '—')}</span>
+        &nbsp;·&nbsp;
+        Sig: <span class="dash-ping-accent">${escHtml(ping.sig || '—')}</span>
+      </div>
     </div>`;
+
+  _pingResolveFcPortrait(el.querySelector('.dash-ping-fc-portrait'), fcName);
+
+  const formupBtn = el.querySelector('[data-formup]');
+  if (formupBtn) formupBtn.addEventListener('click', () => _pingSetDestination(formupBtn, formupBtn.dataset.formup));
+
+  const commsBtn = el.querySelector('[data-comms]');
+  if (commsBtn) commsBtn.addEventListener('click', async () => {
+    const url = await _pingCommsUrl(commsBtn.dataset.comms);
+    if (url) { try { window.eveAPI.openExternalUrl(url); } catch (_) {} }
+    else if (typeof showToast === 'function') {
+      showToast('No comms link for this room — add one in Settings.', 'info');
+    }
+  });
+
+  const docBtn = el.querySelector('[data-url]');
+  if (docBtn) docBtn.addEventListener('click', () => {
+    try { window.eveAPI.openExternalUrl(docBtn.dataset.url); } catch (_) {}
+  });
 
   const viewBtnEl = el.querySelector('.dash-ping-view-btn[data-ping-id]');
   if (viewBtnEl) {
@@ -195,6 +340,17 @@ const DASHBOARD_WIDGETS = {
   // `icon` is a Google Material Symbol name (rendered with .material-symbols-outlined,
   // like the navbar). UI icons across the app use Material Symbols; EVE in-game art
   // (images.evetech.net) is reserved for actual game items/ships/characters.
+  //
+  // `pick` turns adding into two steps: choosing the widget opens a list of
+  // subjects, and the choice is stored against the new instance before it first
+  // paints (see dashWidgetPickMenu / addDashboardWidget). What a widget shows is
+  // a property of the widget you added — not a control that has to sit on it
+  // forever, eating a row of a tile that is already small. To re-point one,
+  // remove it and add another.
+  //   heading — the question, shown above the list
+  //   empty   — what to say when there is nothing to choose from
+  //   options — async () => [{ value, label, icon }]
+  //   apply   — (instanceId, value) => persist the choice
   networth: {
     icon: 'account_balance', title: 'NET WORTH',
     w: 4, h: 6, minW: 2, minH: 4,
@@ -237,8 +393,24 @@ const DASHBOARD_WIDGETS = {
   },
   charWallet: {
     icon: 'account_balance_wallet', title: 'CHARACTER WALLET', multi: true,  // one per character
-    w: 3, h: 6, minW: 2, minH: 4,
+    // minH 5, not 4: at four rows the body is ~20px and the card is cut in half
+    // however hard the responsive rules compact it. A floor that fits the
+    // smallest useful form of the content beats a floor that allows a broken one.
+    w: 3, h: 6, minW: 2, minH: 5,
     body: '<div class="dashboard-widget-loading">Loading…</div>',
+    pick: {
+      heading: 'Which character?',
+      empty:   'Add a character first.',
+      options: async () => {
+        const accounts = await window.eveAPI.getAccounts().catch(() => []);
+        return (Array.isArray(accounts) ? accounts : []).map(a => ({
+          value: String(a.characterId),
+          label: a.characterName || `Char ${a.characterId}`,
+          icon:  'person',
+        }));
+      },
+      apply: (instId, value) => _setCharWallet(instId, value),
+    },
   },
   skillQueue: {
     icon: 'school', title: 'SKILL QUEUE',
@@ -259,6 +431,51 @@ const DASHBOARD_WIDGETS = {
     icon: 'visibility', title: 'JOB WATCH', multi: true,   // addable many times, one per job
     w: 3, h: 8, minW: 2, minH: 6,
     body: '<div class="dashboard-widget-loading">Loading…</div>',
+    pick: {
+      heading: 'Which job?',
+      empty:   'No active industry jobs to watch.',
+      // Same shared job list the Active Jobs tables use, in the same
+      // soonest-done-first order the widget renders in — so the list you pick
+      // from matches what you are looking at.
+      options: async () => {
+        const accounts = await window.eveAPI.getAccounts().catch(() => []);
+        if (!Array.isArray(accounts) || !accounts.length) return [];
+        const shared = await _activeJobsShared(accounts);
+        const active = shared.slice().sort((a, b) =>
+          (new Date(a.end_date) - new Date(b.end_date)) || (Number(a.job_id) - Number(b.job_id)));
+        if (!active.length) return [];
+        const typeNames = await _resolveTypeNames(
+          [...new Set(active.map(j => j.product_type_id || j.blueprint_type_id).filter(Boolean))]);
+        const byChar = Object.fromEntries(accounts.map(a => [String(a.characterId), a.characterName]));
+        return active.map(j => {
+          const tid  = j.product_type_id || j.blueprint_type_id;
+          const what = (tid && typeNames[tid]) || (tid ? `Type ${tid}` : 'Job');
+          const who  = byChar[String(j.character_id)] || j._charName || '';
+          return {
+            value: String(j.job_id),
+            label: `${j.is_corp_job ? '[CORP] ' : ''}${what}${who ? ` · ${who}` : ''}`,
+            icon:  'precision_manufacturing',
+          };
+        });
+      },
+      apply: (instId, value) => _setJobWatch(instId, value),
+    },
+  },
+  // Most recent Jabber broadcast, rendered by renderDashboardPing(). Reads the
+  // live in-memory jabberMessages first and falls back to the stored history, then
+  // repaints on every incoming 'jabber-message'. The container lived in a page
+  // HTML file that was deleted in b73eb8e, which silently stopped the tile from
+  // painting even though the renderer and its .dash-ping-* styles survived — it is
+  // declared here now so it cannot be orphaned by a template cleanup again.
+  latestPing: {
+    // Taller than it was: the card now carries the pop-out's full layout (badge,
+    // From banner, two field rows, message, footer), which measures ~231px at
+    // this width — at the old h:8 the footer simply fell off the bottom.
+    // Existing saved layouts keep their own size, which is what the shedding
+    // ladder in dashboard.css is for.
+    icon: 'campaign', title: 'LATEST PING',
+    w: 5, h: 15, minW: 3, minH: 6,
+    body: '<div id="dashboardPingsContent"><div class="dashboard-widget-loading">Loading…</div></div>',
   },
   // GoonFleet-only: live Beehive beacon status from the room MOTD. Gated out of the
   // "add widget" menu for non-Goons (see _refreshAddWidgetMenu / _beehiveGoon).
@@ -281,6 +498,30 @@ const DASHBOARD_WIDGETS = {
     // grid or after a reset.
     w: 5, h: 11, minW: 3, minH: 5,
     body: '<div id="dashboardEarlyWarning"><div class="dashboard-widget-loading">Loading…</div></div>',
+  },
+  // Scrolling ticker of your most valuable kills over the last 90 days, from the
+  // same cached zKillboard feed the Killboard page uses. Full grid width by
+  // default because it is a marquee — a narrow one loops too fast to read.
+  killTicker: {
+    icon: 'local_fire_department', title: 'TOP KILLS · 90 DAYS', multi: true,
+    w: 12, h: 10, minW: 4, minH: 6,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+    pick: {
+      heading: 'Whose kills?',
+      empty:   'Add a character first.',
+      options: async () => {
+        const accounts = await window.eveAPI.getAccounts().catch(() => []);
+        if (!Array.isArray(accounts) || !accounts.length) return [];
+        // "All characters" only when there is more than one to combine.
+        return (accounts.length > 1 ? [{ value: 'all', label: 'All characters', icon: 'groups' }] : [])
+          .concat(accounts.map(a => ({
+            value: String(a.characterId),
+            label: a.characterName || `Char ${a.characterId}`,
+            icon:  'person',
+          })));
+      },
+      apply: (instId, value) => _setKillScope(instId, value),
+    },
   },
   // NOTE: the incursion alert is intentionally NOT a grid widget — it is an
   // always-on banner pinned above the grid (#allianceIncursionAlert in
@@ -417,11 +658,16 @@ function _activeWidgetIds() {
 // Add a widget to the grid, then refetch + repopulate so its data renders. `id` is
 // a registry base key (from the menu). `multi` widgets get a fresh instance id so
 // several can coexist; single widgets are a no-op if already present.
-function addDashboardWidget(id) {
+function addDashboardWidget(id, config = null) {
   const def = DASHBOARD_WIDGETS[id];
   if (!_dashGrid || !def) return;
   if (!def.multi && _activeWidgetIds().some(a => _widgetBase(a) === id)) { hideAddWidgetMenu(); return; }
   const instId = def.multi ? _newInstanceId(id) : id;
+  // The choice made in the add menu is stored against the new instance BEFORE
+  // the widget renders, so its first paint already shows the right thing.
+  if (config && config.value != null && typeof def.pick?.apply === 'function') {
+    def.pick.apply(instId, config.value);
+  }
   const el = _makeDashItemEl({ id: instId });
   document.getElementById('dashboardGrid').appendChild(el);
   _dashGrid.makeWidget(el);
@@ -436,6 +682,7 @@ function removeDashboardWidget(id) {
   if (node) _dashGrid.removeWidget(node.el);
   if (_widgetBase(id) === 'jobWatch')   _setJobWatch(id, null);     // drop its saved selection
   if (_widgetBase(id) === 'charWallet') _setCharWallet(id, null);   // drop its saved character
+  if (_widgetBase(id) === 'killTicker') _setKillScope(id, null);    // drop its saved scope
   _saveDashLayout();
 }
 
@@ -610,11 +857,56 @@ function _refreshAddWidgetMenu() {
   menu.innerHTML = addable.length
     ? addable.map(key => {
         const def = DASHBOARD_WIDGETS[key];
-        return `<button class="dashboard-add-item" onclick="addDashboardWidget('${key}')">`
+        // A `pick` widget opens a second step instead of adding immediately —
+        // the choice belongs to the instance you are about to create.
+        const action = def.pick ? `dashWidgetPickMenu('${key}', event)` : `addDashboardWidget('${key}')`;
+        return `<button class="dashboard-add-item" onclick="${action}">`
              + `${def.icon ? `<span class="material-symbols-outlined">${def.icon}</span>` : ''}`
              + `<span>${def.title}${def.multi ? ' <span class="dashboard-add-plus">+</span>' : ''}</span></button>`;
       }).join('')
     : '<div class="dashboard-add-empty">All widgets added.</div>';
+}
+
+// Second step of adding a `pick` widget: choose its subject. Replaces the menu's
+// contents rather than opening a nested popup, so there is one thing on screen
+// and the outside-click handler that closes the menu still applies.
+async function dashWidgetPickMenu(key, e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('dashboardAddWidgetMenu');
+  const def  = DASHBOARD_WIDGETS[key];
+  if (!menu || !def || !def.pick) return;
+
+  menu.innerHTML = '<div class="dashboard-add-empty">Loading…</div>';
+  let options = [];
+  try {
+    options = await def.pick.options();
+  } catch (err) {
+    console.warn('[dashboard] widget picker failed:', err?.message || err);
+    menu.innerHTML = '<div class="dashboard-add-empty">Could not load the list — try again.</div>';
+    return;
+  }
+  if (!options.length) {
+    menu.innerHTML = `<div class="dashboard-add-empty">${escHtml(def.pick.empty || 'Nothing to pick.')}</div>`;
+    return;
+  }
+
+  // Built as DOM, not innerHTML: option labels carry character and item names,
+  // which have no business being parsed as markup or squeezed into an inline
+  // onclick handler.
+  menu.innerHTML = `<div class="dashboard-add-heading">${escHtml(def.pick.heading)}</div>`;
+  for (const opt of options) {
+    const btn = document.createElement('button');
+    btn.className = 'dashboard-add-item';
+    const icon = document.createElement('span');
+    icon.className = 'material-symbols-outlined';
+    icon.textContent = opt.icon || 'chevron_right';
+    const label = document.createElement('span');
+    label.textContent = opt.label;
+    btn.append(icon, label);
+    btn.title = opt.label;
+    btn.addEventListener('click', () => addDashboardWidget(key, { value: opt.value }));
+    menu.appendChild(btn);
+  }
 }
 
 function toggleAddWidgetMenu(e) {
@@ -809,9 +1101,58 @@ function initEarlyWarningWidget() {
 // the resolved installer name for corp members who aren't local accounts. A job
 // a character installed for their corp appears in BOTH feeds; the personal copy
 // wins so attribution stays first-person.
-async function fetchAllActiveIndustryJobs(accounts) {
+// One shared fan-out for the active job list.
+//
+// fetchAllActiveIndustryJobs walks the roster SERIALLY and sleeps 80ms between
+// characters on purpose (ESI's error budget is shared — see the note in
+// src/locator.js), then walks it a second time for corp jobs. On a 17-pilot
+// roster that is ~34 serial round-trips and ~1.4s of deliberate spacing.
+//
+// It had TWO independent callers per dashboard load — the Active Jobs tables and
+// every Job Watch instance — so all of that ran twice, which is most of why those
+// tiles were the last to arrive. They now share one promise. The window is short
+// because the countdown ticker re-renders from the same list; refreshes that must
+// see new data call _invalidateSharedJobs() first rather than lengthening it.
+let _jobsShared   = null;
+let _jobsSharedAt = 0;
+let _jobsSubs     = [];
+const JOBS_SHARE_MS = 45_000;
+
+// onProgress subscribers are fanned out from the ONE underlying walk, so both the
+// Active Jobs tables and Job Watch can paint as characters land without either of
+// them starting a second fan-out. A subscriber that arrives after the walk has
+// already finished simply gets the final list off the shared promise.
+function _activeJobsShared(accounts, onProgress) {
+  if (onProgress) _jobsSubs.push(onProgress);
+  if (_jobsShared && (Date.now() - _jobsSharedAt) < JOBS_SHARE_MS) return _jobsShared;
+
+  _jobsSharedAt = Date.now();
+  _jobsShared = fetchAllActiveIndustryJobs(accounts, (partial) => {
+    for (const fn of _jobsSubs) {
+      try { fn(partial); } catch (e) { console.warn('[dashboard] job subscriber failed:', e?.message || e); }
+    }
+  })
+    .then(v => { _jobsSubs = []; return v; })
+    .catch(e => { _jobsShared = null; _jobsSubs = []; throw e; });   // never cache a failure
+  return _jobsShared;
+}
+function _invalidateSharedJobs() { _jobsShared = null; _jobsSharedAt = 0; _jobsSubs = []; }
+
+// onProgress, when given, is called with the jobs gathered SO FAR after each
+// character resolves. The walk is serial and paced, so on a large roster the last
+// character lands well over a second after the first — waiting for all of them
+// before painting anything is what made this widget feel dead on arrival. Callers
+// that can render a partial list get it as it grows.
+async function fetchAllActiveIndustryJobs(accounts, onProgress) {
   const byId = new Map();
   const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
+  const RUNNING = (j) => j.status === 'active' || j.status === 'ready' || j.status === 'paused';
+  const emit = () => {
+    if (!onProgress) return;
+    try { onProgress([...byId.values()].filter(RUNNING)); }
+    catch (e) { console.warn('[dashboard] job progress render failed:', e?.message || e); }
+  };
+
   for (const acc of accounts) {
     try {
       const list = await window.eveAPI.getCharacterActiveJobs(acc.characterId);
@@ -821,6 +1162,7 @@ async function fetchAllActiveIndustryJobs(accounts) {
         _charName:    acc.characterName || `Char ${acc.characterId}`,
       }));
     } catch (_) {}
+    emit();
     await new Promise(r => setTimeout(r, 80));
   }
   for (const acc of accounts) {
@@ -835,10 +1177,10 @@ async function fetchAllActiveIndustryJobs(accounts) {
         _charName:    accountMap[installer]?.characterName || j.installer_name || 'Corp member',
       });
     }
+    emit();
     await new Promise(r => setTimeout(r, 80));
   }
-  return [...byId.values()]
-    .filter(j => j.status === 'active' || j.status === 'ready' || j.status === 'paused');
+  return [...byId.values()].filter(RUNNING);
 }
 
 // Fetch + render the Active Industry Jobs widget(s) — personal jobs in
@@ -853,21 +1195,60 @@ async function renderDashboardActiveJobs(accounts) {
   const container     = document.getElementById('dashboardActiveJobsTable');
   const corpContainer = document.getElementById('dashboardCorpActiveJobsTable');
   if (!container && !corpContainer) return;
-  try {
-    const allJobs = await fetchAllActiveIndustryJobs(accounts);
+
+  // Both tables come from ONE fan-out that deliberately spaces its per-character
+  // ESI reads, so this is the longest wait on the dashboard. Paint each table's
+  // last-known state first, then let the shared fetch replace both.
+  const [hadJobs, hadCorpJobs] = await Promise.all([
+    _paintSnapshot('dash_snap_active_jobs', container),
+    _paintSnapshot('dash_snap_corp_active_jobs', corpContainer),
+  ]);
+
+  const paint = async (jobs) => {
     if (container) {
-      renderActiveJobsWidget(container, allJobs.filter(j => !j.is_corp_job), accounts,
+      await renderActiveJobsWidget(container, jobs.filter(j => !j.is_corp_job), accounts,
         { emptyMessage: 'No active industry jobs.' });
     }
     if (corpContainer) {
-      renderActiveJobsWidget(corpContainer, allJobs.filter(j => j.is_corp_job), accounts,
+      await renderActiveJobsWidget(corpContainer, jobs.filter(j => j.is_corp_job), accounts,
         { emptyMessage: 'No active corp industry jobs.' });
     }
+  };
+
+  // renderActiveJobsWidget resolves type and system names BEFORE it writes, so two
+  // overlapping calls can finish out of order and leave the shorter, older list on
+  // screen. Coalesce instead: one paint runs at a time and only the newest pending
+  // list is drawn next, so intermediate states are skipped rather than raced.
+  let painting = null, queued = null;
+  const paintCoalesced = (jobs) => {
+    queued = jobs;
+    if (painting) return painting;
+    painting = (async () => {
+      try { while (queued) { const next = queued; queued = null; await paint(next); } }
+      finally { painting = null; }
+    })();
+    return painting;
+  };
+
+  // Paint as characters land, but ONLY on a cold table. With a snapshot already on
+  // screen a partial list would read as jobs vanishing and coming back, so there
+  // the fresh list replaces it in one go at the end.
+  const progressive = !hadJobs && !hadCorpJobs;
+  const onProgress = progressive ? (partial) => { paintCoalesced(partial); } : null;
+
+  try {
+    const allJobs = await _activeJobsShared(accounts, onProgress);
+    if (painting) { try { await painting; } catch (_) {} }   // drain queued partials
+    await paint(allJobs);                 // always finish on the complete list
+    if (container)     _saveSnapshot('dash_snap_active_jobs', container);
+    if (corpContainer) _saveSnapshot('dash_snap_corp_active_jobs', corpContainer);
   } catch (e) {
     console.error('[dashboard] Active jobs widget failed:', e);
+    // Only replace a table that has nothing real on it — a stale job list beats
+    // wiping it for an error box.
     const failedHtml = '<div class="active-jobs-empty">Failed to load.</div>';
-    if (container)     container.innerHTML = failedHtml;
-    if (corpContainer) corpContainer.innerHTML = failedHtml;
+    if (container     && !hadJobs)     container.innerHTML = failedHtml;
+    if (corpContainer && !hadCorpJobs) corpContainer.innerHTML = failedHtml;
   }
 }
 
@@ -883,6 +1264,11 @@ async function refreshDashboardLiveWidgets() {
   const accounts = await window.eveAPI.getAccounts().catch(() => []);
   if (!accounts.length) return;
   const mainAccount = accounts.find(a => String(a.characterId) === String(selectedCharacterId)) || accounts[0];
+
+  // This runs BECAUSE something changed (a background sync warmed the tokens), so
+  // the point is to see new data — drop the shared job list rather than re-render
+  // the copy that is already on screen.
+  _invalidateSharedJobs();
 
   if (document.getElementById('dashboardActiveJobsTable') || document.getElementById('dashboardCorpActiveJobsTable')) {
     await renderDashboardActiveJobs(accounts);
@@ -1130,6 +1516,88 @@ async function _renderNetWorthSection(accounts, mainAccount) {
     } catch (e) { console.warn('Net worth calculation failed:', e.message); }
 }
 
+// ─── Stale-while-revalidate for a widget's rendered markup ────────────────────
+// Most widgets fan out one or more IPC calls PER CHARACTER — wallet balances does
+// two, active jobs spaces its ESI reads 80ms apart on purpose — so on a 20-pilot
+// roster a cold dashboard sits on "Loading…" for seconds while nothing on screen
+// changes. Net worth already avoided that via `dashboard_cache`; this gives every
+// other widget the same treatment, the same way renderCalendar() does it.
+//
+// The snapshot is the widget's own HTML rather than its data: every renderer here
+// already turns data into markup, so caching the output needs no per-widget
+// knowledge and survives changes to those data shapes.
+//
+// Only a SUCCESSFUL render is ever snapshotted, so a "Loading…" or error state can
+// never be persisted and replayed as if it were real. While the refresh is in
+// flight the host carries `data-stale`, which dashboard.css uses to mark the tile
+// as last-known rather than live — the data is real, just not yet revalidated.
+async function _paintSnapshot(key, el) {
+  if (!el) return false;
+  try {
+    const snap = await window.eveAPI.cacheGet(key);
+    if (snap && typeof snap.html === 'string' && snap.html) {
+      el.innerHTML = snap.html;
+      el.dataset.stale = '1';
+      return true;
+    }
+  } catch (_) { /* no snapshot yet — the widget's own loading state stands */ }
+  return false;
+}
+
+// 7-day TTL: this is a first-paint placeholder, not a data source. It is replaced
+// in the same tick as the live render, so a long life only helps the case where
+// the app has been closed for a while.
+function _saveSnapshot(key, el) {
+  if (!el) return;
+  delete el.dataset.stale;
+  window.eveAPI.cacheSet(key, { html: el.innerHTML, at: Date.now() }, 7).catch(() => {});
+}
+
+async function _swrWidget(key, el, renderFn) {
+  if (!el) return;
+  const painted = await _paintSnapshot(key, el);
+  try {
+    await renderFn(el);
+    _saveSnapshot(key, el);
+  } catch (e) {
+    // With a snapshot on screen, keep showing it rather than replacing real data
+    // with an error box. With nothing painted, let the caller handle it.
+    if (!painted) throw e;
+    console.warn('[dashboard] refresh failed, showing last known state:', key, e?.message || e);
+  }
+}
+
+// ── Manual re-render (the ✕'s neighbour in the page header) ──────────────────
+// Not a data-sync button: nothing here asks ESI for anything it wouldn't have
+// asked for anyway. It re-runs the page's own render for the case a widget came
+// back blank — a token race or a 429 during the cold-start burst — which people
+// were reaching for Ctrl+R to fix. The grid itself is left alone (initDashboardGrid
+// is a no-op once built), so widget positions and sizes survive.
+let _dashRefreshing = false;
+
+async function refreshDashboardPage() {
+  if (_dashRefreshing) return;
+  _dashRefreshing = true;
+
+  const btn = document.getElementById('dashboardRefreshBtn');
+  if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+  if (typeof _setPageSpinning === 'function') _setPageSpinning('dashboard', true);
+
+  try {
+    // Drop the shared job list — the whole point is to see new data, not to
+    // re-render the copy that is already on screen.
+    _invalidateSharedJobs();
+    await loadDashboard();
+  } catch (e) {
+    console.warn('[dashboard] manual refresh failed:', e?.message || e);
+    if (typeof showToast === 'function') showToast(`Dashboard refresh failed: ${e.message}`, 'error');
+  } finally {
+    _dashRefreshing = false;
+    if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+    if (typeof _setPageSpinning === 'function') _setPageSpinning('dashboard', false);
+  }
+}
+
 async function loadDashboard() {
   // Build the widget grid first so every widget's target element exists before
   // the cache render and the data sections below try to fill them.
@@ -1142,13 +1610,12 @@ async function loadDashboard() {
 
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
-  const mainCharLabel  = document.getElementById('dashboardMainCharName');
 
   // Render from cache immediately if available
   try {
     const cachedData = await window.eveAPI.cacheGet('dashboard_cache');
     if (cachedData) {
-      renderDashboardUI(cachedData, true);
+      renderDashboardUI(cachedData);
       logToConsole('Rendered from cache.', 'info');
     }
   } catch (e) { /* ignore */ }
@@ -1160,7 +1627,6 @@ async function loadDashboard() {
   }
 
   const mainAccount = accounts.find(a => String(a.characterId) === String(selectedCharacterId)) || accounts[0];
-  if (mainCharLabel) mainCharLabel.textContent = mainAccount?.characterName || '';
 
   // ── Kick off silent background auto-refresh (non-blocking) ───────────────
   autoRefreshStaleCharacters(accounts).catch(() => {});
@@ -1180,7 +1646,8 @@ async function loadDashboard() {
     // ── Helper: render the banner from DB data ────────────────────────────
     // implants: array of DB rows { implant_id, type_name, slot }
     function renderBanner({ charId, charName, birthday, gender, secStatus, corpId, corpName,
-                             allianceId, allianceName, homeStationName, homeSystemSec, currentSystem = null,
+                             allianceId, allianceName, homeStationName, homeSystemSec,
+                             homeSystemName = null, currentSystem = null,
                              bloodlineName = null, implants = [], currentShipTypeId = null,
                              currentShipTypeName = null,
                              stale = false }) {
@@ -1226,7 +1693,8 @@ async function loadDashboard() {
       const homeSecValueDisplay = homeSystemSec != null
         ? `<span style="color:${sysMeta.color};">${Number(homeSystemSec).toFixed(1)}</span>` : '';
       const homeSecBreadcrumb = sysMeta.label
-        ? `<span class="sec-breadcrumb ${sysMeta.cls}">${sysMeta.label}</span>` : '';
+        ? `<span class="sec-breadcrumb ${sysMeta.cls}"${homeSystemName ? ` data-system="${escHtml(homeSystemName)}" title="Show ${escHtml(homeSystemName)} on the map"` : ''}>${sysMeta.label}</span>`
+        : '';
       const staleNote = stale
         ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
 
@@ -1301,6 +1769,15 @@ async function loadDashboard() {
              </div>
            </div>`;
 
+      // Place names in the banner (and the sec chip beside them) open the Map on
+      // that system. Delegated from the banner, and re-assigned rather than
+      // added, so repeated renders never stack up listeners.
+      welcomeBanner.onclick = (ev) => {
+        const link = ev.target.closest('.dash-syslink, .sec-breadcrumb[data-system]');
+        const name = link?.dataset?.system;
+        if (name && typeof mapGoToSystem === 'function') mapGoToSystem(name);
+      };
+
       welcomeBanner.innerHTML = `
         <div class="banner-portrait-col">
           <img class="dashboard-portrait"
@@ -1328,12 +1805,19 @@ async function loadDashboard() {
               <div class="banner-stat-row">
                 <span class="banner-stat-label">Home</span>
                 <span class="banner-stat-value banner-home-value">
-                  <span>${escHtml(homeStationName || '—')}</span>
+                  ${homeSystemName
+                    ? `<button class="dash-syslink" data-system="${escHtml(homeSystemName)}"
+                               title="Show ${escHtml(homeSystemName)} on the map">${escHtml(homeStationName || homeSystemName)}</button>`
+                    : `<span>${escHtml(homeStationName || '—')}</span>`}
                   ${homeSecValueDisplay}
                   ${homeSecBreadcrumb}
                 </span>
               </div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${escHtml(currentSystem || '—')}</span></div>
+              <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${
+                currentSystem
+                  ? `<button class="dash-syslink" data-system="${escHtml(currentSystem)}"
+                             title="Show ${escHtml(currentSystem)} on the map">${escHtml(currentSystem)}</button>`
+                  : '—'}</span></div>
               <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
               <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span class="banner-loading-note">Calculating…</span></span></div>
             </div>
@@ -1508,6 +1992,7 @@ async function loadDashboard() {
         corpId:    info.corporation_id,    corpName,
         allianceId: info.alliance_id,       allianceName,
         homeStationName, homeSystemSec,
+        homeSystemName: loc?.solar_system_name || null,
         currentSystem: loc?.solar_system_name || null,
         bloodlineName,
         implants,
@@ -1569,27 +2054,29 @@ async function loadDashboard() {
     const piContainer = document.getElementById('dashboardPIWidget');
     if (!piContainer) return;
     try {
-      await renderDashboardPIWidget(piContainer, accounts);
+      await _swrWidget('dash_snap_pi', piContainer,
+        (el) => renderDashboardPIWidget(el, accounts));
     } catch (e) {
       console.error('[dashboard] PI widget failed:', e);
       piContainer.innerHTML = '<div style="padding:12px;font-family:var(--mono);font-size:11px;color:var(--danger);">Failed to load PI data.</div>';
     }
   })();
 
-  // ── Section 5: Latest ping ───────────────────────────────────────────────
+  // ── Section 5: Latest ping (optional) ────────────────────────────────────
   (async () => {
+    if (!document.getElementById('dashboardPingsContent')) return;
     try {
-      // Prefer in-memory (jabberMessages is populated by jabber.js once connected)
-      // Fall back to DB for the most recent stored ping.
+      // DIRECTOR broadcasts only — the same gate that opens the ping alert window
+      // (jabber_ipc.js). This used to take the newest message of ANY kind, so a
+      // line of ordinary room chatter would replace the last real ping and leave
+      // a widget showing something that never popped up.
       let ping = (typeof jabberMessages !== 'undefined' && jabberMessages.length > 0)
-        ? jabberMessages.reduce((a, b) =>
-            (b.eve_timecode || b.received_at || '') > (a.eve_timecode || a.received_at || '') ? b : a)
+        ? jabberMessages
+            .filter(_isDirectorPing)
+            .reduce((a, b) => (!a || _pingSortKey(b) > _pingSortKey(a)) ? b : a, null)
         : null;
 
-      if (!ping) {
-        const history = await window.eveAPI.getJabberMessages(1);
-        ping = Array.isArray(history) && history.length > 0 ? history[0] : null;
-      }
+      if (!ping) ping = await window.eveAPI.getLatestPing().catch(() => null);
       renderDashboardPing(ping);
     } catch (e) {
       const el = document.getElementById('dashboardPingsContent');
@@ -1601,7 +2088,7 @@ async function loadDashboard() {
   (async () => {
     const el = document.getElementById('dashboardWalletWidget');
     if (!el) return;
-    try { await renderWalletBalanceWidget(el, accounts); }
+    try { await _swrWidget('dash_snap_wallet_balances', el, (el) => renderWalletBalanceWidget(el, accounts)); }
     catch (e) {
       console.error('[dashboard] Wallet widget failed:', e);
       el.innerHTML = '<div class="dashboard-empty">Failed to load wallet balances.</div>';
@@ -1612,7 +2099,7 @@ async function loadDashboard() {
   (async () => {
     const el = document.getElementById('dashboardSkillQueueWidget');
     if (!el) return;
-    try { await renderSkillQueueWidget(el, mainAccount); }
+    try { await _swrWidget('dash_snap_skill_queue', el, (el) => renderSkillQueueWidget(el, mainAccount)); }
     catch (e) {
       console.error('[dashboard] Skill queue widget failed:', e);
       el.innerHTML = '<div class="dashboard-empty">Failed to load skill queue.</div>';
@@ -1623,7 +2110,7 @@ async function loadDashboard() {
   (async () => {
     const el = document.getElementById('dashboardMarketWidget');
     if (!el) return;
-    try { await renderMarketQuicklookWidget(el); }
+    try { await _swrWidget('dash_snap_market_quicklook', el, (el) => renderMarketQuicklookWidget(el)); }
     catch (e) {
       console.error('[dashboard] Market widget failed:', e);
       el.innerHTML = '<div class="dashboard-empty">Failed to load market prices.</div>';
@@ -1634,7 +2121,7 @@ async function loadDashboard() {
   (async () => {
     const el = document.getElementById('dashboardMarketOrders');
     if (!el) return;
-    try { await renderMarketOrdersWidget(el, accounts); }
+    try { await _swrWidget('dash_snap_market_orders', el, (el) => renderMarketOrdersWidget(el, accounts)); }
     catch (e) {
       console.error('[dashboard] Market orders widget failed:', e);
       el.innerHTML = '<div class="active-jobs-empty">Failed to load orders.</div>';
@@ -1653,6 +2140,12 @@ async function loadDashboard() {
     catch (e) { console.error('[dashboard] Character Wallet widget failed:', e); }
   })();
 
+  // ── Section 12: Top Kills tickers (optional, multi-instance) ─────────────
+  (async () => {
+    try { await _renderAllKillTickers(accounts); }
+    catch (e) { console.error('[dashboard] Top Kills widget failed:', e); }
+  })();
+
   // Update ping panel live when a new Jabber message arrives.
   // Guard prevents duplicate listeners across repeated loadDashboard() calls.
   if (!_pingListenerRegistered) {
@@ -1661,7 +2154,9 @@ async function loadDashboard() {
       const row = (typeof jabberLiveToRow === 'function' && !('raw_body' in payload))
         ? jabberLiveToRow(payload)
         : payload;
-      renderDashboardPing(row);
+      // Only a director broadcast replaces what is on the widget. Repainting on
+      // every message wiped the ping the moment anyone said anything in the room.
+      if (_isDirectorPing(row)) renderDashboardPing(row);
     });
   }
 
@@ -1877,55 +2372,14 @@ function renderKPIPanel(container, accounts, totalWallet, overallValue, grandTot
 
 // ─── Cached dashboard render ──────────────────────────────────────────────────
 
-function renderDashboardUI(data, isCached = false) {
+function renderDashboardUI(data) {
   const { accounts, mainAccount, overallValue, totalWallet, grandTotal, totalByChar, walletByChar } = data;
-  const mainCharLabel = document.getElementById('dashboardMainCharName');
 
-  if (mainCharLabel) {
-    mainCharLabel.innerHTML = mainAccount
-      ? `${escHtml(mainAccount.characterName)} ${isCached ? '<span style="color:var(--warning);font-size:9px;margin-left:8px;">[SYNCING FROM ESI...]</span>' : ''}`
-      : 'No main character selected';
-  }
   renderWealthWidgets({
     accounts: accounts || [], totalWallet: totalWallet || 0, overallValue: overallValue || 0,
     grandTotal: grandTotal || 0, totalByChar: totalByChar || {}, walletByChar: walletByChar || {},
     assetsLoading: false,
   });
-}
-
-function setupDashboardWidgetDrag() {
-  const widget = document.getElementById('dashboardNetworthSummary');
-  if (!widget) return;
-  const parent = widget.closest('.dashboard-panel');
-  if (!parent) return;
-  const header = parent.querySelector('.dashboard-panel-title');
-  if (!header) return;
-
-  let isDragging = true, startX = 10, startY = 0, origLeft = 0, origTop = 0;
-  header.style.cursor = 'grab';
-
-  header.onmousedown = (event) => {
-    isDragging = true;
-    startX = event.clientX; startY = event.clientY;
-    const rect = parent.getBoundingClientRect();
-    origLeft = rect.left; origTop = rect.top;
-    parent.style.position = 'absolute'; parent.style.zIndex = '2';
-    header.style.cursor = 'grabbing';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  function onMouseMove(event) {
-    if (!isDragging) return;
-    parent.style.left = `${Math.max(0, origLeft + event.clientX - startX)}px`;
-    parent.style.top  = `${Math.max(0, origTop  + event.clientY - startY)}px`;
-  }
-  function onMouseUp() {
-    if (!isDragging) return;
-    isDragging = false; header.style.cursor = 'grab';
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
-  }
 }
 
 // ─── Active industry jobs widget ─────────────────────────────────────────────
@@ -2043,9 +2497,9 @@ async function renderActiveJobsWidget(container, jobs, accounts, { emptyMessage 
 
     let progressCell;
     if (job.status === 'ready') {
-      progressCell = `<td><span class="aj-status-ready">✓ READY</span></td>`;
+      progressCell = `<td class="aj-cell-progress"><span class="aj-status-ready">✓ READY</span></td>`;
     } else if (job.status === 'paused') {
-      progressCell = `<td><span class="aj-status-paused">⏸ PAUSED</span></td>`;
+      progressCell = `<td class="aj-cell-progress"><span class="aj-status-paused">⏸ PAUSED</span></td>`;
     } else {
       const start   = new Date(job.start_date).getTime();
       const end     = new Date(job.end_date).getTime();
@@ -2054,7 +2508,7 @@ async function renderActiveJobsWidget(container, jobs, accounts, { emptyMessage 
       // Colour: green when almost done, accent/red otherwise
       const fillCol = pct >= 90 ? 'var(--pal-teal)' : pct >= 50 ? 'var(--accent)' : 'var(--pal-red)';
       progressCell  = `
-        <td>
+        <td class="aj-cell-progress">
           <div class="aj-progress-wrap">
             <div class="aj-progress-track">
               <div class="aj-progress-fill" style="width:${pct.toFixed(1)}%;background:${fillCol};"></div>
@@ -2066,8 +2520,8 @@ async function renderActiveJobsWidget(container, jobs, accounts, { emptyMessage 
 
     return `<tr>
       <td class="aj-cell-char">${charPortrait}${escHtml(charName)}${corpBadge}</td>
-      <td class="aj-cell-item">${itemIcon}<span>${escHtml(itemName)}</span></td>
-      <td><span class="aj-activity-badge ${act.cls}">${act.label}</span></td>
+      <td class="aj-cell-item">${itemIcon}<span class="aj-item-name">${escHtml(itemName)}</span></td>
+      <td class="aj-cell-activity"><span class="aj-activity-badge ${act.cls}">${act.label}</span></td>
       ${progressCell}
     </tr>`;
   }).join('');
@@ -2088,10 +2542,10 @@ async function renderActiveJobsWidget(container, jobs, accounts, { emptyMessage 
       <table class="active-jobs-list">
         <thead>
           <tr>
-            <th>CHARACTER</th>
-            <th>ITEM</th>
-            <th>ACTIVITY</th>
-            <th>PROGRESS</th>
+            <th class="aj-cell-char">CHARACTER</th>
+            <th class="aj-cell-item">ITEM</th>
+            <th class="aj-cell-activity">ACTIVITY</th>
+            <th class="aj-cell-progress">PROGRESS</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -2794,8 +3248,8 @@ async function renderMarketOrdersWidget(container, accounts) {
                vertical-align:middle;margin-right:5px;object-fit:cover;" onerror="this.style.display='none'"/>`;
     return `<tr>
       <td class="aj-cell-char">${portrait}${escHtml(acc.characterName || '')}</td>
-      <td class="aj-cell-item">${itemIcon}<span>${escHtml(name)}</span></td>
-      <td><span class="mo-side ${isBuy ? 'mo-buy' : 'mo-sell'}">${isBuy ? 'BUY' : 'SELL'}</span></td>
+      <td class="aj-cell-item">${itemIcon}<span class="aj-item-name">${escHtml(name)}</span></td>
+      <td class="mo-cell-side"><span class="mo-side ${isBuy ? 'mo-buy' : 'mo-sell'}">${isBuy ? 'BUY' : 'SELL'}</span></td>
       <td class="mo-cell-price">${formatISK(o.price || 0)}</td>
       <td class="mo-cell-qty">
         <div class="mo-qty-bar"><div class="mo-qty-fill" style="width:${filled.toFixed(0)}%"></div></div>
@@ -2812,7 +3266,9 @@ async function renderMarketOrdersWidget(container, accounts) {
     <div class="active-jobs-scroll">
       <table class="active-jobs-list">
         <thead>
-          <tr><th>CHARACTER</th><th>ITEM</th><th>SIDE</th><th>PRICE</th><th>QTY REMAIN</th><th>EXPIRES</th></tr>
+          <tr><th class="aj-cell-char">CHARACTER</th><th class="aj-cell-item">ITEM</th>
+              <th class="mo-cell-side">SIDE</th><th class="mo-cell-price">PRICE</th>
+              <th class="mo-cell-qty">QTY REMAIN</th><th class="mo-cell-time">EXPIRES</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
@@ -2865,19 +3321,32 @@ async function _renderAllJobWatch(accounts) {
   const panels = document.querySelectorAll('#dashboardGrid [data-widget-base="jobWatch"]');
   if (!panels.length) return;
 
+  // Job Watch is multi-instance, so each panel keeps its own snapshot — they can
+  // be watching different jobs. Painted before the fan-out is awaited, otherwise
+  // every instance sits on "Loading…" for the whole round-trip.
+  const bodies = [...panels].map(panel => ({
+    panel,
+    body: panel.querySelector('.dashboard-widget-body'),
+    key:  `dash_snap_jobwatch_${panel.dataset.widgetId}`,
+  })).filter(x => x.body);
+  await Promise.all(bodies.map(x => _paintSnapshot(x.key, x.body)));
+
   const accountMap = Object.fromEntries(accounts.map(a => [String(a.characterId), a]));
   // Personal + corp jobs (deduped, corp-tagged) via the shared helper.
-  const active = await fetchAllActiveIndustryJobs(accounts);
+  const shared = await _activeJobsShared(accounts);
+  // Copy before sorting: the list is shared with the Active Jobs tables now, and
+  // sorting in place would reorder it under whoever else is holding it.
   // Deterministic order (soonest-done first) so the dropdown and the auto-default
   // are stable across re-renders — ESI's job order is not guaranteed.
-  active.sort((a, b) => (new Date(a.end_date) - new Date(b.end_date)) || (Number(a.job_id) - Number(b.job_id)));
+  const active = shared.slice()
+    .sort((a, b) => (new Date(a.end_date) - new Date(b.end_date)) || (Number(a.job_id) - Number(b.job_id)));
   const typeNames = active.length
     ? await _resolveTypeNames([...new Set(active.map(j => j.product_type_id || j.blueprint_type_id).filter(Boolean))])
     : {};
 
-  panels.forEach(panel => {
-    const body = panel.querySelector('.dashboard-widget-body');
-    if (body) _renderJobWatchInstance(body, panel.dataset.widgetId, active, accountMap, typeNames);
+  bodies.forEach(({ body, panel, key }) => {
+    _renderJobWatchInstance(body, panel.dataset.widgetId, active, accountMap, typeNames);
+    _saveSnapshot(key, body);
   });
   _startJobWatchTicker();
 }
@@ -2892,20 +3361,13 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
     return (tid && typeNames[tid]) || (tid ? `Type ${tid}` : 'Job');
   };
 
-  // Resolve the watched job; fall back to the first when the saved one is gone
-  // (delivered) or nothing is picked yet for this instance. Persist the choice —
-  // including the auto-default — so re-renders (e.g. adding another Job Watch)
-  // never silently change what this instance is watching.
-  let selectedId = _getJobWatch(instId);
-  let job = active.find(j => String(j.job_id) === String(selectedId));
-  if (!job) { job = active[0]; selectedId = job.job_id; _setJobWatch(instId, job.job_id); }
-
-  const options = active.map(j => {
-    const acc = accountMap[String(j.character_id)] || {};
-    const sel = String(j.job_id) === String(selectedId) ? 'selected' : '';
-    const who = acc.characterName || j._charName || '';
-    return `<option value="${j.job_id}" ${sel}>${j.is_corp_job ? '[CORP] ' : ''}${escHtml(labelFor(j))} · ${escHtml(who)}</option>`;
-  }).join('');
+  // Resolve the watched job; fall back to the soonest-done one when the saved
+  // job is gone (delivered) or nothing was picked for this instance. Persist the
+  // choice — including the auto-default — so re-renders (e.g. adding another Job
+  // Watch) never silently change what this instance is watching. The card names
+  // the job and its character, so a fallback is visible rather than silent.
+  let job = active.find(j => String(j.job_id) === String(_getJobWatch(instId)));
+  if (!job) { job = active[0]; _setJobWatch(instId, job.job_id); }
 
   const acc   = accountMap[String(job.character_id)] || {};
   const tid   = job.product_type_id || job.blueprint_type_id;
@@ -2926,9 +3388,6 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
   const endStr = new Date(job.end_date).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   body.innerHTML = `
-    <select class="jw-picker" onchange="dashJobWatchSelect('${instId}', this.value)" title="Pick a job to watch">
-      ${options}
-    </select>
     <div class="jw-card" data-start="${start}" data-end="${end}" data-status="${escHtml(job.status)}">
       <div class="jw-head">
         <img class="jw-icon" src="${icon64}" alt=""
@@ -2947,16 +3406,11 @@ function _renderJobWatchInstance(body, instId, active, accountMap, typeNames) {
     </div>`;
 }
 
-function dashJobWatchSelect(instId, jobId) {
-  _setJobWatch(instId, jobId ? Number(jobId) : null);
-  window.eveAPI.getAccounts().then(accs => _renderAllJobWatch(accs || [])).catch(() => {});
-}
-
 // ─── Character Wallet widget (multi-instance) ──────────────────────────────────
 // A per-character wallet card (portrait, name, ISK balance) — the same tile as the
-// Wallets page, but addable to the dashboard one-per-character. Pick the character
-// from the dropdown; clicking the card opens that character's wallet journal modal.
-// The chosen character persists per instance in localStorage (map keyed by inst id).
+// Wallets page, but addable to the dashboard one-per-character. The character is
+// chosen in the add menu (see the registry's `pick`) and persists per instance in
+// localStorage; clicking the card opens that character's wallet journal modal.
 function _charWalletMap() {
   try {
     const m = JSON.parse(localStorage.getItem('dashboardCharWallet') || '{}');
@@ -3013,15 +3467,7 @@ function _renderCharWalletInstance(body, instId, accounts, balByChar) {
   const name    = acc.characterName || `Char ${cid}`;
   const balance = balByChar[cid] ?? 0;
 
-  const options = accounts.map(a => {
-    const sel = String(a.characterId) === cid ? 'selected' : '';
-    return `<option value="${a.characterId}" ${sel}>${escHtml(a.characterName || `Char ${a.characterId}`)}</option>`;
-  }).join('');
-
   body.innerHTML = `
-    <select class="cw-picker" onchange="dashCharWalletSelect('${instId}', this.value)" title="Pick a character">
-      ${options}
-    </select>
     <div class="cw-card" title="View wallet journal">
       <img class="cw-portrait" src="https://images.evetech.net/characters/${cid}/portrait?size=64" alt=""
            onerror="this.style.display='none'"/>
@@ -3039,7 +3485,223 @@ function _renderCharWalletInstance(body, instId, accounts, balByChar) {
   });
 }
 
-function dashCharWalletSelect(instId, charId) {
-  _setCharWallet(instId, charId || null);
-  window.eveAPI.getAccounts().then(accs => _renderAllCharWallet(accs || [])).catch(() => {});
+// ─── Top Kills ticker (multi-instance) ────────────────────────────────────────
+// A marquee of your most valuable kills over the last 90 days. Reads the SAME
+// cached zKillboard feed the Killboard page uses (get-zkill-feed, 10-minute
+// cache in main, 30-day stale fallback) — zKill asks consumers to cache hard, so
+// this deliberately opens no second route to it.
+//
+// Scope ('all' or one character id) is picked once in the add menu and stored per
+// instance, so the widget itself carries no dropdown. Add it twice with different
+// scopes if you want both a roster-wide and a per-character ticker.
+
+const KILL_SCOPE_KEY   = 'dashboardKillTicker';
+const KILL_WINDOW_DAYS = 90;
+const KILL_MAX_PAGES   = 3;    // zKill pages (200 kills each) per character
+const KILL_TOP_N       = 20;   // most valuable kills kept
+
+let _ktNames = {};             // id → name (victims, ships, systems)
+const _ktName = (id) => (id && _ktNames[id]) || '—';
+
+function _killScopeMap() {
+  try {
+    const m = JSON.parse(localStorage.getItem(KILL_SCOPE_KEY) || '{}');
+    return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+  } catch (_) { return {}; }
+}
+function _getKillScope(instId) {
+  const v = _killScopeMap()[instId];
+  return v != null ? String(v) : 'all';
+}
+function _setKillScope(instId, scope) {
+  try {
+    const m = _killScopeMap();
+    if (scope != null) m[instId] = String(scope); else delete m[instId];
+    localStorage.setItem(KILL_SCOPE_KEY, JSON.stringify(m));
+  } catch (_) { /* private mode */ }
+}
+
+// Walk one character's zKill pages back until they leave the 90-day window. The
+// feed is newest-first, so the first page that reaches the cutoff is the last one
+// worth asking for; the page cap stops a very active pilot pulling thousands of
+// rows to fill a 20-card marquee.
+async function _ktCharKills(charId, cutoff) {
+  const out = [];
+  for (let page = 1; page <= KILL_MAX_PAGES; page++) {
+    const rows = await window.eveAPI.getZkillFeed('character', charId, page).catch(() => null);
+    if (!Array.isArray(rows) || !rows.length) break;
+    let reachedCutoff = false;
+    for (const k of rows) {
+      const t = Date.parse(k.time);
+      if (!Number.isFinite(t) || t < cutoff) { reachedCutoff = true; continue; }
+      if (k.isLoss) continue;                       // kills only — losses have their own page
+      out.push({ ...k, _byCharId: Number(charId) });
+    }
+    if (reachedCutoff) break;
+  }
+  return out;
+}
+
+async function _ktFetchKills(charIds) {
+  const cutoff = Date.now() - KILL_WINDOW_DAYS * 86_400_000;
+  const merged = [];
+  const queue  = [...charIds];
+  // Capped concurrency: a whole roster fanning out at once is exactly what
+  // zKillboard asks consumers not to do.
+  const worker = async () => {
+    while (queue.length) {
+      const id = queue.shift();
+      try { merged.push(...await _ktCharKills(id, cutoff)); }
+      catch (e) { console.warn('[dashboard] kill ticker: character', id, 'failed:', e?.message || e); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, charIds.length) }, worker));
+
+  // Two of your characters on the same killmail return it twice — keep one copy,
+  // credited to whichever feed answered first.
+  const byId = new Map();
+  for (const k of merged) if (!byId.has(k.killmailId)) byId.set(k.killmailId, k);
+
+  return [...byId.values()]
+    .sort((a, b) => b.totalValue - a.totalValue)
+    .slice(0, KILL_TOP_N);
+}
+
+// Victims, ship types and systems all resolve through one /universe/names batch.
+async function _ktResolveNames(kills) {
+  const ids = [];
+  kills.forEach(k => {
+    [k.victimCharId, k.victimShipTypeId, k.systemId].forEach(id => {
+      if (id && !_ktNames[id]) ids.push(id);
+    });
+  });
+  const missing = [...new Set(ids)];
+  if (!missing.length) return;
+  try {
+    const r = await window.eveAPI.getNames(missing);
+    if (Array.isArray(r)) r.forEach(({ id, name }) => { if (id && name) _ktNames[id] = name; });
+    else if (r && typeof r === 'object') Object.assign(_ktNames, r);
+  } catch (_) { /* unresolved ids fall back to a dash */ }
+}
+
+function _ktAgo(iso) {
+  const ms = Date.now() - Date.parse(iso);
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const d = Math.floor(ms / 86_400_000);
+  if (d >= 1) return `${d}d ago`;
+  const h = Math.floor(ms / 3_600_000);
+  if (h >= 1) return `${h}h ago`;
+  return `${Math.max(1, Math.floor(ms / 60_000))}m ago`;
+}
+
+function _ktRenderInstance(body, kills, label, showWho, nameById) {
+  if (!kills.length) {
+    body.innerHTML = `<div class="dashboard-empty">No kills for ${escHtml(label)} in the last ${KILL_WINDOW_DAYS} days.</div>`;
+    return;
+  }
+
+  const cards = kills.map((k, i) => {
+    const who = showWho ? (nameById.get(String(k._byCharId)) || '') : '';
+    return `
+    <div class="kt-card" data-km="${k.killmailId}" title="Open this killmail on zKillboard">
+      <div class="kt-rank">#${i + 1}</div>
+      ${k.victimShipTypeId
+        ? `<img class="kt-ship" src="https://images.evetech.net/types/${k.victimShipTypeId}/render?size=128"
+                alt="" loading="lazy" onerror="this.style.display='none'"/>`
+        : ''}
+      <div class="kt-info">
+        <div class="kt-value">${formatISK(k.totalValue)}</div>
+        <div class="kt-shipname">${escHtml(_ktName(k.victimShipTypeId))}</div>
+        <div class="kt-victim">${escHtml(_ktName(k.victimCharId))}</div>
+        <div class="kt-meta">
+          <span>${escHtml(_ktName(k.systemId))}</span>
+          <span class="kt-dot">·</span><span>${_ktAgo(k.time)}</span>
+          ${who ? `<span class="kt-dot">·</span><span class="kt-by">${escHtml(who)}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="kt-wrap">
+      <div class="kt-head">
+        <span class="kt-scope">${escHtml(label)}</span>
+        <span class="kt-sub">Top ${kills.length} by value · last ${KILL_WINDOW_DAYS} days</span>
+      </div>
+      <div class="kt-viewport"><div class="kt-track">${cards}${cards}</div></div>
+    </div>`;
+
+  // Bound in JS, not inline: the cards are duplicated for the seamless loop, so
+  // both copies need the handler and neither should carry markup-breaking names.
+  body.querySelectorAll('.kt-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const km = card.dataset.km;
+      if (km) { try { window.eveAPI.openExternalUrl(`https://zkillboard.com/kill/${km}/`); } catch (_) {} }
+    });
+  });
+
+  // Scale the loop to the content width so the speed reads the same whether the
+  // widget is full-width with 20 cards or narrow with three (~30px/second).
+  requestAnimationFrame(() => {
+    const track = body.querySelector('.kt-track');
+    if (!track) return;
+    const half = track.scrollWidth / 2;
+    if (half > 0) track.style.animationDuration = `${Math.max(60, Math.round(half / 30))}s`;
+  });
+}
+
+async function _renderAllKillTickers(accounts) {
+  const panels = document.querySelectorAll('#dashboardGrid [data-widget-base="killTicker"]');
+  if (!panels.length) return;
+
+  const nameById = new Map(accounts.map(a => [String(a.characterId), a.characterName || `Char ${a.characterId}`]));
+
+  // Instances sharing a scope fetch once — two tickers on the same roster should
+  // not double the requests to zKill.
+  const byScope = new Map();
+  panels.forEach(panel => {
+    const scope = _getKillScope(panel.dataset.widgetId);
+    if (!byScope.has(scope)) byScope.set(scope, []);
+    byScope.get(scope).push(panel);
+  });
+
+  await Promise.all([...byScope.entries()].map(async ([scope, group]) => {
+    const entries = group
+      .map(p => ({ body: p.querySelector('.dashboard-widget-body'), key: `dash_snap_killticker_${p.dataset.widgetId}` }))
+      .filter(e => e.body);
+
+    // Last good marquee goes up first; the fetch below replaces it.
+    await Promise.all(entries.map(e => _paintSnapshot(e.key, e.body)));
+
+    const known = scope === 'all' || nameById.has(String(scope));
+    if (!known) {
+      entries.forEach(e => {
+        e.body.innerHTML = '<div class="dashboard-empty">That character is no longer added. Remove this widget or add a new one.</div>';
+      });
+      return;
+    }
+
+    const ids   = scope === 'all' ? accounts.map(a => Number(a.characterId)) : [Number(scope)];
+    const label = scope === 'all' ? 'All characters' : nameById.get(String(scope));
+    if (!ids.length) {
+      entries.forEach(e => { e.body.innerHTML = '<div class="dashboard-empty">Add a character to see kills.</div>'; });
+      return;
+    }
+
+    let kills;
+    try {
+      kills = await _ktFetchKills(ids);
+      await _ktResolveNames(kills);
+    } catch (e) {
+      // Leave whatever was painted from the snapshot — a zKill outage should not
+      // blank a marquee that was correct ten minutes ago.
+      console.warn('[dashboard] kill ticker fetch failed:', e?.message || e);
+      return;
+    }
+
+    entries.forEach(e => {
+      _ktRenderInstance(e.body, kills, label, scope === 'all', nameById);
+      _saveSnapshot(e.key, e.body);
+    });
+  }));
 }

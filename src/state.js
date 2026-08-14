@@ -4,14 +4,11 @@
 
 let selectedBpTypeId     = null;
 let selectedBpName       = null;
-let selectedME           = 3;
-let selectedTE           = 2;
 let currentResults       = null;
 let allLibBPs            = [];
 let searchTimer          = null;
 let manualSearchTimer    = null;
 let currentSort          = 'name';
-let isLibraryVisible     = false;
 let filterPerfectOnly    = false;
 let navCollapsed         = false;
 let currentPage          = null;
@@ -23,10 +20,8 @@ let jabberSettings = {
   service:     'xmpp://jabber.eveonline.com:5222',
   jid:         '',
   password:    '',
-  directorOnly: true,
 };
 let jabberMessages            = [];
-let jabberFilterDirectorOnly  = false;
 let jabberConnected           = false;
 
 let allAssetsCache     = null;

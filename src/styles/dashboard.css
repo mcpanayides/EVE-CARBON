@@ -448,6 +448,17 @@
 .dashboard-welcome-stat--home .dashboard-home-station-value { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .dashboard-home-name { color: var(--text-1); }
 
+/* A place name that opens the Map. Inherits its surroundings so it reads as the
+   value it replaced, not as a button dropped into a stat row. */
+.dash-syslink   { font: inherit; color: inherit; background: none; border: none;
+                  padding: 0; cursor: pointer; text-align: left;
+                  text-decoration: underline; text-decoration-color: var(--border);
+                  text-underline-offset: 3px;
+                  transition: color 0.15s, text-decoration-color 0.15s; }
+.dash-syslink:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.sec-breadcrumb[data-system] { cursor: pointer; }
+.sec-breadcrumb[data-system]:hover { opacity: 1; filter: brightness(1.25); }
+
 .sec-breadcrumb { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--mono); border: 1px solid currentColor; opacity: 0.92; }
 .sec-newbie  { color: var(--newbie);         background: var(--sec-newbie-bg); }
 .sec-hisec   { color: var(--sec-hisec-text); background: var(--sec-hisec-bg); }
@@ -535,6 +546,12 @@
 .dashboard-add-item:hover    { background: var(--bg-hover-subtle, rgba(255,255,255,0.04)); color: var(--accent); }
 .dashboard-add-plus          { color: var(--accent); font-weight: 700; opacity: 0.7; margin-left: 2px; }
 .dashboard-add-empty         { padding: 10px; font-size: 11px; color: var(--text-3); text-align: center; }
+/* Second step of a `pick` widget ("Whose kills?", "Which character?", "Which
+   job?") — labels the choice so the menu swapping its contents reads as a step,
+   not as the widget list having changed under you. */
+.dashboard-add-heading       { padding: 8px 10px 6px; font-size: 10px; font-family: var(--mono);
+                               letter-spacing: 0.1em; text-transform: uppercase;
+                               color: var(--label-muted); }
 
 /* Grid container + items */
 .grid-stack                  { min-height: 80px; }
@@ -560,6 +577,28 @@
                                container-type: inline-size; container-name: dashwidget; }
 .dashboard-widget-loading    { padding: 16px 0; text-align: center; color: var(--text-3);
                                font-family: var(--mono); font-size: 11px; }
+
+/* Last-known state, painted from the previous session while the live read is in
+   flight (see _paintSnapshot in dashboard.js). The data is real, just not yet
+   revalidated, so this stays deliberately quiet — a hairline creeping across the
+   top of the tile, not a banner. Motion carries the meaning rather than colour
+   alone, so it reads the same under any user palette. */
+.grid-stack [data-stale] { position: relative; }
+.grid-stack [data-stale]::after {
+  content: ""; position: absolute; inset: 0 auto auto 0;
+  height: 2px; width: 100%; transform-origin: 0 50%;
+  background: linear-gradient(90deg, transparent, var(--accent-25), transparent);
+  animation: dash-revalidate 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes dash-revalidate {
+  0%   { transform: scaleX(0);   opacity: 0; }
+  40%  { transform: scaleX(1);   opacity: 1; }
+  100% { transform: scaleX(1);   opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .grid-stack [data-stale]::after { animation: none; opacity: 0.6; }
+}
 /* Wealth Growth widget: let the chart fill the widget instead of a fixed height. */
 #dashboardWealthGrowth       { height: 100%; display: flex; flex-direction: column; }
 
@@ -686,21 +725,6 @@
 .dash-pi-count-label         { font-family: var(--mono); font-size: 9px; color: var(--text-3);
                                letter-spacing: 0.08em; margin-top: 2px; }
 
-/* ── Responsive widgets ───────────────────────────────────────────────────────
-   When a widget is dragged narrow, horizontal groups stack vertically so the data
-   stays readable. Keyed off the widget's own width via the .dashboard-widget-body
-   query container, so every widget (current and future) inherits this behaviour. */
-@container dashwidget (max-width: 300px) {
-  .dash-wealth-header        { grid-template-columns: 1fr; }   /* net-worth KPIs stack */
-  .dash-pi-counts            { flex-direction: column; }        /* PI status panels stack */
-}
-@container dashwidget (max-width: 220px) {
-  .dash-market-row           { flex-wrap: wrap; }
-  .dash-market-prices        { width: 100%; justify-content: flex-start; gap: 16px; margin-top: 2px; }
-  .dash-wallet-row,
-  .dash-skill-row            { flex-wrap: wrap; }
-}
-
 /* ── Active industry jobs widget ─────────────────────────────────────────────── */
 .active-jobs-empty {
   padding: 14px 0;
@@ -794,11 +818,9 @@
 .mo-cell-qty span   { font-size: 9px; color: var(--text-3); font-family: var(--mono); white-space: nowrap; }
 .mo-cell-time       { font-family: var(--mono); color: var(--text-3); white-space: nowrap; }
 
-/* ── Job Watch / Character Wallet widget pickers ── */
-.jw-picker, .cw-picker { width: 100%; box-sizing: border-box; font-size: 11px; color: var(--text-1);
-                      background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
-                      padding: 5px 8px; margin-bottom: 10px; cursor: pointer; }
-.jw-picker:focus, .cw-picker:focus { outline: none; border-color: var(--accent); }
+/* Job Watch and Character Wallet used to carry their own <select> here. The
+   subject is now chosen once in the add menu (registry `pick`), so the tile is
+   all content — see .dashboard-add-heading for the picker's own styling. */
 .jw-card            { background: var(--bg-panel); border: 1px solid var(--border-e); border-radius: 8px; padding: 12px; }
 .jw-head            { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .jw-icon            { width: 48px; height: 48px; border-radius: 6px; border: 1px solid var(--border);
@@ -1064,9 +1086,9 @@
   border: 1px solid currentColor;
 }
 
-.inc-state-established { color: var(--pal-red); border-color: rgba(224,85,85,0.4); background: rgba(224,85,85,0.08); }
+.inc-state-established { color: var(--pal-red); border-color: color-mix(in srgb, var(--pal-red) 40%, transparent); background: color-mix(in srgb, var(--pal-red) 8%, transparent); }
 .inc-state-mobilizing  { color: #e09020; border-color: rgba(224,144,32,0.4); background: rgba(224,144,32,0.08); }
-.inc-state-withdrawing { color: var(--pal-green); border-color: rgba(68,204,136,0.4); background: rgba(68,204,136,0.08); }
+.inc-state-withdrawing { color: var(--pal-green); border-color: color-mix(in srgb, var(--pal-green) 40%, transparent); background: color-mix(in srgb, var(--pal-green) 8%, transparent); }
 
 .inc-site-icon {
   width: 28px;
@@ -1142,38 +1164,91 @@
 /* Right column: Jobs + Pings stacked */
 #dashboardPingsPanel    { min-height: 160px; }
 
-/* ── PING PANEL ── */
-.dash-ping-card         { display: flex; flex-direction: column; gap: 10px; }
+/* ── PING PANEL ───────────────────────────────────────────────────────────────
+   Mirrors the director ping pop-out (src/styles/ping-alert.css) section for
+   section: alert badge + sig, From banner, the banded three-up field row, PAP
+   Type and Doctrine, message block, footer. Same order, same labels, same
+   colour roles — one step down in size because this sits in a dashboard tile
+   rather than a 500px window. Change one and change the other. */
+.dash-ping-card         { display: flex; flex-direction: column; min-width: 0; }
 
-/* Header row: type badges left, time + view-btn right */
-.dash-ping-header       { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
-.dash-ping-header-left  { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.dash-ping-type-row     { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-
-.dash-ping-badge        { font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
-.dash-ping-badge--director { color: var(--pal-purple); border-color: rgba(155,89,182,0.5); background: rgba(155,89,182,0.08); }
-.dash-ping-badge--stratop  { color: var(--accent); border-color: var(--accent-20); background: var(--accent-04); }
-.dash-ping-badge--cta      { color: var(--warning); border-color: rgba(230,126,34,0.4); background: rgba(230,126,34,0.06); }
-.dash-ping-badge--sig      { color: var(--text-4); border-color: var(--border-e); background: transparent; }
-
-.dash-ping-from         { font-family: var(--mono); font-size: 11px; color: var(--text-2); }
-.dash-ping-from span    { color: var(--text-1); font-weight: 600; }
-
-.dash-ping-time         { font-family: var(--mono); font-size: 9px; color: var(--text-6); letter-spacing: 0.05em; white-space: nowrap; padding-top: 2px; }
-
-.dash-ping-view-btn     { font-family: var(--mono); font-size: 10px; color: var(--text-4); background: transparent; border: 1px solid var(--border-e); border-radius: 4px; padding: 4px 12px; cursor: pointer; letter-spacing: 0.05em; transition: color 0.15s, border-color 0.15s; white-space: nowrap; flex-shrink: 0; }
+/* Titlebar — the pop-out's alert badge and sig; its ✕ becomes View here. */
+.dash-ping-titlebar     { display: flex; align-items: center; gap: 8px; padding-bottom: 7px;
+                          border-bottom: 1px solid var(--border-e); }
+.dash-ping-alert        { display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+                          font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em;
+                          color: var(--warning); text-transform: uppercase; }
+.dash-ping-dot          { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+                          background: var(--warning); box-shadow: 0 0 7px var(--warning);
+                          animation: dash-ping-pulse 1.4s ease-in-out infinite; }
+@keyframes dash-ping-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.dash-ping-sig          { flex: 1; min-width: 0; font-family: var(--mono); font-size: 11px;
+                          font-weight: 700; letter-spacing: 0.14em; color: var(--text-2);
+                          text-transform: uppercase;
+                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-ping-view-btn     { font-family: var(--mono); font-size: 10px; color: var(--text-4);
+                          background: transparent; border: 1px solid var(--border-e);
+                          border-radius: 4px; padding: 3px 10px; cursor: pointer;
+                          letter-spacing: 0.05em; white-space: nowrap; flex-shrink: 0;
+                          transition: color 0.15s, border-color 0.15s; }
 .dash-ping-view-btn:hover { color: var(--text-1); border-color: var(--accent); }
 
-/* Fields grid: 2 columns */
-.dash-ping-fields       { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
-.dash-ping-field        { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.dash-ping-field--wide  { grid-column: 1 / -1; }
-.dash-ping-label        { font-family: var(--mono); font-size: 8px; color: var(--text-7); letter-spacing: 0.12em; text-transform: uppercase; }
-.dash-ping-value        { font-family: var(--mono); font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-ping-value--em    { color: var(--text-2); }
+/* From banner — tinted strip, name in accent, time pushed right. */
+.dash-ping-from-banner  { display: flex; align-items: baseline; gap: 9px;
+                          padding: 6px 8px; background: var(--accent-06);
+                          border-bottom: 1px solid var(--border-e); }
+.dash-ping-from-label   { font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em;
+                          color: var(--text-4); text-transform: uppercase; flex-shrink: 0; }
+.dash-ping-from-name    { font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
+                          color: var(--accent); min-width: 0;
+                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-ping-from-time    { margin-left: auto; font-family: var(--mono); font-size: 10px;
+                          color: var(--text-4); white-space: nowrap; flex-shrink: 0; }
 
-/* Message body */
-.dash-ping-msg          { font-size: 11px; color: var(--text-4); line-height: 1.5; border-left: 2px solid var(--border-e); padding-left: 10px; margin-top: 2px; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Field rows — 1px gaps over a border-coloured bed, exactly like the pop-out. */
+.dash-ping-grid         { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px;
+                          background: var(--border-e); border-bottom: 1px solid var(--border-e); }
+.dash-ping-grid--2      { grid-template-columns: 1fr 1fr; }
+.dash-ping-field        { display: flex; flex-direction: column; gap: 2px; justify-content: center;
+                          min-width: 0; padding: 6px 8px; background: var(--bg-panel); }
+.dash-ping-label        { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+                          color: var(--text-4); text-transform: uppercase; }
+.dash-ping-value        { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.3;
+                          font-weight: 600; letter-spacing: 0.02em; color: var(--text-1);
+                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-ping-value--hl      { color: var(--warning); }
+/* Formup, comms and doctrine are actions, not labels — same size and weight as a
+   plain field value so the row still scans as data, with the underline and the
+   accent on hover doing the work of saying "this does something". */
+.dash-ping-link         { display: block; max-width: 100%; text-align: left; line-height: 1.3;
+                          font-family: inherit; font-size: 12px; font-weight: 600;
+                          letter-spacing: 0.02em; color: var(--text-1);
+                          background: none; border: none; padding: 0; cursor: pointer;
+                          text-decoration: underline; text-decoration-color: var(--border);
+                          text-underline-offset: 3px;
+                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                          transition: color 0.15s, text-decoration-color 0.15s; }
+.dash-ping-link--hl     { color: var(--warning); }
+.dash-ping-link:hover   { color: var(--accent); text-decoration-color: var(--accent); }
+.dash-ping-link:disabled { cursor: default; opacity: 0.7; }
+.dash-ping-value--stratop { color: var(--accent); }
+.dash-ping-value--cta     { color: var(--warning); }
+.dash-ping-fc-portrait  { width: 18px; height: 18px; border-radius: 3px; flex-shrink: 0;
+                          border: 1px solid var(--border); object-fit: cover;
+                          opacity: 0; transition: opacity 0.2s; }
+.dash-ping-fc-portrait.loaded { opacity: 1; }
+
+/* Message block — mono body on the deep surface, as in the pop-out. */
+.dash-ping-msg-block    { flex: 1; min-height: 0; padding: 7px 8px; background: var(--bg-deep); }
+.dash-ping-msg          { margin-top: 4px; font-family: var(--mono); font-size: 11px;
+                          line-height: 1.6; color: var(--text-3); word-break: break-word; }
+
+.dash-ping-footer       { padding: 7px 8px 0; border-top: 1px solid var(--border-e);
+                          font-family: var(--mono); font-size: 10px; color: var(--text-4);
+                          letter-spacing: 0.07em;
+                          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-ping-accent       { color: var(--accent); }
+
 .dashboard-key-metric   { margin-bottom: 18px; }
 .dashboard-key-label    { font-size: 12px; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
 .dashboard-key-value    { font-size: 28px; font-weight: 700; color: var(--accent); }
@@ -1195,7 +1270,7 @@
 .beehive-alert        { animation: beehiveRedFlash 0.5s ease-in-out 4; border-radius: 10px; }
 @keyframes beehiveRedFlash {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240,72,72,0); }
-  50%      { box-shadow: 0 0 0 3px rgba(240,72,72,0.85); background: rgba(240,72,72,0.08); }
+  50%      { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pal-red) 85%, transparent); background: color-mix(in srgb, var(--pal-red) 8%, transparent); }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1341,3 +1416,257 @@ body.glass-on .active-jobs-list thead tr {
    out of step with the page; there is now one layout and one stylesheet for it.
    Only the widget's own chrome — the idle state, the header and the all-clear
    line — is styled here. */
+
+/* ── Top Kills ticker widget (killTicker) ─────────────────────────────────────
+   A horizontal marquee of the most valuable kills in the window. Built like the
+   bottom market ticker: the card sequence is rendered twice and the track slides
+   to -50%, so the loop is seamless with no JS per frame. Duration is set inline
+   from the measured width (see _ktRenderInstance) to keep the speed constant
+   regardless of card count. Hover pauses; reduced motion freezes it (base.css). */
+.kt-wrap     { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; }
+.kt-head     { display: flex; align-items: baseline; gap: 10px; flex-shrink: 0; }
+.kt-scope    { font-size: 12px; font-weight: 700; color: var(--value-bright);
+               letter-spacing: 0.06em; text-transform: uppercase; }
+.kt-sub      { font-size: 11px; font-family: var(--mono); color: var(--label-muted); }
+.kt-viewport { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: stretch; }
+.kt-track    { display: inline-flex; align-items: stretch; gap: 10px; white-space: nowrap;
+               will-change: transform; animation: kt-scroll 120s linear infinite; }
+.kt-viewport:hover .kt-track { animation-play-state: paused; }
+@keyframes kt-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.kt-card     { position: relative; display: flex; align-items: center; gap: 12px; cursor: pointer;
+               flex: 0 0 auto; width: 260px; padding: 10px 12px;
+               background: var(--bg-panel); border: 1px solid var(--border-e); border-radius: 8px;
+               transition: border-color 0.15s; }
+.kt-card:hover { border-color: var(--accent); }
+.kt-rank     { position: absolute; top: 6px; right: 8px; font-size: 10px; font-family: var(--mono);
+               color: var(--text-3); }
+.kt-ship     { width: 56px; height: 56px; flex-shrink: 0; border-radius: 4px;
+               object-fit: cover; background: var(--bg-deep); }
+.kt-info     { flex: 1; min-width: 0; }
+.kt-value    { font-size: 18px; font-weight: 700; font-family: var(--mono); color: var(--accent); }
+.kt-shipname { margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--value-bright);
+               overflow: hidden; text-overflow: ellipsis; }
+.kt-victim   { font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+.kt-meta     { margin-top: 3px; font-size: 10px; font-family: var(--mono); color: var(--label-muted);
+               overflow: hidden; text-overflow: ellipsis; }
+.kt-dot      { margin: 0 4px; }
+.kt-by       { color: var(--text-3); }
+
+/* ── Responsive widgets ───────────────────────────────────────────────────────
+   A widget can be dragged to any size, so its content has to hold up at any size.
+   Everything below is keyed off the widget's OWN width through the
+   .dashboard-widget-body query container (`dashwidget`) — not the viewport — so a
+   3-column tile on a 4K monitor compacts exactly like one on a laptop.
+
+   The rule at every step is: compact before you hide, and hide the least
+   load-bearing thing first. Decoration goes before data — a portrait, a ship
+   render, a secondary date — and what the widget exists to tell you is the last
+   thing to go. For the job tables that ranking is
+   PROGRESS > ITEM > ACTIVITY > CHARACTER: the point of the widget is how far
+   along the job is, so the character column is what gets dropped, never the bar.
+
+   Four steps: 520 / 420 / 320 / 240px of body width, then three more for height.
+
+   Container queries carry no specificity of their own, so this block has to sit
+   after every base rule it overrides — hence its position at the end of the file.
+   Moving it earlier silently stops half of it working. */
+
+/* Height queries need a container sized on BOTH axes, which means size
+   containment — safe here because a grid item's body takes its height from the
+   panel, never from its contents. Deliberately scoped to `.grid-stack-item` so it
+   never applies to a popped-out widget: that panel is moved into a host with no
+   definite height, where size containment would collapse it to nothing. */
+.grid-stack-item .dashboard-widget-body { container-type: size; }
+
+/* ── 520px: everything tightens a notch ─────────────────────────────────────── */
+@container dashwidget (max-width: 520px) {
+  .dash-wealth-header        { grid-template-columns: 1fr; }   /* net-worth KPIs stack */
+
+  /* Tables stop demanding a minimum width and start truncating instead. Fixed
+     layout is what makes text-overflow work in a cell at all. */
+  .active-jobs-list          { min-width: 0; table-layout: fixed; font-size: 11px; }
+  .active-jobs-list th,
+  .active-jobs-list td       { padding: 6px; }
+  .aj-cell-char,
+  .aj-cell-item              { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .aj-cell-char              { width: 26%; }
+  .aj-cell-item              { width: 34%; }
+  .aj-cell-activity          { width: 18%; }
+  .aj-cell-progress          { width: 22%; }
+  .mo-cell-side              { width: 12%; }
+  .mo-cell-price             { width: 20%; }
+  .mo-cell-qty               { width: 20%; }
+  .mo-cell-time              { width: 14%; }
+
+  /* Cards: media shrinks first — it is the least informative pixel on the tile. */
+  .jw-card, .cw-card         { padding: 9px; }
+  .jw-icon                   { width: 36px; height: 36px; }
+  .jw-head                   { gap: 9px; margin-bottom: 9px; }
+  .cw-portrait               { width: 36px; height: 36px; }
+  .cw-balance                { font-size: 14px; }
+  .kt-card                   { width: 210px; padding: 8px 10px; }
+  .kt-ship                   { width: 44px; height: 44px; }
+  .kt-value                  { font-size: 14px; }
+}
+
+/* ── 420px: the character column goes ───────────────────────────────────────── */
+@container dashwidget (max-width: 420px) {
+  .dash-pi-counts            { flex-direction: column; }        /* PI status panels stack */
+
+  .aj-cell-char              { display: none; }
+  .aj-cell-item              { width: 46%; }
+  .aj-cell-activity          { width: 22%; }
+  .aj-cell-progress          { width: 32%; }
+  .mo-cell-side              { width: 14%; }
+  .mo-cell-price             { width: 24%; }
+  .mo-cell-qty               { width: 24%; }
+  .mo-cell-time              { width: 16%; }
+
+  .kt-sub                    { display: none; }                 /* the count, not the scope */
+  .kt-card                   { width: 190px; }
+
+  /* Three fields abreast stop being readable well before the tile runs out of
+     room; the pop-out never has to make this call because it has a fixed width. */
+  .dash-ping-grid            { grid-template-columns: 1fr 1fr; }
+  .dash-ping-from-name       { font-size: 12px; }
+}
+
+/* ── 320px: drop the secondary column and the second-order detail ───────────── */
+@container dashwidget (max-width: 320px) {
+  .dash-market-row           { flex-wrap: wrap; }
+  .dash-market-prices        { width: 100%; justify-content: flex-start; gap: 16px; margin-top: 2px; }
+  .dash-wallet-row,
+  .dash-skill-row            { flex-wrap: wrap; }
+
+  .aj-cell-activity          { display: none; }
+  .aj-cell-item              { width: 55%; }
+  .aj-cell-progress          { width: 45%; }
+  .mo-cell-time              { display: none; }
+  .mo-cell-side              { width: 16%; }
+  .mo-cell-price             { width: 28%; }
+  .mo-cell-qty               { width: 28%; }
+
+  /* Job Watch keeps the bar and the countdown; the end timestamp is the same
+     information a second time, less precisely. */
+  .jw-end                    { display: none; }
+  .jw-foot                   { justify-content: flex-start; }
+  .jw-icon                   { width: 28px; height: 28px; }
+  .jw-head                   { gap: 7px; margin-bottom: 7px; }
+  .jw-card, .cw-card         { padding: 7px; }
+  .jw-name                   { font-size: 12px; }
+  .jw-sub, .jw-char          { font-size: 10px; }
+
+  .cw-portrait               { width: 28px; height: 28px; }
+  .cw-card                   { gap: 9px; }
+  .cw-balance                { font-size: 13px; }
+  .cw-journal-icon           { display: none; }
+
+  .dash-ping-grid,
+  .dash-ping-grid--2         { grid-template-columns: 1fr; }
+  .dash-ping-footer          { display: none; }                 /* Target/Sig repeat the titlebar */
+
+  .kt-card                   { width: 165px; gap: 9px; }
+  .kt-ship                   { width: 34px; height: 34px; }
+  .kt-value                  { font-size: 13px; }
+  .kt-victim                 { display: none; }
+}
+
+/* ── 240px: last stand — one fact per widget, still legible ─────────────────── */
+@container dashwidget (max-width: 240px) {
+  .active-jobs-list th,
+  .active-jobs-list td       { padding: 5px 4px; }
+  .active-jobs-list          { font-size: 10px; }
+  .aj-cell-item img          { display: none; }                 /* name over icon */
+  /* Nothing in a cell may set its own floor, or the table starts scrolling
+     sideways again and the progress column is the first thing off the edge. */
+  .aj-cell-progress          { overflow: hidden; }
+  .aj-progress-wrap          { min-width: 0; }
+  .aj-progress-label         { font-size: 9px; white-space: nowrap;
+                               overflow: hidden; text-overflow: ellipsis; }
+  .mo-cell-qty               { display: none; }
+  .aj-cell-item              { width: 58%; }
+  .mo-cell-side              { width: 18%; }
+  .mo-cell-price             { width: 24%; }
+
+  .jw-sub                    { display: none; }                 /* activity badge + runs */
+  .cw-name                   { font-size: 11px; }
+
+  .dash-ping-fc-portrait     { display: none; }
+  .dash-ping-value           { font-size: 11px; }
+
+  .kt-ship                   { display: none; }                 /* render is decoration */
+  .kt-rank                   { display: none; }
+  .kt-card                   { width: 130px; padding: 6px 8px; }
+  .kt-meta                   { font-size: 9px; }
+  .kt-shipname               { font-size: 11px; }
+}
+
+/* ── Short widgets ────────────────────────────────────────────────────────────
+   Width compaction does nothing for a tile dragged flat, which is the other half
+   of the problem: a card that needs 130px in an 80px frame is cut in half. Same
+   ranking as above — the media goes, then the secondary lines, and the one fact
+   the widget exists for is what survives. */
+@container dashwidget (max-height: 140px) {
+  .jw-icon                   { width: 34px; height: 34px; }
+  .jw-head                   { margin-bottom: 7px; }
+  .jw-card, .cw-card         { padding: 8px; }
+  .cw-portrait               { width: 34px; height: 34px; }
+  .kt-head                   { display: none; }                 /* scope label */
+}
+@container dashwidget (max-height: 115px) {
+  .jw-icon                   { width: 26px; height: 26px; }
+  .jw-head                   { gap: 7px; margin-bottom: 5px; }
+  .jw-sub                    { display: none; }
+  .jw-card, .cw-card         { padding: 6px; }
+  .jw-name                   { font-size: 11px; }
+  .jw-char, .jw-foot         { font-size: 10px; }
+  .cw-portrait               { width: 26px; height: 26px; }
+  .cw-balance                { font-size: 13px; }
+  .cw-journal-icon           { display: none; }
+  .kt-ship                   { width: 34px; height: 34px; }
+  .kt-victim                 { display: none; }
+  .kt-value                  { font-size: 13px; }
+}
+@container dashwidget (max-height: 70px) {
+  /* Nothing but the headline: which job, how far along; which pilot, how much. */
+  .jw-icon, .jw-char, .jw-end { display: none; }
+  .jw-head                   { margin-bottom: 4px; }
+  .jw-progress               { margin: 4px 0; }
+  .jw-card, .cw-card         { padding: 4px 6px; }
+  .cw-portrait               { display: none; }
+  .cw-name                   { font-size: 10px; }
+  .cw-balance                { font-size: 12px; margin-top: 1px; }
+  .kt-ship, .kt-rank, .kt-meta { display: none; }
+  .kt-card                   { width: 120px; padding: 5px 7px; }
+  .kt-shipname               { font-size: 10px; }
+}
+
+/* ── Latest Ping: what a short tile gives up, in order ────────────────────────
+   The pop-out is a 500px window and never has to make these calls. A dashboard
+   tile does, so the ping sheds from the bottom up: whatever repeats something
+   already on screen goes first, and who called it, where to be and on what comms
+   is what survives. The View button opens the full ping either way.
+   The thresholds are measured, not guessed — see e2e/widget-fit.spec.js. */
+/* Above 240px the message flows freely, exactly as it does in the pop-out. */
+@container dashwidget (max-height: 240px) {
+  .dash-ping-msg          { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2;
+                            -webkit-box-orient: vertical; overflow: hidden; }
+}
+@container dashwidget (max-height: 225px) {
+  .dash-ping-footer       { display: none; }        /* Target/Sig — sig is in the titlebar */
+  .dash-ping-grid--2      { display: none; }        /* PAP type + doctrine */
+  .dash-ping-msg          { -webkit-line-clamp: 1; line-clamp: 1; }
+  .dash-ping-from-banner,
+  .dash-ping-field        { padding-top: 4px; padding-bottom: 4px; }
+}
+@container dashwidget (max-height: 145px) {
+  .dash-ping-msg-block    { display: none; }        /* FC, formup and comms remain */
+  /* One row, not two: with the message gone the fields have the width to spare,
+     and a second row would cost more height than the tile has left. */
+  .dash-ping-grid         { grid-template-columns: 1fr 1fr 1fr; }
+}
+@container dashwidget (max-height: 70px) {
+  .dash-ping-grid         { display: none; }        /* who called it, and when */
+  .dash-ping-fc-portrait  { display: none; }
+}

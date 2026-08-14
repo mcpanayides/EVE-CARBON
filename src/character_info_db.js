@@ -56,11 +56,50 @@ async function closeCharacterDb() {
 }
 
 // ── DB init ───────────────────────────────────────────────────────────────────
+/**
+ * Move a database left in the install directory by an older build into the
+ * per-user data directory.
+ *
+ * Until this was fixed, character_information.db was created beside sde.sql in
+ * the app's own resources folder. That works for a per-user install
+ * (%LOCALAPPDATA%\Programs\… is writable) and fails completely for an
+ * all-users install, where the app lives in Program Files and cannot write —
+ * SQLite cannot even create the -wal/-shm files WAL mode needs. It also meant
+ * every user on a shared machine read the same characters and tokens, and that
+ * an update replacing resources/ took the database with it.
+ *
+ * Copies rather than moves: the source may be read-only, and leaving it behind
+ * costs a few MB against the risk of losing someone's whole character history.
+ * Returns true when a database was brought across.
+ */
+function migrateLegacyDatabase(legacyDir, targetDir) {
+  if (!legacyDir || !targetDir || legacyDir === targetDir) return false;
+  const name   = 'character_information.db';
+  const source = path.join(legacyDir, name);
+  const dest   = path.join(targetDir, name);
+  // Never overwrite: a database already in the new location is the live one.
+  if (!fs.existsSync(source) || fs.existsSync(dest)) return false;
+
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.copyFileSync(source, dest);
+    // WAL puts committed transactions in a sidecar file. Copying the database
+    // without it silently drops everything since the last checkpoint.
+    for (const suffix of ['-wal', '-shm']) {
+      if (fs.existsSync(source + suffix)) fs.copyFileSync(source + suffix, dest + suffix);
+    }
+    console.log(`[CharDB] migrated ${name} from ${legacyDir} to ${targetDir}`);
+    return true;
+  } catch (e) {
+    console.error('[CharDB] migration failed:', e.message);
+    return false;
+  }
+}
+
 async function initCharacterDb(dataDir) {
   if (charDb) return charDb;
   _dataDir = dataDir;
 
-  // Ensure /data folder exists next to the app root (not in userData)
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
@@ -1319,6 +1358,7 @@ async function getStandings(characterId) {
 }
 
 module.exports = {
+  migrateLegacyDatabase,
   initCharacterDb,
   closeCharacterDb,
   ensureCharacterTables,

@@ -216,32 +216,75 @@ async function loadAssets() {
   }
 }
 
-// ── Re-resolve poisoned / unresolved structure names ─────────────────────────
-// Triggers the backend repair pass (purge bad cache + force re-resolve through
-// the full locator chain) and reloads the table when done. Slow — streams
-// progress to the app console.
+// ── Re-resolve unresolved structure names ────────────────────────────────────
+// Lives in Settings ▸ Database ▸ Structure Names (not the Assets toolbar, where
+// it was read as a page refresh and clicked repeatedly). Forces the locator past
+// its failure backoff and cache for every structure still showing a fallback
+// name. Slow, and rate-limited by design — the outcome of the last run is kept
+// so a second click has something to say for itself instead of looking inert.
+const ASSET_REPAIR_KEY = 'assetRepairLastRun';
+const ASSET_REPAIR_LABEL = 'RESOLVE STRUCTURE NAMES';
+
+function _repairSetStatus(msg, tone) {
+  const el = document.getElementById('repairLocationsStatus');
+  if (!el) return;
+  el.style.color = tone === 'ok' ? 'var(--accent)' : tone === 'bad' ? 'var(--danger)' : 'var(--text-3)';
+  el.textContent = msg || '';
+}
+
+// Shown when Settings is opened, so the panel explains itself before you click.
+function paintAssetRepairLastRun() {
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem(ASSET_REPAIR_KEY) || 'null'); } catch (_) { /* ignore */ }
+  if (!last || !last.at) return;
+  const mins = Math.round((Date.now() - last.at) / 60_000);
+  const when = mins < 1 ? 'just now'
+             : mins < 60 ? `${mins} min ago`
+             : mins < 1440 ? `${Math.round(mins / 60)} h ago`
+             : `${Math.round(mins / 1440)} d ago`;
+  _repairSetStatus(`Last run ${when} — resolved ${last.resolved} of ${last.attempted} structure(s).`);
+}
+
 async function repairAssetLocations() {
   const btn = document.getElementById('repairLocationsBtn');
   if (btn && btn.disabled) return;
-  if (btn) { btn._orig = btn.textContent; btn.textContent = '⏳ RESOLVING…'; btn.disabled = true; }
+  if (btn) { btn._orig = btn.textContent; btn.textContent = 'RESOLVING…'; btn.disabled = true; }
 
+  // Progress goes to the settings panel as well as the console — from here the
+  // Assets table isn't on screen, so the console alone would look like nothing
+  // is happening for several minutes.
   const onProgress = (data) => {
-    if (data && typeof logToConsole === 'function') {
+    if (!data) return;
+    if (typeof logToConsole === 'function') {
       logToConsole(`[Locations] ${data.msg}`, data.done ? 'success' : 'info');
     }
+    _repairSetStatus(data.msg, data.done ? 'ok' : null);
   };
   const stopProgress = window.eveAPI?.on?.('repair-progress', onProgress);
 
+  _repairSetStatus('Re-resolving structure names — this can take a few minutes…');
   showToast('Re-resolving structure names — this can take a few minutes…', 'info');
   try {
     const r = await window.eveAPI.repairStructureLocations();
-    showToast(`✓ Resolved ${r?.resolved || 0} of ${r?.attempted || 0} structures.`, 'success');
+    const attempted = r?.attempted || 0;
+    const resolved  = r?.resolved  || 0;
+    try {
+      localStorage.setItem(ASSET_REPAIR_KEY, JSON.stringify({ at: Date.now(), attempted, resolved }));
+    } catch (_) { /* private mode */ }
+    // Nothing left to try is a result, not a failure — say so plainly, since the
+    // alternative reading ("it did nothing") is what makes people click again.
+    _repairSetStatus(attempted === 0
+      ? 'Nothing to resolve — every structure in your assets already has a name.'
+      : `✓ Resolved ${resolved} of ${attempted} structure(s). The rest need docking access before ESI will name them.`,
+      'ok');
+    showToast(`✓ Resolved ${resolved} of ${attempted} structures.`, 'success');
     if (typeof loadAssets === 'function') await loadAssets();
   } catch (e) {
+    _repairSetStatus(`Repair failed: ${e.message}`, 'bad');
     showToast(`Location repair failed: ${e.message}`, 'error');
   } finally {
     stopProgress?.();
-    if (btn) { btn.textContent = btn._orig || '⚲ RESOLVE NAMES'; btn.disabled = false; }
+    if (btn) { btn.textContent = btn._orig || ASSET_REPAIR_LABEL; btn.disabled = false; }
   }
 }
 
@@ -541,9 +584,32 @@ function renderAssetTree() {
   // Sorting by Name orders the station headers themselves (with direction);
   // every other column keeps the default region → system → name grouping so the
   // tree stays readable while the items inside each group get sorted.
+  // Value held at each location and by each character in it, for the numeric
+  // sorts below. Computed from the data rather than read back off the DOM, so
+  // the ordering is decided before a single row is built.
+  for (const loc of locMap.values()) {
+    let locValue = 0;
+    for (const ch of loc.charMap.values()) {
+      ch.value = ch.items.reduce(
+        (sum, it) => sum + assetUnitPrice(it.type_id, it.is_bpc) * (it.quantity || 1), 0);
+      locValue += ch.value;
+    }
+    loc.value = locValue;
+  }
+
   const locations = [...locMap.values()].sort((a, b) => {
     if (window._assetSort.col === 'name') {
       return a.locationName.localeCompare(b.locationName) * window._assetSort.dir;
+    }
+    // Sorting by a numeric column orders the STATION HEADERS by their totals
+    // too. Previously only Name reordered groups, so sorting by price sorted
+    // items inside each station while leaving the stations themselves in
+    // region order — the list looked unsorted, because at the level you were
+    // reading it, it was.
+    if (_ASSET_COL_TYPE[window._assetSort.col] === 'num') {
+      const cmp = (a.value || 0) - (b.value || 0);
+      if (cmp !== 0) return cmp * window._assetSort.dir;
+      return a.locationName.localeCompare(b.locationName);
     }
     const ra = a.regionName.localeCompare(b.regionName);
     if (ra !== 0) return ra;
@@ -683,6 +749,14 @@ function renderAssetTree() {
 
     // ── Character sub-groups, sorted by name (direction follows a Name sort) ──
     const chars = [...loc.charMap.values()].sort((a, b) => {
+      // Same rule as the station headers: a numeric sort orders the character
+      // sub-groups by what they hold, so the richest hangar in a station is the
+      // one at the top rather than whoever is first alphabetically.
+      if (_ASSET_COL_TYPE[window._assetSort.col] === 'num') {
+        const cmp = (a.value || 0) - (b.value || 0);
+        if (cmp !== 0) return cmp * window._assetSort.dir;
+        return a.characterName.localeCompare(b.characterName);
+      }
       const cmp = a.characterName.localeCompare(b.characterName);
       return window._assetSort.col === 'name' ? cmp * window._assetSort.dir : cmp;
     });
@@ -775,6 +849,18 @@ function renderAssetTree() {
         itemTr.dataset.typeId   = asset.type_id  || '';
         itemTr.dataset.quantity = qty;
         itemTr.dataset.isBpc    = asset.is_bpc != null ? String(asset.is_bpc) : '';
+        // Identity and parentage, so a container (asset safety wrap, ship,
+        // freight container) can be priced by what is inside it. An Asset Safety
+        // Wrap type is itself worth nothing, so without this it reads N/A while
+        // holding a billion ISK of modules — which is exactly the number you
+        // need to decide whether to pay to get it back.
+        itemTr.dataset.itemId   = asset.item_id != null ? String(asset.item_id) : '';
+        // Only nested rows have an item for a parent. A top-level row's
+        // location_id is the station, and rolling value into a station id would
+        // be aiming at a row that does not exist.
+        itemTr.dataset.parentId = depth > 0 && asset.location_id != null
+          ? String(asset.location_id) : '';
+        itemTr.dataset.childCount = childCount || 0;
         if (shipKey)   itemTr.dataset.shipKey    = shipKey;    // nested → hides with its ship
         if (toggleKey) itemTr.dataset.shipToggle = toggleKey;  // this row IS a ship/container header
 
@@ -802,6 +888,8 @@ function renderAssetTree() {
           <td class="asset-item-price-cell ${priceClass}" data-col-key="price"
               data-type-id="${asset.type_id || ''}"
               data-quantity="${qty}"
+              data-item-id="${asset.item_id != null ? asset.item_id : ''}"
+              data-child-count="${childCount || 0}"
               data-is-bpc="${asset.is_bpc != null ? asset.is_bpc : ''}">${priceText}</td>`;
         frag.appendChild(itemTr);
       };
@@ -921,15 +1009,67 @@ function _bindAssetCollapse() {
 }
 
 // ── Update price cells and group value totals ─────────────────────────────────
+// Container rows are priced by their CONTENTS. A ship's hull, an Asset Safety
+// Wrap, a freight container: the wrapper's own type is worth little or nothing,
+// and the number worth showing is what it is carrying. Computed here rather than
+// at render because prices arrive asynchronously — every cell is repriced on
+// each price load, and the roll-up simply rides along.
+function _assetContainedValues(tbody) {
+  const own      = new Map();   // item_id -> its own ISK value
+  const parentOf = new Map();   // item_id -> containing item_id
+  tbody.querySelectorAll('tr.asset-item-row[data-item-id]').forEach(row => {
+    const id = row.dataset.itemId;
+    if (!id) return;
+    const typeId = Number(row.dataset.typeId);
+    const qty    = Number(row.dataset.quantity) || 1;
+    own.set(id, typeId ? assetUnitPrice(typeId, row.dataset.isBpc) * qty : 0);
+    if (row.dataset.parentId) parentOf.set(id, row.dataset.parentId);
+  });
+
+  // Each item's value is added to every ancestor above it. The `seen` guard is
+  // not paranoia: ESI has been known to return an item whose location_id points
+  // back into its own subtree, and an unguarded walk there never returns.
+  const rolled = new Map();
+  for (const [id, value] of own) {
+    if (!value) continue;
+    let parent = parentOf.get(id);
+    const seen = new Set([id]);
+    while (parent && !seen.has(parent)) {
+      seen.add(parent);
+      rolled.set(parent, (rolled.get(parent) || 0) + value);
+      parent = parentOf.get(parent);
+    }
+  }
+  return { own, rolled };
+}
+
 function _updateAssetPriceCells() {
   const tbody = document.querySelector('#assetTable tbody');
   if (!tbody) return;
+
+  const { own, rolled } = _assetContainedValues(tbody);
 
   // Update individual item price cells
   tbody.querySelectorAll('td.asset-item-price-cell[data-type-id]').forEach(td => {
     const typeId = Number(td.dataset.typeId);
     const qty    = Number(td.dataset.quantity) || 1;
     const isBpc  = td.dataset.isBpc;
+    const itemId = td.dataset.itemId;
+
+    // A container shows its own worth plus everything inside it. Marked so the
+    // number does not read as a claim about the wrapper itself.
+    const contained = itemId ? (rolled.get(itemId) || 0) : 0;
+    if (contained > 0) {
+      const self  = itemId ? (own.get(itemId) || 0) : 0;
+      const total = self + contained;
+      td.textContent = `${_formatAssetIsk(total)} ISK`;
+      td.title = self > 0
+        ? `${_formatAssetIsk(self)} ISK item + ${_formatAssetIsk(contained)} ISK contents`
+        : `${_formatAssetIsk(contained)} ISK of contents`;
+      td.classList.remove('price-loading', 'price-na');
+      td.classList.add('has-price', 'price-contents');
+      return;
+    }
     if (!typeId) return;
 
     const total = assetUnitPrice(typeId, isBpc) * qty;

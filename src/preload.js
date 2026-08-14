@@ -9,8 +9,11 @@ const IPC_EVENT_CHANNELS = [
   'jabber-message',
   'beehive-status',
   'presence-count',
-  'ping-file-updated',
   'ping-alert-data',
+  'jabber-room-message',
+  'jabber-room-subject',
+  'jabber-room-occupants',
+  'jabber-rooms',
   'repair-progress',
   'sde-update-progress',
   'updater-download-progress',
@@ -209,6 +212,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   restartApp:        ()        => ipcRenderer.invoke('restart-app'),
   setLaunchAtLogin:  (enabled) => ipcRenderer.invoke('set-launch-at-login', enabled),
   setMinimizeToTray: (enabled) => ipcRenderer.invoke('set-minimize-to-tray', enabled),
+  getPresenceState: () => ipcRenderer.invoke('presence-get-state'),
   getPresenceCount:   ()        => ipcRenderer.invoke('presence-get-count'),
 
   // Ping file watcher
@@ -227,6 +231,19 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getJabberMessages:   (limit)  => ipcRenderer.invoke('jabber-get-messages', limit),
   wipeJabberData:      ()       => ipcRenderer.invoke('jabber-wipe-data'),
   openPingAlert:       (rowId)  => ipcRenderer.invoke('jabber-open-ping-alert', rowId),
+  getLatestPing:       ()       => ipcRenderer.invoke('jabber-get-latest-ping'),
+
+  // Jabber chat rooms (MUC): list/add/remove, read history, mark read, send.
+  jabberListRooms:    ()               => ipcRenderer.invoke('jabber-list-rooms'),
+  jabberAddRoom:      (room)           => ipcRenderer.invoke('jabber-add-room', room),
+  jabberRemoveRoom:   (jid)            => ipcRenderer.invoke('jabber-remove-room', jid),
+  jabberRoomMessages: (jid, limit)     => ipcRenderer.invoke('jabber-room-messages', jid, limit),
+  jabberMarkRoomRead: (jid)            => ipcRenderer.invoke('jabber-mark-room-read', jid),
+  jabberSendRoom:     (jid, body)      => ipcRenderer.invoke('jabber-send-room', jid, body),
+  jabberDefaultConference: ()          => ipcRenderer.invoke('jabber-default-conference'),
+  jabberDiscoverRooms: (serverJid)     => ipcRenderer.invoke('jabber-discover-rooms', serverJid),
+  jabberLoadRoomHistory: (jid, pageSize) => ipcRenderer.invoke('jabber-load-room-history', jid, pageSize),
+  jabberRoomState:    (jid)            => ipcRenderer.invoke('jabber-room-state', jid),
   getPingAlertData:    ()       => ipcRenderer.invoke('jabber-get-ping-alert-data'),
   getBeehiveStatus:    ()       => ipcRenderer.invoke('beehive-get-status'),
 
@@ -292,6 +309,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   sdeGetSkills:       ()             => ipcRenderer.invoke('sde-get-skills'),
   sdeImplantAttrs:    (typeIds)      => ipcRenderer.invoke('sde-implant-attrs', typeIds),
   sdeTypeRequirements:(typeId)       => ipcRenderer.invoke('sde-type-requirements', typeId),
+  sdeSkillUnlocks:    (pairs)        => ipcRenderer.invoke('sde-skill-unlocks', pairs),
   sdeAttributeBoosters: ()           => ipcRenderer.invoke('sde-attribute-boosters'),
 
   // Reactions Profit — all reaction formulas + materials from the SDE

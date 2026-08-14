@@ -244,6 +244,8 @@ body.glass-on {
   .concord-glow-main,
   .concord-glow-secondary,
   .market-ticker-track,
+  .kt-track,
+  .dash-ping-dot,
   .inc-alert-widget,
   .inc-alert-light,
   .fw-slot.state-overheated,
@@ -309,6 +311,18 @@ body.glass-on {
 }
 .page-spinner.loading { display: inline-block; animation: page-spin 0.7s linear infinite; }
 @keyframes page-spin { to { transform: rotate(360deg); } }
+/* Page-level action button sharing the ✕'s corner. Quiet by default so it never
+   competes with the page content — it is a repair, not a primary action. */
+.page-header-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; padding: 2px; cursor: pointer;
+  color: var(--text-3); flex-shrink: 0;
+  transition: color 0.15s;
+}
+.page-header-btn .material-symbols-outlined { font-size: 18px; }
+.page-header-btn:hover { color: var(--accent); }
+.page-header-btn:disabled { opacity: 0.5; cursor: default; }
+.page-header-btn.spinning .material-symbols-outlined { animation: page-spin 0.7s linear infinite; }
 .console-toggle { margin-left: auto; color: var(--text-3); font-size: 9px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 2px; background: none; cursor: pointer; flex-shrink: 0; transition: color 0.15s, border-color 0.15s; }
 .console-toggle:hover { color: var(--accent); border-color: var(--accent); }
 .console-label { color: var(--text-6); margin-right: 8px; letter-spacing: 0.08em; }

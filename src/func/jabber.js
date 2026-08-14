@@ -9,12 +9,6 @@
 // Live messages arriving via IPC are parsed client-side with the same field
 // names so they slot in without any special-casing.
 
-// ── Filters ───────────────────────────────────────────────────────────────────
-// Both filters removed from UI. Hardcoded to false = show everything.
-// jabberFilterDirectorOnly is declared in state.js; force it off here.
-jabberFilterDirectorOnly  = false;
-var jabberFilterBroadcastOnly = false;
-
 // ── FC portrait cache ─────────────────────────────────────────────────────────
 // Maps lowercase FC name → characterId (number) or null (not found / failed).
 // Populated lazily after each table render.
@@ -370,6 +364,16 @@ function jabberBuildColsDropdown() {
   });
 }
 
+// Feed filter buttons (Broadcasts / Alerts / All). Bound with the page's other
+// static controls; re-binding is harmless because handlers are assigned.
+function initJabberFeedFilter() {
+  const mode = jabberFeedMode();
+  document.querySelectorAll('#jabberFeedFilter .jabber-feed-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.feed === mode);
+    btn.onclick = () => jabberSetFeedMode(btn.dataset.feed);
+  });
+}
+
 function initJabberColsToggle() {
   const btn = document.getElementById('jabberColsBtn');
   const dd  = document.getElementById('jabberColsDropdown');
@@ -480,15 +484,65 @@ function initJabberColResize() {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
+// What kind of thing a received message is.
+//
+// A fleet broadcast is structured: it carries the closing "~~~ This was a <sig>
+// broadcast from <who> ~~~" line, or FC/formup fields parsed out of the body.
+// Structure-alert bots post a continuous stream of ":siren: CitadelAttack: …"
+// with none of that, and on a busy night they outnumber real broadcasts by
+// fifty to one — which is how the page you opened to find a formup ends up
+// showing nothing else.
+function jabberClassifyMessage(row) {
+  const body = String(row?.raw_body || row?.body || '');
+  // Bot alerts lead with an emoji shortcode and name their event type.
+  if (/^\s*:[a-z0-9_+-]+:/i.test(body)
+      || /\b(CitadelAttack|StructureUnderAttack|SovStructure|EntosisAlert|TowerAlert)\b/i.test(body)) {
+    return 'alert';
+  }
+  if (row?.sig || row?.gsol_member || row?.eve_timecode || row?.fc_name || row?.formup_location) {
+    return 'broadcast';
+  }
+  return 'other';
+}
+
+// Persisted so the choice survives a restart — someone who never wants to see
+// structure spam should not have to re-say so every launch.
+const JABBER_FEED_KEY = 'jabberFeedFilter';
+function jabberFeedMode() {
+  try { return localStorage.getItem(JABBER_FEED_KEY) || 'broadcast'; }
+  catch (_) { return 'broadcast'; }
+}
+function jabberSetFeedMode(mode) {
+  try { localStorage.setItem(JABBER_FEED_KEY, mode); } catch (_) { /* private mode */ }
+  document.querySelectorAll('#jabberFeedFilter .jabber-feed-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.feed === mode));
+  renderJabberTable();
+}
+
 function renderJabberTable() {
   const tbody = document.querySelector('#jabberTable tbody');
   if (!tbody) return;
 
-  // Sort newest-first — no filters applied, show everything
-  const sorted = [...jabberMessages].sort((a, b) => jabberSortKey(b).localeCompare(jabberSortKey(a)));
+  const mode = jabberFeedMode();
+  // 'other' rides with broadcasts: an unparsed message is more likely a person
+  // than a bot, and silently hiding something we simply failed to parse would be
+  // worse than showing it.
+  const visible = mode === 'all'
+    ? [...jabberMessages]
+    : jabberMessages.filter(m => {
+        const kind = jabberClassifyMessage(m);
+        return mode === 'alert' ? kind === 'alert' : kind !== 'alert';
+      });
+
+  const sorted = visible.sort((a, b) => jabberSortKey(b).localeCompare(jabberSortKey(a)));
 
   if (!sorted.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">No messages received yet.</td></tr>`;
+    const hidden = jabberMessages.length - sorted.length;
+    tbody.innerHTML = `<tr><td colspan="11" class="loading-row">${
+      hidden > 0
+        ? `No ${mode === 'alert' ? 'alerts' : 'broadcasts'} — ${hidden} other message${hidden === 1 ? '' : 's'} hidden by this filter.`
+        : 'No messages received yet.'
+    }</td></tr>`;
     updateJabberSummary(0);
     return;
   }
@@ -549,6 +603,12 @@ function updateJabberSummary(count) {
  * live messages already buffered in jabberMessages this session.
  */
 async function loadJabberHistory() {
+  // The rooms rail lives beside this feed and loads independently — a failure in
+  // one must not blank the other.
+  initJabberFeedFilter();
+  if (typeof initJabberRooms === 'function') {
+    try { initJabberRooms(); } catch (e) { console.warn('[Jabber] rooms init failed:', e.message); }
+  }
   try {
     const history = await window.eveAPI.getJabberMessages(200);
     if (!Array.isArray(history)) return;
@@ -578,7 +638,6 @@ async function populateJabberSettings() {
     service:      jabber.service      || 'xmpp://jabber.eveonline.com:5222',
     jid:          jabber.jid          || '',
     password:     jabber.password     || '',
-    directorOnly: typeof jabber.directorOnly === 'boolean' ? jabber.directorOnly : true,
     pack:         jabber.pack         || 'gsf_sigs',
     pingSound:    jabber.pingSound    || null,
   };
@@ -586,12 +645,10 @@ async function populateJabberSettings() {
   const serviceInput  = document.getElementById('jabberService');
   const jidInput      = document.getElementById('jabberJid');
   const passwordInput = document.getElementById('jabberPassword');
-  const directorCheck = document.getElementById('jabberDirectorOnly');
 
   if (serviceInput)  serviceInput.value    = jabberSettings.service;
   if (jidInput)      jidInput.value        = jabberSettings.jid;
   if (passwordInput) passwordInput.value   = jabberSettings.password;
-  if (directorCheck) directorCheck.checked = jabberSettings.directorOnly;
 
   await populatePackDropdown(jabberSettings.pack);
   await _populatePingSounds();
@@ -602,7 +659,6 @@ function gatherJabberSettings() {
     service:      document.getElementById('jabberService')?.value.trim()   || 'xmpp://jabber.eveonline.com:5222',
     jid:          document.getElementById('jabberJid')?.value.trim()       || '',
     password:     document.getElementById('jabberPassword')?.value         || '',
-    directorOnly: document.getElementById('jabberDirectorOnly')?.checked   ?? true,
     pack:         document.getElementById('jabberPackSelect')?.value       || 'gsf_sigs',
     // Include the ping-sound choice so a Settings save doesn't wipe it
     // (app-save-config replaces the whole jabber object).
@@ -1014,6 +1070,9 @@ function bindJabberEvents() {
   // Handle both so cells always show content regardless of DB state.
   window.eveAPI.on('jabber-message', (payload) => {
     const row = ('raw_body' in payload) ? payload : jabberLiveToRow(payload);
+    // Room chat has its own pane and its own channel. Nothing carrying a room
+    // belongs in the broadcast feed, whatever route it arrived by.
+    if (row.room_jid) return;
     jabberMessages.unshift(row);
     renderJabberTable();
   });
@@ -1042,7 +1101,7 @@ function bindJabberEvents() {
       if (!confirm('Wipe ALL Jabber messages from the database and clear saved credentials? This cannot be undone.')) return;
       try {
         await window.eveAPI.wipeJabberData();
-        await window.eveAPI.saveAppConfig({ jabber: { service: '', jid: '', password: '', directorOnly: true } });
+        await window.eveAPI.saveAppConfig({ jabber: { service: '', jid: '', password: '' } });
         jabberMessages = [];
         renderJabberTable();
         // Clear the settings inputs so they visually reflect the wipe

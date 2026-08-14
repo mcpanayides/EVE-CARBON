@@ -52,13 +52,6 @@ function formatISK(value) {
   return Math.round(value).toLocaleString() + ' ISK';
 }
 
-function formatCurrency(value) {
-  if (typeof value !== 'number') return 'N/A';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0
-  }).format(value);
-}
-
 function countUp(el, targetValue, duration = 1200) {
   if (!el) return;
   const start    = performance.now();
@@ -221,44 +214,12 @@ function logToConsole(message, type = 'info') {
   }
 })();
 
-async function withLoadingLogs(taskName, errorContainerId, asyncWork) {
-  try {
-    logToConsole(`Loading ${taskName}...`, 'info');
-    await asyncWork();
-    logToConsole(`${taskName} loaded successfully.`, 'success');
-  } catch (error) {
-    console.error(`[${taskName}] Error:`, error);
-    logToConsole(`Connection failed: ${error.message}`, 'error');
-    const container = document.getElementById(errorContainerId);
-    if (container) {
-      container.innerHTML = `
-        <div style="color:var(--danger);padding:10px;text-align:center;
-                    font-family:var(--mono);font-size:11px;">
-          ⚠ Failed to load ${taskName} data. Check the console below for details.
-        </div>`;
-    }
-  }
-}
-
 // Simple persistent cache wrappers
 async function cacheSet(key, value, days = 7) {
   try { await window.eveAPI.cacheSet(key, value, days); } catch (e) { /* ignore */ }
 }
 async function cacheGet(key) {
   try { return await window.eveAPI.cacheGet(key); } catch (e) { return null; }
-}
-
-function showError(msg) {
-  document.getElementById('results').innerHTML = `
-    <div class="empty-state">
-      <div class="empty-icon" style="color:var(--danger)">⚠</div>
-      <div class="empty-title">Error</div>
-      <div class="empty-sub">${escHtml(msg)}</div>
-    </div>`;
-}
-
-function scrollToResults() {
-  document.querySelector('.main-content')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function openExternal(url) {

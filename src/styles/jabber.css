@@ -194,7 +194,7 @@
 .jtgt-locusts   { background: rgba(140,80,30,0.18);   color: #c4894a; border: 1px solid rgba(140,80,30,0.38); }
 .jtgt-fcsc      { background: rgba(192,57,43,0.15);   color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
 .jtgt-optall    { background: rgba(52,120,210,0.12);  color: var(--pal-blue); border: 1px solid rgba(52,120,210,0.30); }
-.jtgt-beehive   { background: rgba(210,120,20,0.14);  color: #e09840; border: 1px solid rgba(210,120,20,0.34); }
+.jtgt-beehive   { background: rgba(210,120,20,0.14);  color: var(--pal-yellow); border: 1px solid rgba(210,120,20,0.34); }
 .jtgt-other     { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--border-e); }
 
 /* Column resize — th must be position:relative (set inline in template) */
@@ -244,3 +244,236 @@
   vertical-align: top;
 }
 
+
+/* ── Rooms rail + chat pane ───────────────────────────────────────────────────
+   Mirrors the Industry page's TOOLS rail so the two pages navigate the same way:
+   a fixed-width column of entries on the left, content on the right. Broadcasts
+   (the ping feed) is the first entry and is never removable — it is what this
+   page was, and adding rooms must not bury it. */
+.jabber-layout      { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.jabber-rail        { width: 178px; flex-shrink: 0; display: flex; flex-direction: column;
+                      gap: 2px; padding: 10px 8px; overflow-y: auto;
+                      border-right: 1px solid var(--border); background: var(--bg-card); }
+.jabber-rail-label  { font-family: var(--mono); font-size: 9px; letter-spacing: 0.16em;
+                      text-transform: uppercase; color: var(--text-4); padding: 0 6px 6px; }
+.jabber-rail-hint   { font-size: 10px; line-height: 1.5; color: var(--text-4);
+                      padding: 8px 6px 0; }
+
+.jabber-room-btn    { display: flex; align-items: center; gap: 8px; width: 100%;
+                      padding: 7px 8px; border: 1px solid transparent; border-radius: 4px;
+                      background: none; cursor: pointer; text-align: left;
+                      font-size: 12px; color: var(--text-2);
+                      transition: background 0.12s, color 0.12s, border-color 0.12s; }
+.jabber-room-btn:hover  { background: var(--bg-hover); color: var(--text-1); }
+.jabber-room-btn.active { color: var(--accent); border-color: var(--accent-20);
+                          background: var(--accent-06); }
+.jabber-room-icon   { font-size: 18px; flex-shrink: 0; }
+.jabber-room-name   { flex: 1; min-width: 0; overflow: hidden;
+                      text-overflow: ellipsis; white-space: nowrap; }
+/* Speaker count since the room was last opened. Sized to stay circular for one
+   digit and grow into a pill for two, rather than squashing the label. */
+.jabber-room-badge  { flex-shrink: 0; min-width: 17px; height: 17px; padding: 0 5px;
+                      display: inline-flex; align-items: center; justify-content: center;
+                      border-radius: 999px; background: var(--accent);
+                      color: var(--bg-deep); font-family: var(--mono); font-size: 9px;
+                      font-weight: 700; }
+.jabber-add-room-btn { display: flex; align-items: center; justify-content: center; gap: 5px;
+                      margin-top: 8px; padding: 6px 8px; width: 100%;
+                      background: none; border: 1px dashed var(--border); border-radius: 4px;
+                      color: var(--text-4); font-family: var(--mono); font-size: 10px;
+                      letter-spacing: 0.06em; cursor: pointer;
+                      transition: color 0.12s, border-color 0.12s; }
+.jabber-add-room-btn:hover { color: var(--accent); border-color: var(--accent); }
+.jabber-add-room-btn .material-symbols-outlined { font-size: 14px; }
+
+.jabber-panes       { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.jabber-pane        { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.jabber-room-head   { display: flex; align-items: baseline; gap: 10px; flex-shrink: 0;
+                      padding: 10px 16px; border-bottom: 1px solid var(--border);
+                      background: var(--bg-card); }
+.jabber-room-title  { font-size: 13px; font-weight: 700; color: var(--text-1); }
+.jabber-room-jid    { font-family: var(--mono); font-size: 10px; color: var(--text-4);
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.jabber-room-log    { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px;
+                      display: flex; flex-direction: column; gap: 2px; }
+.jabber-room-empty  { padding: 20px 0; text-align: center; color: var(--text-4);
+                      font-family: var(--mono); font-size: 11px; }
+.jabber-msg         { display: flex; align-items: baseline; gap: 8px; padding: 2px 0;
+                      font-size: 12px; line-height: 1.5; }
+.jabber-msg--cont   { padding-top: 0; }
+.jabber-msg-who     { flex-shrink: 0; font-weight: 700; color: var(--accent);
+                      font-family: var(--mono); font-size: 11px; }
+.jabber-msg--cont .jabber-msg-body { margin-left: 0; }
+.jabber-msg-body    { flex: 1; min-width: 0; color: var(--text-2); word-break: break-word; }
+.jabber-msg-time    { flex-shrink: 0; font-family: var(--mono); font-size: 9px;
+                      color: var(--text-6); }
+
+.jabber-room-composer { display: flex; gap: 8px; flex-shrink: 0; padding: 10px 16px;
+                      border-top: 1px solid var(--border); background: var(--bg-card); }
+.jabber-room-input  { flex: 1; min-width: 0; padding: 7px 10px; font-size: 12px;
+                      color: var(--text-1); background: var(--bg-panel);
+                      border: 1px solid var(--border); border-radius: 4px; }
+.jabber-room-input:focus { outline: none; border-color: var(--accent); }
+.jabber-room-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.jabber-room-send   { flex-shrink: 0; padding: 7px 16px; font-family: var(--mono);
+                      font-size: 11px; letter-spacing: 0.06em; cursor: pointer;
+                      color: var(--accent); background: transparent;
+                      border: 1px solid var(--accent-20); border-radius: 4px;
+                      transition: background 0.12s, border-color 0.12s; }
+.jabber-room-send:hover:not(:disabled) { background: var(--accent-06); border-color: var(--accent); }
+.jabber-room-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Narrow window: the rail keeps its icons and badges but drops to a strip, the
+   same trade the nav bar makes when collapsed. */
+@media (max-width: 900px) {
+  .jabber-rail       { width: 46px; padding: 10px 5px; }
+  .jabber-rail-label,
+  .jabber-room-name,
+  .jabber-rail-hint  { display: none; }
+  .jabber-room-btn   { justify-content: center; padding: 7px 4px; position: relative; }
+  .jabber-room-badge { position: absolute; top: 2px; right: 2px; }
+  .jabber-add-room-btn span:not(.material-symbols-outlined) { display: none; }
+}
+
+/* Add-room dialog. Electron has no window.prompt(), so this is the dialog — not
+   a nicety layered over one. Styled to match the app's other in-app modals. */
+.jabber-room-modal-backdrop { position: fixed; inset: 0; z-index: 9000;
+                      display: flex; align-items: center; justify-content: center;
+                      background: var(--backdrop); backdrop-filter: blur(4px); }
+.jabber-room-modal  { width: 420px; max-width: 95vw; padding: 22px;
+                      background: var(--bg-panel); border: 1px solid var(--border);
+                      border-radius: 10px; font-family: var(--font); }
+.jabber-room-modal-head { display: flex; align-items: center; justify-content: space-between;
+                      margin-bottom: 16px; }
+.jabber-room-modal-title { font-size: 14px; font-weight: 700; color: var(--text-1); }
+.jabber-room-modal-close { background: none; border: none; color: var(--text-3);
+                      cursor: pointer; font-size: 14px; padding: 0; }
+.jabber-room-modal-close:hover { color: var(--accent); }
+.jabber-room-modal-label { display: block; margin-bottom: 5px;
+                      font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+                      text-transform: uppercase; color: var(--text-4); }
+.jabber-room-modal-label span { text-transform: none; letter-spacing: 0; color: var(--text-6); }
+.jabber-room-modal-input { width: 100%; margin-bottom: 14px; }
+.jabber-room-modal-hint { font-size: 11px; line-height: 1.6; color: var(--text-4);
+                      margin-bottom: 16px; }
+.jabber-room-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.jabber-room-modal-cancel,
+.jabber-room-modal-add { padding: 7px 16px; font-family: var(--mono); font-size: 11px;
+                      letter-spacing: 0.06em; border-radius: 4px; cursor: pointer;
+                      background: transparent; transition: background 0.12s, border-color 0.12s; }
+.jabber-room-modal-cancel { color: var(--text-3); border: 1px solid var(--border); }
+.jabber-room-modal-cancel:hover { color: var(--text-1); border-color: var(--text-3); }
+.jabber-room-modal-add { color: var(--accent); border: 1px solid var(--accent-20); }
+.jabber-room-modal-add:hover:not(:disabled) { background: var(--accent-06); border-color: var(--accent); }
+.jabber-room-modal-add:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Room-list dialog. Wider than the add-by-address one because it shows two
+   columns of server-supplied text, and taller because a conference service can
+   publish several hundred rooms. */
+.jabber-roomlist-modal { width: 560px; }
+.jabber-disco-row   { display: flex; gap: 8px; align-items: flex-start; }
+.jabber-disco-row .jabber-room-modal-input { flex: 1; }
+.jabber-disco-filter { margin-top: 4px; }
+.jabber-disco-error { color: var(--danger); }
+
+.jabber-disco-list  { max-height: 320px; min-height: 60px; overflow-y: auto;
+                      margin-bottom: 16px; border: 1px solid var(--border);
+                      border-radius: 4px; background: var(--bg-deep); }
+.jabber-disco-row-head,
+.jabber-disco-item  { display: grid; grid-template-columns: 40% 60%; gap: 10px;
+                      padding: 5px 10px; align-items: baseline; }
+.jabber-disco-row-head { position: sticky; top: 0; z-index: 1;
+                      background: var(--bg-card); border-bottom: 1px solid var(--border);
+                      font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+                      text-transform: uppercase; color: var(--text-4); }
+.jabber-disco-item  { cursor: pointer; font-size: 12px;
+                      border-bottom: 1px solid var(--border-e); }
+.jabber-disco-item:last-child { border-bottom: none; }
+.jabber-disco-item:hover     { background: var(--bg-hover); }
+.jabber-disco-item.selected  { background: var(--accent-06); }
+.jabber-disco-name  { font-family: var(--mono); color: var(--text-1);
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jabber-disco-item.selected .jabber-disco-name { color: var(--accent); }
+.jabber-disco-desc  { color: var(--text-3);
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jabber-disco-empty { padding: 16px; text-align: center; font-family: var(--mono);
+                      font-size: 11px; color: var(--text-4); }
+
+/* ── Room subject (MOTD) ──────────────────────────────────────────────────────
+   The banner every alliance room uses for standings, buyback threads and
+   "currently offline". Sits directly under the room title, scrolls if long, and
+   is capped so a wall of recruitment text cannot swallow the conversation. */
+.jabber-room-subject { flex-shrink: 0; max-height: 108px; overflow-y: auto;
+                      padding: 8px 16px; background: var(--accent-06);
+                      border-bottom: 1px solid var(--border);
+                      font-size: 11px; line-height: 1.6; color: var(--text-2);
+                      white-space: pre-wrap; word-break: break-word; }
+.jabber-link        { color: var(--accent); text-decoration: underline;
+                      text-underline-offset: 2px; cursor: pointer; }
+.jabber-link:hover  { color: var(--text-1); }
+
+/* ── Occupant roster ──────────────────────────────────────────────────────────
+   Right-hand column, as in Pidgin. Ranked by affiliation then role, so owners
+   and admins sit at the top where you look for them. */
+.jabber-room-main   { flex: 1; min-height: 0; display: flex; }
+.jabber-room-roster { width: 186px; flex-shrink: 0; display: flex; flex-direction: column;
+                      border-left: 1px solid var(--border); background: var(--bg-card); }
+.jabber-roster-count { flex-shrink: 0; padding: 7px 10px; text-align: center;
+                      border-bottom: 1px solid var(--border);
+                      font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+                      color: var(--text-3); }
+.jabber-roster-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0; }
+.jabber-occupant    { display: flex; align-items: center; gap: 7px; padding: 3px 10px;
+                      cursor: pointer; font-size: 11px; color: var(--text-3); }
+.jabber-occupant:hover { background: var(--bg-hover); color: var(--text-1); }
+.jabber-occupant-icon { font-size: 12px; flex-shrink: 0; color: var(--text-6); }
+.jabber-occupant-nick { min-width: 0; overflow: hidden;
+                      text-overflow: ellipsis; white-space: nowrap; }
+/* Standing, by weight and colour rather than by a legend nobody reads. */
+.jabber-occupant--owner  .jabber-occupant-nick,
+.jabber-occupant--admin  .jabber-occupant-nick { color: var(--accent); font-weight: 700; }
+.jabber-occupant--owner  .jabber-occupant-icon,
+.jabber-occupant--admin  .jabber-occupant-icon { color: var(--accent); }
+.jabber-occupant--member .jabber-occupant-nick { color: var(--text-2); }
+.jabber-occupant--member .jabber-occupant-icon { color: var(--warning); }
+
+/* ── Composer toolbar ─────────────────────────────────────────────────────── */
+.jabber-room-toolbar { position: relative; display: flex; align-items: center; gap: 2px;
+                      flex-shrink: 0; padding: 5px 16px 0; }
+.jabber-toolbar-sep { width: 1px; height: 14px; margin: 0 6px; background: var(--border); }
+.jabber-fmt-btn     { display: inline-flex; align-items: center; justify-content: center;
+                      min-width: 24px; height: 22px; padding: 0 5px;
+                      background: none; border: 1px solid transparent; border-radius: 3px;
+                      color: var(--text-3); font-size: 11px; cursor: pointer;
+                      transition: color 0.12s, border-color 0.12s; }
+.jabber-fmt-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--border); }
+.jabber-fmt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.jabber-fmt-btn .material-symbols-outlined { font-size: 14px; }
+
+.jabber-emoji-picker { position: absolute; bottom: calc(100% + 4px); left: 16px; z-index: 40;
+                      display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px;
+                      padding: 6px; width: 292px;
+                      background: var(--bg-panel); border: 1px solid var(--border);
+                      border-radius: 6px; box-shadow: var(--glass-shadow) 0 6px 20px; }
+.jabber-emoji       { width: 26px; height: 26px; padding: 0; cursor: pointer;
+                      background: none; border: none; border-radius: 3px; font-size: 14px; }
+.jabber-emoji:hover { background: var(--bg-hover); }
+
+/* Narrow window: the roster is the first thing to go — the conversation is the
+   point, and the count stays in the room header via the title attribute. */
+@media (max-width: 1100px) {
+  .jabber-room-roster { display: none; }
+}
+
+/* Feed filter — Broadcasts / Alerts / All. A segmented control rather than a
+   dropdown: three fixed options that people flip between constantly. */
+.jabber-feed-filter { display: inline-flex; border: 1px solid var(--border);
+                      border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+.jabber-feed-btn    { padding: 3px 10px; background: none; border: none; cursor: pointer;
+                      font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+                      color: var(--text-3); transition: background 0.12s, color 0.12s; }
+.jabber-feed-btn + .jabber-feed-btn { border-left: 1px solid var(--border); }
+.jabber-feed-btn:hover  { color: var(--text-1); }
+.jabber-feed-btn.active { background: var(--accent-06); color: var(--accent); }

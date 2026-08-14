@@ -285,6 +285,17 @@ function _updatePresenceCount(n) {
   try {
     window.eveAPI?.on?.('presence-count', n => _updatePresenceCount(n));
     window.eveAPI?.getPresenceCount?.().then(_updatePresenceCount).catch(() => {});
+    // Say why the counter is missing. A hidden counter looks the same whether the
+    // feature was never configured, the endpoint is down, or nobody else is
+    // online — and in a packaged build the main-process log is out of reach.
+    window.eveAPI?.getPresenceState?.().then(st => {
+      if (!st || typeof logToConsole !== 'function') return;
+      if (!st.configured) {
+        logToConsole('Online counter off — no presence endpoint configured in this build.', 'info');
+      } else if (st.lastError) {
+        logToConsole(`Online counter unavailable — ${st.url} did not answer (${st.lastError}).`, 'warning');
+      }
+    }).catch(() => {});
   } catch (_) { /* preload not available (tests) */ }
 })();
 
@@ -773,23 +784,6 @@ function bindNavigation() {
     btn.addEventListener('click', () => navigateToPage(btn.dataset.page));
   });
 
-  const industryMenuBtn = document.getElementById('industryMenuBtn');
-  const industryMenu    = document.getElementById('industryMenu');
-  if (industryMenuBtn && industryMenu) {
-    industryMenuBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      industryMenu.style.display = industryMenu.style.display === 'flex' ? 'none' : 'flex';
-    });
-    industryMenu.addEventListener('click', (e) => {
-      const btn = e.target.closest('.industry-menu-btn');
-      if (!btn) return;
-      e.stopPropagation();
-      if (btn.id === 'menuMyBlueprints') toggleLibraryView();
-      else if (btn.dataset?.page) navigateToPage(btn.dataset.page);
-      industryMenu.style.display = 'none';
-    });
-    document.addEventListener('click', () => { industryMenu.style.display = 'none'; });
-  }
 }
 
 const NAV_COLLAPSED_KEY = 'nav_collapsed';
@@ -844,7 +838,7 @@ function _initPageForFirstVisit(page) {
     case 'assets':     return loadAssets();
     case 'wallets':    return initFinancesPage();
     case 'industry':   return initIndustryPage();
-    case 'pi':       { const p = loadPlanetaryInteraction(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); return p; }
+    case 'pi':       { const p = initPiPage(); if (typeof _autoSyncPIIfStale === 'function') _autoSyncPIIfStale(); return p; }
     case 'jabber':     return loadJabberHistory();
     case 'map':        return initMapPage();
     case 'calendar':   return renderCalendar();
@@ -883,6 +877,11 @@ function _injectPageSpinners() {
     const wrap = document.createElement('div');
     wrap.className = 'page-header-actions';
     closeBtn.parentNode.insertBefore(wrap, closeBtn);
+    // Page-level actions (e.g. the dashboard's refresh) declare themselves in the
+    // header markup and get pulled into this group, so the header keeps exactly
+    // two children and its space-between layout still pins everything top-right.
+    closeBtn.parentNode.querySelectorAll(':scope > .page-header-btn')
+      .forEach(actionBtn => wrap.appendChild(actionBtn));
     wrap.appendChild(spinner);
     wrap.appendChild(closeBtn);   // move ✕ in beside the spinner
   });
@@ -895,9 +894,6 @@ function navigateToPage(page) {
   if (!page) return;
 
   const prevPage = currentPage;
-
-  const mainLibrary = document.getElementById('mainLibraryView');
-  if (mainLibrary) mainLibrary.style.display = 'none';
 
   const pagesContainer = document.getElementById('navPagesContainer');
   if (pagesContainer) pagesContainer.style.display = 'flex';
@@ -1006,24 +1002,6 @@ function updateNavCharacterBtn(account) {
   }
 }
 
-function toggleLibraryView() {
-  const library   = document.getElementById('mainLibraryView');
-  const toggleBtn = document.getElementById('toggleLibraryBtn');
-  if (!library || !toggleBtn) return;
-  isLibraryVisible = !isLibraryVisible;
-  library.style.display = isLibraryVisible ? 'flex' : 'none';
-  toggleBtn.textContent = isLibraryVisible ? 'Hide my blueprint library' : 'Show my blueprint library';
-  toggleBtn.title       = toggleBtn.textContent;
-}
-
-function clearSelection() {
-  const card = document.getElementById('selectedBpCard');
-  if (!card) return;
-  card.style.display = 'none';
-  document.getElementById('selectedBpIcon').src = '';
-  document.getElementById('selectedBpName').textContent = '';
-  document.getElementById('selectedBpMeta').textContent = '';
-}
 // ─── Database Settings Tab ─────────────────────────────────────────────────────
 
 // Called when the Database tab becomes visible — populates both last-synced timestamps.

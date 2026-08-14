@@ -97,6 +97,198 @@ function stopBeehiveRecheck() {
   if (beehiveRecheckTimer) { clearInterval(beehiveRecheckTimer); beehiveRecheckTimer = null; }
 }
 
+// ─── Chat rooms (MUC) ─────────────────────────────────────────────
+// The Beehive room above is a fixed, status-only join. These are the user's own
+// rooms: joined on connect, messages persisted per room, and messages can be sent
+// back. Kept out of the ping pipeline — a room's chatter is not a ping, and
+// routing it there would flood both the ping feed and the alert window.
+const joinedRooms = new Map();   // bare room JID -> { nick, joinedAt }
+let roomNick = null;             // default nick, derived from the JID we connect as
+
+const bareJid = (jid) => String(jid || '').split('/')[0].toLowerCase();
+const nickOf  = (jid) => String(jid || '').split('/')[1] || '';
+
+// Rooms live in the app config beside the Jabber credentials, so they survive
+// restarts and travel with the rest of the user's settings.
+function readRooms(loadConfig) {
+  try {
+    const rooms = loadConfig()?.app?.jabber?.rooms;
+    return Array.isArray(rooms) ? rooms : [];
+  } catch (_) { return []; }
+}
+
+function writeRooms(loadConfig, saveConfig, rooms) {
+  const cfg = loadConfig() || {};
+  cfg.app = cfg.app || {};
+  cfg.app.jabber = { ...(cfg.app.jabber || {}), rooms };
+  saveConfig(cfg);
+}
+
+// Join presence for a MUC. The history request asks the server for recent
+// messages so a room is not blank on open; servers without history send nothing.
+async function sendRoomJoin(roomJid, nick, historyStanzas = 30) {
+  if (!jabberClient || !roomJid || !nick) return;
+  const { xml } = await getXmppClient();
+  await jabberClient.send(xml('presence', { to: roomJid + '/' + nick },
+    xml('x', { xmlns: 'http://jabber.org/protocol/muc' },
+      xml('history', { maxstanzas: String(historyStanzas) }))));
+}
+
+async function sendRoomLeave(roomJid, nick) {
+  if (!jabberClient || !roomJid || !nick) return;
+  const { xml } = await getXmppClient();
+  await jabberClient.send(xml('presence', { to: roomJid + '/' + nick, type: 'unavailable' }));
+}
+
+// ─── Room discovery (XEP-0030 service discovery) ──────────────────────────────
+// What Pidgin's "Room List" does: ask a conference service for its public rooms
+// instead of making the user know a room's exact address in advance.
+//
+// The conference service is conventionally the `conference.` subdomain of the
+// account's own domain — goonfleet.com serves its rooms from
+// conference.goonfleet.com — so the dialog can offer the right host without
+// being told. It is only a default: the field stays editable because the
+// convention is a convention, not a rule (some servers use muc. or chat.).
+function conferenceHostFor(domain) {
+  const d = String(domain || '').trim().toLowerCase().replace(/^@+/, '');
+  if (!d) return '';
+  // Already a service host (conference.x, muc.x, chat.x) — leave it alone rather
+  // than producing conference.conference.example.com.
+  if (/^(conference|muc|chat|rooms)\./.test(d)) return d;
+  return `conference.${d}`;
+}
+
+// Turn a disco#items result into the two columns the list shows. `name` is the
+// service's human description; the JID's local part is the room's actual name,
+// which is what you would have had to type by hand. Rooms with neither are
+// dropped — an item with no JID cannot be joined.
+function parseDiscoItems(queryEl) {
+  if (!queryEl) return [];
+  const items = typeof queryEl.getChildren === 'function' ? queryEl.getChildren('item') : [];
+  const rooms = [];
+  for (const item of items) {
+    const jid = (item.attrs?.jid || '').trim();
+    if (!jid || !jid.includes('@')) continue;
+    rooms.push({
+      jid: jid.toLowerCase(),
+      name: jid.split('@')[0],
+      description: (item.attrs?.name || '').trim(),
+    });
+  }
+  rooms.sort((a, b) => a.name.localeCompare(b.name));
+  return rooms;
+}
+
+// ─── Room subject and occupants ───────────────────────────────────────────────
+// A MUC tells you two things besides its messages: the subject (the MOTD banner
+// every alliance room uses for standings, links and "we are currently offline")
+// and who is in it. Both arrive as pushes — the subject on join and on change,
+// occupants as a burst of presence on join and then one at a time — so both are
+// held here and handed to the renderer, rather than being re-derived per view.
+const roomSubjects  = new Map();   // bare room JID -> { text, setBy, at }
+const roomOccupants = new Map();   // bare room JID -> Map(nick -> { nick, role, affiliation })
+
+// MUC ranks an occupant twice: `affiliation` is standing with the room (owner,
+// admin, member, outcast) and `role` is what they can do right now (moderator,
+// participant, visitor). Pidgin's list is ordered by the first and shows the
+// second — owners and admins on top, then members, then everyone else.
+const AFFILIATION_RANK = { owner: 0, admin: 1, member: 2, none: 3, outcast: 4 };
+
+function occupantSort(a, b) {
+  const ra = AFFILIATION_RANK[a.affiliation] ?? 3;
+  const rb = AFFILIATION_RANK[b.affiliation] ?? 3;
+  if (ra !== rb) return ra - rb;
+  // Moderators above the room's general population within the same standing.
+  const ma = a.role === 'moderator' ? 0 : 1;
+  const mb = b.role === 'moderator' ? 0 : 1;
+  if (ma !== mb) return ma - mb;
+  return a.nick.toLowerCase().localeCompare(b.nick.toLowerCase());
+}
+
+// The <item/> inside a muc#user payload carries the ranks. Absent means a plain
+// participant, which is what an unadorned presence implies.
+function parseOccupantPresence(stanza) {
+  const from = stanza?.attrs?.from || '';
+  const nick = nickOf(from);
+  if (!nick) return null;
+  const x = typeof stanza.getChild === 'function'
+    ? stanza.getChild('x', 'http://jabber.org/protocol/muc#user') : null;
+  const item = x?.getChild?.('item');
+  return {
+    roomJid: bareJid(from),
+    nick,
+    role:        item?.attrs?.role        || 'participant',
+    affiliation: item?.attrs?.affiliation || 'none',
+    leaving:     stanza.attrs?.type === 'unavailable',
+  };
+}
+
+function occupantList(roomJid) {
+  const map = roomOccupants.get(roomJid);
+  return map ? [...map.values()].sort(occupantSort) : [];
+}
+
+// ─── Message archives (XEP-0313 MAM) ──────────────────────────────────────────
+// The <history/> element on a join presence only ever buys a handful of recent
+// lines, and many servers cap it far below what is asked for — which is why
+// joining a busy room can look completely empty. MAM is the mechanism that
+// actually returns a room's backlog: query the room's archive, page backwards
+// through it, and store what comes back.
+//
+// A server without MAM simply answers with an error; the join history is then all
+// there is, and the UI says so rather than pretending the room is empty.
+
+// MAM has shipped under three namespaces. A room that supports none of them
+// answers an IQ it does not recognise with a bare "bad-request" — ejabberd's is
+// literally "IQ request cannot be processed by the MUC room itself" — which is
+// indistinguishable from a malformed query unless you ask first. So: ask the room
+// what it supports (disco#info), then use that namespace. Cached per room, since
+// the answer does not change while we are connected.
+const MAM_NAMESPACES = ['urn:xmpp:mam:2', 'urn:xmpp:mam:1', 'urn:xmpp:mam:0'];
+const roomMamNs = new Map();   // bare room JID -> namespace, or null for "none"
+
+// Pick the newest MAM namespace a disco#info result advertises.
+function mamNamespaceFrom(queryEl) {
+  if (!queryEl) return null;
+  const features = typeof queryEl.getChildren === 'function' ? queryEl.getChildren('feature') : [];
+  const vars = new Set(features.map(f => f.attrs?.var).filter(Boolean));
+  return MAM_NAMESPACES.find(ns => vars.has(ns)) || null;
+}
+
+// When a message was actually sent. Archived and MUC-history messages carry a
+// <delay/>; live ones do not, and are happening now.
+function delayStamp(el) {
+  const delay = typeof el?.getChild === 'function'
+    ? (el.getChild('delay', 'urn:xmpp:delay') || el.getChild('delay'))
+    : null;
+  const stamp = delay?.attrs?.stamp;
+  if (!stamp) return null;
+  const t = Date.parse(stamp);
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+// One <result/> from a MAM page → the fields a stored message needs, or null if
+// the stanza carries no usable message (subject changes, state notifications).
+function parseMamResult(stanza, queryId) {
+  const result = typeof stanza?.getChild === 'function' ? stanza.getChild('result') : null;
+  if (!result) return null;
+  if (queryId && result.attrs?.queryid && result.attrs.queryid !== queryId) return null;
+
+  const forwarded = result.getChild('forwarded');
+  const inner     = forwarded?.getChild('message');
+  const body      = typeof inner?.getChildText === 'function' ? inner.getChildText('body') : null;
+  if (!body) return null;
+
+  const from = inner.attrs?.from || '';
+  return {
+    stanzaId:   result.attrs?.id || null,
+    roomJid:    bareJid(from),
+    senderNick: nickOf(from),
+    body,
+    receivedAt: delayStamp(forwarded) || delayStamp(inner) || null,
+  };
+}
+
 let xmppLibrary = null;
 async function getXmppClient() {
   if (!xmppLibrary) xmppLibrary = await import('@xmpp/client');
@@ -114,8 +306,10 @@ function broadcastToRenderers(channel, payload) {
  * @param {object} deps
  * @param {object} deps.jabberDataDb   - the jabber_data_db module
  * @param {Function} deps.createPingAlertWindow - opens the ping alert window
+ * @param {Function} deps.loadConfig - reads the JSON app config (chat room list)
+ * @param {Function} deps.saveConfig - writes the JSON app config
  */
-function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
+function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfig, saveConfig }) {
 
   ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
     try {
@@ -169,6 +363,28 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
         } else {
           beehiveNick = null;
         }
+
+        // Re-join every saved room. MUC membership is per-session, not per
+        // account, so a reconnect that skips this leaves a room list that looks
+        // joined and silently receives nothing.
+        roomNick = username || address.local || 'evecarbon';
+        joinedRooms.clear();
+        roomOccupants.clear();   // rebuilt from the join presence burst
+        for (const room of readRooms(loadConfig)) {
+          const jid = bareJid(room.jid);
+          if (!jid) continue;
+          // Recorded BEFORE the presence goes out: the server answers a join with
+          // a burst of history, and a room not yet in this map has its history
+          // routed to the ping pipeline instead of to the room.
+          joinedRooms.set(jid, { nick: room.nick || roomNick, joinedAt: Date.now() });
+          try {
+            await sendRoomJoin(jid, room.nick || roomNick);
+          } catch (e) {
+            joinedRooms.delete(jid);
+            console.warn('[jabber] room join failed:', jid, e.message || e);
+          }
+        }
+        broadcastToRenderers('jabber-rooms', { joined: [...joinedRooms.keys()] });
       });
 
       jabberClient.on('stanza', async (stanza) => {
@@ -177,6 +393,21 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
         if (stanza.is('presence') && stanza.attrs.type === 'error'
             && (stanza.attrs.from || '').toLowerCase().startsWith(BEEHIVE_ROOM.toLowerCase())) {
           console.warn('[jabber] Beehive MUC join rejected:', stanza.toString());
+          return;
+        }
+
+        // Occupant presence for a room we are in. A join sends one of these per
+        // person already present, so this is also how the initial roster arrives.
+        if (stanza.is('presence')) {
+          const occ = parseOccupantPresence(stanza);
+          if (occ && joinedRooms.has(occ.roomJid)) {
+            if (!roomOccupants.has(occ.roomJid)) roomOccupants.set(occ.roomJid, new Map());
+            const map = roomOccupants.get(occ.roomJid);
+            if (occ.leaving) map.delete(occ.nick);
+            else map.set(occ.nick, { nick: occ.nick, role: occ.role, affiliation: occ.affiliation });
+            broadcastToRenderers('jabber-room-occupants',
+              { roomJid: occ.roomJid, occupants: occupantList(occ.roomJid) });
+          }
           return;
         }
         if (!stanza.is('message')) return;
@@ -190,8 +421,66 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
           return;
         }
 
+        // Room subject (the MOTD). Carried by a body-less groupchat message, so it
+        // has to be handled before the body check drops it.
+        const subjBare = bareJid(stanza.attrs.from);
+        if (joinedRooms.has(subjBare)) {
+          const subject = stanza.getChildText('subject');
+          if (subject != null) {
+            roomSubjects.set(subjBare, {
+              text: subject,
+              setBy: nickOf(stanza.attrs.from) || '',
+              at: new Date().toISOString(),
+            });
+            broadcastToRenderers('jabber-room-subject',
+              { roomJid: subjBare, ...roomSubjects.get(subjBare) });
+            return;
+          }
+        }
+
         const body = stanza.getChildText('body');
         if (!body) return;
+
+        // Room chat is decided by the STANZA TYPE, not by our own bookkeeping.
+        // This used to check joinedRooms, so any MUC the account sat in that this
+        // app had not explicitly joined — server auto-joins, rooms joined from
+        // another client — fell straight through into the ping pipeline and was
+        // filed as a broadcast. type='groupchat' means a room said it, full stop;
+        // a fleet ping arrives as 'chat' or 'headline' from a bot.
+        const fromBare = bareJid(stanza.attrs.from);
+        const isGroupChat = (stanza.attrs.type || '') === 'groupchat';
+        if (isGroupChat || joinedRooms.has(fromBare)) {
+          const senderNick = nickOf(stanza.attrs.from);
+          const selfNick   = joinedRooms.get(fromBare)?.nick;
+          // XEP-0359 stanza-id, when the server stamps one, is the same archive
+          // id MAM uses — so a message seen live is recognised rather than
+          // duplicated when history is later pulled over it.
+          const sidEl = typeof stanza.getChild === 'function'
+            ? stanza.getChild('stanza-id', 'urn:xmpp:sid:0') : null;
+          const roomMsg = {
+            from: stanza.attrs.from || '', type: stanza.attrs.type || 'groupchat',
+            body, isDirector: false, raw: stanza.toString(),
+            roomJid: fromBare, senderNick,
+            stanzaId:   sidEl?.attrs?.id || null,
+            // Join history arrives as ordinary messages with a <delay/>; without
+            // this every one of them is filed as having arrived at join time.
+            receivedAt: delayStamp(stanza),
+          };
+          let storedRoom = null;
+          try { storedRoom = await jabberDataDb.insertJabberMessage(roomMsg); }
+          catch (e) { console.error('[jabberDataDb] failed to store room message:', e.message); }
+          // insert returns null for a message already in the archive — a re-join
+          // replays history, and replaying it into the room view would double
+          // every line on screen.
+          if (storedRoom) {
+            broadcastToRenderers('jabber-room-message', {
+              ...storedRoom,
+              room_jid: fromBare, sender_nick: senderNick, self: senderNick === selfNick,
+            });
+          }
+          return;
+        }
+
         const from       = stanza.attrs.from || '';
         const type       = stanza.attrs.type || 'chat';
         const isDirector = /director/i.test(from) || /director/i.test(body);
@@ -236,6 +525,226 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
     }
   });
 
+  // ─── Chat rooms ────────────────────────────────────────────
+  ipcMain.handle('jabber-list-rooms', async () => {
+    const rooms  = readRooms(loadConfig);
+    const jids   = rooms.map(r => bareJid(r.jid));
+    const unread = await jabberDataDb.getRoomUnread(jids).catch(() => ({}));
+    return rooms.map(r => {
+      const jid = bareJid(r.jid);
+      return {
+        ...r, jid,
+        joined: joinedRooms.has(jid),
+        unread: unread[jid] || { messages: 0, speakers: 0 },
+      };
+    });
+  });
+
+  ipcMain.handle('jabber-add-room', async (_, { jid, name, nick } = {}) => {
+    const roomJid = bareJid(jid);
+    if (!roomJid || !roomJid.includes('@')) {
+      return { ok: false, error: 'Enter a room address like corp@conference.goonfleet.com' };
+    }
+    const rooms = readRooms(loadConfig);
+    if (rooms.some(r => bareJid(r.jid) === roomJid)) {
+      return { ok: false, error: 'That room is already in your list.' };
+    }
+    const useNick = (nick || '').trim() || null;
+    rooms.push({ jid: roomJid, name: (name || '').trim() || roomJid.split('@')[0], nick: useNick });
+    writeRooms(loadConfig, saveConfig, rooms);
+
+    // Join straight away when connected, so adding a room does something visible
+    // instead of waiting for the next reconnect.
+    if (jabberClient && jabberConnectionActive) {
+      joinedRooms.set(roomJid, { nick: useNick || roomNick, joinedAt: Date.now() });
+      try {
+        await sendRoomJoin(roomJid, useNick || roomNick);
+      } catch (e) {
+        joinedRooms.delete(roomJid);
+        return { ok: true, joined: false, error: e.message || String(e) };
+      }
+    }
+    return { ok: true, joined: joinedRooms.has(roomJid) };
+  });
+
+  ipcMain.handle('jabber-remove-room', async (_, jid) => {
+    const roomJid = bareJid(jid);
+    writeRooms(loadConfig, saveConfig,
+      readRooms(loadConfig).filter(r => bareJid(r.jid) !== roomJid));
+    const entry = joinedRooms.get(roomJid);
+    if (entry) {
+      try { await sendRoomLeave(roomJid, entry.nick); } catch (_) { /* best effort */ }
+      joinedRooms.delete(roomJid);
+      roomOccupants.delete(roomJid);
+      roomSubjects.delete(roomJid);
+    }
+    return { ok: true };
+  });
+
+  // Subject and roster as they stand right now, for a view that just opened —
+  // both are push-only, so without this a room shows nothing until the next
+  // change arrives, which in a quiet room could be hours.
+  ipcMain.handle('jabber-room-state', async (_, jid) => {
+    const roomJid = bareJid(jid);
+    return {
+      subject: roomSubjects.get(roomJid) || null,
+      occupants: occupantList(roomJid),
+      joined: joinedRooms.has(roomJid),
+    };
+  });
+
+  ipcMain.handle('jabber-room-messages', async (_, jid, limit = 200) =>
+    jabberDataDb.getRoomMessages(bareJid(jid), limit).catch(() => []));
+
+  ipcMain.handle('jabber-mark-room-read', async (_, jid) =>
+    jabberDataDb.markRoomRead(bareJid(jid)).catch(() => 0));
+
+  // Sending is always an explicit user action. Nothing in this app ever sends to
+  // a room on its own, and every guard below fails closed.
+  ipcMain.handle('jabber-send-room', async (_, jid, body) => {
+    const roomJid = bareJid(jid);
+    const text = String(body || '').trim();
+    if (!text) return { ok: false, error: 'Nothing to send.' };
+    if (!jabberClient || !jabberConnectionActive) return { ok: false, error: 'Not connected to Jabber.' };
+    if (!joinedRooms.has(roomJid)) return { ok: false, error: 'Not in that room.' };
+    try {
+      const { xml } = await getXmppClient();
+      await jabberClient.send(xml('message', { to: roomJid, type: 'groupchat' }, xml('body', {}, text)));
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || String(e) };
+    }
+  });
+
+  // Pull a page of a room's archive, oldest-first, and store what is new.
+  // Paged backwards from the oldest message already held, so repeated calls walk
+  // further back rather than re-reading the same page.
+  ipcMain.handle('jabber-load-room-history', async (_, jid, pageSize = 100) => {
+    const roomJid = bareJid(jid);
+    if (!roomJid) return { ok: false, error: 'No room.' };
+    if (!jabberClient || !jabberConnectionActive) {
+      return { ok: false, error: 'Connect to Jabber first — history comes from the server.' };
+    }
+
+    const { xml } = await getXmppClient();
+
+    // Which MAM version does this room speak, if any?
+    if (!roomMamNs.has(roomJid)) {
+      try {
+        const info = await jabberClient.iqCaller.request(
+          xml('iq', { type: 'get', to: roomJid },
+            xml('query', { xmlns: 'http://jabber.org/protocol/disco#info' })),
+          20 * 1000);
+        roomMamNs.set(roomJid, mamNamespaceFrom(info.getChild('query')));
+      } catch (e) {
+        roomMamNs.set(roomJid, null);
+      }
+    }
+    const mamNs = roomMamNs.get(roomJid);
+    if (!mamNs) {
+      return { ok: false, noArchive: true,
+               error: 'This room does not keep a message archive on the server, so there is no older history to fetch.' };
+    }
+
+    const queryId = `mam${Date.now().toString(36)}`;
+    const before  = await jabberDataDb.getRoomOldestArchiveId(roomJid).catch(() => null);
+
+    // The archive arrives as a burst of <message><result/></message> stanzas
+    // BEFORE the IQ result, so the collector has to be listening first.
+    const collected = [];
+    const onStanza = (st) => {
+      try {
+        const parsed = parseMamResult(st, queryId);
+        if (parsed) collected.push({ ...parsed, roomJid: parsed.roomJid || roomJid });
+      } catch (_) { /* a malformed archive entry must not abort the page */ }
+    };
+    jabberClient.on('stanza', onStanza);
+
+    try {
+      // <before/> empty means "the most recent page"; with an id it means
+      // "the page before this message".
+      const rsm = before
+        ? xml('set', { xmlns: 'http://jabber.org/protocol/rsm' },
+            xml('max', {}, String(pageSize)), xml('before', {}, before))
+        : xml('set', { xmlns: 'http://jabber.org/protocol/rsm' },
+            xml('max', {}, String(pageSize)), xml('before', {}));
+
+      const res = await jabberClient.iqCaller.request(
+        xml('iq', { type: 'set', to: roomJid },
+          xml('query', { xmlns: mamNs, queryid: queryId }, rsm)),
+        60 * 1000);
+
+      let added = 0;
+      for (const m of collected) {
+        const stored = await jabberDataDb.insertJabberMessage({
+          from: `${m.roomJid}/${m.senderNick}`, type: 'groupchat', body: m.body,
+          isDirector: false, raw: '', roomJid: m.roomJid, senderNick: m.senderNick,
+          stanzaId: m.stanzaId, receivedAt: m.receivedAt,
+        }).catch(() => null);
+        if (stored) added++;
+      }
+
+      // <fin complete='true'/> means the archive has no more before this page.
+      const fin = res.getChild('fin');
+      const complete = fin?.attrs?.complete === 'true' || collected.length === 0;
+      return { ok: true, fetched: collected.length, added, complete };
+    } catch (e) {
+      // The room advertised MAM but the query still failed — report what it said,
+      // and forget the cached namespace so a retry can re-negotiate.
+      roomMamNs.delete(roomJid);
+      const msg = e?.message || String(e);
+      return { ok: false, error: `The room refused the history request (${msg}).` };
+    } finally {
+      jabberClient.removeListener('stanza', onStanza);
+    }
+  });
+
+  // The conference host to offer in the Find Rooms dialog, derived from the
+  // account's own domain. Returns '' when no account is configured — the dialog
+  // then just starts empty rather than guessing.
+  ipcMain.handle('jabber-default-conference', () => {
+    try {
+      const jid = loadConfig()?.app?.jabber?.jid || '';
+      return conferenceHostFor(jid.split('@')[1] || '');
+    } catch (_) { return ''; }
+  });
+
+  // Ask a conference service for its public room list.
+  ipcMain.handle('jabber-discover-rooms', async (_, serverJid) => {
+    const host = String(serverJid || '').trim().toLowerCase();
+    if (!host) return { ok: false, error: 'Enter a conference server.' };
+    if (!jabberClient || !jabberConnectionActive) {
+      return { ok: false, error: 'Connect to Jabber first — room lists come from the server.' };
+    }
+    try {
+      const { xml } = await getXmppClient();
+      // 30s: a big service can take a while to enumerate several hundred rooms,
+      // and a premature timeout looks identical to an empty server.
+      const res = await jabberClient.iqCaller.request(
+        xml('iq', { type: 'get', to: host },
+          xml('query', { xmlns: 'http://jabber.org/protocol/disco#items' })),
+        30 * 1000);
+      const rooms = parseDiscoItems(res.getChild('query'));
+      return { ok: true, host, rooms };
+    } catch (e) {
+      // A service that refuses disco returns an IQ error, which arrives here as a
+      // throw — report it rather than showing an empty list, which would read as
+      // "this server has no rooms".
+      const msg = e?.message || String(e);
+      return { ok: false, error: `${host} did not return a room list (${msg}).` };
+    }
+  });
+
+  // Latest director broadcast for the dashboard's Latest Ping widget.
+  ipcMain.handle('jabber-get-latest-ping', async () => {
+    try {
+      return await jabberDataDb.getLatestDirectorMessage();
+    } catch (e) {
+      console.error('[jabberDataDb] jabber-get-latest-ping failed:', e.message);
+      return null;
+    }
+  });
+
   ipcMain.handle('jabber-wipe-data', async () => {
     try {
       await jabberDataDb.wipeJabberDb();
@@ -266,4 +775,5 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow }) {
   });
 }
 
-module.exports = { registerJabberHandlers, broadcastToRenderers, parseBeehiveStatus };
+module.exports = { registerJabberHandlers, conferenceHostFor, parseDiscoItems, parseMamResult, delayStamp,
+                   parseOccupantPresence, occupantSort, mamNamespaceFrom, broadcastToRenderers, parseBeehiveStatus };

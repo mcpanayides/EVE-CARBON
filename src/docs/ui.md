@@ -442,6 +442,7 @@ Silently seeds the NPC station database on first launch if it has never been syn
 | `#page-{page}` | `navigateToPage` (injected by `pageLoader.js`) |
 | `.nav-btn-characters` | `updateNavCharacterBtn` |
 | `#jabberNavStatus` | `updateNavStatusIndicators` → `setNavStatusLight` |
+| `#mailNavUnread` | `startMailUnreadWatch` (app.js, from launch) → `_mailSetNavUnread` (`mail.js`) |
 | `#mainLibraryView` | `toggleLibraryView` |
 | `#toggleLibraryBtn` | `toggleLibraryView` |
 | `#selectedBpCard` | `clearSelection` |

@@ -26,6 +26,17 @@ let _kbEnd      = false;
 let _kbMyChars  = new Set();   // all my character ids (for combined loss detection)
 let _kbMyCorps  = new Set();   // all corp ids my characters belong to
 
+// The chosen source survives restarts. Stored as the dropdown's own value string
+// ('all-chars', 'char:123', 'corp:456') so it round-trips through the same parser
+// the picker uses, and a stale id simply fails validation and falls back.
+const KB_SOURCE_KEY = 'killboardSource';
+function _kbLoadSourceValue() {
+  try { return localStorage.getItem(KB_SOURCE_KEY) || null; } catch (_) { return null; }
+}
+function _kbSaveSourceValue(v) {
+  try { localStorage.setItem(KB_SOURCE_KEY, String(v)); } catch (_) { /* private mode */ }
+}
+
 // Run async `fn` over `items` at most `limit` at a time — polite to zKill when a
 // combined view fans out to several feeds at once.
 async function _kbMapLimit(items, limit, fn) {
@@ -69,10 +80,21 @@ async function initKillboardPage() {
   _kbPopulateSelect(accounts, corpIds);
 
   // Keep the current source across refreshes if it's still valid; otherwise
-  // default to the app-selected character (same rule the rest of the app uses).
+  // restore the one chosen last session, and failing that show All Characters —
+  // the whole roster's feed is what you want on a killboard you share between
+  // characters. A single-character roster has no combined view, so it opens on
+  // that character.
   if (!_kbSource || !_kbSourceStillValid(accounts, corpIds)) {
-    const main = accounts.find(a => String(a.characterId) === String(typeof selectedCharacterId !== 'undefined' ? selectedCharacterId : '')) || accounts[0];
-    _kbSource = { type: 'char', id: Number(main.characterId), name: main.characterName };
+    const saved = _kbLoadSourceValue();
+    const restored = saved ? _kbParseSourceValue(saved, accounts, corpIds) : null;
+    if (restored && _kbSourceStillValid(accounts, corpIds, restored)) {
+      _kbSource = restored;
+    } else if (accounts.length > 1) {
+      _kbSource = { type: 'all-chars', name: 'All Characters', charIds: [..._kbMyChars] };
+    } else {
+      const main = accounts[0];
+      _kbSource = { type: 'char', id: Number(main.characterId), name: main.characterName };
+    }
   }
   _kbSyncSelectValue();
 
@@ -93,11 +115,14 @@ async function initKillboardPage() {
   await _kbReload();
 }
 
-function _kbSourceStillValid(accounts, corpIds) {
-  if (_kbSource.type === 'char')  return accounts.some(a => Number(a.characterId) === _kbSource.id);
-  if (_kbSource.type === 'corp')  return corpIds.includes(_kbSource.id);
-  if (_kbSource.type === 'all-chars') return accounts.length > 0;
-  if (_kbSource.type === 'all-corps') return corpIds.length > 0;
+// `src` defaults to the live source; pass one explicitly to vet a restored
+// selection before adopting it (a character or corp may have gone away).
+function _kbSourceStillValid(accounts, corpIds, src = _kbSource) {
+  if (!src) return false;
+  if (src.type === 'char')  return accounts.some(a => Number(a.characterId) === src.id);
+  if (src.type === 'corp')  return corpIds.includes(src.id);
+  if (src.type === 'all-chars') return accounts.length > 1;
+  if (src.type === 'all-corps') return corpIds.length > 1;
   return false;
 }
 
@@ -124,6 +149,7 @@ function _kbPopulateSelect(accounts, corpIds) {
 
   sel.onchange = () => {
     _kbSource = _kbParseSourceValue(sel.value, accounts, corpIds);
+    _kbSaveSourceValue(sel.value);
     // The zKillboard-link button only makes sense for a single entity.
     const zk = document.getElementById('kbOpenZkillBtn');
     if (zk) zk.style.display = (_kbSource.type === 'char' || _kbSource.type === 'corp') ? '' : 'none';

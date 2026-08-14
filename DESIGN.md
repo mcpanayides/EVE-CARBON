@@ -46,7 +46,34 @@ typography:
     fontWeight: 700
     lineHeight: 1
     letterSpacing: "0.15em"
+  console:
+    fontFamily: "'Fira Code', monospace"
+    fontSize: "10px"
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: "0.05em"
+  caption:
+    fontFamily: "'Fira Code', monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.35
+    letterSpacing: "normal"
+  small:
+    fontFamily: "'Fira Sans', sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: "normal"
+  icon:
+    fontFamily: "'Material Symbols Outlined'"
+    fontSize: "18px"
+    fontWeight: 400
+    lineHeight: 1
+    letterSpacing: "normal"
 rounded:
+  hair: "3px"
+  chip: "4px"
+  inset: "6px"
   sharp: "2px"
   soft: "8px"
   glass: "10px"
@@ -107,14 +134,14 @@ EVE Carbon is a dense, utility-forward data overlay whose primary material is tr
 
 The system lives in a permanent tension between two registers, and future work must hold both. The **backdrop is cinematic**: cool deep-space black (#070a12), twin ambient blue-nebula glows that pulse slowly behind the frame, a whisper-fine diagonal hatch across every surface, and translucent acrylic glass that refracts the desktop behind the window. The **foreground is instrument-grade**: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, and crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win — a stat value never blurs into ambience, and the ambience is never flattened into a spreadsheet.
 
-This is EVE Carbon's own identity, not a reskin of the in-game client. It respects EVE's world — a crimson signal, capsuleer-console density, faction-inspired data hues — but commits to a distinct, fully themeable brand. A single built-in theme ships: **Default (Nebula Glass)** — cool deep-space surfaces, crisp edges, a refined crimson signal over blue nebula. There are no other named presets; users recolor by editing the 16-swatch palette (Settings → Colour Palette), and every color, chart series, and status hue routes through tokens so a custom palette repaints the whole terminal at once.
+This is EVE Carbon's own identity, not a reskin of the in-game client. It respects EVE's world — a crimson signal, capsuleer-console density, faction-inspired data hues — but commits to a distinct, fully themeable brand. A single built-in theme ships: **Default (Nebula Glass)** — cool deep-space surfaces, crisp edges, a refined crimson signal over blue nebula. There are no other named presets; users recolor by editing the 13-swatch palette (Settings → Colour Palette), and every color, chart series, and status hue routes through tokens so a custom palette repaints the whole terminal at once.
 
 **Key Characteristics:**
 - Translucent reeded/acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.
 - Instrument-grade data foreground: monospace values, uppercase tracked labels, crisp white-alpha hairline structure.
 - Sharp 2px geometry that rounds into glass as the default surface treatment; a clear focus/blur depth hierarchy for overlays.
 - A single restrained crimson signal riding on top of an eight-hue data palette that carries all quantitative meaning.
-- Total themeability by derivation — a ~120-token map computed from just 16 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes).
+- Total themeability by derivation — a ~120-token map computed from just 13 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes).
 
 ## Colors
 
@@ -145,14 +172,16 @@ Eight consolidated hues drive every chart series, KPI value, badge, ticker and s
 Chart series resolve in a fixed order (red, teal, purple, gold, green, blue, pink, orange) read from CSS via `getComputedStyle`, so re-theming the tokens re-colors every canvas chart.
 
 ### Theming & The Custom Accent
-The accent is **not a fixed hex — it is a role binding over a 16-swatch palette.** Settings → Colour Palette lets the user edit sixteen swatches: twelve EVE hues (red, teal, purple, pink, baby-blue, green, yellow, orange, gold, indigo, cyan, blue) plus four structural colors (background, panel, text, border). A `roles` map (`{accent, danger, success, warning, info}`) then points each semantic role at one of those swatch slots. The Default theme binds `accent → red` (crimson). Change the swatch or re-point the role and the highlight color changes everywhere at once.
+The accent is **not a fixed hex — it is a role binding over a 13-swatch palette.** Settings → Colour Palette lets the user edit thirteen swatches: nine EVE hues (red, green, gold, yellow, blue, teal, purple, pink, orange) plus four structural colors (background, panel, text, border). A `roles` map (`{accent, danger, success, warning, info}`) then points each semantic role at one of those swatch slots. The Default theme binds `accent → red` (crimson). Change the swatch or re-point the role and the highlight color changes everywhere at once.
 
-There is **one built-in theme** — `theme-default.css` (Default / Nebula Glass) — the single canonical token source. From the sixteen swatches, `theme-vars.js` **derives the entire ~120-token variable map**: the full accent alpha ladder (`--accent-03` … `--accent-50`) via `hexToRgba`, and each hue's bright/dim/glow variants via HSL `lighten`/`darken`. Hand-authoring stops at sixteen colors — everything downstream is computed, which is why a user palette repaints charts, KPIs, badges, borders, glows, and focus rings coherently. User palettes are saved as generated plain-CSS files in `userData/themes/*.css` (with `@roles` / `@swatches` metadata in header comments); applying one swaps the `#themeStylesheet` link, and the live editor previews edits by injecting an inline `<style>` of the derived vars. Separately, a **Glass tint** control (Settings → Background) sets the translucent surface tint and follows the OS accent color by default — it colors the glass, not the data.
+`baby_blue`, `indigo` and `cyan` were deliberately removed from the editor (see `SWATCH_SLOTS` in `src/func/palette.js`): they were offered and written into every saved theme, but nothing ever read them, so picking a colour changed nothing. **Do not reinstate them to give a hardcoded hue somewhere a token to point at** — a control that does nothing costs the user a decision and then ignores it. `theme-vars.js` still derives those three internally for backwards-compatible theme files; that is not a reason to expose them.
+
+There is **one built-in theme** — `theme-default.css` (Default / Nebula Glass) — the single canonical token source. From the thirteen swatches, `theme-vars.js` **derives the entire ~120-token variable map**: the full accent alpha ladder (`--accent-03` … `--accent-50`) via `hexToRgba`, and each hue's bright/dim/glow variants via HSL `lighten`/`darken`. Hand-authoring stops at thirteen colors — everything downstream is computed, which is why a user palette repaints charts, KPIs, badges, borders, glows, and focus rings coherently. User palettes are saved as generated plain-CSS files in `userData/themes/*.css` (with `@roles` / `@swatches` metadata in header comments); applying one swaps the `#themeStylesheet` link, and the live editor previews edits by injecting an inline `<style>` of the derived vars. Separately, a **Glass tint** control (Settings → Background) sets the translucent surface tint and follows the OS accent color by default — it colors the glass, not the data.
 
 ### Named Rules
 **The Accent-Is-A-Role Rule.** Never hardcode the highlight color. The accent is `roles.accent` resolved against the active palette and expressed only through the `--accent*` tokens. A literal crimson hex in a component breaks every user palette instantly.
 
-**The Derive-Don't-Author Rule.** Any new accent tint, hue variant, or state color is generated from a swatch via the `theme-vars.js` helpers (`hexToRgba` / `lighten` / `darken`), not typed as a fresh literal. Sixteen swatches are the only hand-set colors; the rest is math so themes stay coherent.
+**The Derive-Don't-Author Rule.** Any new accent tint, hue variant, or state color is generated from a swatch via the `theme-vars.js` helpers (`hexToRgba` / `lighten` / `darken`), not typed as a fresh literal. Thirteen swatches are the only hand-set colors; the rest is math so themes stay coherent.
 
 **The One Signal Rule.** The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead, and let the accent stay rare enough to still mean something.
 
@@ -173,7 +202,12 @@ There is **one built-in theme** — `theme-default.css` (Default / Nebula Glass)
 - **Title** (Fira Code, 400, 13px, letter-spacing 0.15em): Titlebar and section titles — tracked monospace that reads as a console header, not a heading.
 - **Body** (Fira Sans, 400, 14px, line-height 1.5): Default UI text, descriptions, nav labels.
 - **Label** (Fira Code, 700, 9–10px, letter-spacing 0.1–0.2em, uppercase): The micro-labels above every stat and panel — muted gray (`--label-muted` #909090), widely tracked, all-caps. The system's most recognizable typographic tic.
-- **Console** (Fira Code, 10px): The footer log and status bar — timestamps faint, messages color-coded by severity (success/error/warning).
+- **Console** (Fira Code, 10px): The footer log and status bar — timestamps faint, messages color-coded by severity (success/error/warning). Also the app's general micro-step: table cell text, dense badge copy, and secondary meta lines.
+- **Caption** (Fira Code, 11px): The workhorse mono step between Console and Title — table values, filter-bar text, card meta rows, toolbar labels. The most-used size in the terminal.
+- **Small** (Fira Sans, 12px): Secondary prose one step under Body — helper text, empty-state subtitles, descriptions inside dense panels.
+- **Icon** (Material Symbols Outlined, 18px): App-utility glyphs. Game-page glyphs use the 28px inline EVE neocom SVG sprite instead, which is markup rather than a type role.
+
+The ramp is deliberately tight: **9 · 10 · 11 · 12 · 13 · 14 · 20px**. Density is the point — three adjacent mono steps (10/11/12) do most of the work in tables and cards, and they are load-bearing, not drift. Sizes above Stat (22px+) exist only in a handful of hero figures and modal titles; treat anything new outside this ramp as a mistake unless it is added here first.
 
 ### Named Rules
 **The Numbers-Are-Mono Rule.** Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is not decorative; it is how the eye finds the data.
@@ -212,6 +246,8 @@ A global **Glass tint** control (Settings → Background) sets the translucent s
 ## Shapes
 
 Softened glass geometry by default: with glass on (the resting state), the global `--radius` token resolves to 10px and structural containers round further (panels 14px, modals 18px), so the whole terminal reads as tinted glass panes. The underlying flat mode keeps a machined 2px radius — the sharp skeleton the glass rounds. Radius is driven by the *one* `--radius` token so the terminal softens in concert, never piecemeal. Two shapes break the rectilinear grid on purpose: **pills** (`999px`) for count badges, view toggles, and status chips; and **circles** for character portraits (teal-ringed), status lights, and presence dots.
+
+Beneath the structural radii sits a **small-radius tier for interior parts** — `hair` (3px), `chip` (4px), `inset` (6px). Structural containers round with `--radius`; the pieces *inside* them (inline badges, swatches, progress fills, table-cell chips, mini-buttons) take one of these three so a 10px glass corner never repeats at 10px on a 16px badge. Interior radii are the one place a literal value is expected rather than the shared token — but only these three.
 
 Texture is part of the form language: a whisper-fine −45°/45° diagonal hatch (`--hatch-color`, white at ~1.8% alpha) overlays select cards (KPI tiles, character/blueprint/PI cards) — the "brushed" surface of the terminal. With glass on (the default) the heavy body hatch drops and the fluted acrylic carries the texture instead.
 
@@ -254,7 +290,7 @@ A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKE
 
 ### Do:
 - **Do** route every chart, KPI, badge, and status color through the `--pal-*` / `--chart-*` tokens so a user palette repaints the whole app.
-- **Do** treat the accent as a role over a 16-swatch palette — bind it via `roles.accent` and consume it only through `--accent*`, so the Default theme and every user palette resolve correctly.
+- **Do** treat the accent as a role over a 13-swatch palette — bind it via `roles.accent` and consume it only through `--accent*`, so the Default theme and every user palette resolve correctly.
 - **Do** set every quantity in Fira Code and every piece of language in Fira Sans.
 - **Do** keep labels muted and tracked (`--label-muted`) with the value they describe bright (`--value-bright`) — via class + token, never inline style.
 - **Do** encode focus with depth: the active surface is sharp and lifted; blur and dim whatever it sits on top of. When an overlay opens, blur and scrim the layer behind it.

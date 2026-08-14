@@ -5,6 +5,15 @@ const envPath = app.isPackaged
   ? path.join(process.resourcesPath, '.env')
   : path.join(__dirname, '.env');
 require('dotenv').config({ path: envPath, quiet: true }); // quiet: suppress dotenv's startup tip line
+// Packaged builds read .env from resources. If it is missing, every setting that
+// comes from it — the ESI client id, the presence endpoint — is silently absent,
+// and the features just never appear. Worth one line at startup.
+if (app.isPackaged) {
+  try {
+    const envFound = require('fs').existsSync(envPath);
+    console.log(`[env] ${envFound ? 'loaded' : 'MISSING'} ${envPath}`);
+  } catch (_) { /* diagnostics only */ }
+}
 
 // ── Now safe to require everything else ────────────────────────────────────────
 const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session } = require('electron');
@@ -48,18 +57,16 @@ const { registerAccountHandlers }   = require('./src/ipc/accounts_ipc');
 const characterIpc = require('./src/ipc/character_ipc');
 const { registerCharacterHandlers } = characterIpc;
 const { registerEsiHandlers }       = require('./src/ipc/esi_ipc');
-const { registerBlueprintHandlers } = require('./src/ipc/blueprint_ipc');
 const { registerAssetHandlers }     = require('./src/ipc/assets_ipc');
 const { registerStationHandlers }   = require('./src/ipc/station_ipc');
 const { registerConfigHandlers }    = require('./src/ipc/config_ipc');
-const { registerPingFileHandlers }  = require('./src/ipc/ping_ipc');
 const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
 const { registerIntelHandlers }      = require('./src/ipc/intel_ipc');
 const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
-const { initPresence, getPresenceCount } = require('./src/presence');
+const { initPresence, getPresenceCount, getPresenceState } = require('./src/presence');
 const netLog = require('./src/net_log');
 const fileLog = require('./src/file_log');
 const requestBroker = require('./src/request_broker');
@@ -217,23 +224,35 @@ async function initSde() {
 }
  
 // ─── Paths ────────────────────────────────────────────────────────────────────
-let userDataPath, dbPath, configPath, cacheDir, appDataDir, userPacksDir, userThemesDir, userBackgroundsDir, userPingSoundsDir, resfileCacheDir, etagCacheDir;
-// Shared state for ping file watcher — passed into registerPingFileHandlers
-// so the app-quit handler can still close it without knowing the internals.
-const pingWatcherState = { watcher: null, timer: null };
- 
+let userDataPath, dbPath, configPath, cacheDir, appDataDir, legacyDataDir, userPacksDir, userThemesDir, userBackgroundsDir, userPingSoundsDir, resfileCacheDir, etagCacheDir;
 function initPaths() {
   userDataPath = app.getPath('userData');
   dbPath       = path.join(userDataPath, 'blueprints.json');
   configPath   = path.join(userDataPath, 'config.json');
   cacheDir     = path.join(userDataPath, 'cache');
-  // character_information.db lives in the project /data folder (beside sde.sql).
-  // EVE_CARBON_DATA_DIR overrides this — used ONLY by the e2e suite (see
-  // e2e/support/electron-app.js) so tests read/write a throwaway fixture DB
-  // instead of the real dev data/ folder. Unset for every normal launch.
+  // Writable app data (character_information.db and friends).
+  //
+  // PACKAGED BUILDS MUST USE userData. This used to point at the app's own
+  // resources/data folder, which only works when the app is installed for one
+  // user: an all-users install lands in Program Files, where the app cannot
+  // write at all and SQLite fails before it can even create its WAL sidecar.
+  // Beyond permissions, an install-directory database is shared between every
+  // account on the machine and is destroyed by the next update, which replaces
+  // resources/ wholesale.
+  //
+  // Dev keeps ./data so the repo workflow and fixtures are unchanged, and the
+  // read-only SDE still ships in resources (see getSdePath) — that one is never
+  // written to.
+  //
+  // EVE_CARBON_DATA_DIR overrides both — used ONLY by the e2e suite (see
+  // e2e/support/electron-app.js) so tests read/write a throwaway fixture DB.
   appDataDir = process.env.EVE_CARBON_DATA_DIR || (app.isPackaged
-    ? path.join(process.resourcesPath || __dirname, 'data')
+    ? userDataPath
     : path.join(__dirname, 'data'));
+  // Anything an older build left in the install directory comes with us.
+  legacyDataDir = app.isPackaged
+    ? path.join(process.resourcesPath || __dirname, 'data')
+    : null;
   userPacksDir  = path.join(userDataPath, 'packs');
   userThemesDir = path.join(userDataPath, 'themes');
   userBackgroundsDir = path.join(userDataPath, 'backgrounds');
@@ -700,6 +719,7 @@ ipcMain.handle('restart-app', () => {
 // ── Anonymous presence counter (status-bar "N online") — see src/presence.js ──
 // Always on when PRESENCE_URL is configured — no user-facing opt-out.
 ipcMain.handle('presence-get-count', () => getPresenceCount());
+ipcMain.handle('presence-get-state', () => getPresenceState());
 
 // Trade-fee profile for the Ore/Ice/Gas calculators: Accounting + Broker
 // Relations skill levels and NPC standings (keyed by from_id). Returns nulls if
@@ -1932,6 +1952,13 @@ app.whenReady().then(async () => {
 
   await initSde();
   try {
+    // Bring across a database from an older build that kept it in the install
+    // directory, before opening — otherwise the user starts empty and re-syncs
+    // every character from scratch.
+    if (legacyDataDir && !process.env.EVE_CARBON_DATA_DIR) {
+      try { charInfoDb.migrateLegacyDatabase(legacyDataDir, appDataDir); }
+      catch (e) { console.warn('[CharDB] legacy migration skipped:', e.message); }
+    }
     await charInfoDb.initCharacterDb(appDataDir);
   } catch (e) {
     console.error('[charInfoDb] init failed, continuing:', e.message);
@@ -1985,15 +2012,6 @@ app.whenReady().then(async () => {
     bpCache,
     getSdeDb: () => sdeDb,
   });
-  registerBlueprintHandlers({
-    ipcHandle,
-    getValidToken,
-    httpGet,
-    resolveNames,
-    loadDB,
-    saveDB,
-    charInfoDb,
-  });
   registerAssetHandlers({
     ipcHandle,
     getValidToken,
@@ -2021,10 +2039,6 @@ app.whenReady().then(async () => {
     writeCache,
     loadConfig,
     saveConfig,
-  });
-  registerPingFileHandlers({
-    ipcHandle,
-    watcherState: pingWatcherState,
   });
   registerPIHandlers({
     ipcHandle,
@@ -2070,7 +2084,7 @@ app.whenReady().then(async () => {
   // registerConfigHandlers() so app-get-config is available when jabber_ipc
   // reads saved credentials on startup.
   const { registerJabberHandlers } = require('./src/jabber_ipc');
-  registerJabberHandlers({ ipcHandle, jabberDataDb, createPingAlertWindow });
+  registerJabberHandlers({ ipcHandle, jabberDataDb, createPingAlertWindow, loadConfig, saveConfig });
 
   // Open a character's info window in the active EVE client.
   // Requires esi-ui.open_window.v1 scope. EVE shows "Find Fleet" in the info
@@ -3133,8 +3147,6 @@ function createWindow() {
  
 // ─── IPC: Config ──────────────────────────────────────────────────────────────
 // Config is now hardcoded — no client-side config needed
- 
-// ─── Blueprint IPC handlers → src/ipc/blueprint_ipc.js ───────────────────────
  
 // ─── Implant slot resolver ────────────────────────────────────────────────────
 // ESI /v1/characters/{id}/implants/ returns type IDs in no guaranteed order.

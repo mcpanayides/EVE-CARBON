@@ -484,3 +484,11 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
 .asset-table thead th .col-resize-handle {
   cursor: col-resize;
 }
+/* A container priced by what is inside it (asset safety wrap, ship, freight
+   container). Dotted underline so the figure does not read as a claim about the
+   wrapper itself; the title attribute breaks it into item + contents. */
+.asset-item-price-cell.price-contents {
+  text-decoration: underline dotted var(--border-e);
+  text-underline-offset: 3px;
+  cursor: help;
+}

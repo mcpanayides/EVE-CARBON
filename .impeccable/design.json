@@ -1,44 +1,387 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-27T00:00:00Z",
+  "generatedAt": "2026-08-09T11:08:10.448Z",
   "title": "Design System: EVE Carbon",
   "extensions": {
     "colorMeta": {
-      "crimson-signal": { "role": "primary", "displayName": "Crimson Signal", "canonical": "#e0483a", "tonalRamp": ["#2c0f0b", "#521a14", "#7d201a", "#a12f24", "#c53a2d", "#e0483a", "#ea8579", "#f4c3bc"] },
-      "space-black": { "role": "neutral", "displayName": "Space Black", "canonical": "#070a12", "tonalRamp": ["#070a12", "#0c1019", "#121824", "#1a2130", "#2a3346", "#3f4a60", "#5f6b82", "#8f99ae"] },
-      "text-primary": { "role": "neutral", "displayName": "Cool Terminal Gray", "canonical": "#ccd1da", "tonalRamp": ["#565b63", "#697079", "#7e858f", "#909aa6", "#aab0bc", "#b4bac4", "#ccd1da", "#dce0e6"] },
-      "portrait-teal": { "role": "tertiary", "displayName": "Capsuleer Teal", "canonical": "#00c4b4", "tonalRamp": ["#00221f", "#00423d", "#00635b", "#008579", "#00a698", "#00c4b4", "#5cdccf", "#a6efe9"] },
-      "data-red": { "role": "data", "displayName": "Loss Red", "canonical": "#e0564b", "tonalRamp": ["#3a1310", "#5e2019", "#822c23", "#a6382d", "#c04338", "#e0564b", "#e88076", "#f2bbb4"] },
-      "data-green": { "role": "data", "displayName": "Gain Green", "canonical": "#4ada8a", "tonalRamp": ["#0f3a24", "#175a38", "#20824f", "#28a666", "#37c076", "#4ada8a", "#7fe5ab", "#bcf2d3"] },
-      "data-teal": { "role": "data", "displayName": "Liquid Teal", "canonical": "#4ecbb0", "tonalRamp": ["#123a33", "#1a5a4e", "#238269", "#2ca684", "#3cbf9a", "#4ecbb0", "#82ddc9", "#bef0e5"] },
-      "data-gold": { "role": "data", "displayName": "Warning Gold", "canonical": "#e3b341", "tonalRamp": ["#3a2e10", "#5e4a17", "#826620", "#a68328", "#c09a34", "#e3b341", "#eccb7f", "#f5e4bc"] },
-      "data-purple": { "role": "data", "displayName": "Asset Purple", "canonical": "#ab7ab8", "tonalRamp": ["#2c1f30", "#453049", "#5e4263", "#77547d", "#916797", "#ab7ab8", "#c6a3cd", "#e2cfe6"] },
-      "data-blue": { "role": "data", "displayName": "Info Blue", "canonical": "#4a9fd4", "tonalRamp": ["#122a3a", "#1a415e", "#235982", "#2c72a6", "#3a89c0", "#4a9fd4", "#82bee2", "#bedcf0"] },
-      "data-pink": { "role": "data", "displayName": "Series Pink", "canonical": "#e47baf", "tonalRamp": ["#3a1428", "#5e2140", "#822e58", "#a63a70", "#c04b88", "#e47baf", "#eca6c9", "#f5d2e4"] },
-      "data-orange": { "role": "data", "displayName": "Series Orange", "canonical": "#f58c42", "tonalRamp": ["#3a1e0d", "#5e3117", "#824420", "#a65728", "#c06e34", "#f58c42", "#f8b17f", "#fcd6bc"] }
+      "crimson-signal": {
+        "role": "primary",
+        "displayName": "Crimson Signal",
+        "canonical": "#e0483a",
+        "tonalRamp": [
+          "#2c0f0b",
+          "#521a14",
+          "#7d201a",
+          "#a12f24",
+          "#c53a2d",
+          "#e0483a",
+          "#ea8579",
+          "#f4c3bc"
+        ]
+      },
+      "crimson-deep": {
+        "role": "primary",
+        "displayName": "Crimson Deep",
+        "canonical": "#7d201a",
+        "tonalRamp": [
+          "#1c0806",
+          "#2c0f0b",
+          "#48160f",
+          "#5f1a14",
+          "#7d201a",
+          "#a12f24",
+          "#c8695f",
+          "#e6b3ac"
+        ]
+      },
+      "space-black": {
+        "role": "neutral",
+        "displayName": "Space Black",
+        "canonical": "#070a12",
+        "tonalRamp": [
+          "#070a12",
+          "#0c1019",
+          "#121824",
+          "#1a2130",
+          "#2a3346",
+          "#3f4a60",
+          "#5f6b82",
+          "#8f99ae"
+        ]
+      },
+      "surface-glass": {
+        "role": "neutral",
+        "displayName": "Surface Glass",
+        "canonical": "rgba(12, 16, 24, 0.85)",
+        "tonalRamp": [
+          "#05070b",
+          "#080b11",
+          "#0c1018",
+          "#121722",
+          "#1a2130",
+          "#242d3f",
+          "#3a465c",
+          "#5b6a85"
+        ]
+      },
+      "panel-glass": {
+        "role": "neutral",
+        "displayName": "Panel Glass",
+        "canonical": "rgba(14, 18, 28, 0.85)",
+        "tonalRamp": [
+          "#06080d",
+          "#090c13",
+          "#0e121c",
+          "#141926",
+          "#1d2434",
+          "#283143",
+          "#3e4b62",
+          "#606f8b"
+        ]
+      },
+      "hairline-cool": {
+        "role": "neutral",
+        "displayName": "Cool Hairline",
+        "canonical": "rgba(255, 255, 255, 0.09)",
+        "tonalRamp": [
+          "#14161a",
+          "#1c1f24",
+          "#252930",
+          "#31353e",
+          "#3f444f",
+          "#525863",
+          "#6d747f",
+          "#9aa1ab"
+        ]
+      },
+      "hairline-faint": {
+        "role": "neutral",
+        "displayName": "Faint Hairline",
+        "canonical": "rgba(255, 255, 255, 0.06)",
+        "tonalRamp": [
+          "#101216",
+          "#171a1f",
+          "#1f2229",
+          "#282c34",
+          "#343943",
+          "#454b56",
+          "#5e6570",
+          "#8b929c"
+        ]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Cool Terminal Gray",
+        "canonical": "#ccd1da",
+        "tonalRamp": [
+          "#565b63",
+          "#697079",
+          "#7e858f",
+          "#909aa6",
+          "#aab0bc",
+          "#b4bac4",
+          "#ccd1da",
+          "#dce0e6"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Muted Label Gray",
+        "canonical": "#909090",
+        "tonalRamp": [
+          "#1f1f1f",
+          "#333333",
+          "#4a4a4a",
+          "#616161",
+          "#787878",
+          "#909090",
+          "#b4b4b4",
+          "#d8d8d8"
+        ]
+      },
+      "text-faint": {
+        "role": "neutral",
+        "displayName": "Faint Console Gray",
+        "canonical": "#565b63",
+        "tonalRamp": [
+          "#14161a",
+          "#1e2126",
+          "#2b2f35",
+          "#3a3f46",
+          "#495057",
+          "#565b63",
+          "#818892",
+          "#b3b9c2"
+        ]
+      },
+      "portrait-teal": {
+        "role": "tertiary",
+        "displayName": "Capsuleer Teal",
+        "canonical": "#00c4b4",
+        "tonalRamp": [
+          "#00221f",
+          "#00423d",
+          "#00635b",
+          "#008579",
+          "#00a698",
+          "#00c4b4",
+          "#5cdccf",
+          "#a6efe9"
+        ]
+      },
+      "data-red": {
+        "role": "data",
+        "displayName": "Loss Red",
+        "canonical": "#e0564b",
+        "tonalRamp": [
+          "#3a1310",
+          "#5e2019",
+          "#822c23",
+          "#a6382d",
+          "#c04338",
+          "#e0564b",
+          "#e88076",
+          "#f2bbb4"
+        ]
+      },
+      "data-green": {
+        "role": "data",
+        "displayName": "Gain Green",
+        "canonical": "#4ada8a",
+        "tonalRamp": [
+          "#0f3a24",
+          "#175a38",
+          "#20824f",
+          "#28a666",
+          "#37c076",
+          "#4ada8a",
+          "#7fe5ab",
+          "#bcf2d3"
+        ]
+      },
+      "data-teal": {
+        "role": "data",
+        "displayName": "Liquid Teal",
+        "canonical": "#4ecbb0",
+        "tonalRamp": [
+          "#123a33",
+          "#1a5a4e",
+          "#238269",
+          "#2ca684",
+          "#3cbf9a",
+          "#4ecbb0",
+          "#82ddc9",
+          "#bef0e5"
+        ]
+      },
+      "data-gold": {
+        "role": "data",
+        "displayName": "Warning Gold",
+        "canonical": "#e3b341",
+        "tonalRamp": [
+          "#3a2e10",
+          "#5e4a17",
+          "#826620",
+          "#a68328",
+          "#c09a34",
+          "#e3b341",
+          "#eccb7f",
+          "#f5e4bc"
+        ]
+      },
+      "data-purple": {
+        "role": "data",
+        "displayName": "Asset Purple",
+        "canonical": "#ab7ab8",
+        "tonalRamp": [
+          "#2c1f30",
+          "#453049",
+          "#5e4263",
+          "#77547d",
+          "#916797",
+          "#ab7ab8",
+          "#c6a3cd",
+          "#e2cfe6"
+        ]
+      },
+      "data-blue": {
+        "role": "data",
+        "displayName": "Info Blue",
+        "canonical": "#4a9fd4",
+        "tonalRamp": [
+          "#122a3a",
+          "#1a415e",
+          "#235982",
+          "#2c72a6",
+          "#3a89c0",
+          "#4a9fd4",
+          "#82bee2",
+          "#bedcf0"
+        ]
+      },
+      "data-pink": {
+        "role": "data",
+        "displayName": "Series Pink",
+        "canonical": "#e47baf",
+        "tonalRamp": [
+          "#3a1428",
+          "#5e2140",
+          "#822e58",
+          "#a63a70",
+          "#c04b88",
+          "#e47baf",
+          "#eca6c9",
+          "#f5d2e4"
+        ]
+      },
+      "data-orange": {
+        "role": "data",
+        "displayName": "Series Orange",
+        "canonical": "#f58c42",
+        "tonalRamp": [
+          "#3a1e0d",
+          "#5e3117",
+          "#824420",
+          "#a65728",
+          "#c06e34",
+          "#f58c42",
+          "#f8b17f",
+          "#fcd6bc"
+        ]
+      }
     },
     "typographyMeta": {
-      "stat": { "displayName": "Stat", "purpose": "Headline mono figures — net worth, wallet balance, KPI values." },
-      "title": { "displayName": "Title", "purpose": "Tracked mono console headers — titlebar and section titles." },
-      "body": { "displayName": "Body", "purpose": "Default Fira Sans UI text, descriptions, nav labels." },
-      "label": { "displayName": "Label", "purpose": "Uppercase tracked mono micro-labels above stats and panels." }
+      "stat": {
+        "displayName": "Stat",
+        "purpose": "Headline mono figures — net worth, wallet balance, KPI values."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Tracked mono console headers — titlebar and section titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default Fira Sans UI text, descriptions, nav labels."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase tracked mono micro-labels above stats and panels."
+      },
+      "console": {
+        "displayName": "Console",
+        "purpose": "Footer log, status bar, table micro-copy and dense badge text."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "The workhorse mono step — table values, filter bars, card meta, toolbar labels."
+      },
+      "small": {
+        "displayName": "Small",
+        "purpose": "Secondary prose under Body — helper text, empty-state subtitles."
+      },
+      "icon": {
+        "displayName": "Icon",
+        "purpose": "Material Symbols Outlined app-utility glyphs at 18px."
+      }
     },
     "shadows": [
-      { "name": "panel-lift", "value": "0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Structural glass page panels (the default resting surface)." },
-      { "name": "modal-lift", "value": "0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Dialogs and drawers — the top of the focus stack." },
-      { "name": "toast-lift", "value": "0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.14)", "purpose": "Transient floating notifications." },
-      { "name": "selected-glow", "value": "0 0 12px rgba(224,72,58,0.06)", "purpose": "Faint crimson glow on a selected card." },
-      { "name": "focus-ring", "value": "0 0 0 2px rgba(224,72,58,0.08)", "purpose": "Quiet crimson focus ring on inputs." }
+      {
+        "name": "panel-lift",
+        "value": "0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.14)",
+        "purpose": "Structural glass page panels (the default resting surface)."
+      },
+      {
+        "name": "modal-lift",
+        "value": "0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.14)",
+        "purpose": "Dialogs and drawers — the top of the focus stack."
+      },
+      {
+        "name": "toast-lift",
+        "value": "0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.14)",
+        "purpose": "Transient floating notifications."
+      },
+      {
+        "name": "selected-glow",
+        "value": "0 0 12px rgba(224,72,58,0.06)",
+        "purpose": "Faint crimson glow on a selected card."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 2px rgba(224,72,58,0.08)",
+        "purpose": "Quiet crimson focus ring on inputs."
+      }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "ease", "purpose": "Default 0.2s state transitions on nav, buttons, toggles." },
-      { "name": "state-fast", "value": "0.15s", "purpose": "Snappy hover/press feedback on buttons and borders." },
-      { "name": "glow-pulse", "value": "concordGlowPulse 8s ease-in-out infinite (secondary 12s reverse)", "purpose": "Slow ambient breathing of the backdrop blue-nebula glows." },
-      { "name": "ticker-scroll", "value": "ticker-scroll 120s linear infinite", "purpose": "Continuous market-ticker marquee; pauses on hover." }
+      {
+        "name": "ease-standard",
+        "value": "ease",
+        "purpose": "Default 0.2s state transitions on nav, buttons, toggles."
+      },
+      {
+        "name": "state-fast",
+        "value": "0.15s",
+        "purpose": "Snappy hover/press feedback on buttons and borders."
+      },
+      {
+        "name": "glow-pulse",
+        "value": "concordGlowPulse 8s ease-in-out infinite (secondary 12s reverse)",
+        "purpose": "Slow ambient breathing of the backdrop blue-nebula glows."
+      },
+      {
+        "name": "ticker-scroll",
+        "value": "ticker-scroll 120s linear infinite",
+        "purpose": "Continuous market-ticker marquee; pauses on hover."
+      }
     ],
     "breakpoints": [
-      { "name": "sidebar-expanded", "value": "280px" },
-      { "name": "sidebar-collapsed", "value": "64px" }
+      {
+        "name": "sidebar-expanded",
+        "value": "280px"
+      },
+      {
+        "name": "sidebar-collapsed",
+        "value": "64px"
+      }
     ]
   },
   "components": [
@@ -110,15 +453,51 @@
       "Total themeability by derivation — a ~120-token map computed from just 16 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes)."
     ],
     "rules": [
-      { "name": "The Accent-Is-A-Role Rule", "body": "Never hardcode the highlight color. The accent is roles.accent resolved against the active 16-swatch palette and expressed only through the --accent* tokens. A literal crimson hex breaks every user palette instantly.", "section": "colors" },
-      { "name": "The Derive-Don't-Author Rule", "body": "Any new accent tint, hue variant, or state color is generated from a swatch via the theme-vars.js helpers (hexToRgba / lighten / darken), not typed as a fresh literal. Sixteen swatches are the only hand-set colors; the rest is math so themes stay coherent.", "section": "colors" },
-      { "name": "The One Signal Rule", "body": "The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead.", "section": "colors" },
-      { "name": "The Token-Or-Nothing Rule", "body": "No chart, KPI, badge, or status may hardcode one of the eight data hues. Reference --pal-* / --chart-* so a user palette repaints the whole app. A raw hex in a component is a bug.", "section": "colors" },
-      { "name": "The Color-Is-Not-The-Only-Signal Rule", "body": "In dense data views, color reinforces meaning but never carries it alone — pair every hue with a label, icon, sign, or position.", "section": "colors" },
-      { "name": "The Numbers-Are-Mono Rule", "body": "Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is how the eye finds the data.", "section": "typography" },
-      { "name": "The Muted-Label / Bright-Value Rule", "body": "Labels are muted and tracked (--label-muted); the value they describe is bright (--value-bright). Never invert this, and never inline-style either — always class + token.", "section": "typography" },
-      { "name": "The Focus-Stack Rule", "body": "Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing at the same clarity.", "section": "elevation" },
-      { "name": "The Ambient-Glow-Never-Interacts Rule", "body": "The nebula glows are backdrop only: z-index:0, pointer-events:none, mix-blend-mode:screen. They set mood behind the frame and never touch, tint, or obscure data.", "section": "elevation" }
+      {
+        "name": "The Accent-Is-A-Role Rule",
+        "body": "Never hardcode the highlight color. The accent is roles.accent resolved against the active 16-swatch palette and expressed only through the --accent* tokens. A literal crimson hex breaks every user palette instantly.",
+        "section": "colors"
+      },
+      {
+        "name": "The Derive-Don't-Author Rule",
+        "body": "Any new accent tint, hue variant, or state color is generated from a swatch via the theme-vars.js helpers (hexToRgba / lighten / darken), not typed as a fresh literal. Sixteen swatches are the only hand-set colors; the rest is math so themes stay coherent.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Signal Rule",
+        "body": "The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token-Or-Nothing Rule",
+        "body": "No chart, KPI, badge, or status may hardcode one of the eight data hues. Reference --pal-* / --chart-* so a user palette repaints the whole app. A raw hex in a component is a bug.",
+        "section": "colors"
+      },
+      {
+        "name": "The Color-Is-Not-The-Only-Signal Rule",
+        "body": "In dense data views, color reinforces meaning but never carries it alone — pair every hue with a label, icon, sign, or position.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numbers-Are-Mono Rule",
+        "body": "Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is how the eye finds the data.",
+        "section": "typography"
+      },
+      {
+        "name": "The Muted-Label / Bright-Value Rule",
+        "body": "Labels are muted and tracked (--label-muted); the value they describe is bright (--value-bright). Never invert this, and never inline-style either — always class + token.",
+        "section": "typography"
+      },
+      {
+        "name": "The Focus-Stack Rule",
+        "body": "Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing at the same clarity.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ambient-Glow-Never-Interacts Rule",
+        "body": "The nebula glows are backdrop only: z-index:0, pointer-events:none, mix-blend-mode:screen. They set mood behind the frame and never touch, tint, or obscure data.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do route every chart, KPI, badge, and status color through the --pal-* / --chart-* tokens so a user palette repaints the whole app.",

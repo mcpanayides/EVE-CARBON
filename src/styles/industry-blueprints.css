@@ -303,6 +303,7 @@
 .industry-sub-btn[data-industry-tab="appraisal"]     .industry-sub-icon::before { content: "receipt_long"; }
 .skills-sub-btn[data-skills-tab="planner"]           .industry-sub-icon::before { content: "checklist"; }
 .skills-sub-btn[data-skills-tab="plans"]             .industry-sub-icon::before { content: "folder_open"; }
+.skills-sub-btn[data-skills-tab="queues"]            .industry-sub-icon::before { content: "pending_actions"; }
 .finances-sub-btn[data-finances-tab="wallets"]       .industry-sub-icon::before { content: "account_balance_wallet"; }
 .finances-sub-btn[data-finances-tab="contracts"]     .industry-sub-icon::before { content: "description"; }
 .finances-sub-btn[data-finances-tab="lpstore"]       .industry-sub-icon::before { content: "redeem"; }
@@ -314,7 +315,8 @@
 .industry-sub-btn[data-industry-tab="gas"]           .industry-sub-icon::before { content: "cloud"; }
 .industry-sub-btn[data-industry-tab="moon-calc"]     .industry-sub-icon::before { content: "dark_mode"; }
 .industry-sub-btn[data-industry-tab="moon"]          .industry-sub-icon::before { content: "radar"; }
-.industry-sub-btn[data-industry-tab="planet-size"]   .industry-sub-icon::before { content: "public"; }
+.pi-sub-btn[data-pi-tab="colonies"]                  .industry-sub-icon::before { content: "public"; }
+.pi-sub-btn[data-pi-tab="planet-size"]               .industry-sub-icon::before { content: "planet"; }
 .industry-content    { flex: 1; overflow-y: auto; background: var(--bg-deep); min-width: 0; }
 
 /* ── WALLETS PAGE ── */

@@ -46,11 +46,9 @@
         <option value="">All Corps</option>
       </select>
 
-      <button class="icon-btn" id="repairLocationsBtn" onclick="repairAssetLocations()"
-              title="Re-resolve structures showing as 'No structure found' or 'Structure {id}'"
-              style="padding:7px 14px; font-size:12px;">
-        ⚲ RESOLVE NAMES
-      </button>
+      <!-- RESOLVE NAMES moved to Settings ▸ Database ▸ Structure Names. It was
+           read as a page-refresh button and clicked repeatedly; it is a slow,
+           rate-limited repair pass, not a refresh. -->
     </div>
 
     <!-- Table -->

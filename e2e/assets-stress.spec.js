@@ -78,6 +78,35 @@ test.describe('assets at scale', () => {
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}
   });
 
+  // Every test opens the page for itself rather than inheriting it from the one
+  // before. These share a single app instance, so a test that assumed a
+  // previous test had navigated turned one failure into four: the first failed
+  // on its own merits, and the rest timed out against a page that was never
+  // open. A shared app is worth the startup cost; shared *state* is not.
+  test.beforeEach(async () => {
+    await window.locator('.nav-btn[data-page="assets"]').click();
+    await expect(window.locator('#page-assets')).toBeVisible({ timeout: 60_000 });
+    await expect(window.locator('tr.asset-loc-header').first())
+      .toBeVisible({ timeout: 10 * 60_000 });
+    await settle();
+  });
+
+  // Wait for the page to stop re-rendering. Sorting and filtering repaint the
+  // list asynchronously — queries, then a model rebuild — and a click that
+  // lands mid-repaint hits a row the next repaint is about to replace, so the
+  // click goes nowhere and the test waits for something that will never appear.
+  // The model version is the honest signal that the page has settled; polling
+  // it beats guessing with a sleep.
+  async function settle(timeout = 60_000) {
+    let last = -1;
+    await expect.poll(async () => {
+      const v = await window.evaluate(() => _assetModelVersion);
+      const stable = v === last;
+      last = v;
+      return stable;
+    }, { timeout, intervals: [150] }).toBe(true);
+  }
+
   test('the assets page opens as locations, not as a hundred thousand rows', async () => {
     const errors = [];
     window.on('pageerror', (e) => errors.push(e.message));
@@ -125,22 +154,83 @@ test.describe('assets at scale', () => {
     expect(errors, 'the renderer threw while building the page').toEqual([]);
   });
 
-  test('expanding a location loads only that location', async () => {
-    const before = await window.locator('#assetTable tbody tr').count();
+  // The Phase 3 case. The fixture parks most of one character's items in a
+  // single station, because spreading them evenly is precisely what hides this:
+  // before the concentrate option the biggest hangar in a 100k profile was 129
+  // rows, and the cost of one enormous group was never exercised at all.
+  test('expanding an enormous hangar builds only a windowful of rows', async () => {
+    // Sort by value so the stockpile station is the first group.
+    await window.locator('#assetTable thead th[data-col-key="price"]').click();
+    await settle();
+
+    await window.locator('tr.asset-loc-header').first().click();
+    await settle();
+    await expect(window.locator('tr.asset-char-header').first()).toBeVisible({ timeout: 60_000 });
+
+    // The character holding the most in this station.
+    const fattest = await window.evaluate(() => {
+      const hs = [...document.querySelectorAll('tr.asset-char-header')];
+      let best = 0, n = -1;
+      hs.forEach((h, i) => {
+        const m = h.textContent.match(/([\d,]+)\s+items?/);
+        const c = m ? Number(m[1].replace(/,/g, '')) : 0;
+        if (c > n) { n = c; best = i; }
+      });
+      return { best, n };
+    });
 
     const t0 = Date.now();
-    await window.locator('tr.asset-loc-header').first().click();
-    await expect(window.locator('tr.asset-char-header').first()).toBeVisible({ timeout: 30_000 });
-    await window.locator('tr.asset-char-header').first().click();
-    await expect(window.locator('tr.asset-item-row').first()).toBeVisible({ timeout: 30_000 });
+    await window.locator('tr.asset-char-header').nth(fattest.best).click();
+    await expect(window.locator('tr.asset-item-row').first()).toBeVisible({ timeout: 60_000 });
     const expandMs = Date.now() - t0;
+    await settle();
 
-    const after = await window.locator('#assetTable tbody tr').count();
-    console.log(`\nexpand one hangar  ${expandMs.toLocaleString()} ms · ${before} → ${after} DOM rows\n`);
+    const probe = Date.now();
+    await window.evaluate(() => new Promise(r => requestAnimationFrame(() => r(1))));
+    const frame = Date.now() - probe;
 
-    // One hangar is a hangar's worth of rows, not the portfolio's.
-    expect(after).toBeGreaterThan(before);
-    expect(after - before).toBeLessThan(6000);
+    const s = await window.evaluate(() => ({
+      dom:   document.querySelectorAll('#assetTable tbody tr').length,
+      model: _assetModel.length,
+      height: _assetOffsets[_assetOffsets.length - 1],
+    }));
+
+    console.log(`\nhangar             ${fattest.n.toLocaleString()} items`);
+    console.log(`expand             ${expandMs.toLocaleString()} ms · frame ${frame} ms`);
+    console.log(`DOM rows           ${s.dom} · model ${s.model.toLocaleString()} · virtual height ${s.height.toLocaleString()}px\n`);
+
+    expect(fattest.n, 'the fixture has no large hangar to test').toBeGreaterThan(2000);
+    // The whole point: the DOM is bounded by the window, not by the hangar.
+    expect(s.dom, 'the DOM grew with the hangar').toBeLessThan(80);
+    expect(s.model, 'the model should hold the hangar').toBeGreaterThan(500);
+  });
+
+  test('scrolling a huge hangar keeps the DOM bounded and the scrollbar honest', async () => {
+    const before = await window.evaluate(() => ({
+      h: document.getElementById('assetTableWrapper').scrollHeight,
+      dom: document.querySelectorAll('#assetTable tbody tr').length,
+    }));
+
+    const t0 = Date.now();
+    await window.evaluate(() => { document.getElementById('assetTableWrapper').scrollTop = 15000; });
+    await window.evaluate(() => new Promise(r => requestAnimationFrame(() => r(1))));
+    await window.evaluate(() => new Promise(r => requestAnimationFrame(() => r(1))));
+    const scrollMs = Date.now() - t0;
+
+    const after = await window.evaluate(() => ({
+      h: document.getElementById('assetTableWrapper').scrollHeight,
+      dom: document.querySelectorAll('#assetTable tbody tr').length,
+      top: document.querySelector('#assetTable tbody tr:not(.asset-spacer)')?.textContent.trim().slice(0, 40),
+    }));
+
+    console.log(`\nscroll to 15000px  ${scrollMs} ms · ${after.dom} DOM rows · top row "${after.top}"\n`);
+
+    expect(after.dom).toBeLessThan(80);
+    // The spacers must keep the scrollable height constant as the window moves,
+    // or the scrollbar jumps under the user's hand.
+    expect(Math.abs(after.h - before.h)).toBeLessThan(2);
+
+    await window.evaluate(() => { document.getElementById('assetTableWrapper').scrollTop = 0; });
   });
 
   test('sorting by value stays responsive', async () => {
@@ -150,6 +240,7 @@ test.describe('assets at scale', () => {
     const t0 = Date.now();
     await window.locator('#assetTable thead th[data-col-key="price"]').first().click();
     await expect(window.locator('tr.asset-loc-header').first()).toBeVisible({ timeout: 60_000 });
+    await settle();
     const sortMs = Date.now() - t0;
 
     const probe = Date.now();

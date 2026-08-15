@@ -6,6 +6,63 @@ the release workflow extracts the section for the tag being published.
 
 ---
 
+## [3.3.0] - 2026-08-15
+The Assets page is rebuilt from the database up. It used to load every asset of
+every character into the browser, build a table row for each one, and work out
+prices afterwards — which on a large account meant about forty-five seconds
+before anything appeared, and another forty every time you clicked a column.
+Value now lives in the database, the page asks only for what is on screen, and
+it builds only the rows inside the window.
+
+Measured on a 90-character, 100,000-item profile:
+
+| | before | after |
+|---|---|---|
+| page opens | ~42 s | **2.9 s** |
+| table rows held | ~100,000 | **120** |
+| sort by value | 42 s, every click | **under ½ s** |
+| open a 5,000-item hangar | 2.4 s | **0.2 s** |
+| search | re-filter everything in the browser | **~0.3 s** |
+
+### Assets
+- **Sorting by value now ranks everything you own.** Previously it could only
+  order what had already loaded, so a Titan sitting in the ninetieth hangar
+  never reached the top. The database ranks every row, and the page shows the
+  top of that ordering.
+- **Containers are worth what is inside them.** An Asset Safety Wrap's own type
+  is worth nothing while it holds a billion ISK of modules — which is exactly
+  the number you need to decide whether to pay to get it back. Ships, wraps and
+  freight containers now show their contents' value, with a breakdown on hover.
+- **Station and character totals match the rows beneath them.** A ship could
+  report 57B while the character heading it read 50B, because the two counted
+  different things. Verified against real data across 446 groups.
+- **Search works by ship class, not just by name.** "Dreadnought" finds every
+  dread and every dread blueprint; "carrier" finds carriers, supercarriers and
+  their blueprints; "supercarrier" finds only the supers. Plurals work, and so
+  do the names the game does not use — mothership, fax, hic, blops, rorq, pod.
+- **Columns line up.** Text left, numbers right, headers reading the same way as
+  the cells under them. Column widths are applied to every column and a width
+  you drag is remembered again — the saved list was being discarded on reload.
+- **Prices say how old they are.** Every figure is stored rather than fetched
+  while you look at it, so the toolbar states when they were last refreshed and
+  warns once they are over a day old. They refresh on their own, after launch
+  and after each sync.
+- **Assets no longer go missing.** Asset syncing stopped early whenever a page
+  came back with fewer items than expected, silently dropping everything after
+  it — which is how a supercarrier disappeared from a hangar while the rest of
+  the character synced normally.
+- **Prices survive a restart** and no longer vanish and reload every time the
+  page is opened.
+
+### Under it
+- Asset value is materialised into the database with a tiered resolution: CCP's
+  reference prices as a baseline for everything, real Jita prices for the types
+  that actually carry the value, and explicit values for capital hulls that have
+  no open market and that every price source misreports.
+- The valuation rebuilds itself after a sync, coalescing a ninety-character sync
+  into one rebuild rather than ninety, and builds into staging tables so the
+  page never catches it mid-rebuild.
+
 ## [3.0.0] - 2026-08-12
 Jabber becomes a real chat client, the dashboard gets a kill ticker and honest
 resizing, and two installer/database faults that only ever showed up in shipped

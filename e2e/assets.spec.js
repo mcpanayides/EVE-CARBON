@@ -85,14 +85,63 @@ test('containers show the value of their contents', async ({ window }) => {
   await expect(priceCell).toHaveAttribute('title', /contents/);
 });
 
-test('a container hides its contents until its chevron is clicked', async ({ window }) => {
+test('a collapsed container has no rows in the DOM at all', async ({ window }) => {
   await openJitaHangar(window);
-  const contents = window.locator('tr.asset-item-row', { hasText: 'Damage Control II' }).first();
-  await expect(contents).toBeHidden();
+  // Not hidden — absent. The contents of a collapsed container never enter the
+  // row model, so they are never built. On a real stockpile hangar that was
+  // four fifths of everything the page constructed.
+  await expect(window.locator('tr.asset-item-row', { hasText: 'Damage Control II' })).toHaveCount(0);
 
   await window.locator('tr.asset-item-row', { hasText: 'Asset Safety Wrap' })
     .first().locator('.asset-ship-chevron').click();
-  await expect(contents).toBeVisible();
+  await expect(window.locator('tr.asset-item-row', { hasText: 'Damage Control II' }).first()).toBeVisible();
+});
+
+// The virtual list computes every row's y position from three constants. If a
+// row can render taller than its constant the list drifts — rows land at the
+// wrong offset and the scrollbar lies about its length — and nothing throws.
+test('every rendered row is exactly the height the virtual list assumes', async ({ window }) => {
+  await openJitaHangar(window);
+
+  const bad = await window.evaluate(() => {
+    const expected = {
+      'asset-loc-header':  ASSET_ROW_H.loc,
+      'asset-char-header': ASSET_ROW_H.char,
+      'asset-item-row':    ASSET_ROW_H.item,
+    };
+    const out = [];
+    for (const row of document.querySelectorAll('#assetTable tbody tr')) {
+      if (row.classList.contains('asset-spacer')) continue;
+      for (const [cls, h] of Object.entries(expected)) {
+        if (!row.classList.contains(cls)) continue;
+        const actual = row.getBoundingClientRect().height;
+        if (Math.abs(actual - h) > 0.51) {
+          out.push(`${cls}: expected ${h}px, got ${actual.toFixed(2)}px — "${row.textContent.trim().slice(0, 40)}"`);
+        }
+      }
+    }
+    return out;
+  });
+  expect(bad, 'a row rendered at a height the list does not expect').toEqual([]);
+});
+
+test('the rendered rows and the scroll height agree with the model', async ({ window }) => {
+  await openJitaHangar(window);
+  const state = await window.evaluate(() => ({
+    model: _assetModel.length,
+    virtualHeight: _assetOffsets[_assetOffsets.length - 1],
+    // Every row the model says is showing, minus the spacers.
+    rendered: document.querySelectorAll('#assetTable tbody tr:not(.asset-spacer)').length,
+    sumOfHeights: [...document.querySelectorAll('#assetTable tbody tr:not(.asset-spacer)')]
+      .reduce((n, r) => n + r.getBoundingClientRect().height, 0),
+    spacers: [...document.querySelectorAll('#assetTable tbody tr.asset-spacer td')]
+      .reduce((n, td) => n + td.getBoundingClientRect().height, 0),
+  }));
+
+  // The small fixture fits in the viewport, so everything is built and there is
+  // nothing for the spacers to stand in for.
+  expect(state.rendered).toBe(state.model);
+  expect(Math.abs(state.sumOfHeights + state.spacers - state.virtualHeight)).toBeLessThan(1);
 });
 
 test('sorting by value ranks locations by what they hold', async ({ window }) => {

@@ -542,6 +542,52 @@ test('the merged unknown group sorts last whatever the column', async () => {
   await cleanup(db);
 });
 
+test('a read taken during a rebuild sees the old index, never a half-built one', async () => {
+  // Everything in the main process shares ONE SQLite connection, so a query the
+  // page makes while a rebuild is running does not get its own snapshot — it
+  // executes inside the rebuild's transaction. Emptying the live table first
+  // therefore made the Assets page briefly report an empty hangar, which is
+  // exactly what happened when the startup refresh landed mid-browse.
+  const db = await freshDb();
+  await val.writeTypePrices(db, new Map([[34, { value: 5, source: 'ccp' }]]));
+
+  const many = Array.from({ length: 4000 }, (_, i) => ({
+    characterId: 1, item_id: 1000 + i, type_id: 34, type_name: 'Tritanium',
+    quantity: 10, location_id: 60003760, location_name: 'Jita IV - Moon 4',
+    solar_system_id: 30000142,
+  }));
+  await idx.rebuildAssetIndex(db, many, new Map());
+  const before = await idx.getSummary(db, {});
+  assert.strictEqual(before.totalRows, 4000);
+
+  // Sampled repeatedly, not once. A single read is a coin toss — it can land
+  // before the rebuild's first destructive statement and pass while the bug is
+  // fully present. Against the old in-place rebuild this loop reported
+  // 3000, 0, 1, 2, 3 … as the table emptied and refilled underneath it.
+  const rebuilding = idx.rebuildAssetIndex(db, many, new Map());
+  const samples = [];
+  const polling = (async () => {
+    for (let i = 0; i < 40; i++) samples.push((await idx.getSummary(db, {})).totalRows);
+  })();
+  await Promise.all([rebuilding, polling]);
+
+  const partial = samples.filter(n => n !== 4000);
+  assert.deepStrictEqual(partial, [], 'a read during the rebuild saw a partial index');
+  assert.strictEqual((await idx.getSummary(db, {})).totalRows, 4000);
+  await cleanup(db);
+});
+
+test('a failed rebuild leaves the live index intact', async () => {
+  const db = await seeded();
+  const before = await idx.getSummary(db, {});
+  // A row with no character_id violates the NOT NULL on the staging table.
+  await assert.rejects(() => idx.rebuildAssetIndex(db, [{ item_id: 1, type_id: 34 }], new Map()));
+  const after = await idx.getSummary(db, {});
+  assert.strictEqual(after.totalRows, before.totalRows,
+    'a failed rebuild damaged the table it was replacing');
+  await cleanup(db);
+});
+
 test('a rebuild replaces the index rather than appending to it', async () => {
   const db = await seeded();
   await idx.rebuildAssetIndex(db, ROWS, TYPE_INFO);

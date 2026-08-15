@@ -175,10 +175,22 @@ self-referential `location_id` values ESI has been known to return.
   82 ms, summary 64 ms, location groups 34–45 ms whether filtered, searched or
   not, one hangar 8 ms, top 50 across everything 2 ms.
 
-  The rebuild is 10 s end to end (1.6 s values and roll-up, 2.3 s resolving
-  locations for 90 characters, 6.1 s building the index), debounced and in the
+  The rebuild is ~12 s end to end (2.1 s values and roll-up, 2.8 s resolving
+  locations for 90 characters, 7.2 s building the index), debounced and in the
   background. It is the one number that got slower, deliberately: it buys every
-  number above it.
+  number above it. About a second of that is the staging-table swap described
+  below, which is what keeps the page readable while it runs.
+
+  **The rebuild builds into staging tables and swaps.** Everything in the main
+  process shares ONE SQLite connection, so a query the page makes during a
+  rebuild does not get its own snapshot — it executes inside the rebuild's
+  transaction. Emptying the live table first therefore let the page report an
+  empty hangar mid-rebuild; sampling a read forty times during an in-place
+  rebuild returned `3000, 0, 1, 2, 3 …` as the table refilled underneath it.
+  Now the live tables are untouched until the new ones are complete (the same
+  write-then-swap `replaceAssets` uses). The swap itself still has a window
+  where the table genuinely does not exist, between the DROP and the RENAME, so
+  reads are gated across it — milliseconds, against six seconds before.
 
   **Group totals are an invariant, not an accident.** A header shows
   `SUM(own_value)` while each top-level row shows own + contained, so the two
@@ -210,11 +222,41 @@ self-referential `location_id` values ESI has been known to return.
     from a bind budget took it to ~8 s, and dropping the indexes for the load
     took the rest.
 
-- **Phase 3 — virtualised rendering.** Now genuinely the next bottleneck, but a
-  much smaller one than it was: the DOM only ever holds open groups, so this
-  only matters for a single hangar with thousands of rows in it. There is a
-  5,000-row cap (`GROUP_ITEM_CAP`) that keeps the most valuable and says so,
-  which is the honest stopgap until a virtual list exists.
+- **Phase 3 — virtualised rendering. DONE (v3.0.1-dev).**
+  The page keeps a flat MODEL of the rows it would show and builds only the
+  slice inside the viewport, with two spacer rows carrying the height of
+  everything above and below so the scrollbar stays honest.
+
+  Measured on one real stockpile hangar, 4,938 rows:
+
+  | | before | after |
+  |---|---|---|
+  | expand | 2,381 ms | **193 ms** |
+  | table rows built | 5,144 | **28** |
+  | frame latency | 153 ms | **6 ms** |
+  | scroll deep into the list | — | **32 ms**, still ~30 rows |
+
+  Two things fall out of the model rather than being special-cased:
+
+  - **Collapsed containers cost nothing.** Their contents never enter the model,
+    so they are not built. That alone was 4,063 of the 4,938 rows — four fifths
+    of the old cost bought rows that were built and then hidden with
+    `display:none`.
+  - **Every row's y position is known before anything renders**, so jumping to a
+    scroll offset is a binary search over prefix sums rather than a layout of
+    everything above it.
+
+  `GROUP_ITEM_CAP` went from 5,000 to **50,000**. It existed because the
+  renderer built a row per item; with the DOM cost gone, what remains is the
+  query and the model walk — measured on a 22,343-row hangar at 367 ms and
+  28 ms. The old limit was truncating lists to avoid a cost that no longer
+  exists.
+
+  **The fixture had to be fixed first.** `seed-stress.js` promised "the shape
+  that hurts, not just the row count" and then picked a random station per item,
+  so the biggest hangar in a 100k profile was 129 rows and this whole phase was
+  unexercised. It now takes a `concentrate` fraction that parks most of one
+  character's items in a single station.
 
 ### Known complications
 
@@ -237,9 +279,30 @@ self-referential `location_id` values ESI has been known to return.
   20 s with a 3-minute ceiling so ninety characters coalesce into one rebuild
   rather than ninety. The rebuild is one transaction, so a partial one rolls
   back rather than leaving a half-rolled tree.
-- **Column resize / sort indicators** read the live table. Sorting itself moved
-  into SQL and is fine; the resize handles still measure rendered `<th>` widths
-  and would need rewiring to a virtual list in Phase 3.
+- ~~**Column resize / sort indicators** read the live table.~~
+  **Not an issue after all.** Both read `<thead>`, which is always present and
+  is not virtualised — only `<tbody>` rows are windowed. Checked rather than
+  rewired.
+- ~~**Virtualising means tracking expansion as data.**~~ **Done in Phase 3.**
+  Expansion state is now the ONLY truth: `_assetEnsureOpenBranches()` fetches
+  whatever the state says should be open and repaints, and both the click
+  handlers and the post-sort re-render call it. The version before it had the
+  click handler fetch for itself and bail if the render token had moved on, so
+  clicking a location while a sort was still in flight set the state to open,
+  aborted, and never repainted — state said open, model said closed, and the
+  next click closed it again. The group simply would not open, intermittently.
+- **The window is rebuilt, not recycled.** Each scroll frame replaces the ~30
+  rows in `<tbody>` rather than repositioning existing nodes, so every row's
+  `<img>` element is recreated. In practice the type icons come straight from
+  the memory cache and scrolling measures at 32 ms, but on a cold cache a fast
+  scroll will issue requests it need not. Recycling rows (keeping the nodes and
+  rewriting their cells) is the refinement if that ever shows.
+- **Row heights are constants** (`ASSET_ROW_H`, mirrored in `assets.css`). The
+  list computes every offset from them, so a row that can render taller than its
+  constant makes the whole list drift — rows land at the wrong y and the
+  scrollbar lies — with nothing thrown. Item cells are clipped and an e2e test
+  asserts every rendered row matches its constant. Adding a row type, or letting
+  one wrap, means updating both.
 
 - **Search is a substring LIKE**, which can never seek — it scans the covering
   index (61 ms at 100k with class data, acceptable). If that stops being enough,

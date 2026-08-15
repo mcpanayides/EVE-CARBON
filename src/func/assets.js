@@ -265,31 +265,229 @@ function filterAssets() {
   _assetFilterTimer = setTimeout(() => { renderAssetGroups().catch(() => {}); }, 200);
 }
 
-// ── Rendering ────────────────────────────────────────────────────────────────
+// ── Rendering: a virtual list over a flat row model ──────────────────────────
+//
+// Phase 2 stopped the page loading what it was not showing. Phase 3 stops it
+// BUILDING what is not on screen.
+//
+// Expanding one real stockpile hangar — 4,938 rows — took 2.4 s and produced
+// 5,144 table rows, of which 4,063 were the contents of collapsed ships and
+// containers: built, then hidden with display:none. So four fifths of the cost
+// bought nothing at all, and the rest was a DOM far taller than the window.
+//
+// Now the page keeps a flat MODEL of the rows it would show, and builds only the
+// slice inside the viewport. Two consequences fall out of the model rather than
+// being special-cased:
+//
+//   • Rows inside a collapsed container never enter the model, so they are not
+//     built, not measured, and not paid for.
+//   • Every row's y position is known before anything is rendered, so the list
+//     can jump straight to a scroll offset instead of laying out what precedes it.
+//
+// The rows above and below the rendered slice are represented by two spacer
+// rows carrying their combined height, which is what keeps the scrollbar honest.
+// ─────────────────────────────────────────────────────────────────────────────
 
-function _assetTbody() { return document.querySelector('#assetTable tbody'); }
+// Declared in assets.css and asserted by an e2e test. The list computes offsets
+// from these, so a row that renders taller than its constant makes the whole
+// list drift — every row below it lands at the wrong place.
+const ASSET_ROW_H = { loc: 32, char: 27, item: 35 };
 
-/** Insert nodes directly after a reference row, keeping tree order. */
-function _assetInsertAfter(ref, nodes) {
-  let at = ref;
-  for (const n of nodes) { at.insertAdjacentElement('afterend', n); at = n; }
+// Rows built beyond the viewport in each direction. Enough that a flick of the
+// wheel lands on built rows; small enough that a rebuild stays trivial.
+const ASSET_OVERSCAN = 8;
+
+// What the page currently knows. Fetched per view and kept only while the
+// relevant branch is open — the point of Phase 2 is that this is never the
+// whole portfolio.
+let _assetGroups = [];                       // location header rows
+const _assetCharsByLoc  = new Map();         // locKey  -> character rows
+const _assetItemsByChar = new Map();         // charKey -> { flat, total, truncated }
+
+let _assetModel   = [];                      // flat descriptors, top to bottom
+let _assetOffsets = [0];                     // prefix sums; last entry is total height
+let _assetModelVersion = 0;
+let _assetLastWindow = null;
+
+function _assetTbody()  { return document.querySelector('#assetTable tbody'); }
+function _assetScroller() { return document.getElementById('assetTableWrapper'); }
+
+// ── The model ────────────────────────────────────────────────────────────────
+
+/**
+ * Flatten one character's items into display order.
+ *
+ * ESI returns a flat list where an item's location_id points at its immediate
+ * parent, so a fighter is nested under the carrier it sits in rather than loose
+ * in the hangar. Only a top-level container gets a toggle; everything beneath it
+ * shares that container's key, so collapsing a ship hides its whole fit however
+ * deep it goes.
+ */
+function _assetItemTree(rows, charKey) {
+  const byId = new Map(rows.map(r => [r.item_id, r]));
+  const kids = new Map();
+  const roots = [];
+  for (const r of rows) {
+    const parent = r.location_id != null ? byId.get(r.location_id) : null;
+    if (parent && parent !== r) {
+      if (!kids.has(r.location_id)) kids.set(r.location_id, []);
+      kids.get(r.location_id).push(r);
+    } else {
+      roots.push(r);
+    }
+  }
+
+  const flat = [];
+  const seen = new Set();
+  const emit = (r, depth, topKey) => {
+    if (seen.has(r.item_id)) return;          // ESI has returned parent cycles
+    seen.add(r.item_id);
+    const children = kids.get(r.item_id) || [];
+    let shipKey = topKey;
+    let toggleKey = null;
+    if (depth === 0 && children.length) {
+      toggleKey = `${charKey}|ship|${r.item_id}`;
+      shipKey = null;        // a top-level container is not hidden by itself
+      topKey  = toggleKey;   // but its descendants collapse under this key
+    }
+    flat.push({ r, depth, shipKey, toggleKey, childCount: children.length });
+    for (const kid of children) emit(kid, depth + 1, topKey);
+  };
+  for (const r of roots) emit(r, 0, null);
+  return flat;
 }
 
-/** Remove rows matching a predicate. Used when a group collapses. */
-function _assetRemoveRows(pred) {
+/**
+ * Every row the page would show right now, in order, with its height.
+ *
+ * Cheap enough to rebuild whenever anything changes: it walks the groups and
+ * the open branches only, and the open branches are the only thing ever
+ * fetched.
+ */
+function _assetBuildModel() {
+  const model = [];
+  const locOpen  = (k) => window._assetGroupState[k] === true;
+  const charOpen = (k) => window._assetCharState[k]  === true;
+  const shipOpen = (k) => window._assetShipState[k]  === true;
+
+  for (const g of _assetGroups) {
+    model.push({ kind: 'loc', h: ASSET_ROW_H.loc, g });
+    if (!locOpen(g.loc_key)) continue;
+
+    for (const ch of _assetCharsByLoc.get(g.loc_key) || []) {
+      const charKey = `${g.loc_key}|${ch.character_id}`;
+      model.push({ kind: 'char', h: ASSET_ROW_H.char, locKey: g.loc_key, charKey, ch });
+      if (!charOpen(charKey)) continue;
+
+      const entry = _assetItemsByChar.get(charKey);
+      if (!entry) continue;                    // still loading
+      for (const node of entry.flat) {
+        // A row inside a collapsed container is simply absent, rather than
+        // built and then hidden. This is where four fifths of the old cost went.
+        if (node.shipKey && !shipOpen(node.shipKey)) continue;
+        model.push({ kind: 'item', h: ASSET_ROW_H.item, locKey: g.loc_key, charKey, node });
+      }
+      if (entry.truncated) {
+        model.push({ kind: 'note', h: ASSET_ROW_H.item, locKey: g.loc_key, charKey, entry });
+      }
+    }
+  }
+  return model;
+}
+
+/** Prefix sums, so any scroll offset resolves to a row index by binary search. */
+function _assetMeasure(model) {
+  const offsets = new Array(model.length + 1);
+  offsets[0] = 0;
+  for (let i = 0; i < model.length; i++) offsets[i + 1] = offsets[i] + model[i].h;
+  return offsets;
+}
+
+/** The last row starting at or before y. */
+function _assetIndexAt(y) {
+  let lo = 0, hi = _assetModel.length - 1, best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (_assetOffsets[mid] <= y) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return best;
+}
+
+// ── Rendering the window ─────────────────────────────────────────────────────
+
+function _assetSpacer(height, which) {
+  const tr = document.createElement('tr');
+  tr.className = 'asset-spacer';
+  tr.dataset.spacer = which;
+  tr.innerHTML = `<td colspan="10" style="height:${height}px"></td>`;
+  return tr;
+}
+
+function _assetRenderWindow(force = false) {
   const tbody = _assetTbody();
-  if (!tbody) return;
-  for (const row of [...tbody.children]) if (pred(row)) row.remove();
+  const scroller = _assetScroller();
+  if (!tbody || !scroller) return;
+
+  if (!_assetModel.length) {
+    _assetLastWindow = null;
+    return;
+  }
+
+  const top  = scroller.scrollTop;
+  const view = scroller.clientHeight || 600;
+
+  let first = _assetIndexAt(top) - ASSET_OVERSCAN;
+  let last  = _assetIndexAt(top + view) + ASSET_OVERSCAN;
+  if (first < 0) first = 0;
+  if (last > _assetModel.length - 1) last = _assetModel.length - 1;
+
+  const w = _assetLastWindow;
+  if (!force && w && w.first === first && w.last === last && w.version === _assetModelVersion) return;
+  _assetLastWindow = { first, last, version: _assetModelVersion };
+
+  const frag = document.createDocumentFragment();
+  const above = _assetOffsets[first];
+  const below = _assetOffsets[_assetModel.length] - _assetOffsets[last + 1];
+  if (above > 0) frag.appendChild(_assetSpacer(above, 'top'));
+
+  for (let i = first; i <= last; i++) {
+    const m = _assetModel[i];
+    if (m.kind === 'loc')       frag.appendChild(_assetLocHeaderRow(m.g));
+    else if (m.kind === 'char') frag.appendChild(_assetCharHeaderRow(m.locKey, m.ch));
+    else if (m.kind === 'item') frag.appendChild(_assetItemRow(m.node, m.locKey, m.charKey));
+    else                        frag.appendChild(_assetTruncationRow(m));
+  }
+
+  if (below > 0) frag.appendChild(_assetSpacer(below, 'bottom'));
+  tbody.replaceChildren(frag);
 }
 
-function _assetSecClass(sec) {
-  if (typeof sec !== 'number') return 'sec-unknown';
-  if (sec >= 0.5) return 'sec-high';
-  if (sec >= 0.1) return 'sec-low';
-  return 'sec-null';
+/** Rebuild the model and repaint. Everything that changes the list calls this. */
+function _assetRefresh() {
+  _assetModel   = _assetBuildModel();
+  _assetOffsets = _assetMeasure(_assetModel);
+  _assetModelVersion++;
+  _assetRenderWindow(true);
 }
 
-/** The whole visible page: the summary line and one row per location. */
+// One scroll listener, coalesced to a frame. Scrolling fires far faster than
+// the screen refreshes, and rebuilding the window more than once per frame is
+// work nobody sees.
+function _assetBindScroll() {
+  const scroller = _assetScroller();
+  if (!scroller || scroller._assetScrollBound) return;
+  scroller._assetScrollBound = true;
+  let queued = false;
+  scroller.addEventListener('scroll', () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; _assetRenderWindow(); });
+  }, { passive: true });
+}
+
+// ── The visible page ─────────────────────────────────────────────────────────
+
+/** Fetch the location groups and the summary, then rebuild the list. */
 async function renderAssetGroups() {
   const tbody = _assetTbody();
   if (!tbody) return;
@@ -318,9 +516,9 @@ async function renderAssetGroups() {
     }
   }
 
-  tbody.innerHTML = '';
-
   if (!groups.length) {
+    _assetGroups = [];
+    _assetModel = []; _assetOffsets = [0]; _assetLastWindow = null;
     const msg = summary.totalRows
       ? 'No assets match the current filters.'
       : 'No assets indexed yet — they are built shortly after a sync completes.';
@@ -338,24 +536,28 @@ async function renderAssetGroups() {
     return;
   }
 
-  const frag = document.createDocumentFragment();
-  for (const g of groups) frag.appendChild(_assetLocHeaderRow(g));
-  tbody.appendChild(frag);
+  _assetGroups = groups;
+
+  // The cached branches were fetched under the previous filter and sort, so they
+  // are wrong now. Drop them and refetch whatever is still open.
+  _assetCharsByLoc.clear();
+  _assetItemsByChar.clear();
 
   _bindAssetCollapse();
   _bindAssetSort();
+  _assetBindScroll();
   _updateAssetSortIndicators();
   initAssetColResize();
+  _assetRefresh();
 
-  // Re-open whatever was open before this render. Expansion is state, so a sort
-  // or a filter change does not close the branch the user was reading.
-  for (const g of groups) {
-    if (window._assetGroupState[g.loc_key] === true) {
-      await _assetExpandLocation(g.loc_key, token);
-      if (token !== _assetRenderToken) return;
-    }
-  }
+  // Re-open whatever was open before. Expansion is state, so a sort or a filter
+  // change does not close the branch the user was reading.
+  await _assetEnsureOpenBranches();
 }
+
+// ── Row builders ─────────────────────────────────────────────────────────────
+// Rows are rebuilt whenever they scroll into view, so each one paints its own
+// chevron from the collapse state rather than having it set afterwards.
 
 function _assetLocHeaderRow(g) {
   const tr = document.createElement('tr');
@@ -365,11 +567,12 @@ function _assetLocHeaderRow(g) {
   const secStr   = typeof g.security_status === 'number' ? g.security_status.toFixed(1) : '';
   const subtitle = g.subtitle || [g.solar_system_name, g.region_name].filter(Boolean).join(' · ');
   const count    = g.item_count || 0;
+  const open     = window._assetGroupState[g.loc_key] === true;
 
   tr.innerHTML = `
     <td colspan="10" class="asset-group-header-cell">
       <div class="asset-group-inner">
-        <span class="asset-group-chevron">▶</span>
+        <span class="asset-group-chevron">${open ? '▼' : '▶'}</span>
         ${secStr ? `<span class="asset-group-sec ${_assetSecClass(g.security_status)}">${secStr}</span>` : ''}
         <span class="asset-group-location">${escHtml(g.loc_label || '')}</span>
         ${subtitle ? `<span class="asset-group-subtitle">· ${escHtml(subtitle)}</span>` : ''}
@@ -385,6 +588,7 @@ function _assetCharHeaderRow(locKey, ch) {
   const charKey  = `${locKey}|${ch.character_id}`;
   const portrait = `https://images.evetech.net/characters/${ch.character_id}/portrait?size=32`;
   const count    = ch.item_count || 0;
+  const open     = window._assetCharState[charKey] === true;
 
   const tr = document.createElement('tr');
   tr.className = 'asset-char-header';
@@ -394,7 +598,7 @@ function _assetCharHeaderRow(locKey, ch) {
   tr.innerHTML = `
     <td colspan="10" class="asset-char-header-cell">
       <div class="asset-char-inner">
-        <span class="asset-char-chevron">▶</span>
+        <span class="asset-char-chevron">${open ? '▼' : '▶'}</span>
         <img class="asset-char-portrait" src="${portrait}"
              alt="${escHtml(ch.character_name || '')}" title="${escHtml(ch.character_name || '')}" />
         <span class="asset-char-name">${escHtml(ch.character_name || `Char ${ch.character_id}`)}</span>
@@ -406,8 +610,17 @@ function _assetCharHeaderRow(locKey, ch) {
   return tr;
 }
 
-function _assetItemRow(r, ctx) {
-  const { locKey, charKey, depth, shipKey, toggleKey, childCount } = ctx;
+function _assetTruncationRow(m) {
+  const tr = document.createElement('tr');
+  tr.className = 'asset-item-row asset-truncated-note';
+  tr.dataset.locKey  = m.locKey;
+  tr.dataset.charKey = m.charKey;
+  tr.innerHTML = `<td colspan="10" class="loading-row">Showing the ${m.entry.flat.length.toLocaleString()} most valuable of ${m.entry.total.toLocaleString()} items here — narrow the search to see the rest.</td>`;
+  return tr;
+}
+
+function _assetItemRow(node, locKey, charKey) {
+  const { r, depth, shipKey, toggleKey, childCount } = node;
   const qty      = r.quantity || 1;
   const itemName = r.type_name || `Type ${r.type_id}`;
   const custom   = r.custom_name && r.custom_name !== itemName ? r.custom_name : '';
@@ -448,11 +661,14 @@ function _assetItemRow(r, ctx) {
   tr.dataset.charKey  = charKey;
   tr.dataset.typeId   = r.type_id || '';
   tr.dataset.itemId   = r.item_id != null ? String(r.item_id) : '';
-  if (shipKey)   tr.dataset.shipKey    = shipKey;    // nested → hides with its ship
-  if (toggleKey) tr.dataset.shipToggle = toggleKey;  // this row IS a ship/container
+  if (shipKey)   tr.dataset.shipKey    = shipKey;
+  if (toggleKey) tr.dataset.shipToggle = toggleKey;
 
   const indent   = 24 + depth * 18;   // 24px matches the cell's default left pad
-  const chevron  = toggleKey ? `<span class="asset-ship-chevron" title="Show/hide contents">▶</span>` : '';
+  const shipOpen = toggleKey && window._assetShipState[toggleKey] === true;
+  const chevron  = toggleKey
+    ? `<span class="asset-ship-chevron" title="Show/hide contents">${shipOpen ? '▼' : '▶'}</span>`
+    : '';
   const contains = childCount > 0
     ? ` <span class="asset-fit-badge" title="${childCount} fitted / contained item${childCount !== 1 ? 's' : ''}">⊞ ${childCount}</span>`
     : '';
@@ -474,146 +690,89 @@ function _assetItemRow(r, ctx) {
   return tr;
 }
 
+function _assetSecClass(sec) {
+  if (typeof sec !== 'number') return 'sec-unknown';
+  if (sec >= 0.5) return 'sec-high';
+  if (sec >= 0.1) return 'sec-low';
+  return 'sec-null';
+}
+
 // ── Expanding and collapsing ─────────────────────────────────────────────────
-// Expanding fetches; collapsing throws the rows away. That is what keeps the
-// DOM proportional to what is on screen rather than to what is owned.
+// Opening a branch fetches it once and rebuilds the model; closing it drops the
+// rows from the model. Nothing is hidden — rows that are not shown do not exist.
 
-async function _assetExpandLocation(locKey, token = _assetRenderToken) {
-  const tbody = _assetTbody();
-  if (!tbody) return;
-  const header = [...tbody.children].find(
-    r => r.classList.contains('asset-loc-header') && r.dataset.locKey === locKey);
-  if (!header) return;
-
+// Results that arrive after the filters or sort have moved on are discarded
+// rather than cached: they were fetched under a query nobody is looking at any
+// more, and the render that superseded them fetches again.
+async function _assetLoadCharacters(locKey) {
+  if (_assetCharsByLoc.has(locKey)) return;
+  const token = _assetRenderToken;
   const chars = await window.eveAPI.assetsGroupCharacters(locKey, assetFilters(), window._assetSort);
   if (token !== _assetRenderToken) return;
-  // Guard against a double-click having collapsed it while the query was out.
-  if (window._assetGroupState[locKey] !== true) return;
-
-  // Idempotent: two fast clicks can leave two expansions in flight for the same
-  // location, and both would pass the check above. Clearing first means the
-  // second simply repaints rather than inserting the whole group twice.
-  _assetRemoveRows(r => r.dataset.locKey === locKey && !r.classList.contains('asset-loc-header'));
-  _assetInsertAfter(header, chars.map(ch => _assetCharHeaderRow(locKey, ch)));
-  const chev = header.querySelector('.asset-group-chevron');
-  if (chev) chev.textContent = '▼';
-
-  for (const ch of chars) {
-    if (window._assetCharState[`${locKey}|${ch.character_id}`] === true) {
-      await _assetExpandCharacter(locKey, ch.character_id, token);
-      if (token !== _assetRenderToken) return;
-    }
-  }
+  _assetCharsByLoc.set(locKey, chars || []);
 }
 
-function _assetCollapseLocation(locKey) {
-  _assetRemoveRows(r => r.dataset.locKey === locKey && !r.classList.contains('asset-loc-header'));
-  const tbody = _assetTbody();
-  const header = tbody && [...tbody.children].find(
-    r => r.classList.contains('asset-loc-header') && r.dataset.locKey === locKey);
-  const chev = header && header.querySelector('.asset-group-chevron');
-  if (chev) chev.textContent = '▶';
-}
-
-async function _assetExpandCharacter(locKey, charId, token = _assetRenderToken) {
-  const tbody = _assetTbody();
-  if (!tbody) return;
+async function _assetLoadItems(locKey, charId) {
   const charKey = `${locKey}|${charId}`;
-  const header = [...tbody.children].find(
-    r => r.classList.contains('asset-char-header') && r.dataset.charKey === charKey);
-  if (!header) return;
-
+  if (_assetItemsByChar.has(charKey)) return;
+  const token = _assetRenderToken;
   const res = await window.eveAPI.assetsGroupItems(locKey, charId, assetFilters(), window._assetSort);
   if (token !== _assetRenderToken) return;
-  if (window._assetCharState[charKey] !== true) return;
-
-  const rows = res.rows || [];
-
-  // Nest fitted and contained items under their ship or container. ESI gives a
-  // flat list; an item's location_id points at its immediate parent, so a
-  // fighter shows under the carrier it is in rather than loose in the hangar.
-  const byId = new Map(rows.map(r => [r.item_id, r]));
-  const kids = new Map();
-  const roots = [];
-  for (const r of rows) {
-    const parent = r.location_id != null ? byId.get(r.location_id) : null;
-    if (parent && parent !== r) {
-      if (!kids.has(r.location_id)) kids.set(r.location_id, []);
-      kids.get(r.location_id).push(r);
-    } else {
-      roots.push(r);
-    }
-  }
-
-  const out  = [];
-  const seen = new Set();
-  const emit = (r, depth, topKey) => {
-    if (seen.has(r.item_id)) return;      // ESI has returned parent cycles
-    seen.add(r.item_id);
-    const children = kids.get(r.item_id) || [];
-    let shipKey = topKey;
-    let toggleKey = null;
-    if (depth === 0 && children.length) {
-      toggleKey = `${charKey}|ship|${r.item_id}`;
-      shipKey = null;        // a top-level container header is not hidden by itself
-      topKey  = toggleKey;   // but its descendants collapse under this key
-    }
-    out.push(_assetItemRow(r, { locKey, charKey, depth, shipKey, toggleKey, childCount: children.length }));
-    for (const kid of children) emit(kid, depth + 1, topKey);
-  };
-  for (const r of roots) emit(r, 0, null);
-
-  if (res.truncated) {
-    const note = document.createElement('tr');
-    note.className = 'asset-item-row asset-truncated-note';
-    note.dataset.locKey  = locKey;
-    note.dataset.charKey = charKey;
-    note.innerHTML = `<td colspan="10" class="loading-row">Showing the ${rows.length.toLocaleString()} most valuable of ${res.total.toLocaleString()} items here — narrow the search to see the rest.</td>`;
-    out.push(note);
-  }
-
-  // Same idempotence guard as the location level, for the same reason.
-  _assetRemoveRows(r => r.dataset.charKey === charKey && !r.classList.contains('asset-char-header'));
-  _assetInsertAfter(header, out);
-  const chev = header.querySelector('.asset-char-chevron');
-  if (chev) chev.textContent = '▼';
-  _applyAssetShipVisibility(charKey);
+  _assetItemsByChar.set(charKey, {
+    flat: _assetItemTree(res.rows || [], charKey),
+    total: res.total || 0,
+    truncated: !!res.truncated,
+  });
 }
 
-function _assetCollapseCharacter(locKey, charId) {
+/**
+ * Fetch whatever the collapse state says should be open, then repaint.
+ *
+ * The single reconciler, and the reason expanding is reliable. An earlier
+ * version had the click handler do its own fetch and bail if the render token
+ * had moved on — so clicking a location while a sort was still in flight set
+ * the state to open, aborted, and never repainted. The state said open, the
+ * model said closed, and the next click closed it again: the group simply would
+ * not open, intermittently, depending on how fast the queries came back.
+ *
+ * Now the state is the only truth and this brings the page into line with it,
+ * from wherever it is called. Running twice is harmless — the loaders return
+ * immediately for anything already cached.
+ */
+async function _assetEnsureOpenBranches() {
+  for (const g of _assetGroups) {
+    if (window._assetGroupState[g.loc_key] !== true) continue;
+    await _assetLoadCharacters(g.loc_key);
+    for (const ch of _assetCharsByLoc.get(g.loc_key) || []) {
+      const charKey = `${g.loc_key}|${ch.character_id}`;
+      if (window._assetCharState[charKey] !== true) continue;
+      await _assetLoadItems(g.loc_key, ch.character_id);
+    }
+  }
+  _assetRefresh();
+}
+
+async function _assetToggleLocation(locKey) {
+  window._assetGroupState[locKey] = !(window._assetGroupState[locKey] === true);
+  _assetRefresh();                      // chevron and collapse answer immediately
+  await _assetEnsureOpenBranches();     // then fill in whatever was just opened
+}
+
+async function _assetToggleCharacter(locKey, charId) {
   const charKey = `${locKey}|${charId}`;
-  _assetRemoveRows(r => r.dataset.charKey === charKey && !r.classList.contains('asset-char-header'));
-  const tbody = _assetTbody();
-  const header = tbody && [...tbody.children].find(
-    r => r.classList.contains('asset-char-header') && r.dataset.charKey === charKey);
-  const chev = header && header.querySelector('.asset-char-chevron');
-  if (chev) chev.textContent = '▶';
+  window._assetCharState[charKey] = !(window._assetCharState[charKey] === true);
+  _assetRefresh();
+  await _assetEnsureOpenBranches();
 }
 
-// Ship and container fits are already in the DOM once their character group is
-// open — the whole hangar came back in one query — so this level is a show/hide
-// rather than a fetch. Inline display:none with !important sits at the top of
-// the cascade, where no theme rule or column-reorder pass can override it.
-function _applyAssetShipVisibility(charKey) {
-  const tbody = _assetTbody();
-  if (!tbody) return;
-  const open = (k) => window._assetShipState[k] === true;
-  for (const row of tbody.querySelectorAll('tr.asset-item-row')) {
-    if (charKey && row.dataset.charKey !== charKey) continue;
-    if (row.dataset.shipKey) {
-      if (open(row.dataset.shipKey)) row.style.removeProperty('display');
-      else row.style.setProperty('display', 'none', 'important');
-    }
-    if (row.dataset.shipToggle) {
-      const chev = row.querySelector('.asset-ship-chevron');
-      if (chev) chev.textContent = open(row.dataset.shipToggle) ? '▼' : '▶';
-    }
-  }
+function _assetToggleShip(shipKey) {
+  window._assetShipState[shipKey] = !(window._assetShipState[shipKey] === true);
+  _assetRefresh();
 }
 
 // One delegated click handler bound once to the table body. It survives every
-// re-render (clearing tbody.innerHTML does not drop listeners on tbody itself)
-// and any cell reshuffling by the column-reorder system.
+// re-render — clearing the tbody does not drop listeners on the tbody itself —
+// which matters far more now that rows are replaced on every scroll.
 function _bindAssetCollapse() {
   const tbody = _assetTbody();
   if (!tbody || tbody._collapseBound) return;
@@ -623,32 +782,18 @@ function _bindAssetCollapse() {
     const shipChev = e.target.closest('.asset-ship-chevron');
     if (shipChev) {
       const row = shipChev.closest('tr.asset-item-row');
-      const k   = row && row.dataset.shipToggle;
-      if (k) {
-        window._assetShipState[k] = !(window._assetShipState[k] === true);
-        _applyAssetShipVisibility(row.dataset.charKey);
-      }
+      if (row && row.dataset.shipToggle) _assetToggleShip(row.dataset.shipToggle);
       return;
     }
 
     const charH = e.target.closest('tr.asset-char-header');
     if (charH) {
-      const k = charH.dataset.charKey;
-      const open = !(window._assetCharState[k] === true);
-      window._assetCharState[k] = open;
-      if (open) _assetExpandCharacter(charH.dataset.locKey, Number(charH.dataset.charId)).catch(() => {});
-      else      _assetCollapseCharacter(charH.dataset.locKey, Number(charH.dataset.charId));
+      _assetToggleCharacter(charH.dataset.locKey, Number(charH.dataset.charId)).catch(() => {});
       return;
     }
 
     const locH = e.target.closest('tr.asset-loc-header');
-    if (locH) {
-      const k = locH.dataset.locKey;
-      const open = !(window._assetGroupState[k] === true);
-      window._assetGroupState[k] = open;
-      if (open) _assetExpandLocation(k).catch(() => {});
-      else      _assetCollapseLocation(k);
-    }
+    if (locH) _assetToggleLocation(locH.dataset.locKey).catch(() => {});
   });
 }
 

@@ -147,6 +147,39 @@
 
 .asset-table thead th.th-right { text-align: right; }
 
+/* ── ROW HEIGHTS ───────────────────────────────────────────────────────────────
+   The virtual list computes scroll offsets from these three numbers (ASSET_ROW_H
+   in src/func/assets.js), so they are declared rather than left to fall out of
+   the padding. If a row can render taller than its declared height the list
+   drifts: rows land at the wrong offset and the scrollbar lies about its length.
+
+   These are the heights the table already had — measured at 32 / 27 / 35 px —
+   so nothing moves; they are just no longer accidental. box-sizing keeps the
+   border inside the number, and the cells are clipped so an unusually long
+   value cannot push a row taller than the list believes it is. */
+#assetTable tbody tr.asset-loc-header  { height: 32px; }
+#assetTable tbody tr.asset-char-header { height: 27px; }
+#assetTable tbody tr.asset-item-row    { height: 35px; }
+
+#assetTable tbody tr.asset-loc-header,
+#assetTable tbody tr.asset-char-header,
+#assetTable tbody tr.asset-item-row {
+  box-sizing: border-box;
+}
+#assetTable tbody tr.asset-item-row > td {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Spacers stand in for the rows above and below the rendered window. They carry
+   the scroll height of everything not currently built. */
+#assetTable tbody tr.asset-spacer > td {
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+}
+
 /* ── COLUMN ALIGNMENT ──────────────────────────────────────────────────────────
    One rule for the header and the cell of each column, keyed on data-col-key,
    so the two can never disagree about which way a column reads.

@@ -35,10 +35,18 @@
 const { BPC_UNIT_VALUE } = require('./asset_valuation');
 
 // A single character's holdings in a single location are bounded by reality, but
-// nothing stops a corp hauler alt from parking twenty thousand rows in one
-// station. Past this many the query returns the most valuable and says so,
-// rather than handing the renderer a list it will take a minute to build.
-const GROUP_ITEM_CAP = 5000;
+// nothing stops a stockpile alt parking tens of thousands of rows in one
+// station. Past this many the query returns the most valuable and says so.
+//
+// This was 5,000 while the renderer built a table row per item and expanding a
+// 4,938-row hangar took 2.4 seconds. Phase 3 made the DOM cost independent of
+// the row count, so what remains is the query and the flat-model walk. Measured
+// on a 22,343-row hangar: 367 ms to query, 28 ms to build the tree — so the old
+// limit was cutting lists for a cost that no longer exists.
+//
+// 50,000 keeps a guard against a corrupt sync without truncating any hangar a
+// person could actually fill.
+const GROUP_ITEM_CAP = 50000;
 
 // ── Placeholder detection ────────────────────────────────────────────────────
 // A location name that is really a placeholder, not a place. Mirrors the
@@ -158,8 +166,8 @@ function searchBlob(row, typeInfo = {}) {
 // New Eden, but a demo fixture or a corrupt sync must not be able to make one
 // character's row silently replace another's.
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS asset_index (
+const SCHEMA = (sfx = '') => `
+  CREATE TABLE IF NOT EXISTS asset_index${sfx} (
     character_id      INTEGER NOT NULL,
     item_id           INTEGER NOT NULL,
     character_name    TEXT,
@@ -199,7 +207,7 @@ const SCHEMA = `
   -- thousand. Keeping the labels here means the group query aggregates two
   -- numbers and joins, instead of carrying six MIN() aggregates over every
   -- asset just to recover a station name it already knew.
-  CREATE TABLE IF NOT EXISTS asset_location (
+  CREATE TABLE IF NOT EXISTS asset_location${sfx} (
     loc_key           TEXT PRIMARY KEY,
     loc_label         TEXT,
     loc_unresolved    INTEGER DEFAULT 0,
@@ -225,19 +233,21 @@ const SCHEMA = `
 // seek, but scanning it inside the covering index instead of the table took the
 // search-while-filtering case from 1028 ms to 47 ms.
 const INDEXES = [
-  ['idx_ai_cover',    'asset_index(loc_key, own_value, is_pi, search_blob)'],
+  ['idx_ai_cover',    'asset_index%s(loc_key, own_value, is_pi, search_blob)'],
   // Opening one hangar: an index seek rather than a scan of the whole portfolio.
-  ['idx_ai_loc_char', 'asset_index(loc_key, character_id)'],
-  ['idx_ai_char',     'asset_index(character_id)'],
-  ['idx_ai_value',    'asset_index(total_value DESC)'],
-  ['idx_ai_region',   'asset_index(region_name)'],
-  ['idx_ai_owner',    'asset_index(owner_name)'],
+  ['idx_ai_loc_char', 'asset_index%s(loc_key, character_id)'],
+  ['idx_ai_char',     'asset_index%s(character_id)'],
+  ['idx_ai_value',    'asset_index%s(total_value DESC)'],
+  ['idx_ai_region',   'asset_index%s(region_name)'],
+  ['idx_ai_owner',    'asset_index%s(owner_name)'],
 ];
 
-const CREATE_INDEXES = INDEXES
-  .map(([name, def]) => `CREATE INDEX IF NOT EXISTS ${name} ON ${def};`).join('\n');
-const DROP_INDEXES = INDEXES
-  .map(([name]) => `DROP INDEX IF EXISTS ${name};`).join('\n');
+const CREATE_INDEXES = (sfx = '') => INDEXES
+  .map(([name, def]) => `CREATE INDEX IF NOT EXISTS ${name}${sfx} ON ${def.replace('%s', sfx)};`)
+  .join('\n');
+const DROP_INDEXES = (sfx = '') => INDEXES
+  .map(([name]) => `DROP INDEX IF EXISTS ${name}${sfx};`)
+  .join('\n');
 
 // What each table must have. CREATE TABLE IF NOT EXISTS does NOTHING to an
 // existing table, so a column added later is absent on exactly the installs that
@@ -270,7 +280,20 @@ const EXPECTED_COLUMNS = {
 // box. Keyed on the handle itself, so reopening the database re-checks.
 const _ensured = new WeakSet();
 
+// Held only while the rebuild swaps its staging tables into place. Between
+// DROP TABLE asset_index and the RENAME that replaces it, the table genuinely
+// does not exist, and every read in this process shares the same connection —
+// so a query landing in that gap fails with "no such table" rather than merely
+// seeing old data. The swap is milliseconds; waiting it out is invisible.
+//
+// The long INSERT phase deliberately does NOT hold this: reads during it run
+// against the untouched live tables, which is the whole point of staging.
+let _swapInFlight = null;
+
+// Every read enters through ensureAssetIndex, which makes it the one place the
+// gate has to be applied.
 async function ensureAssetIndex(db) {
+  if (_swapInFlight) await _swapInFlight.catch(() => {});
   if (_ensured.has(db)) return;
   for (const [table, expected] of Object.entries(EXPECTED_COLUMNS)) {
     let have;
@@ -283,8 +306,8 @@ async function ensureAssetIndex(db) {
       await db.exec(`DROP TABLE IF EXISTS ${table}`);
     }
   }
-  await db.exec(SCHEMA);
-  await db.exec(CREATE_INDEXES);
+  await db.exec(SCHEMA());
+  await db.exec(CREATE_INDEXES());
   _ensured.add(db);
 }
 
@@ -438,11 +461,24 @@ async function rebuildAssetIndex(db, rows = [], typeInfo = new Map()) {
     ]);
   }
 
+  // ── Build into staging tables, then swap ───────────────────────────────────
+  // Everything in the main process shares ONE SQLite connection, so a query the
+  // Assets page makes while this is running does not get its own snapshot — it
+  // executes inside this transaction and sees whatever state the rebuild has
+  // reached. Emptying the live table first therefore made the page briefly
+  // report that the user owns nothing, which is exactly what it did when the
+  // startup refresh landed while someone was reading it.
+  //
+  // So the live tables are left alone until the new ones are complete. Same
+  // write-then-swap strategy replaceAssets uses, for the same reason. The swap
+  // itself rebuilds the indexes, so a read caught inside that window still gets
+  // correct rows — just unindexed ones for a moment.
+  const SFX = '_new';
+  await db.exec(`DROP TABLE IF EXISTS asset_index${SFX}; DROP TABLE IF EXISTS asset_location${SFX};`);
+  await db.exec(SCHEMA(SFX));
+
   await db.exec('BEGIN');
   try {
-    await db.exec(DROP_INDEXES);
-    await db.exec('DELETE FROM asset_index');
-    await db.exec('DELETE FROM asset_location');
 
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK);
@@ -483,7 +519,7 @@ async function rebuildAssetIndex(db, rows = [], typeInfo = new Map()) {
         );
       }
       await db.run(
-        `INSERT OR REPLACE INTO asset_index (${COLUMNS.join(',')}) VALUES ` +
+        `INSERT OR REPLACE INTO asset_index${SFX} (${COLUMNS.join(',')}) VALUES ` +
         chunk.map(() => placeholders).join(','), ...params);
     }
 
@@ -491,13 +527,27 @@ async function rebuildAssetIndex(db, rows = [], typeInfo = new Map()) {
     for (let i = 0; i < locRows.length; i += CHUNK) {
       const chunk = locRows.slice(i, i + CHUNK);
       await db.run(
-        `INSERT OR REPLACE INTO asset_location
+        `INSERT OR REPLACE INTO asset_location${SFX}
            (loc_key, loc_label, loc_unresolved, solar_system_id, solar_system_name,
             region_name, security_status, subtitle) VALUES ` +
         chunk.map(() => '(?,?,?,?,?,?,?,?)').join(','), ...chunk.flat());
     }
 
-    await db.exec(CREATE_INDEXES);
+    // The swap. Dropping the live tables takes their indexes with them, so the
+    // canonical index names are free to be recreated on the tables that just
+    // took their place. Gated, because for the length of this the live table
+    // does not exist and a concurrent read would fail outright.
+    let released;
+    _swapInFlight = new Promise(resolve => { released = resolve; });
+    try {
+      await db.exec(`DROP TABLE IF EXISTS asset_index; DROP TABLE IF EXISTS asset_location;`);
+      await db.exec(`ALTER TABLE asset_index${SFX} RENAME TO asset_index;`);
+      await db.exec(`ALTER TABLE asset_location${SFX} RENAME TO asset_location;`);
+      await db.exec(CREATE_INDEXES());
+    } finally {
+      _swapInFlight = null;
+      released();
+    }
 
     await db.run(
       `INSERT INTO valuation_meta (key, value) VALUES ('index_rebuilt_at', ?)
@@ -506,6 +556,9 @@ async function rebuildAssetIndex(db, rows = [], typeInfo = new Map()) {
     await db.exec('COMMIT');
   } catch (e) {
     await db.exec('ROLLBACK');
+    // The live tables were never touched; only the staging pair needs clearing.
+    await db.exec(`DROP TABLE IF EXISTS asset_index${SFX}; DROP TABLE IF EXISTS asset_location${SFX};`)
+      .catch(() => {});
     throw e;
   }
 

@@ -59,9 +59,14 @@ const CONTAINER_TYPES = [3465, 3466, 11488, 11489];                 // secure co
  * @param {number} opts.characters  how many characters (real reports: up to 90)
  * @param {number} opts.assets      total asset rows across all characters
  * @param {number} opts.stations    distinct stations to spread them over
+ * @param {number} opts.concentrate fraction of the HEAVIEST character's items
+ *                                  parked in a single station, so one expanded
+ *                                  group is genuinely enormous — the shape that
+ *                                  a virtualised list has to survive
  * @param {number} opts.seed        PRNG seed
  */
-function buildStressProfile({ characters = 90, assets = 100000, stations = 120, seed = 1337 } = {}) {
+function buildStressProfile({ characters = 90, assets = 100000, stations = 120,
+                              concentrate = 0.75, seed = 1337 } = {}) {
   const rand = rng(seed);
   const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 
@@ -91,13 +96,29 @@ function buildStressProfile({ characters = 90, assets = 100000, stations = 120, 
   let nextItemId = 1_000_000;
   const perChar = new Map();
 
+  // The stockpile hangar. Spreading every character's items evenly over 120
+  // stations means no single group is ever large — the comment above promised
+  // the shape that hurts and the code then picked a random station per item, so
+  // the biggest hangar in a 100k fixture came out at 129 rows and the render
+  // cost of one enormous group was never exercised at all.
+  //
+  // A real stockpile alt keeps most of what it owns in one station, and that
+  // single expanded group is the case that hangs. So the heaviest character
+  // puts `concentrate` of its share into one place.
+  const stockpileLoc = locations[0];
+  const stockpileChar = 0;
+
   for (let c = 0; c < chars.length; c++) {
     const share = Math.max(1, Math.round(assets * (weights[c] / weightSum)));
     const rows = [];
     let remaining = share;
+    let concentrated = c === stockpileChar ? Math.round(share * concentrate) : 0;
 
     while (remaining > 0) {
-      const loc = pick(locations);
+      // Everything in the concentrated budget goes to one station, so the group
+      // is big enough to measure a virtualised list against.
+      const loc = concentrated > 0 ? stockpileLoc : pick(locations);
+      if (concentrated > 0) concentrated--;
 
       // Roughly one in nine top-level items is a ship or container holding a
       // few things — and one in five of those holds a nested container, so the

@@ -147,6 +147,40 @@
 
 .asset-table thead th.th-right { text-align: right; }
 
+/* ── COLUMN ALIGNMENT ──────────────────────────────────────────────────────────
+   One rule for the header and the cell of each column, keyed on data-col-key,
+   so the two can never disagree about which way a column reads.
+
+   Scoped to #assetTable rather than .asset-table on purpose. The Characters
+   page has its own table using the same class name, and pages-characters.css
+   carries ".asset-table th, .asset-table td { text-align: left }" — specificity
+   0,1,1, which beat every per-cell rule here (0,1,0) and forced every cell in
+   this table left while the headers stayed right via .th-right (0,2,0). That
+   mismatch is what made the columns look broken; measured, the column edges
+   themselves were always identical. The id selector puts this beyond reach.
+
+   Text left, numbers right — the convention that lets you compare figures down
+   a column by their last digit. */
+#assetTable thead th[data-col-key],
+#assetTable tbody td[data-col-key] { text-align: left; }
+
+#assetTable thead th[data-col-key="qty"],   #assetTable tbody td[data-col-key="qty"],
+#assetTable thead th[data-col-key="vol"],   #assetTable tbody td[data-col-key="vol"],
+#assetTable thead th[data-col-key="meta"],  #assetTable tbody td[data-col-key="meta"],
+#assetTable thead th[data-col-key="tech"],  #assetTable tbody td[data-col-key="tech"],
+#assetTable thead th[data-col-key="price"], #assetTable tbody td[data-col-key="price"] {
+  text-align: right;
+}
+
+#assetTable thead th[data-col-key="icon"], #assetTable tbody td[data-col-key="icon"] {
+  text-align: center;
+}
+
+/* The right edge a right-aligned column is read against. The header's sort
+   glyph sits inside this padding, so header and data share one edge. */
+#assetTable thead th[data-col-key],
+#assetTable tbody td[data-col-key] { padding-right: 10px !important; }
+
 /* ── SORTABLE HEADERS ────────────────────────────────────────────────────── */
 /* A neutral ↕ hint marks every column as sortable; the active sort column shows
    an accent ▲ / ▼ for the direction. A symbol font is forced because the UI font
@@ -213,7 +247,9 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
   flex-shrink: 0;
 }
 
-/* Security badge */
+/* Security badge. Colour comes from the shared data palette rather than a hex
+   literal written into the row markup — themes override those tokens, and a
+   hardcoded hue would survive a theme change while nothing around it did. */
 .asset-group-sec {
   font-family: var(--mono);
   font-size: 10px;
@@ -221,6 +257,23 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
   flex-shrink: 0;
   text-align: right;
 }
+.asset-group-sec.sec-high    { color: var(--pal-green); }
+.asset-group-sec.sec-low     { color: var(--pal-gold);  }
+.asset-group-sec.sec-null    { color: var(--pal-red);   }
+.asset-group-sec.sec-unknown { color: var(--label-muted); }
+
+/* How old the ISK figures are. Values are materialised now, so this is the only
+   thing on the page that says whether a number is current — it takes the
+   remaining toolbar width so the filters stay right-aligned. */
+.asset-price-age {
+  margin-right: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--label-muted);
+  white-space: nowrap;
+}
+.asset-price-age.is-stale { color: var(--pal-gold); }
 
 /* Location name */
 .asset-group-location {

@@ -742,7 +742,11 @@ function registerEsiHandlers({
   // Static SDE data backing the assets-table columns. Batch-resolved from the
   // local SDE — no ESI. Returns { [typeId]: { group, category, slot,
   // metaLevel, techLevel } }, with nulls where a field doesn't apply.
-  ipcHandle('get-type-metadata', async (_, typeIds) => {
+  // Named rather than inline so the asset-index rebuild can call the SAME
+  // lookup. It was about to be reimplemented against invTypes.metaGroupID — a
+  // column that does not exist there — which is exactly the kind of second copy
+  // that drifts silently.
+  async function fetchTypeMetadata(typeIds) {
     const sdeDb = getSdeDb();
     if (!sdeDb || !Array.isArray(typeIds) || !typeIds.length) return {};
     const ids = [...new Set(typeIds.map(Number).filter(Boolean))];
@@ -799,7 +803,9 @@ function registerEsiHandlers({
       } catch (_) {}
     }
     return out;
-  });
+  }
+
+  ipcHandle('get-type-metadata', async (_, typeIds) => fetchTypeMetadata(typeIds));
 
   // ─── IPC: Planet Size Mapper (SDE, offline) ─────────────────────────────────
   // Planets are group 7 in mapDenormalize; radius is in metres. Diameter (km)
@@ -1272,8 +1278,9 @@ function registerEsiHandlers({
   });
 
   // Handed back so the valuation refresh reuses the SAME cached, batched path
-  // rather than opening a second route to Fuzzwork.
-  return { fetchHubPrices };
+  // rather than opening a second route to Fuzzwork, and the asset-index rebuild
+  // reuses the same SDE metadata lookup the renderer gets.
+  return { fetchHubPrices, fetchTypeMetadata };
 }
 
 module.exports = { registerEsiHandlers };

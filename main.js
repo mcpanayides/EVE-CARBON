@@ -197,7 +197,17 @@ const { open } = require('sqlite');
  
 // SDE DB handle (sqlite) if available
 let sdeDb = null;
- 
+
+// Set once the valuation layer is registered. Assigned late on purpose: the
+// asset handlers are registered before it exists, and both need to reach the
+// same debounced rebuild. notifyAssetsChanged() is what callers use, so a write
+// that happens before registration is a no-op instead of a crash.
+let onAssetsChanged = null;
+function notifyAssetsChanged(reason) {
+  try { if (onAssetsChanged) onAssetsChanged(reason); }
+  catch (e) { console.warn('[valuation] rebuild trigger failed:', e.message); }
+}
+
 function getSdePath() {
   // In production, packaged apps should read from process.resourcesPath
   // (your extraResources / unpacked files end up there)
@@ -2002,7 +2012,7 @@ app.whenReady().then(async () => {
     readCache,
     writeCache,
   });
-  const { fetchHubPrices } = registerEsiHandlers({
+  const { fetchHubPrices, fetchTypeMetadata } = registerEsiHandlers({
     ipcHandle,
     httpGet,
     httpPost,
@@ -2027,22 +2037,50 @@ app.whenReady().then(async () => {
     writeCache,
     charInfoDb,
     coreCharacterSync,
+    notifyAssetsChanged,
   });
   // Asset valuation: prices and per-item values materialised into the character
   // database, so value can be sorted and aggregated in SQL instead of being
   // recomputed in the renderer from three caches that arrive separately.
   // See src/asset_valuation.js and TODO.md.
-  const { refreshValuation } = registerValuationHandlers({
+  const { refreshValuation, rebuildFromLocalData, scheduleRebuild } = registerValuationHandlers({
     ipcHandle,
     getCharDb: () => charInfoDb.getDb(),
-    getSdeDb:  () => sdeDb,
+    charInfoDb,
     httpGet,
     fetchHubPrices,
+    fetchTypeMetadata,
     loadDB,
     esiBase: ESI_BASE,
   });
+  // Every path that writes assets tells the valuation layer, which coalesces a
+  // ninety-character sync into one rebuild. Published on the module so the
+  // handlers registered above this line can reach it too.
+  onAssetsChanged = scheduleRebuild;
 
-  // Refresh once shortly after launch, well behind the cold-start ESI burst.
+  // Two startup passes, because they answer different questions.
+  //
+  // First, immediately: if the index has no rows but the character tables do,
+  // this is a first launch after upgrading and the Assets page would otherwise
+  // open empty until the network refresh below landed. No ESI call — it builds
+  // from the prices and assets already on disk.
+  (async () => {
+    try {
+      const db = charInfoDb.getDb();
+      if (!db) return;
+      const indexed = await db.get('SELECT COUNT(*) c FROM asset_index').catch(() => null);
+      if (indexed && indexed.c > 0) return;
+      const hasAssets = await db.get(
+        "SELECT COUNT(*) c FROM sqlite_master WHERE type='table' AND name LIKE 'char\\_%\\_assets' ESCAPE '\\'");
+      if (!hasAssets || !hasAssets.c) return;
+      console.log('[valuation] no asset index yet — building from local data');
+      await rebuildFromLocalData({ allowPriceFetch: false });
+    } catch (e) {
+      console.warn('[valuation] startup index build failed:', e.message);
+    }
+  })();
+
+  // Then, well behind the cold-start ESI burst: refresh prices from the network.
   // Without this the valuation is only as fresh as the last time something asked
   // for it, which is the "prices vanish on restart" complaint the table exists
   // to fix. Failure is logged, never fatal: a stale valuation is still a
@@ -3433,6 +3471,9 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     await charInfoDb.replaceAssets(characterId, assets);
     summary.steps.assets = `${assets.length} items`;
     report('assets', `✓ ${assets.length} assets stored`);
+    // Debounced — a full sync of every character lands here once per character
+    // and must still produce a single rebuild.
+    notifyAssetsChanged(`assets synced for ${characterId}`);
  
     // ── Re-resolve any locations that came back null ───────────────────────────
     // Upwell structures that 401'd or missed Hammertime get a second pass here.

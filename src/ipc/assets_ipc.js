@@ -21,6 +21,7 @@ const ASSET_STALE_MS = 6 * 60 * 60 * 1000;
  * @param {function} deps.writeCache     - writes to persistent cache
  * @param {object}   deps.charInfoDb        - character info DB module
  * @param {function} deps.coreCharacterSync  - runs the core (non-asset) character sync
+ * @param {function} deps.notifyAssetsChanged - debounced "assets on disk changed" signal
  */
 function registerAssetHandlers({
   ipcHandle,
@@ -36,6 +37,7 @@ function registerAssetHandlers({
   writeCache,
   charInfoDb,
   coreCharacterSync,
+  notifyAssetsChanged = () => {},
 }) {
 
   // ─── Internal: full asset fetch + resolve + persist ──────────────────────
@@ -187,6 +189,11 @@ function registerAssetHandlers({
     db.assets[characterId] = { updatedAt: Date.now(), items: assets };
     saveDB(db);
 
+    // Signalled here rather than straight after replaceAssets: the re-resolve
+    // pass above rewrites location names, and those decide which group a row
+    // lands in. Rebuilding before it finished would index the placeholders.
+    notifyAssetsChanged(`assets synced for ${characterId}`);
+
     return { count: assets.length, items: assets };
   }
 
@@ -319,6 +326,9 @@ function registerAssetHandlers({
     try { writeCache('sync_all_assets', { updatedAt: 0, result: null }, 0.0001); } catch (e) {}
 
     console.log(`[Assets] Wipe complete — ${result.rows} row(s) across ${result.tables} table(s).`);
+    // The index is a copy of what was just deleted; leaving it would show a full
+    // hangar on a page whose underlying tables are empty.
+    notifyAssetsChanged('assets wiped');
     return result;
   });
 

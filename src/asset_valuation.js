@@ -34,9 +34,8 @@
 
 // Capital hulls with no open market. Every price source lies about these —
 // CCP prices them by build cost, Jita has no orders at all — so an explicit
-// value is the honest answer. Mirrors ASSET_DEFAULT_VALUE in src/func/assets.js;
-// that copy drives the current renderer and should be deleted when the UI moves
-// onto this table.
+// value is the honest answer. This is the only copy: the renderer had its own
+// ASSET_DEFAULT_VALUE table until Phase 2 moved the page onto this one.
 const HULL_DEFAULTS = {
   Titan:        { standard: 165e9, faction: 300e9 },
   Supercarrier: { standard:  50e9, faction: 150e9 },

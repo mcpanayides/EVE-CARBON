@@ -53,6 +53,9 @@ async function seedUserData(userDataDir) {
 async function seedCharacterDb(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
   const charInfoDb = require('../../src/character_info_db');
+  // Prices are seeded through the app's own writer for the same reason the
+  // assets are: a schema change there has to reach this fixture automatically.
+  const assetValuation = require('../../src/asset_valuation');
 
   await charInfoDb.initCharacterDb(dataDir);
   await charInfoDb.ensureCharacterTables(FAKE_CHAR_ID);
@@ -146,7 +149,43 @@ async function seedCharacterDb(dataDir) {
       region_id: 10000002, region_name: 'The Forge', security_status: 0.9,
       owner_id: FAKE_CHAR_ID, owner_name: FAKE_CHAR_NAME,
     },
+    // An Asset Safety Wrap holding two modules. The wrap's own type is worth
+    // nothing, so this is the case where the only useful number is what is
+    // INSIDE it — which is what you need to decide whether to pay to unwrap.
+    // Nested rows carry the wrap's item_id as their location_id, exactly as ESI
+    // returns them.
+    {
+      item_id: 3001, type_id: 60, name: 'Asset Safety Wrap', location_id: 60003760,
+      location_name: 'Jita IV - Moon 4 - Caldari Navy Assembly Plant', location_flag: 'AssetSafety',
+      quantity: 1, volume: 100, is_singleton: 1,
+      solar_system_id: 30000142, solar_system_name: 'Jita',
+      region_id: 10000002, region_name: 'The Forge', security_status: 0.9,
+      owner_id: FAKE_CHAR_ID, owner_name: FAKE_CHAR_NAME,
+    },
+    {
+      item_id: 3002, type_id: 2048, name: 'Damage Control II', location_id: 3001,
+      location_flag: 'Unlocked', quantity: 1, volume: 5, is_singleton: 1,
+    },
+    {
+      item_id: 3003, type_id: 2185, name: 'Reinforced Bulkheads II', location_id: 3001,
+      location_flag: 'Unlocked', quantity: 2, volume: 5, is_singleton: 0,
+    },
   ]);
+
+  // Deterministic prices, so the value assertions do not depend on a network
+  // call the e2e run cannot make. These are the same tables the app writes; the
+  // fixture just gets there first.
+  //   Tritanium 5 · Rifter 400k · Rifter BPO 2m · Damage Control II 1m
+  //   Reinforced Bulkheads II 250k · Asset Safety Wrap 0 (as in game)
+  await assetValuation.writeTypePrices(charInfoDb.getDb(), new Map([
+    [34,   { value: 5,         source: 'ccp' }],
+    [587,  { value: 400_000,   source: 'market' }],
+    [690,  { value: 2_000_000, source: 'ccp' }],
+    [590,  { value: 2_000_000, source: 'ccp' }],   // the COPY is priced at 0.01 by rule
+    [2048, { value: 1_000_000, source: 'market' }],
+    [2185, { value: 250_000,   source: 'market' }],
+    [60,   { value: 0,         source: 'unknown' }],
+  ]));
 
   await charInfoDb.replacePiColonies(FAKE_CHAR_ID, [
     {

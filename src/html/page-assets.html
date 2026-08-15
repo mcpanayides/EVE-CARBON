@@ -22,11 +22,18 @@
          style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;
                 padding:12px 16px; border-bottom:1px solid var(--border);
                 background:var(--bg-card); flex-shrink:0;">
-      <span id="assetSummary" class="asset-summary" style="margin-right:auto;">Loading assets…</span>
+      <span id="assetSummary" class="asset-summary">Loading assets…</span>
+
+      <!-- Every ISK figure below is materialised, so it is exactly as old as the
+           last price refresh. A label, not a control: prices refresh on their
+           own, and a button here would be pressed as a page reload. -->
+      <span id="assetPriceAge" class="asset-price-age"></span>
 
       <input type="text" id="assetSearch" class="field-input"
              style="width:220px; padding:7px 10px; font-size:13px;"
-             placeholder="Search items, locations…" oninput="filterAssets()" />
+             placeholder="Search items, groups, locations…"
+             title="Search by item name, ship class (carrier, dreadnought, supercarrier), location, region or corp."
+             oninput="filterAssets()" />
 
       <select id="assetCharFilter" class="field-input"
               style="width:180px; padding:7px 10px; font-size:13px;"

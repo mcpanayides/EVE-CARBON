@@ -101,9 +101,20 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Materialised asset valuation (src/asset_valuation.js). Value lives in the
   // database now, so these are queries rather than renderer arithmetic.
   valuationRefresh:      (opts)    => ipcRenderer.invoke('valuation-refresh', opts),
+  valuationRebuild:      ()        => ipcRenderer.invoke('valuation-rebuild'),
   valuationTopAssets:    (opts)    => ipcRenderer.invoke('valuation-top-assets', opts),
   valuationNetWorth:     (charId)  => ipcRenderer.invoke('valuation-net-worth', charId),
   valuationMeta:         ()        => ipcRenderer.invoke('valuation-meta'),
+
+  // The Assets page's query API (src/asset_index.js). One call per view, so the
+  // renderer never holds more than what is on screen — the whole point of
+  // Phase 2. filters = { characterId, region, corp, search }, sort = { col, dir }.
+  assetsFilterOptions:   ()        => ipcRenderer.invoke('assets-filter-options'),
+  assetsSummary:         (filters) => ipcRenderer.invoke('assets-summary', filters),
+  assetsLocationGroups:  (filters, sort) => ipcRenderer.invoke('assets-location-groups', filters, sort),
+  assetsGroupCharacters: (locKey, filters, sort) => ipcRenderer.invoke('assets-group-characters', locKey, filters, sort),
+  assetsGroupItems:      (locKey, charId, filters, sort) => ipcRenderer.invoke('assets-group-items', locKey, charId, filters, sort),
+  assetsTopItems:        (opts)    => ipcRenderer.invoke('assets-top-items', opts),
   getHubPrices:          (typeIds, hub) => ipcRenderer.invoke('get-hub-prices', typeIds, hub),
   getHubMeta:            ()       => ipcRenderer.invoke('get-hub-meta'),
   getTradeProfile:       (charId) => ipcRenderer.invoke('get-trade-profile', charId),

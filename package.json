@@ -14,6 +14,7 @@
     "coverage": "node --test --experimental-test-coverage",
     "test:e2e": "playwright test",
     "stress:data": "node scripts/stress-assets.js --keep",
+    "stress:index": "node scripts/stress-index.js",
     "stress:render": "node scripts/stress-render.js",
     "fetch-sde": "node scripts/fetch-sde.js",
     "build-win": "npm run fetch-sde && electron-builder --win --x64",

@@ -400,6 +400,7 @@ function registerEsiHandlers({
   });
 
 
+
   // ─── IPC: Blueprint materials — SDE primary, Fuzzwork fallback ──────────────
   // Returns { materials: [{ typeid, name, quantity }], blueprintTypeID }
   ipcHandle('get-blueprint-materials', async (_, typeId) => {
@@ -1269,6 +1270,10 @@ function registerEsiHandlers({
     }
     return null;
   });
+
+  // Handed back so the valuation refresh reuses the SAME cached, batched path
+  // rather than opening a second route to Fuzzwork.
+  return { fetchHubPrices };
 }
 
 module.exports = { registerEsiHandlers };

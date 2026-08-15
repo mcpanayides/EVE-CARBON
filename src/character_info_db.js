@@ -1357,7 +1357,13 @@ async function getStandings(characterId) {
   } catch { return {}; }
 }
 
+// The raw handle, for modules that need to run their own SQL against the same
+// database — the asset valuation joins its tables to every character's assets,
+// which only works inside one connection.
+function getDb() { return charDb; }
+
 module.exports = {
+  getDb,
   migrateLegacyDatabase,
   initCharacterDb,
   closeCharacterDb,

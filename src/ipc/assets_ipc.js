@@ -51,8 +51,24 @@ function registerAssetHandlers({
         authHdr
       );
       if (page === 1) totalPages = xPages || 1;
+      if (!Array.isArray(data) || !data.length) break;
       allAssets = allAssets.concat(data);
-      if (page >= totalPages || !data || data.length < 1000) break;
+
+      // X-Pages is the ONLY authority on how many pages there are. This used to
+      // also stop on `data.length < 1000`, guessing that a short page meant the
+      // last page — but ESI can return fewer than the nominal 1000 and still
+      // have pages after it. A character whose first page came back at 999 was
+      // truncated there, losing everything on page 2 onwards. That is how a
+      // supercarrier went missing from a hangar while the rest of it synced
+      // fine, and nothing anywhere reported an error.
+      if (page >= totalPages) break;
+
+      // A bad X-Pages must not spin forever. 60 pages is ~60k items for one
+      // character, far beyond any real hangar.
+      if (page >= 60) {
+        console.warn(`[AssetSync] ${characterId}: stopping at page ${page} of ${totalPages} — X-Pages looks wrong`);
+        break;
+      }
       page++;
     }
 

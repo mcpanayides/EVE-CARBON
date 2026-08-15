@@ -97,6 +97,13 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getProductForBlueprint:(id)      => ipcRenderer.invoke('get-product-for-blueprint', id),
   getWalletBalance:      (charId)  => ipcRenderer.invoke('get-wallet', charId),
   getJitaPrices:         (typeIds) => ipcRenderer.invoke('get-jita-prices', typeIds),
+
+  // Materialised asset valuation (src/asset_valuation.js). Value lives in the
+  // database now, so these are queries rather than renderer arithmetic.
+  valuationRefresh:      (opts)    => ipcRenderer.invoke('valuation-refresh', opts),
+  valuationTopAssets:    (opts)    => ipcRenderer.invoke('valuation-top-assets', opts),
+  valuationNetWorth:     (charId)  => ipcRenderer.invoke('valuation-net-worth', charId),
+  valuationMeta:         ()        => ipcRenderer.invoke('valuation-meta'),
   getHubPrices:          (typeIds, hub) => ipcRenderer.invoke('get-hub-prices', typeIds, hub),
   getHubMeta:            ()       => ipcRenderer.invoke('get-hub-meta'),
   getTradeProfile:       (charId) => ipcRenderer.invoke('get-trade-profile', charId),

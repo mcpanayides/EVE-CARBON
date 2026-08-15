@@ -58,6 +58,7 @@ const characterIpc = require('./src/ipc/character_ipc');
 const { registerCharacterHandlers } = characterIpc;
 const { registerEsiHandlers }       = require('./src/ipc/esi_ipc');
 const { registerAssetHandlers }     = require('./src/ipc/assets_ipc');
+const { registerValuationHandlers } = require('./src/ipc/valuation_ipc');
 const { registerStationHandlers }   = require('./src/ipc/station_ipc');
 const { registerConfigHandlers }    = require('./src/ipc/config_ipc');
 const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
@@ -2001,7 +2002,7 @@ app.whenReady().then(async () => {
     readCache,
     writeCache,
   });
-  registerEsiHandlers({
+  const { fetchHubPrices } = registerEsiHandlers({
     ipcHandle,
     httpGet,
     httpPost,
@@ -2027,6 +2028,29 @@ app.whenReady().then(async () => {
     charInfoDb,
     coreCharacterSync,
   });
+  // Asset valuation: prices and per-item values materialised into the character
+  // database, so value can be sorted and aggregated in SQL instead of being
+  // recomputed in the renderer from three caches that arrive separately.
+  // See src/asset_valuation.js and TODO.md.
+  const { refreshValuation } = registerValuationHandlers({
+    ipcHandle,
+    getCharDb: () => charInfoDb.getDb(),
+    getSdeDb:  () => sdeDb,
+    httpGet,
+    fetchHubPrices,
+    loadDB,
+    esiBase: ESI_BASE,
+  });
+
+  // Refresh once shortly after launch, well behind the cold-start ESI burst.
+  // Without this the valuation is only as fresh as the last time something asked
+  // for it, which is the "prices vanish on restart" complaint the table exists
+  // to fix. Failure is logged, never fatal: a stale valuation is still a
+  // valuation, and the app must open regardless.
+  setTimeout(() => {
+    refreshValuation().catch(e => console.warn('[valuation] startup refresh failed:', e.message));
+  }, 20_000);
+
   registerStationHandlers({
     ipcHandle,
     charInfoDb,

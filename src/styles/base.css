@@ -712,3 +712,49 @@ input[type="range"] { accent-color: var(--accent); }
 /* Numeric / status columns */
 .asset-sec, .asset-price    { text-align: right; font-family: var(--mono); white-space: nowrap; }
 .asset-region, .asset-corp  { color: var(--text-2); }
+/* ── Update banner ─────────────────────────────────────────────────────────────
+   Two severities. The ordinary one is the calm green it has always been; the
+   critical one has to survive being ignored, because the whole point is that
+   somebody who habitually dismisses the banner stops and reads this one.
+
+   Colours come from the shared palette rather than hex literals in the markup,
+   so a theme change carries them. */
+#updateBanner {
+  background: linear-gradient(90deg, #1a2a1a, #1e3a1e);
+  border-bottom: 1px solid #2e6b2e;
+}
+#updateBanner .update-banner-label  { color: #6fcf6f; }
+#updateBanner .update-banner-action {
+  background: transparent; border: 1.5px solid #6fcf6f; color: #6fcf6f;
+}
+
+#updateBanner.is-critical {
+  background: linear-gradient(90deg,
+              color-mix(in srgb, var(--pal-red) 22%, transparent),
+              color-mix(in srgb, var(--pal-red) 34%, transparent));
+  border-bottom: 1px solid var(--pal-red);
+}
+#updateBanner.is-critical .update-banner-label {
+  color: var(--pal-red);
+  font-weight: 700;
+  /* A slow pulse, not a flash: it should read as urgent on a glance and still
+     be tolerable in peripheral vision for as long as it stays up. */
+  animation: update-critical-pulse 2.4s ease-in-out infinite;
+}
+#updateBanner.is-critical .update-banner-action {
+  border-color: var(--pal-red);
+  color: var(--pal-red);
+  font-weight: 700;
+}
+#updateBanner.is-critical .update-banner-action:hover {
+  background: color-mix(in srgb, var(--pal-red) 18%, transparent);
+}
+
+@keyframes update-critical-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+/* Respect a user who has asked the OS for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  #updateBanner.is-critical .update-banner-label { animation: none; }
+}

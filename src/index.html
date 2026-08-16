@@ -448,11 +448,11 @@
   font-size:13px;
   flex-wrap:wrap;
 ">
-  <span style="color:#6fcf6f; font-weight:600; letter-spacing:.03em;">⬡ UPDATE AVAILABLE</span>
+  <span id="updateBannerLabel" class="update-banner-label"
+        style="font-weight:600; letter-spacing:.03em;">⬡ UPDATE AVAILABLE</span>
   <span id="updateBannerText" style="color:var(--text-2,#b0b0b0);"></span>
   <div style="display:flex; gap:8px; flex-shrink:0;">
-    <button id="updateBannerDownloadBtn" style="
-      background:transparent; border:1.5px solid #6fcf6f; color:#6fcf6f;
+    <button id="updateBannerDownloadBtn" class="update-banner-action" style="
       border-radius:4px; padding:4px 14px; font-size:12px; font-weight:600;
       cursor:pointer; letter-spacing:.04em;
     ">Download Update</button>
@@ -2003,9 +2003,23 @@
       return;
     }
     const body = document.getElementById('verModalBody');
-    if (body) body.innerHTML =
-      `<strong style="color:var(--accent);font-size:16px;">v${_verResult.latestVersion}</strong> is available.<br>
-       <span style="font-size:12px;color:var(--text-3);">You currently have v${_verResult.currentVersion}</span>`;
+    const crit = !!_verResult.critical;
+    if (body) {
+      const colour = crit ? 'var(--pal-red)' : 'var(--accent)';
+      const reason = crit && _verResult.criticalReason
+        ? `<br><span style="font-size:12px;color:var(--pal-red);">${escHtml(_verResult.criticalReason)}</span>`
+        : '';
+      const head = crit
+        ? `<span style="color:var(--pal-red);font-weight:700;">⚠ CRITICAL UPDATE</span><br>`
+        : '';
+      body.innerHTML =
+        `${head}<strong style="color:${colour};font-size:16px;">v${escHtml(_verResult.latestVersion)}</strong> is available.<br>
+         <span style="font-size:12px;color:var(--text-3);">You currently have v${escHtml(_verResult.currentVersion)}</span>${reason}`;
+    }
+    // Same rule as the banner: no permanent skip on a critical release. LATER
+    // still closes it, so nothing is held hostage.
+    const mSkip = document.getElementById('verModalSkipBtn');
+    if (mSkip) mSkip.style.display = crit ? 'none' : '';
     document.getElementById('verUpdateModal').style.display = 'flex';
   });
 
@@ -2089,14 +2103,36 @@
   // ── Update banner logic ───────────────────────────────────────────────────
   let _updateDownloadUrl = '';
 
-  function showUpdateBanner(latestVersion, currentVersion, downloadUrl) {
+  function showUpdateBanner(latestVersion, currentVersion, downloadUrl, opts = {}) {
     _updateDownloadUrl = downloadUrl;
     const banner = document.getElementById('updateBanner');
     const text   = document.getElementById('updateBannerText');
+    const label  = document.getElementById('updateBannerLabel');
+    const skip   = document.getElementById('updateBannerSkipBtn');
     if (!banner) return;
-    if (text) text.textContent = `Version ${latestVersion} is available  (you have ${currentVersion})`;
+
+    const critical = !!opts.critical;
+    banner.classList.toggle('is-critical', critical);
+
+    if (label) label.textContent = critical ? '⚠ CRITICAL UPDATE' : '⬡ UPDATE AVAILABLE';
+    if (text) {
+      // The reason is the whole value of flagging a release critical: "install
+      // this" without "because" is what trains people to dismiss banners.
+      const base = `Version ${latestVersion} is available  (you have ${currentVersion})`;
+      text.textContent = critical && opts.criticalReason
+        ? `${base} — ${opts.criticalReason}`
+        : base;
+    }
+    // No permanent skip on a critical release. Dismiss (✕) still works, so the
+    // app is never held hostage — it simply comes back on the next launch.
+    if (skip) skip.style.display = critical ? 'none' : '';
+
     banner.style.display = 'flex';
   }
+  // Deliberately exposed: e2e drives this directly to prove a critical release
+  // actually paints red and drops the permanent-skip button. Faking a GitHub
+  // release to reach it would test the fake, not the banner.
+  window.showUpdateBanner = showUpdateBanner;
 
   document.getElementById('updateBannerDownloadBtn')?.addEventListener('click', () => {
     window.eveAPI.updaterOpenDownload(_updateDownloadUrl);
@@ -2120,7 +2156,8 @@
       _verResult = result;
       if (result?.hasUpdate) {
         setVerLight('outdated', result.currentVersion);
-        showUpdateBanner(result.latestVersion, result.currentVersion, result.downloadUrl);
+        showUpdateBanner(result.latestVersion, result.currentVersion, result.downloadUrl,
+                         { critical: result.critical, criticalReason: result.criticalReason });
       } else {
         setVerLight('ok', result?.currentVersion);
       }

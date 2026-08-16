@@ -4,6 +4,30 @@ All notable changes to EVE Carbon will be documented here.
 Each release's GitHub notes are the matching `## [version]` section below —
 the release workflow extracts the section for the tag being published.
 
+## Marking a release critical
+
+Because the release notes ARE this section, adding one line here is what turns
+the in-app update prompt red, states the reason, and removes "Skip This
+Version". Use it when running the old build actively costs the user something —
+data loss, a security fix, a broken sync — not merely for a big release:
+
+```markdown
+> **CRITICAL UPDATE** — assets are lost when upgrading from 3.2
+```
+
+An invisible form is also accepted, for when the notes should not shout in
+markdown but the app still should:
+
+```markdown
+<!-- eve-carbon:critical: assets are lost when upgrading from 3.2 -->
+```
+
+Whatever follows the marker becomes the reason shown to the user, so write it
+for them rather than for the changelog. Only a line STARTING with the marker
+counts — prose mentioning a "critical bug" further down does not trip it, which
+is deliberate: a flag that fires on most releases stops being read.
+See `test/updater_critical.test.js`.
+
 ---
 
 ## [3.3.0] - 2026-08-15

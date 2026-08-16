@@ -19,6 +19,33 @@ const os   = require('os');
 const GH_RELEASES_API = 'https://api.github.com/repos/mcpanayides/EVE-CARBON/releases?per_page=30';
 const GH_RELEASES_URL = 'https://github.com/mcpanayides/EVE-CARBON/releases/latest';
 
+// ── Marking a release critical ───────────────────────────────────────────────
+// The release body IS the CHANGELOG section for that tag (see the "Release
+// notes" step in .github/workflows/main.yml), so the marker lives in
+// CHANGELOG.md and needs no workflow change and no extra asset.
+//
+// Two accepted forms, because the machine-readable one is easy to forget:
+//
+//   <!-- eve-carbon:critical: data loss on upgrade from 3.2 -->
+//   > **CRITICAL UPDATE** — data loss on upgrade from 3.2
+//
+// The HTML comment is invisible in rendered markdown; the blockquote is what a
+// person actually types. Either sets the flag, and whatever follows becomes the
+// reason shown in the banner.
+//
+// Pure and exported so it can be tested without a network or a release.
+const CRITICAL_COMMENT = /<!--\s*eve-carbon:critical\s*(?::\s*([^]*?))?\s*-->/i;
+const CRITICAL_PROSE   = /^[>\s]*\*{0,2}critical(?:\s+update)?\*{0,2}\s*[—\-:]?\s*(.*)$/im;
+
+function parseReleaseFlags(body) {
+  const text = String(body || '');
+  const m = CRITICAL_COMMENT.exec(text) || CRITICAL_PROSE.exec(text);
+  if (!m) return { critical: false, criticalReason: null };
+  // Strip markdown emphasis from the reason so the banner shows plain text.
+  const reason = String(m[1] || '').replace(/[*_`]/g, '').trim();
+  return { critical: true, criticalReason: reason || null };
+}
+
 // Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.
 function compareVersions(v1, v2) {
   const a = v1.split('.').map(Number);
@@ -82,10 +109,15 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
       const latestVersion = best.ver;
       const data          = best.release;
 
-      // Check if this version was previously skipped
+      const { critical, criticalReason } = parseReleaseFlags(data.body);
+
+      // A skipped version stays skipped — unless it is critical. "Skip" means
+      // "this one is not worth my time", which is a judgement the user cannot
+      // make about a release that fixes data loss, because the reason only
+      // arrives with the release itself.
       const cfg = loadConfig();
       const skipped = cfg?.app?.updater?.skippedVersion;
-      if (skipped === latestVersion) return { hasUpdate: false, currentVersion };
+      if (skipped === latestVersion && !critical) return { hasUpdate: false, currentVersion };
 
       if (compareVersions(latestVersion, currentVersion) > 0) {
         // Pick the asset matching this platform's installer — was hardcoded to
@@ -97,7 +129,7 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
                       : /\.exe$/i;
         const asset      = (data.assets || []).find(a => pattern.test(a.name));
         const downloadUrl = asset?.browser_download_url || data.html_url || GH_RELEASES_URL;
-        return { hasUpdate: true, latestVersion, currentVersion, downloadUrl };
+        return { hasUpdate: true, latestVersion, currentVersion, downloadUrl, critical, criticalReason };
       }
 
       return { hasUpdate: false, currentVersion };
@@ -207,4 +239,4 @@ function downloadBinary(url, destPath, onProgress, redirectsLeft = 10) {
   });
 }
 
-module.exports = { registerUpdaterHandlers };
+module.exports = { parseReleaseFlags, registerUpdaterHandlers };

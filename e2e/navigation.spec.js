@@ -96,3 +96,68 @@ test('the counter hides when the count is unknown', async ({ window }) => {
   });
   expect(display).toBe('none');
 });
+
+// ── Update banner severity ───────────────────────────────────────────────────
+// A critical release has to survive being ignored: somebody who habitually
+// dismisses the update banner should stop at this one. Driven directly rather
+// than by faking a GitHub release — the parser that decides criticality has its
+// own unit tests; this is about what the banner then looks like.
+test('a critical update is red, explains itself, and offers no permanent skip', async ({ window }) => {
+  const state = await window.evaluate(() => {
+    showUpdateBanner('4.0.0', '3.3.0', 'https://example.invalid/x.exe',
+      { critical: true, criticalReason: 'corrupts the asset index on upgrade' });
+    const banner = document.getElementById('updateBanner');
+    const label  = document.getElementById('updateBannerLabel');
+    return {
+      shown:   banner.style.display,
+      classes: banner.className,
+      label:   label.textContent.trim(),
+      text:    document.getElementById('updateBannerText').textContent,
+      skip:    document.getElementById('updateBannerSkipBtn').style.display,
+      border:  getComputedStyle(banner).borderBottomColor,
+      labelCol: getComputedStyle(label).color,
+    };
+  });
+
+  expect(state.shown).toBe('flex');
+  expect(state.classes).toContain('is-critical');
+  expect(state.label).toBe('⚠ CRITICAL UPDATE');
+  // The reason is the point — "install this" without "because" trains people to
+  // dismiss banners.
+  expect(state.text).toContain('corrupts the asset index on upgrade');
+  expect(state.skip, 'a critical update must not offer a permanent skip').toBe('none');
+  // Red, not the usual green. Compare channels rather than an exact string.
+  const rgb = state.labelCol.match(/\d+/g).map(Number);
+  expect(rgb[0], `label should be red, got ${state.labelCol}`).toBeGreaterThan(rgb[1] + 40);
+});
+
+test('an ordinary update stays green and can still be skipped', async ({ window }) => {
+  const state = await window.evaluate(() => {
+    showUpdateBanner('3.4.0', '3.3.0', 'https://example.invalid/x.exe', {});
+    const banner = document.getElementById('updateBanner');
+    const label  = document.getElementById('updateBannerLabel');
+    return {
+      classes: banner.className,
+      label:   label.textContent.trim(),
+      skip:    document.getElementById('updateBannerSkipBtn').style.display,
+      labelCol: getComputedStyle(label).color,
+    };
+  });
+
+  expect(state.classes).not.toContain('is-critical');
+  expect(state.label).toBe('⬡ UPDATE AVAILABLE');
+  expect(state.skip).not.toBe('none');
+  const rgb = state.labelCol.match(/\d+/g).map(Number);
+  expect(rgb[1], `label should be green, got ${state.labelCol}`).toBeGreaterThan(rgb[0] + 40);
+});
+
+test('the banner switches back cleanly from critical to ordinary', async ({ window }) => {
+  // The class is toggled, not added — a stale is-critical would paint an
+  // ordinary release red and burn the signal.
+  const classes = await window.evaluate(() => {
+    showUpdateBanner('4.0.0', '3.3.0', 'u', { critical: true });
+    showUpdateBanner('3.4.0', '3.3.0', 'u', {});
+    return document.getElementById('updateBanner').className;
+  });
+  expect(classes).not.toContain('is-critical');
+});

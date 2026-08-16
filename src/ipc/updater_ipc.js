@@ -35,15 +35,42 @@ const GH_RELEASES_URL = 'https://github.com/mcpanayides/EVE-CARBON/releases/late
 //
 // Pure and exported so it can be tested without a network or a release.
 const CRITICAL_COMMENT = /<!--\s*eve-carbon:critical\s*(?::\s*([^]*?))?\s*-->/i;
-const CRITICAL_PROSE   = /^[>\s]*\*{0,2}critical(?:\s+update)?\*{0,2}\s*[—\-:]?\s*(.*)$/im;
+// Anchored per line (no /m, no leading newline slop) so the caller can locate
+// the exact line it matched.
+const CRITICAL_LINE = /^[>\s]*\*{0,2}critical(?:\s+update)?\*{0,2}\s*[—\-:]?\s*(.*)$/i;
 
 function parseReleaseFlags(body) {
-  const text = String(body || '');
-  const m = CRITICAL_COMMENT.exec(text) || CRITICAL_PROSE.exec(text);
-  if (!m) return { critical: false, criticalReason: null };
-  // Strip markdown emphasis from the reason so the banner shows plain text.
-  const reason = String(m[1] || '').replace(/[*_`]/g, '').trim();
-  return { critical: true, criticalReason: reason || null };
+  const text = String(body || '').replace(/\r\n?/g, '\n');
+
+  const comment = CRITICAL_COMMENT.exec(text);
+  if (comment) return { critical: true, criticalReason: clean(comment[1]) };
+
+  // Scanned line by line rather than by slicing at the match index. The pattern
+  // begins with [>\s]*, which can start matching on a preceding blank line, so
+  // match.index pointed BEFORE the marker line — slicing there re-included it
+  // and the reason came out with the whole marker duplicated inside it.
+  const lines = text.split('\n');
+  const start = lines.findIndex(l => CRITICAL_LINE.test(l));
+  if (start === -1) return { critical: false, criticalReason: null };
+
+  const parts = [ (CRITICAL_LINE.exec(lines[start]) || [])[1] || '' ];
+
+  // A reason wraps: changelog blockquotes hard-wrap at ~80 columns, and
+  // capturing only the first line truncated the real 3.4.0 reason mid-sentence
+  // ("…that let a"). Keep consuming the blockquote's continuation lines.
+  for (let i = start + 1; i < lines.length; i++) {
+    if (!/^\s*>/.test(lines[i])) break;              // blockquote ended
+    const cont = lines[i].replace(/^\s*>\s?/, '').trim();
+    if (!cont) break;                                // blank quoted line ends it
+    parts.push(cont);
+  }
+  return { critical: true, criticalReason: clean(parts.join(' ')) };
+}
+
+/** Plain text for a banner: no markdown emphasis, no doubled spaces. */
+function clean(s) {
+  const out = String(s || '').replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim();
+  return out || null;
 }
 
 // Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal.

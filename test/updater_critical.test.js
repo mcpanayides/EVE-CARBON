@@ -98,10 +98,66 @@ test('an empty or missing body is not critical', () => {
 });
 
 test('the real 3.3.0 changelog section does not read as critical', () => {
-  // Guards against the parser being loosened until it fires on everything.
+  // Looked up BY VERSION, not by position. Written as "[1]" — the first section
+  // — it silently started testing 3.4.0 the moment a newer release was added,
+  // which is a test that quietly stops testing what it says.
   const fs = require('fs');
   const path = require('path');
-  const changelog = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8');
-  const section = changelog.split(/^## \[/m)[1] || '';
+  const section = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8')
+    .split(/^## \[/m).find(s => s.startsWith('3.3.0]'));
+  assert.ok(section, 'the 3.3.0 section is missing from CHANGELOG.md');
   assert.strictEqual(parseReleaseFlags(section).critical, false);
+});
+
+test('a reason that wraps across blockquote lines is joined, not truncated', () => {
+  // Changelog blockquotes hard-wrap at ~80 columns. Capturing only the first
+  // line cut the real 3.4.0 reason mid-sentence ("…that let a"), which is worse
+  // than no reason at all — it reads as a bug in the banner.
+  const body = [
+    '## [3.4.0] - 2026-08-16',
+    '',
+    '> **CRITICAL UPDATE** — fixes a security flaw in the SDE updater that let a',
+    '> tampered download write files outside its folder',
+    '',
+    'A security release.',
+  ].join('\n');
+  const r = parseReleaseFlags(body);
+  assert.strictEqual(r.critical, true);
+  assert.strictEqual(r.criticalReason,
+    'fixes a security flaw in the SDE updater that let a tampered download write files outside its folder');
+});
+
+test('the joined reason stops at the end of the blockquote', () => {
+  const body = [
+    '> **CRITICAL UPDATE** — data loss on upgrade',
+    '> from version 3.2 and earlier',
+    '',
+    'This paragraph must not be swallowed into the reason.',
+  ].join('\n');
+  assert.strictEqual(parseReleaseFlags(body).criticalReason,
+    'data loss on upgrade from version 3.2 and earlier');
+});
+
+test('CRLF release bodies parse the same as LF', () => {
+  // GitHub returns \r\n in release bodies; this repo is CRLF too. A regex that
+  // assumes \n silently sees a different string — the exact trap that made the
+  // ESI audit's comment stripper match nothing.
+  const body = '> **CRITICAL UPDATE** — wallet totals are wrong\r\n> after a sync\r\n';
+  assert.deepStrictEqual(parseReleaseFlags(body),
+    { critical: true, criticalReason: 'wallet totals are wrong after a sync' });
+});
+
+test('every historical changelog section stays non-critical', () => {
+  // 40+ real sections discussing crashes, data loss and security fixes in prose.
+  // If the parser is ever loosened, this is what catches it.
+  const fs = require('fs');
+  const path = require('path');
+  const sections = fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8')
+    .split(/^## \[/m).slice(1);
+  const flagged = sections
+    .map(s => ({ ver: (s.match(/^([0-9.]+)\]/) || [])[1], crit: parseReleaseFlags(s).critical }))
+    .filter(x => x.crit)
+    .map(x => x.ver);
+  // Only the current release may be flagged.
+  assert.deepStrictEqual(flagged, ['3.4.0']);
 });

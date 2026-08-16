@@ -30,6 +30,54 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [3.4.0] - 2026-08-16
+
+> **CRITICAL UPDATE** — fixes a security flaw in the SDE updater that let a
+> tampered download write files outside its folder
+
+A security release, plus the online-user counter finally working in installed
+builds and a fix for renaming shopping lists.
+
+### Security
+- **The SDE updater could be made to write anywhere on your disk.** The zip
+  library it used (`extract-zip`) creates symlink entries from an archive
+  without checking where they point, so an archive that had been tampered with
+  in transit could place files outside the extraction folder — with whatever
+  access the app has. There is no fixed version of that library, so it has been
+  removed entirely and replaced with extraction that refuses symlinks, absolute
+  paths and anything climbing out of the target directory. (CVE-2026-56876)
+- **Cache keys no longer use SHA-1.** ESI responses are cached per character
+  using a hash of the access token. Two characters colliding on that hash would
+  have meant one pilot briefly seeing another's data; the hash is now SHA-256 at
+  twice the width.
+- Text from the mining and fitting pages is escaped before it reaches the page,
+  closing two cross-site-scripting paths reported by code scanning.
+- Release builds now run with least-privilege permissions.
+
+### Fixed
+- **Renaming a shopping list did nothing.** The rename button called a browser
+  dialog Electron does not implement — it throws rather than returning empty, so
+  the click handler died silently. Both creating and renaming a list now use the
+  same in-app dialog.
+- **Blank dashboard widgets repair themselves again.** The repair pass only ran
+  after a character sync, so on the common case — a restart where everything is
+  already up to date — it was skipped entirely and widgets that failed during
+  startup stayed blank until removed and re-added. It now runs 45 seconds after
+  the dashboard loads and whenever a sync finishes, and only re-fetches widgets
+  that actually failed.
+- **The "N online" counter works in installed builds.** It has never appeared in
+  a released version — the address it reports to was empty in every build, so
+  the feature disabled itself silently. Hovering the counter now also shows
+  which versions people are running.
+
+### Changed
+- **Critical releases now look like it.** An update that costs you something to
+  postpone shows a red banner stating why, and does not offer "Skip This
+  Version". Ordinary updates are unchanged.
+- Every ESI request now uses CCP's current unversioned routes with a pinned
+  compatibility date. The old versioned routes still work but are undocumented
+  and outside that contract, so they were removed before CCP retires them.
+
 ## [3.3.0] - 2026-08-15
 The Assets page is rebuilt from the database up. It used to load every asset of
 every character into the browser, build a table row for each one, and work out

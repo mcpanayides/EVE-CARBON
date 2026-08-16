@@ -544,11 +544,11 @@ async function _fitDoSearch() {
   const locals = _fitLocalFits();
   const game   = _fitState.fitsByHull?.all || [];
   const localRow = (lf, hullLabel = '') => `
-    <div class="fit-result ft-fit ft-fit-local" data-localfit="${lf.id}" title="Saved in EVE Carbon — click to load">
+    <div class="fit-result ft-fit ft-fit-local" data-localfit="${_fitEsc(lf.id)}" title="Saved in EVE Carbon — click to load">
       <span class="material-symbols-outlined">save</span>
       <span class="fit-result-name">${_fitEsc(lf.name)}</span>
       ${hullLabel ? `<span class="fit-result-grp">${_fitEsc(hullLabel)}</span>` : ''}
-      <button class="ft-fit-del" data-delfit="${lf.id}" title="Delete this saved fit">✕</button>
+      <button class="ft-fit-del" data-delfit="${_fitEsc(lf.id)}" title="Delete this saved fit">✕</button>
     </div>`;
   const gameRow = (i, f, hullLabel = '') => `
     <div class="fit-result ft-fit" data-fitidx="${i}" title="Saved fit (in game) — click to load">
@@ -662,9 +662,9 @@ function _fitFillTypes(detailsEl, node) {
       for (const lf of locals) {
         if (lf.hullId !== t.id) continue;
         html += `
-          <div class="fit-result ft-fit ft-fit-local" data-localfit="${lf.id}" title="Saved in EVE Carbon — click to load">
+          <div class="fit-result ft-fit ft-fit-local" data-localfit="${_fitEsc(lf.id)}" title="Saved in EVE Carbon — click to load">
             <span class="material-symbols-outlined">save</span>${_fitEsc(lf.name)}
-            <button class="ft-fit-del" data-delfit="${lf.id}" title="Delete this saved fit">✕</button>
+            <button class="ft-fit-del" data-delfit="${_fitEsc(lf.id)}" title="Delete this saved fit">✕</button>
           </div>`;
       }
       if (_fitState.fitsByHull?.byHull?.has(t.id)) {

@@ -191,8 +191,11 @@ function _mlRenderControls() {
     </label>`;
   const reRender = () => _mlRenderView();
   const r = document.getElementById('mlRange');      if (r) r.onchange = (e) => { _mlRange = Number(e.target.value); reRender(); };
-  const b = document.getElementById('mlBasis');      if (b) b.onchange = (e) => { _mlBasis = e.target.value; reRender(); };
-  const pm = document.getElementById('mlPriceMode'); if (pm) pm.onchange = (e) => { _mlPriceMode = e.target.value; reRender(); };
+  // Whitelisted rather than trusted: these values are read back out of the DOM
+  // and interpolated into innerHTML below, so an unexpected one would be
+  // markup. Anything unrecognised falls back to the default.
+  const b = document.getElementById('mlBasis');      if (b) b.onchange = (e) => { _mlBasis = e.target.value === 'ore' ? 'ore' : 'refined'; reRender(); };
+  const pm = document.getElementById('mlPriceMode'); if (pm) pm.onchange = (e) => { _mlPriceMode = e.target.value === 'buy' ? 'buy' : 'sell'; reRender(); };
   const rf = document.getElementById('mlRefine');    if (rf) rf.onchange = (e) => { _mlRefinePct = Math.max(0, Math.min(100, Number(e.target.value) || 0)); reRender(); };
 }
 
@@ -241,7 +244,7 @@ function _mlRenderOre() {
     <div class="tr-summary">
       Est. value <span class="lp-pos lp-strong">${formatISK(total)}</span>
       · ${formatNumber(units)} units · ${list.length} ore type${list.length !== 1 ? 's' : ''}
-      <span class="lp-dim">(${basisLabel}, Jita ${_mlPriceMode})</span>
+      <span class="lp-dim">(${escHtml(basisLabel)}, Jita ${escHtml(_mlPriceMode)})</span>
     </div>
     <div class="lp-table-wrap">
       <table class="tr-table" id="mlOreTable">
@@ -309,7 +312,7 @@ function _mlRenderDaily() {
       · avg/day <span class="lp-dim">${formatISK(avg)}</span>
     </div>
     <div class="tr-bars">${bars}</div>
-    <div class="lp-note">Daily mined value at the current basis (${_mlBasis === 'refined' ? `refined @ ${_mlRefinePct}%` : 'ore market'}, Jita ${_mlPriceMode}).</div>`;
+    <div class="lp-note">Daily mined value at the current basis (${escHtml(_mlBasis === 'refined' ? `refined @ ${_mlRefinePct}%` : 'ore market')}, Jita ${escHtml(_mlPriceMode)}).</div>`;
 }
 
 // ── View 3: corp moon extractions ───────────────────────────────────────────────

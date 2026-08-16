@@ -88,16 +88,17 @@
     "@electron/rebuild": "^4.0.4",
     "@playwright/test": "^1.61.1",
     "electron": "^43.2.0",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "yazl": "^3.3.1"
   },
   "dependencies": {
     "@xmpp/client": "^0.14.0",
     "dotenv": "^17.4.2",
-    "extract-zip": "^2.0.1",
     "js-yaml": "^5.2.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1",
-    "unbzip2-stream": "^1.4.3"
+    "unbzip2-stream": "^1.4.3",
+    "yauzl": "^3.4.0"
   },
   "allowScripts": {
     "electron-winstaller@5.4.0": true,

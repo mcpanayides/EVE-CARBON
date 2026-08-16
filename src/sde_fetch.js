@@ -10,8 +10,102 @@ const fs     = require('fs');
 const path   = require('path');
 const os     = require('os');
 const crypto = require('crypto');
-const extractZip = require('extract-zip');
+const yauzl  = require('yauzl');
 const { buildSdeFromJsonl } = require('./sde_build');
+
+// ── Safe zip extraction ──────────────────────────────────────────────────────
+// This replaced extract-zip, which has an unfixed path-traversal advisory
+// (CVE-2026-56876, high): it writes symlink entries without validating their
+// targets, so an archive containing a link to ../../../ can place files
+// anywhere the process can write. There is no patched release — 2.0.1 is both
+// the latest version and the vulnerable one — so the dependency had to go
+// rather than be bumped.
+//
+// The archive here is CCP's SDE, fetched over TLS, and this runs from the
+// in-app "Update SDE" button on the user's own machine. The download follows
+// redirects and is not signed or checksummed, so "the source is trusted" rests
+// on the CDN and the TLS chain alone. That is a thin thing to hang arbitrary
+// file writes on when the alternative is a few lines of validation.
+//
+// yauzl is what extract-zip wrapped anyway; what is added here is the checking
+// it did not do.
+
+const S_IFMT  = 0o170000;   // file-type mask within the unix mode
+const S_IFLNK = 0o120000;   // symbolic link
+
+/** Unix mode from a zip entry, or 0 when the archive carries no unix bits. */
+function entryMode(entry) {
+  return (entry.externalFileAttributes >>> 16) & 0xFFFF;
+}
+
+/**
+ * Where this entry may be written, or an Error explaining why it may not.
+ *
+ * Rejects absolute paths, drive letters, and any ".." segment before resolving,
+ * then confirms the resolved path is still inside the destination — belt and
+ * braces, because the string checks and the resolve check fail on different
+ * tricks (the first on "../x", the second on things like a symlinked dest).
+ */
+function safeEntryPath(destDir, entryName) {
+  const name = String(entryName).replace(/\\/g, '/');
+  if (path.isAbsolute(name) || /^[a-zA-Z]:/.test(name)) {
+    return { error: `absolute path in archive: ${name}` };
+  }
+  if (name.split('/').some(seg => seg === '..')) {
+    return { error: `path traversal in archive: ${name}` };
+  }
+  const root = path.resolve(destDir);
+  const full = path.resolve(root, name);
+  if (full !== root && !full.startsWith(root + path.sep)) {
+    return { error: `path escapes the extraction directory: ${name}` };
+  }
+  return { full };
+}
+
+/**
+ * Extract a zip, refusing anything that could write outside destDir.
+ *
+ * Symlinks are rejected outright rather than resolved. The SDE archive is a
+ * flat set of JSONL files and has no legitimate use for them, so "no symlinks"
+ * costs nothing here and removes the entire class of attack.
+ */
+function extractZipSafely(zipPath, destDir) {
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zip) => {
+      if (err) return reject(err);
+
+      const fail = (e) => { try { zip.close(); } catch (_) {} reject(e); };
+
+      zip.on('entry', (entry) => {
+        const isDir = /\/$/.test(entry.fileName);
+
+        if (!isDir && (entryMode(entry) & S_IFMT) === S_IFLNK) {
+          return fail(new Error(`refusing symlink in SDE archive: ${entry.fileName}`));
+        }
+        const { full, error } = safeEntryPath(destDir, entry.fileName);
+        if (error) return fail(new Error(`refusing ${error}`));
+
+        if (isDir) {
+          fs.mkdirSync(full, { recursive: true });
+          return zip.readEntry();
+        }
+        fs.mkdirSync(path.dirname(full), { recursive: true });
+        zip.openReadStream(entry, (streamErr, stream) => {
+          if (streamErr) return fail(streamErr);
+          const out = fs.createWriteStream(full);
+          stream.on('error', fail);
+          out.on('error', fail);
+          out.on('close', () => zip.readEntry());
+          stream.pipe(out);
+        });
+      });
+
+      zip.on('end', resolve);
+      zip.on('error', fail);
+      zip.readEntry();
+    });
+  });
+}
 
 const MANIFEST_URL = 'https://developers.eveonline.com/static-data/tranquility/latest.jsonl';
 const ZIP_URL       = 'https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip';
@@ -93,7 +187,7 @@ async function fetchAndBuildSde({ userAgent, outSqlitePath, onProgress }) {
 
     report('Extracting…');
     fs.mkdirSync(jsonlDir, { recursive: true });
-    await extractZip(zipPath, { dir: jsonlDir });
+    await extractZipSafely(zipPath, jsonlDir);
 
     report('Building database (this can take a minute)…');
     await buildSdeFromJsonl(jsonlDir, outSqlitePath + '.tmp', (msg) => report(`Building database… ${msg}`));
@@ -115,4 +209,10 @@ async function fetchAndBuildSde({ userAgent, outSqlitePath, onProgress }) {
   }
 }
 
-module.exports = { fetchManifest, downloadFile, fetchAndBuildSde, MANIFEST_URL, ZIP_URL };
+module.exports = {
+  fetchManifest, downloadFile, fetchAndBuildSde, MANIFEST_URL, ZIP_URL,
+  // Exported for test/sde_extract.test.js — this is the security boundary that
+  // replaced a vulnerable dependency, so it is tested against real hostile
+  // archives rather than trusted to review.
+  extractZipSafely, safeEntryPath,
+};

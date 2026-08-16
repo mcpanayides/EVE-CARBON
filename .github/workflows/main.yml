@@ -6,6 +6,15 @@ on:
     types:
       - completed
 
+# Least privilege by default. Without this the token handed to every job is
+# whatever the repository default happens to be — which is write access to the
+# whole repo for jobs that only need to read it. The two build jobs raise
+# themselves to `contents: write` because they upload release assets; the test
+# gate, which only checks out and runs tests, now cannot write anything at all.
+# Any job added later starts read-only rather than inheriting write silently.
+permissions:
+  contents: read
+
 jobs:
   # ── Test gate: lint + unit tests + the real-app e2e suite ───────────────────
   # Runs once; both build jobs below wait on it and only proceed if it's green.

@@ -56,8 +56,19 @@ const _lanes    = new Map();   // host -> { active, max, queue: [] }
 
 const stats = { hits: 0, coalesced: 0, negative: 0, requests: 0, queued: 0 };
 
+// SHA-256, and 32 hex characters of it rather than 16.
+//
+// This hashes an ESI access token, so a collision is not a hash-academia
+// problem — it is two different characters sharing a cache entry, which means
+// one pilot being served another's authenticated response. The old SHA-1/64-bit
+// pair was weak on both counts: SHA-1 has practical collision attacks, and 64
+// bits puts a birthday collision at roughly 2^32 tokens, which is closer than
+// it sounds for a value that changes on every token refresh.
+//
+// Not a password hash — the input is high-entropy and short-lived, so a plain
+// digest is the right tool; only its strength and width needed fixing.
 function _hash(s) {
-  return crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 16);
+  return crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 32);
 }
 
 // The Authorization header is part of the identity of a GET: two characters

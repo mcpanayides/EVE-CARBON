@@ -3538,6 +3538,16 @@ function _fitFlash(msg) {
   clearTimeout(_fitFlash._t);
   _fitFlash._t = setTimeout(() => { head.textContent = head.dataset.flashOld; }, 2600);
 }
+// Written as chained single-character replaces rather than one regex with a
+// lookup callback. Both escape identically, but static analysis recognises this
+// shape as an HTML sanitiser and could not follow the callback form — which is
+// why CodeQL reported XSS on innerHTML sinks whose input this had already
+// escaped. Same output, and the scanner can now see it.
 function _fitEsc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

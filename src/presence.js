@@ -19,6 +19,7 @@ const FIRST_BEAT_DELAY_MS = 10 * 1000;   // let the app settle before the first 
 let _timer = null;
 let _sessionId = null;
 let _lastCount = null;
+let _lastVersions = null;   // { "3.3.0": 12, "unknown": 5 } from the worker
 let _deps = null;   // { url, broadcast(channel, payload) }
 // Why the counter is not showing. Three states used to look identical from the
 // outside — never configured, configured but unreachable, and working but alone
@@ -34,14 +35,20 @@ async function _beat() {
     const res = await fetch(_deps.url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ id: _sessionId }),
+      // The version rides along so the worker can report which releases are in
+      // use. It is not what identifies the session — a worker that ignores the
+      // field, or a client that omits it, still counts perfectly well.
+      body:    JSON.stringify({ id: _sessionId, v: _deps.version || undefined }),
       signal:  AbortSignal.timeout(10000),
     });
     const data = await res.json();
     if (typeof data.count === 'number') {
       _state.lastError = null;
       _lastCount = data.count;
-      _deps.broadcast('presence-count', _lastCount);
+      // Absent from an older worker, which is fine: the tooltip simply has
+      // nothing to show while the count carries on working.
+      _lastVersions = (data.versions && typeof data.versions === 'object') ? data.versions : null;
+      _deps.broadcast('presence-count', { count: _lastCount, versions: _lastVersions });
       return;
     }
   } catch (e) {
@@ -51,7 +58,8 @@ async function _beat() {
     if (_state.beats === 1) console.warn('[presence] heartbeat failed:', _state.lastError);
   }
   _lastCount = null;
-  _deps.broadcast('presence-count', null);
+  _lastVersions = null;
+  _deps.broadcast('presence-count', { count: null, versions: null });
 }
 
 function _schedule() {
@@ -87,8 +95,49 @@ function initPresence(deps) {
   _timer = setTimeout(async () => { await _beat(); _schedule(); }, FIRST_BEAT_DELAY_MS);
 }
 
+// ── Version breakdown ────────────────────────────────────────────────────────
+
+/** [major, minor, patch] for ordering; anything unparsable sorts last. */
+function _versionParts(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [-1, -1, -1];
+}
+
+/**
+ * Roll the worker's per-version tally into the rows the tooltip shows: the
+ * newest few releases individually, everything else folded into "Other".
+ *
+ * Ranked by version NUMBER, not by popularity — the question the tooltip
+ * answers is "have people moved to the current release", so the newest builds
+ * have to be the named rows even when hardly anyone is on them yet. "Other"
+ * deliberately merges older releases with the unknown bucket: both mean "not on
+ * a current build", and clients too old to report a version are exactly the
+ * ones furthest behind.
+ *
+ * @returns {Array<{label:string, count:number}>} newest first, Other last.
+ */
+function summarisePresenceVersions(versions, topN = 3) {
+  if (!versions || typeof versions !== 'object') return [];
+
+  const named = Object.entries(versions)
+    .filter(([v, n]) => v !== 'unknown' && Number(n) > 0 && _versionParts(v)[0] >= 0)
+    .sort((a, b) => {
+      const A = _versionParts(a[0]), B = _versionParts(b[0]);
+      return (B[0] - A[0]) || (B[1] - A[1]) || (B[2] - A[2]) || a[0].localeCompare(b[0]);
+    });
+
+  const rows = named.slice(0, topN).map(([label, count]) => ({ label, count: Number(count) }));
+
+  const otherTotal = Object.entries(versions)
+    .filter(([v, n]) => Number(n) > 0)
+    .reduce((sum, [v, n]) => sum + (rows.some(r => r.label === v) ? 0 : Number(n)), 0);
+
+  if (otherTotal > 0) rows.push({ label: 'Other', count: otherTotal });
+  return rows;
+}
+
 function getPresenceCount() {
-  return _lastCount;
+  return { count: _lastCount, versions: _lastVersions };
 }
 
 /** Why the counter is or is not showing — surfaced in the app's console strip. */
@@ -101,4 +150,7 @@ function stopPresence() {
   _timer = null;
 }
 
-module.exports = { initPresence, getPresenceCount, getPresenceState, stopPresence };
+module.exports = {
+  initPresence, getPresenceCount, getPresenceState, stopPresence,
+  summarisePresenceVersions,
+};

@@ -1954,6 +1954,10 @@ app.whenReady().then(async () => {
   // (see infra/presence-worker). Always on otherwise, no user opt-out.
   initPresence({
     url: process.env.PRESENCE_URL || '',
+    // Reported so the worker can say which releases are actually in use. Read
+    // from the app rather than package.json so a packaged build reports the
+    // version it was built as.
+    version: app.getVersion(),
     broadcast: (channel, payload) => {
       BrowserWindow.getAllWindows().forEach(win => {
         if (!win.isDestroyed()) win.webContents.send(channel, payload);

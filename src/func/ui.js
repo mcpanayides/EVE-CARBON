@@ -270,20 +270,67 @@ function openDiscordInvite() {
 // ─── Status-bar presence counter ("N ONLINE") ──────────────────────────────────
 // Fed by the main process's anonymous heartbeat (src/presence.js). Hidden when
 // the feature is unconfigured, opted out, or the endpoint is unreachable.
-function _updatePresenceCount(n) {
+// [major, minor, patch]; anything unparsable sorts last.
+function _presenceVersionParts(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [-1, -1, -1];
+}
+
+/**
+ * The tooltip rows: the three newest releases named individually, everything
+ * else folded into "Other".
+ *
+ * Ranked by version NUMBER rather than by popularity, because the question this
+ * answers is "have people moved to the current release" — the newest build has
+ * to be a named row even when almost nobody is on it yet. "Other" merges older
+ * releases with the unknown bucket on purpose: both mean "not on a current
+ * build", and a client too old to report its version is the furthest behind of
+ * all.
+ */
+function _presenceVersionRows(versions, topN = 3) {
+  if (!versions || typeof versions !== 'object') return [];
+  const named = Object.entries(versions)
+    .filter(([v, n]) => v !== 'unknown' && Number(n) > 0 && _presenceVersionParts(v)[0] >= 0)
+    .sort((a, b) => {
+      const A = _presenceVersionParts(a[0]), B = _presenceVersionParts(b[0]);
+      return (B[0] - A[0]) || (B[1] - A[1]) || (B[2] - A[2]) || a[0].localeCompare(b[0]);
+    });
+
+  const rows = named.slice(0, topN).map(([label, count]) => ({ label, count: Number(count) }));
+  const other = Object.entries(versions)
+    .filter(([, n]) => Number(n) > 0)
+    .reduce((sum, [v, n]) => sum + (rows.some(r => r.label === v) ? 0 : Number(n)), 0);
+  if (other > 0) rows.push({ label: 'Other', count: other });
+  return rows;
+}
+
+function _updatePresenceCount(payload) {
   const wrap  = document.getElementById('presenceStatus');
   const label = document.getElementById('presenceCountLabel');
   if (!wrap || !label) return;
+
+  // Accepts either the plain number this used to receive or the richer payload
+  // the heartbeat sends now, so a stale renderer never blanks the counter.
+  const n = (payload && typeof payload === 'object') ? payload.count : payload;
+  const versions = (payload && typeof payload === 'object') ? payload.versions : null;
+
   if (typeof n === 'number' && n > 0) {
     label.textContent  = `${n.toLocaleString()} ONLINE`;
     wrap.style.display = 'inline-flex';
+
+    const rows = _presenceVersionRows(versions);
+    wrap.title = rows.length
+      ? `${n.toLocaleString()} running EVE Carbon right now\n\n`
+        + rows.map(r => `${r.label} — ${r.count.toLocaleString()} user${r.count === 1 ? '' : 's'}`).join('\n')
+      : `${n.toLocaleString()} running EVE Carbon right now`;
   } else {
     wrap.style.display = 'none';
+    wrap.removeAttribute('title');
   }
 }
 (function initPresenceCounterUI() {
   try {
-    window.eveAPI?.on?.('presence-count', n => _updatePresenceCount(n));
+    window.eveAPI?.on?.('presence-count', p => _updatePresenceCount(p));
     window.eveAPI?.getPresenceCount?.().then(_updatePresenceCount).catch(() => {});
     // Say why the counter is missing. A hidden counter looks the same whether the
     // feature was never configured, the endpoint is down, or nobody else is

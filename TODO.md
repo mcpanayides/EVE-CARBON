@@ -378,14 +378,31 @@ most of the items (the shape that hurts, not just the row count).
 
 ## Smaller things noticed in passing
 
-- **`prompt()` in `src/func/shopping-lists.js:504`** — Electron has no
-  `window.prompt()`; it returns `undefined`, so renaming a shopping list
-  silently does nothing. Same bug as the Jabber add-room button, same fix (the
-  in-app modal pattern already in that file at `showNewShoppingListModal`).
-- **Dashboard blank-widget self-heal** — `refreshDashboardLiveWidgets()` exists
-  to repair widgets that came back empty during the cold-start ESI burst. If
-  blank widgets still need a manual refresh, that self-heal is not firing when
-  it should.
+- ~~**`prompt()` in `src/func/shopping-lists.js`**~~ **Fixed.** One in-app modal
+  now serves both naming a new list and renaming one
+  (`showShoppingListNameModal`). Worth recording what was actually measured,
+  because the note here was wrong: Electron's `prompt()` does not return
+  `undefined`, it **throws** `"prompt() is not supported"`, so the click handler
+  died on that line and everything after it was skipped. `confirm()` IS
+  implemented and shows a real dialog, which is why Clear and Delete were never
+  affected and were left alone. No `prompt()` calls remain in the renderer.
+- ~~**Dashboard blank-widget self-heal**~~ **Fixed.** It was not firing, and the
+  reason was structural: `refreshDashboardLiveWidgets()` was called only *after*
+  the stale-character sync loop in `autoRefreshStaleCharacters()`, so the
+  `if (!stale.length) return` branch above it never reached the repair — and
+  that is the branch a restart takes, when every character is still fresh from
+  minutes ago. The widgets fail during the launch ESI burst; the repair then sat
+  behind a condition that the failing case does not meet.
+
+  Now `_healFailedDashboardWidgets()` runs on both paths, plus once 45 s after
+  the dashboard loads, since the widgets fail *during* that load and a check
+  that only runs on navigation is one the user has to trigger by wandering off
+  and coming back. It is gated on a widget genuinely showing a failure
+  (`.dash-widget-failed`, set on the six failure states) rather than firing
+  unconditionally: `refreshDashboardLiveWidgets()` makes live per-character ESI
+  calls, and running it on every navigation of a healthy dashboard would spend
+  the shared error budget on nothing. A legitimately empty widget ("No active
+  market orders") carries no marker and is left alone.
 - **Ping pop-up for structure alerts** — the pop-up fires on `isDirector`, which
   is `/director/i` against the sender JID and body. Structure-alert bots posting
   from a director JID would pop up as fleet pings. Worth checking during an

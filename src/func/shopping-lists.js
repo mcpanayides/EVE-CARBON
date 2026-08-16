@@ -237,44 +237,83 @@ function renderShoppingLists(container) {
   document.getElementById('slNewListBtn').addEventListener('click', () => showNewShoppingListModal());
 }
 
-// Small in-app modal to name and create an empty shopping list (replaces prompt()).
-function showNewShoppingListModal() {
+// ── Asking for a name ────────────────────────────────────────────────────────
+// Electron does not implement window.prompt(). It does not return undefined
+// either, as is easy to assume — it THROWS "prompt() is not supported", so a
+// click handler that calls it dies at that line and everything after it is
+// skipped, with nothing shown to the user. That is how renaming a list came to
+// do nothing at all.
+//
+// window.confirm() IS implemented and shows a real dialog, which is why the
+// Clear and Delete buttons on this page still work and are left alone.
+//
+// One modal serves both naming a new list and renaming an existing one; the
+// version that only handled "new" is what left rename reaching for prompt().
+function showShoppingListNameModal({ title, value = '', confirmLabel, onSubmit }) {
   const backdrop = document.createElement('div');
-  backdrop.id = 'slNewListBackdrop';
+  backdrop.id = 'slNameBackdrop';
   backdrop.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;
     display:flex;align-items:center;justify-content:center;`;
   backdrop.innerHTML = `
     <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;
                 padding:24px;width:380px;max-width:95vw;font-family:var(--font);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div style="font-size:14px;font-weight:700;color:var(--text-1);">NEW SHOPPING LIST</div>
-        <button id="slNewClose" style="background:none;border:none;color:var(--text-3);
+        <div style="font-size:14px;font-weight:700;color:var(--text-1);">${escHtml(title)}</div>
+        <button id="slNameClose" style="background:none;border:none;color:var(--text-3);
                 cursor:pointer;font-size:18px;padding:0;">✕</button>
       </div>
       <div style="display:flex;gap:8px;">
-        <input id="slNewNameInput" class="field-input" placeholder="List name…" style="flex:1;"/>
-        <button id="slNewCreate" class="bp-view-btn" style="padding:6px 14px;font-size:11px;white-space:nowrap;">CREATE</button>
+        <input id="slNameInput" class="field-input" placeholder="List name…" style="flex:1;"/>
+        <button id="slNameConfirm" class="bp-view-btn" style="padding:6px 14px;font-size:11px;white-space:nowrap;">${escHtml(confirmLabel)}</button>
       </div>
     </div>`;
   document.body.appendChild(backdrop);
 
   const close = () => backdrop.remove();
-  const input = backdrop.querySelector('#slNewNameInput');
-  const create = () => {
+  const input = backdrop.querySelector('#slNameInput');
+  input.value = value;
+  const submit = () => {
     const name = input.value.trim();
     if (!name) { input.focus(); return; }
-    const list = slCreate(name);
-    _slActiveId = list.id;
     close();
-    _renderSlSidebar();
-    _renderSlContent();
-    if (typeof showToast === 'function') showToast(`Created "${list.name}".`, 'success');
+    onSubmit(name);
   };
-  backdrop.querySelector('#slNewClose').addEventListener('click', close);
+  backdrop.querySelector('#slNameClose').addEventListener('click', close);
   backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
-  backdrop.querySelector('#slNewCreate').addEventListener('click', create);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') create(); else if (e.key === 'Escape') close(); });
+  backdrop.querySelector('#slNameConfirm').addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); else if (e.key === 'Escape') close(); });
   input.focus();
+  input.select();
+}
+
+/** Name and create an empty shopping list. */
+function showNewShoppingListModal() {
+  showShoppingListNameModal({
+    title: 'NEW SHOPPING LIST',
+    confirmLabel: 'CREATE',
+    onSubmit: (name) => {
+      const list = slCreate(name);
+      _slActiveId = list.id;
+      _renderSlSidebar();
+      _renderSlContent();
+      if (typeof showToast === 'function') showToast(`Created "${list.name}".`, 'success');
+    },
+  });
+}
+
+/** Rename the list currently open. */
+function showRenameShoppingListModal(list) {
+  showShoppingListNameModal({
+    title: 'RENAME LIST',
+    value: list.name,
+    confirmLabel: 'RENAME',
+    onSubmit: (name) => {
+      slRename(_slActiveId, name);
+      _renderSlSidebar();
+      _renderSlContent();
+      if (typeof showToast === 'function') showToast(`Renamed to "${name}".`, 'success');
+    },
+  });
 }
 
 function _renderSlSidebar() {
@@ -501,12 +540,7 @@ async function _renderSlContent() {
 
   // ── Toolbar button wiring ─────────────────────────────────────────────────
   document.getElementById('slRenameBtn')?.addEventListener('click', () => {
-    const name = prompt('New list name:', list.name);
-    if (name?.trim()) {
-      slRename(_slActiveId, name);
-      _renderSlSidebar();
-      _renderSlContent();
-    }
+    showRenameShoppingListModal(list);
   });
 
   document.getElementById('slClearBtn')?.addEventListener('click', () => {

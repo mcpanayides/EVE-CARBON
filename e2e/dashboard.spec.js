@@ -109,3 +109,62 @@ test('net worth widget reflects the seeded wallet snapshot (not stuck loading)',
   await expect(value).not.toContainText('Calculating', { timeout: 20_000 });
   await expect(value).toContainText('ISK', { timeout: 20_000 });
 });
+
+// ── Blank-widget self-heal ───────────────────────────────────────────────────
+// Live-ESI widgets can come back "Failed to load" during the launch burst. The
+// repair existed but sat AFTER the stale-character sync loop, so on the path
+// where every character was already fresh the function returned before reaching
+// it — which is the common case on a restart, and why blank widgets sat there
+// until they were removed and re-added by hand.
+test('a failed widget is detected and retried, a healthy one is left alone', async ({ window }) => {
+  await window.locator('.nav-btn[data-page="dashboard"]').click();
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+
+  const healthy = await window.evaluate(() => {
+    let calls = 0;
+    window.__origRefresh = refreshDashboardLiveWidgets;
+    refreshDashboardLiveWidgets = async () => { calls++; };
+    _healFailedDashboardWidgets();          // nothing is marked failed
+    return calls;
+  });
+  expect(healthy, 'a healthy dashboard should not re-fetch anything').toBe(0);
+
+  const repaired = await window.evaluate(() => {
+    let calls = 0;
+    refreshDashboardLiveWidgets = async () => { calls++; };
+    const el = document.createElement('div');
+    el.className = 'dash-widget-failed';
+    el.textContent = 'Failed to load wallet balances.';
+    document.getElementById('dashboardGrid').appendChild(el);
+    _healFailedDashboardWidgets();
+    el.remove();
+    refreshDashboardLiveWidgets = window.__origRefresh;
+    return calls;
+  });
+  expect(repaired, 'a failed widget should have been retried').toBe(1);
+});
+
+test('the fresh-characters path reaches the self-heal', async ({ window }) => {
+  // The regression this fixes: with no stale characters, autoRefreshStaleCharacters
+  // returned early and the repair never ran.
+  await window.locator('.nav-btn[data-page="dashboard"]').click();
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+
+  const healed = await window.evaluate(async () => {
+    let called = 0;
+    const origHeal = _healFailedDashboardWidgets;
+    const origGet  = window.eveAPI.getCharacterData;
+    _healFailedDashboardWidgets = () => { called++; };
+    // Every character reports as just-synced, so the "all fresh" branch is taken.
+    window.eveAPI.getCharacterData = async () => ({ info: { synced_at: Date.now() } });
+    try {
+      const accounts = await window.eveAPI.getAccounts();
+      await autoRefreshStaleCharacters(accounts);
+    } finally {
+      window.eveAPI.getCharacterData = origGet;
+      _healFailedDashboardWidgets = origHeal;
+    }
+    return called;
+  });
+  expect(healed, 'the all-fresh path skipped the self-heal').toBe(1);
+});

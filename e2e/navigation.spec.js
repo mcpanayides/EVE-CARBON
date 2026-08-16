@@ -39,3 +39,60 @@ for (const page of PAGES) {
     expect(errors, `console/page errors on ${page}: ${errors.join(' | ')}`).toEqual([]);
   });
 }
+
+// ── Online counter and its version tooltip ───────────────────────────────────
+// The counter is fed by the main-process heartbeat, which beats ten seconds
+// after launch — too slow to wait for here — so the renderer half is driven
+// directly. That is the half that was changed; the worker half has its own unit
+// tests against the deployed source.
+test('the online counter shows a per-version tooltip, newest first', async ({ window }) => {
+  const state = await window.evaluate(() => {
+    _updatePresenceCount({
+      count: 61,
+      versions: { '4.0.0': 19, '3.7.0': 12, '3.3.0': 23, '3.0.0': 5, unknown: 2 },
+    });
+    const wrap = document.getElementById('presenceStatus');
+    return {
+      label: document.getElementById('presenceCountLabel').textContent,
+      visible: wrap.style.display,
+      title: wrap.title,
+    };
+  });
+
+  expect(state.label).toBe('61 ONLINE');
+  expect(state.visible).toBe('inline-flex');
+  // Three newest releases named, everything older plus unknown folded together.
+  expect(state.title).toContain('4.0.0 — 19 users');
+  expect(state.title).toContain('3.7.0 — 12 users');
+  expect(state.title).toContain('3.3.0 — 23 users');
+  expect(state.title).toContain('Other — 7 users');
+  expect(state.title).not.toContain('3.0.0');
+  expect(state.title).not.toContain('unknown');
+});
+
+test('the counter still works when the worker sends no version breakdown', async ({ window }) => {
+  // An older worker, or a client talking to one, answers with a count alone.
+  const state = await window.evaluate(() => {
+    _updatePresenceCount({ count: 3, versions: null });
+    const wrap = document.getElementById('presenceStatus');
+    return { label: document.getElementById('presenceCountLabel').textContent, title: wrap.title };
+  });
+  expect(state.label).toBe('3 ONLINE');
+  expect(state.title).toContain('3 running EVE Carbon right now');
+});
+
+test('a bare number is still accepted, so a stale renderer never blanks the counter', async ({ window }) => {
+  const label = await window.evaluate(() => {
+    _updatePresenceCount(7);
+    return document.getElementById('presenceCountLabel').textContent;
+  });
+  expect(label).toBe('7 ONLINE');
+});
+
+test('the counter hides when the count is unknown', async ({ window }) => {
+  const display = await window.evaluate(() => {
+    _updatePresenceCount({ count: null, versions: null });
+    return document.getElementById('presenceStatus').style.display;
+  });
+  expect(display).toBe('none');
+});

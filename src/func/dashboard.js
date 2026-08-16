@@ -45,6 +45,15 @@ async function autoRefreshStaleCharacters(accounts) {
 
     if (!stale.length) {
       logToConsole('All character data is fresh (< 30 min old).', 'info');
+      // Still check for widgets that failed. The self-heal used to live only
+      // after the sync loop below, so it could not run on this path at all —
+      // and this is the path a cold start most often takes. The dashboard
+      // paints during the launch ESI burst, some widgets come back "Failed to
+      // load", and if every character then turns out to be fresh (a restart
+      // minutes after the last one) the function returned here and the blank
+      // widgets stayed blank until they were removed and re-added by hand.
+      // That is the "blank widgets need a manual refresh" complaint.
+      _healFailedDashboardWidgets();
       return;
     }
 
@@ -95,6 +104,29 @@ async function autoRefreshStaleCharacters(accounts) {
   } finally {
     _autoRefreshRunning = false;
   }
+}
+
+/**
+ * Re-fetch the live-ESI widgets, but only if one of them is actually showing a
+ * failure.
+ *
+ * Deliberately gated rather than unconditional. autoSyncOnNavigate() runs this
+ * path on every page change (throttled to once a minute), and
+ * refreshDashboardLiveWidgets() makes live per-character ESI calls — active
+ * jobs, skill queue, wallet, market orders. Firing that whenever somebody
+ * clicks around a healthy dashboard would spend the shared ESI error budget on
+ * nothing. A widget that is legitimately empty ("No active market orders")
+ * carries no failure marker and is left alone; only dash-widget-failed asks to
+ * be retried.
+ */
+let _dashHealTimer = null;
+
+function _healFailedDashboardWidgets() {
+  if (typeof currentPage !== 'undefined' && currentPage !== 'dashboard') return;
+  const failed = document.querySelectorAll('.dash-widget-failed');
+  if (!failed.length) return;
+  logToConsole(`Dashboard: ${failed.length} widget(s) failed to load — retrying.`, 'info');
+  refreshDashboardLiveWidgets().catch(() => {});
 }
 
 // Throttled entry point fired on every page navigation (see navigateToPage). Keeps
@@ -1246,7 +1278,7 @@ async function renderDashboardActiveJobs(accounts) {
     console.error('[dashboard] Active jobs widget failed:', e);
     // Only replace a table that has nothing real on it — a stale job list beats
     // wiping it for an error box.
-    const failedHtml = '<div class="active-jobs-empty">Failed to load.</div>';
+    const failedHtml = '<div class="active-jobs-empty dash-widget-failed">Failed to load.</div>';
     if (container     && !hadJobs)     container.innerHTML = failedHtml;
     if (corpContainer && !hadCorpJobs) corpContainer.innerHTML = failedHtml;
   }
@@ -2058,7 +2090,7 @@ async function loadDashboard() {
         (el) => renderDashboardPIWidget(el, accounts));
     } catch (e) {
       console.error('[dashboard] PI widget failed:', e);
-      piContainer.innerHTML = '<div style="padding:12px;font-family:var(--mono);font-size:11px;color:var(--danger);">Failed to load PI data.</div>';
+      piContainer.innerHTML = '<div class="dash-widget-failed" style="padding:12px;font-family:var(--mono);font-size:11px;color:var(--danger);">Failed to load PI data.</div>';
     }
   })();
 
@@ -2091,7 +2123,7 @@ async function loadDashboard() {
     try { await _swrWidget('dash_snap_wallet_balances', el, (el) => renderWalletBalanceWidget(el, accounts)); }
     catch (e) {
       console.error('[dashboard] Wallet widget failed:', e);
-      el.innerHTML = '<div class="dashboard-empty">Failed to load wallet balances.</div>';
+      el.innerHTML = '<div class="dashboard-empty dash-widget-failed">Failed to load wallet balances.</div>';
     }
   })();
 
@@ -2102,7 +2134,7 @@ async function loadDashboard() {
     try { await _swrWidget('dash_snap_skill_queue', el, (el) => renderSkillQueueWidget(el, mainAccount)); }
     catch (e) {
       console.error('[dashboard] Skill queue widget failed:', e);
-      el.innerHTML = '<div class="dashboard-empty">Failed to load skill queue.</div>';
+      el.innerHTML = '<div class="dashboard-empty dash-widget-failed">Failed to load skill queue.</div>';
     }
   })();
 
@@ -2113,7 +2145,7 @@ async function loadDashboard() {
     try { await _swrWidget('dash_snap_market_quicklook', el, (el) => renderMarketQuicklookWidget(el)); }
     catch (e) {
       console.error('[dashboard] Market widget failed:', e);
-      el.innerHTML = '<div class="dashboard-empty">Failed to load market prices.</div>';
+      el.innerHTML = '<div class="dashboard-empty dash-widget-failed">Failed to load market prices.</div>';
     }
   })();
 
@@ -2124,7 +2156,7 @@ async function loadDashboard() {
     try { await _swrWidget('dash_snap_market_orders', el, (el) => renderMarketOrdersWidget(el, accounts)); }
     catch (e) {
       console.error('[dashboard] Market orders widget failed:', e);
-      el.innerHTML = '<div class="active-jobs-empty">Failed to load orders.</div>';
+      el.innerHTML = '<div class="active-jobs-empty dash-widget-failed">Failed to load orders.</div>';
     }
   })();
 
@@ -2160,6 +2192,14 @@ async function loadDashboard() {
     });
   }
 
+  // One deferred repair pass. The widgets that fail do so DURING this load —
+  // the launch ESI burst races token refreshes and collects 429s — so a check
+  // that only runs on the next page navigation is a check the user has to
+  // trigger by wandering off and coming back. By 45 s the burst is over and the
+  // tokens are warm. It re-fetches only widgets actually showing a failure, so
+  // on a healthy dashboard it costs one querySelectorAll and nothing else.
+  clearTimeout(_dashHealTimer);
+  _dashHealTimer = setTimeout(() => _healFailedDashboardWidgets(), 45_000);
 }
 
 // ─── Wealth widgets (Net Worth KPIs · Wealth by Character · Wealth Growth) ─────

@@ -133,13 +133,40 @@ if (styleSelHits.length) {
 // developers.eveonline.com/blog/changing-versions-v42-was-getting-out-of-hand.
 //
 // src/shared/esi.js is now the single definition. These checks keep it that way.
+// ── Why these rules are written the way they are ────────────────────────────
+//
+// The first version of them matched literal spellings: `const ESI_BASE = …` and
+// `${ESI_BASE}/vN/`. Both were trivially side-stepped without anyone meaning to.
+// trading.js named its base `_TR_ESI`, faction-warfare.js named its `_FW_ESI`,
+// and main.js passed bare paths like '/v4/characters/…' into a helper that added
+// the base on a different line. Result: nine live versioned calls and three
+// separate base URLs, with lint green and everyone — including the people who
+// wrote the rule — believing the job was done.
+//
+// So these no longer look for a NAME. They look for the thing itself: the base
+// string assigned to anything at all, and a version segment in front of an ESI
+// resource however the URL is assembled.
+//
+// Top-level ESI resources, so `/v2/oauth/…` on login.eveonline.com and
+// `/v2/public/…` on eve-scout are not swept up. Sorted by the API, not guessed:
+// this list is every first path segment in CCP's own spec.
+const ESI_RESOURCES = [
+  'alliances', 'characters', 'contracts', 'corporation', 'corporations', 'dogma',
+  'fleets', 'fw', 'incursions', 'industry', 'insurance', 'killmails', 'loyalty',
+  'markets', 'meta', 'opportunities', 'route', 'search', 'sovereignty', 'status',
+  'ui', 'universe', 'wars',
+].join('|');
+
 const ESI_RULES = [
   { id: 'a second ESI base URL',
-    re: /const\s+ESI_BASE\s*=\s*['"]https:\/\/esi\.evetech\.net/,
+    // Any identifier, not just ESI_BASE. The base belongs in one file.
+    re: new RegExp(String.raw`(?:const|let|var)\s+\w+\s*=\s*['"\`]https://esi\.evetech\.net`),
     fix: "import it: const { ESI_BASE } = require('…/app_ident')  — defined in src/shared/esi.js" },
   { id: 'a versioned ESI route',
-    re: /(?:\$\{ESI_BASE\}|https:\/\/esi\.evetech\.net)\/(?:v[0-9]+|latest)\//,
-    fix: 'drop the version segment — the X-Compatibility-Date header pins behaviour instead' },
+    // Matches the version segment wherever it appears — after ${ANY_BASE}, after
+    // the literal domain, or at the start of a bare path handed to a helper.
+    re: new RegExp(String.raw`/(?:v[0-9]+|latest)/(?:${ESI_RESOURCES})\b`),
+    fix: 'drop the version segment — X-Compatibility-Date pins behaviour instead (developers.eveonline.com/blog/changing-versions-v42-was-getting-out-of-hand)' },
   { id: 'a second copy of the compatibility date',
     re: /COMPATIBILITY_DATE\s*=\s*['"][0-9]{4}-[0-9]{2}-[0-9]{2}/,
     fix: 'read it from src/shared/esi.js (COMPAT_DATE) — three copies is how one of them drifted' },

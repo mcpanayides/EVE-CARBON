@@ -1,4 +1,6 @@
 'use strict';
+
+const { ESI_BASE } = require('../app_ident');   // one base, one place — see src/shared/esi.js
 //
 // Kill data as a second intel source, fused with chat.
 //
@@ -37,7 +39,7 @@
 // Our own KILLS are still not warnings: a hostile who was there and is now dead
 // is the opposite of a threat.
 
-const SYSTEM_KILLS_URL = 'https://esi.evetech.net/universe/system_kills/';
+const SYSTEM_KILLS_URL = `${ESI_BASE}/universe/system_kills/`;
 
 /**
  * One killmail, whatever wrapper it arrived in.

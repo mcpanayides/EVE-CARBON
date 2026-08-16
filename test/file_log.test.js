@@ -92,7 +92,7 @@ test("the user's home directory is scrubbed — a bug report should not publish 
 
 test('ordinary diagnostic text survives intact', () => {
   // Redaction that eats the message defeats the point of the log.
-  const line = 'ESI 420 on /v1/characters/95465499/assets — error budget exhausted, backing off 63s';
+  const line = 'ESI 420 on /characters/95465499/assets — error budget exhausted, backing off 63s';
   assert.strictEqual(log.redact(line), line);
 });
 

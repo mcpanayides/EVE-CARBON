@@ -1330,7 +1330,7 @@ async function loadJournalEntries(characterId) {
   } catch (e) { /* fall through */ }
   // Fallback: live ESI call if DB is empty (e.g. character never synced yet)
   try {
-    const url  = `https://esi.evetech.net/characters/${characterId}/wallet/journal/?datasource=tranquility&page=1`;
+    const url  = Esi.url(`/characters/${characterId}/wallet/journal`, { page: 1 });
     const data = await window.eveAPI.esiFetch(url).catch(() => null);
     if (Array.isArray(data) && data.length) return data;
   } catch (e) { /* ignore */ }
@@ -1345,7 +1345,7 @@ async function loadLPData(characterId) {
   } catch (e) { /* fall through */ }
   // Fallback: live ESI call if DB is empty
   try {
-    const url  = `https://esi.evetech.net/characters/${characterId}/loyalty/points/?datasource=tranquility`;
+    const url  = Esi.url(`/characters/${characterId}/loyalty/points`);
     const data = await window.eveAPI.esiFetch(url).catch(() => null);
     if (Array.isArray(data)) return data;
   } catch (e) { /* ignore */ }

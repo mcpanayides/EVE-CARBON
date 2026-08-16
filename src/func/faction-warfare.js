@@ -9,7 +9,9 @@
 // Public data is fetched through esiFetch and cached in-module; the page auto-
 // refreshes on the endpoints' own cadence — no manual sync button.
 
-const _FW_ESI = 'https://esi.evetech.net';
+// URLs come from the one ESI client (window.Esi, src/shared/esi.js) rather
+// than a private copy of the base. This file used to hold its own, which is
+// how its four routes stayed on /vN/ long after the rest of the app moved.
 
 // The four militias, grouped into their two warzones. Colours are ours (no ESI
 // colour exists) and echo each faction's identity.
@@ -102,12 +104,12 @@ function _fwStartAutoRefresh() {
 async function _fwEnsurePublic(force) {
   if (!force && _fwStats && (Date.now() - _fwFetchedAt) < 5 * 60 * 1000) return;
   const get = async (path) => {
-    try { return await window.eveAPI.esiFetch(`${_FW_ESI}${path}?datasource=tranquility`); }
+    try { return await window.eveAPI.esiFetch(Esi.url(path)); }
     catch (_) { return null; }
   };
   const [stats, systems, lbC, lbP] = await Promise.all([
-    get('/v1/fw/stats/'), get('/v1/fw/systems/'),
-    get('/v1/fw/leaderboards/characters/'), get('/v1/fw/leaderboards/corporations/'),
+    get('/fw/stats'), get('/fw/systems'),
+    get('/fw/leaderboards/characters'), get('/fw/leaderboards/corporations'),
   ]);
   if (Array.isArray(stats))   _fwStats   = stats;
   if (Array.isArray(systems)) _fwSystems = systems;

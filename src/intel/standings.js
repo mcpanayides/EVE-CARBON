@@ -1,4 +1,6 @@
 'use strict';
+
+const { ESI_BASE } = require('../app_ident');   // one base, one place — see src/shared/esi.js
 //
 // Turning a name in a chat channel into a standing on the contact sheet.
 //
@@ -31,7 +33,7 @@ const BATCH_MS  = 1500;
 // not infinite — new characters are created constantly.
 const MISS_TTL_MS = 6 * 60 * 60 * 1000;
 
-const IDS_URL = 'https://esi.evetech.net/universe/ids/?datasource=tranquility';
+const IDS_URL = `${ESI_BASE}/universe/ids/?datasource=tranquility`;
 
 /**
  * @param {object} deps

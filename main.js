@@ -1532,7 +1532,19 @@ async function _mailAuth(characterId) {
   if (!characterId) return { error: { ok: false, error: 'no character' } };
   try {
     const token = await getValidToken(characterId);
-    return { hdr: { Authorization: `Bearer ${token}` } };
+    // Identity and compatibility date, not just the bearer token. Twelve call
+    // sites share this helper and every one of them was reaching ESI with
+    // neither — anonymous to CCP, and pinned to whatever the API does TODAY
+    // rather than to the snapshot the rest of the app is tested against. That
+    // is the same silent divergence ping-alert.html had, which is why
+    // src/shared/esi.js exists at all.
+    return {
+      hdr: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': APP_USER_AGENT,
+        'X-Compatibility-Date': ESI_COMPATIBILITY_DATE,
+      },
+    };
   } catch (e) {
     return { error: { ok: false, error: 'token: ' + e.message } };
   }
@@ -1780,11 +1792,16 @@ ipcMain.handle('skills-get-character', async (_, characterId) => {
       return { data: await res.json() };
     };
 
+    // Unversioned paths + X-Compatibility-Date. The /vN/ forms these replaced
+    // are undocumented legacy: CCP's spec at our pinned date lists 204 routes
+    // and not one of them is versioned. They still answer 200 today, but they
+    // sit outside the compatibility-date contract, so the pin protects nothing
+    // — which is exactly how /sovereignty/map vanished from under us before.
     const [sk, attrs, imps, queue] = await Promise.all([
-      get(`/v4/characters/${characterId}/skills/`,     'skills'),
-      get(`/v1/characters/${characterId}/attributes/`, 'attributes'),
-      get(`/v2/characters/${characterId}/implants/`,   'implants'),
-      get(`/v2/characters/${characterId}/skillqueue/`, 'skill queue'),
+      get(`/characters/${characterId}/skills`,     'skills'),
+      get(`/characters/${characterId}/attributes`, 'attributes'),
+      get(`/characters/${characterId}/implants`,   'implants'),
+      get(`/characters/${characterId}/skillqueue`, 'skill queue'),
     ]);
 
     if (sk.forbidden || attrs.forbidden) {
@@ -2157,7 +2174,7 @@ app.whenReady().then(async () => {
   // card if that character has a fleet advert up — player clicks it in-game.
   ipcHandle('open-character-info-window', async (_, { characterId, targetId }) => {
     const token = await getValidToken(characterId);
-    const url   = `https://esi.evetech.net/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
+    const url   = `${ESI_BASE}/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
     const res   = await fetch(url, {
       method:  'POST',
       headers: { Authorization: `Bearer ${token}` },

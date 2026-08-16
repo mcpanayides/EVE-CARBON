@@ -10,7 +10,8 @@
 // getWalletTransactions (local DB, ~500 most recent). The best competing price is
 // read from public region market orders via esiFetch (cached in-memory per view).
 
-const _TR_ESI = 'https://esi.evetech.net';
+// URLs come from the one ESI client (window.Esi, src/shared/esi.js). The
+// private base this replaced is what let a /v1/ market route survive here.
 
 let _trView     = 'undercut';       // 'undercut' | 'pnl' | 'profit'
 let _trChar     = 'all';            // 'all' or a characterId
@@ -148,7 +149,7 @@ async function _trFetchTypeOrders(regionId, typeId) {
     let batch = null;
     try {
       batch = await window.eveAPI.esiFetch(
-        `${_TR_ESI}/v1/markets/${regionId}/orders/?datasource=tranquility&order_type=all&type_id=${typeId}&page=${page}`
+        Esi.url(`/markets/${regionId}/orders`, { order_type: 'all', type_id: typeId, page })
       );
     } catch (_) { break; }
     if (!Array.isArray(batch) || !batch.length) break;

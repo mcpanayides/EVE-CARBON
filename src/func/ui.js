@@ -231,7 +231,7 @@ async function _pollEveStatus() {
   const count = document.getElementById('eveStatusCount');
   if (!light) return;
   try {
-    const res = await fetch('https://esi.evetech.net/status/?datasource=tranquility',
+    const res = await fetch(Esi.url('/status'),
                             { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s  = await res.json();

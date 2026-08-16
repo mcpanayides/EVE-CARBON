@@ -30,7 +30,7 @@ async function jabberResolvePortraits() {
   if (unresolved.length) {
     try {
       const res  = await fetch(
-        'https://esi.evetech.net/universe/ids/?datasource=tranquility',
+        Esi.url('/universe/ids'),
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },

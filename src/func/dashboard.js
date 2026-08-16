@@ -211,7 +211,7 @@ async function _pingResolveFcPortrait(img, fcName) {
   if (id === undefined && !_pingFcPortraitTried.has(key)) {
     _pingFcPortraitTried.add(key);
     try {
-      const res = await fetch('https://esi.evetech.net/universe/ids/?datasource=tranquility',
+      const res = await fetch(Esi.url('/universe/ids'),
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) });
       if (res.ok) {
         const data = await res.json();
@@ -3059,7 +3059,7 @@ async function _marketTrend(typeId) {
   let result = null;
   try {
     const hist = await window.eveAPI.esiFetch(
-      `https://esi.evetech.net/markets/10000002/history/?type_id=${typeId}&datasource=tranquility`
+      Esi.url('/markets/10000002/history', { type_id: typeId })
     );
     if (Array.isArray(hist) && hist.length >= 2) {
       const today = Number(hist[hist.length - 1].average);

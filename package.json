@@ -10,6 +10,7 @@
     "demo": "electron . --demo",
     "demo:shots": "node scripts/demo-shots.js",
     "lint": "node scripts/lint.js",
+    "esi:audit": "node scripts/esi-audit.js --list",
     "test": "node --test",
     "coverage": "node --test --experimental-test-coverage",
     "test:e2e": "playwright test",

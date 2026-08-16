@@ -37,7 +37,7 @@ async function resolvePlanetNames(planetIds) {
   await Promise.allSettled(missing.map(async id => {
     try {
       const res = await fetch(
-        `https://esi.evetech.net/universe/planets/${id}/?datasource=tranquility`
+        Esi.url(`/universe/planets/${id}`)
       );
       if (res.ok) {
         const j = await res.json();
@@ -227,7 +227,7 @@ async function prefetchJumpDistances(originSysId, charData) {
         // X-Compatibility-Date are added automatically by the fetch wrapper
         // in src/utils.js.
         const res = await fetch(
-          `https://esi.evetech.net/route/${originSysId}/${destId}/?datasource=tranquility`,
+          Esi.url(`/route/${originSysId}/${destId}`),
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
         );
         _piJumpCache[key] = res.ok

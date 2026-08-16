@@ -192,6 +192,18 @@ if (esiHits.length) {
   failed += esiHits.length;
 }
 
+// The ESI audit is the authoritative check and runs as part of lint, so there is
+// one command to satisfy rather than two to remember. The regex rules above stay
+// as a fast first signal; the audit is what cannot be side-stepped, because it
+// enumerates every mention of the host and demands an allowlist entry with a
+// reason rather than trying to recognise the shape of a mistake.
+try {
+  require('child_process').execFileSync(process.execPath,
+    [path.join(__dirname, 'esi-audit.js')], { stdio: 'inherit' });
+} catch (_) {
+  failed += 1;
+}
+
 if (failed) {
   console.error(`\nLint failed: ${failed} problem(s) across ${files.length} files.`);
   process.exit(1);

@@ -47,7 +47,7 @@ const demoPaths = demoMode.redirectPaths(app);
 // character DB is opened during app.whenReady() and cannot be deleted after.
 if (demoPaths) demoMode.reset(demoPaths);
 
-const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
+const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE, Esi } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 const resfileBackgrounds      = require('./src/resfile_backgrounds');
 const sdeFetch                = require('./src/sde_fetch');
 const createLocator           = require('./src/locator');
@@ -765,7 +765,7 @@ async function fetchAllianceContacts(characterId, allianceId) {
   if (cached) return { ok: true, allianceId, standings: cached };
   try {
     const token   = await getValidToken(characterId);
-    const authHdr = { Authorization: `Bearer ${token}` };
+    const authHdr = _esiAuthHeaders(token);
     const standings = {};
     let page = 1, totalPages = 1;
     while (true) {
@@ -995,7 +995,7 @@ ipcMain.handle('fc-get-character-fleet', async (_, characterId) => {
     const token = await getValidToken(characterId);
     const data  = await httpGet(
       `${ESI_BASE}/characters/${characterId}/fleet/?datasource=tranquility`,
-      { Authorization: `Bearer ${token}` }
+      _esiAuthHeaders(token)
     );
     return {
       inFleet: true,
@@ -1021,7 +1021,7 @@ ipcMain.handle('fc-get-fleet-members', async (_, characterId, fleetId) => {
     const token = await getValidToken(characterId);
     const data  = await httpGet(
       `${ESI_BASE}/fleets/${fleetId}/members/?datasource=tranquility`,
-      { Authorization: `Bearer ${token}` }
+      _esiAuthHeaders(token)
     );
     const members = (Array.isArray(data) ? data : []).map(m => ({
       characterId:    m.character_id,
@@ -1057,11 +1057,11 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
   try { token = await getValidToken(bossId); }
   catch (e) { return { ok: false, error: 'token: ' + e.message }; }
 
-  const authHdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const authHdr = _esiAuthHeaders(token, { 'Content-Type': 'application/json' });
   const base    = `${ESI_BASE}/fleets/${fleetId}`;
 
   const esiGet = async (url) => {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const r = await fetch(url, { headers: _esiAuthHeaders(token) });
     if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
     return r.json();
   };
@@ -1474,7 +1474,7 @@ ipcMain.handle('fit-get-fittings', async (_, characterId) => {
   let token;
   try { token = await getValidToken(characterId); }
   catch (e) { return { ok: false, error: 'token: ' + e.message }; }
-  const hdr = { Authorization: `Bearer ${token}` };
+  const hdr = _esiAuthHeaders(token);
   // ONE call. This used to loop ['v2','v1'] treating a 404 as "wrong guess, try
   // the other", because the route's version kept changing underneath us — the
   // exact problem compatibility dates exist to end. The unversioned path plus
@@ -1504,7 +1504,7 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
       ship_type_id: fitting.shipTypeId,
       items: (fitting.items || []).map(i => ({ type_id: i.typeId, flag: i.flag, quantity: i.quantity })),
     };
-    const hdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const hdr = _esiAuthHeaders(token, { 'Content-Type': 'application/json' });
     // One call — see the note on the read path above.
     const res = await fetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, {
       method: 'POST', headers: hdr, body: JSON.stringify(body),
@@ -1538,13 +1538,7 @@ async function _mailAuth(characterId) {
     // rather than to the snapshot the rest of the app is tested against. That
     // is the same silent divergence ping-alert.html had, which is why
     // src/shared/esi.js exists at all.
-    return {
-      hdr: {
-        Authorization: `Bearer ${token}`,
-        'User-Agent': APP_USER_AGENT,
-        'X-Compatibility-Date': ESI_COMPATIBILITY_DATE,
-      },
-    };
+    return { hdr: _esiAuthHeaders(token) };
   } catch (e) {
     return { error: { ok: false, error: 'token: ' + e.message } };
   }
@@ -2177,7 +2171,7 @@ app.whenReady().then(async () => {
     const url   = `${ESI_BASE}/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
     const res   = await fetch(url, {
       method:  'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: _esiAuthHeaders(token),
     });
     if (!res.ok && res.status !== 204) {
       const body = await res.text().catch(() => '');
@@ -2538,6 +2532,26 @@ function esiBudget() {
 // Pin ESI requests to a known-good compatibility date (see app_ident.js) —
 // scoped to esi.evetech.net only, same as the gate above, so it never leaks
 // onto unrelated hosts (resfile CDN, SSO, etc.) that don't understand it.
+/**
+ * The complete header set for an authenticated ESI call.
+ *
+ * Every one of these three is required, and building them by hand is how they
+ * went missing: twelve places in this file constructed a bare
+ * `{ Authorization }` and sent it straight to fetch(), so those calls reached
+ * CCP with no identity and no compatibility date — pinned to whatever the API
+ * does today rather than to the snapshot the rest of the app is tested against.
+ *
+ * Use this for anything that talks to ESI. httpGet/httpGetFull merge the compat
+ * header themselves, so passing this to them is redundant and harmless; a raw
+ * fetch() has nothing else to fall back on.
+ */
+function _esiAuthHeaders(token, extra) {
+  // Delegates rather than rebuilds. Writing the three headers out here would be
+  // a fourth copy of the identity block — the precise thing src/shared/esi.js
+  // exists to prevent, and the reason ping-alert.html once drifted.
+  return Esi.headers({ token, extra });
+}
+
 function _esiCompatHeader(url) {
   return /esi\.evetech\.net/i.test(String(url)) ? { 'X-Compatibility-Date': ESI_COMPATIBILITY_DATE } : {};
 }
@@ -2560,8 +2574,36 @@ function _esiGateWait(url) {
 // (res.headers['x-foo'], res.statusCode) and the Fetch API's Response
 // (res.headers.get('x-foo'), res.status) — getHeader()/statusCode abstract
 // over that so the actual gating logic is written once.
+// Warned about once per session, not per request: a mismatch is a standing
+// condition, and a line per call would bury it.
+let _esiCompatMismatchWarned = false;
+
 function _esiNoteResponseCore(url, statusCode, getHeader) {
   if (!/esi\.evetech\.net/i.test(String(url))) return;
+
+  // CCP's post asks clients to check the compatibility date they were served.
+  // What that header actually contains is easy to get wrong, and getting it
+  // wrong makes this warn on every single request: it is NOT an echo of the date
+  // we sent. It is the date that ROUTE last changed behaviour. /status answers
+  // "2020-01-01" whether we ask for 2026-07-20 or 2025-01-01 — measured, both.
+  //
+  // So served < pinned is the normal, healthy case: the route has not changed
+  // since before our pin, so our pin selects exactly that behaviour. The only
+  // thing worth a word is served > pinned, which would mean ESI handed us
+  // behaviour NEWER than the snapshot this build was tested against.
+  const served = getHeader('x-compatibility-date');
+  if (served && !_esiCompatMismatchWarned) {
+    const s = Date.parse(String(served));
+    const p = Date.parse(String(ESI_COMPATIBILITY_DATE));
+    if (isFinite(s) && isFinite(p) && s > p) {
+      _esiCompatMismatchWarned = true;
+      console.warn(`[ESI] served compatibility date ${served} is NEWER than the pinned `
+                 + `${ESI_COMPATIBILITY_DATE} on ${url}. This build has not been tested `
+                 + `against that behaviour — re-verify the payload shapes, then bump `
+                 + `COMPAT_DATE in src/shared/esi.js.`);
+    }
+  }
+
   const remain = parseInt(getHeader('x-esi-error-limit-remain') ?? '', 10);
   const reset  = parseInt(getHeader('x-esi-error-limit-reset')  ?? '', 10);
   // Remember the headroom, not just the pause. Callers that make SPECULATIVE
@@ -3274,7 +3316,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   await charInfoDb.ensureCharacterTables(characterId);
  
   const token = await getValidToken(characterId);
-  const authHdr = { Authorization: `Bearer ${token}` };
+  const authHdr = _esiAuthHeaders(token);
   const summary = { characterId, characterName, steps: {} };
  
   // 1. Character sheet
@@ -3433,7 +3475,7 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
   // 7. Assets (full paginated)
   // Re-fetch the token here — PI + implant resolution can take several minutes
   // and the original token (20-min lifetime) may have expired by now.
-  try { Object.assign(authHdr, { Authorization: `Bearer ${await getValidToken(characterId)}` }); } catch (_) {}
+  try { Object.assign(authHdr, _esiAuthHeaders(await getValidToken(characterId))); } catch (_) {}
   try {
     report('assets', 'Fetching assets (paginated)…');
     let allAssets = [];
@@ -3719,7 +3761,7 @@ ipcHandle('sync-character-full', async (event, characterId) => {
 async function statusCharacterSync(characterId) {
   await charInfoDb.ensureCharacterTables(characterId);
   const token   = await getValidToken(characterId);
-  const authHdr = { Authorization: `Bearer ${token}` };
+  const authHdr = _esiAuthHeaders(token);
 
   // Current location (+ station/structure + system names)
   try {
@@ -3770,7 +3812,7 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
  
   await charInfoDb.ensureCharacterTables(characterId);
   const token   = await getValidToken(characterId);
-  const authHdr = { Authorization: `Bearer ${token}` };
+  const authHdr = _esiAuthHeaders(token);
   const summary = { characterId, characterName, steps: {} };
  
   // 1. Character sheet

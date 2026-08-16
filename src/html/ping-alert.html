@@ -173,7 +173,7 @@
         }
       } catch(e) {}
       const res = await fetch(
-        'https://esi.evetech.net/universe/ids/?datasource=tranquility',
+        window.Esi.url('/universe/ids'),
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([systemName]) }
       );
       if (!res.ok) throw new Error(`ESI ${res.status} resolving system`);
@@ -200,7 +200,7 @@
       if (!img) return;
       try {
         const res = await fetch(
-          'https://esi.evetech.net/universe/ids/?datasource=tranquility',
+          window.Esi.url('/universe/ids'),
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) }
         );
         if (!res.ok) return;
@@ -426,7 +426,7 @@
           const charId   = accounts[0]?.characterId;
           if (!charId) throw new Error('No character logged in');
           const esiRes = await fetch(
-            'https://esi.evetech.net/universe/ids/?datasource=tranquility',
+            window.Esi.url('/universe/ids'),
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify([fcName]) }
           );
           if (!esiRes.ok) throw new Error(`ESI ${esiRes.status}`);

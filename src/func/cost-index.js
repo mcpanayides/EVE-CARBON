@@ -295,7 +295,7 @@ async function loadCIData(forceRefresh = false) {
 
     if (!_ciAllSystems || forceRefresh) {
       // ESI endpoint returns all systems with cost indexes
-      const resp = await window.eveAPI.esiFetch('https://esi.evetech.net/industry/systems/?datasource=tranquility');
+      const resp = await window.eveAPI.esiFetch(Esi.url('/industry/systems'));
       if (!Array.isArray(resp)) throw new Error('Unexpected ESI response format');
       _ciAllSystems = resp;
 
@@ -502,7 +502,7 @@ async function filterByJumpRange(systems, anchorId, maxJumps) {
         // developers.eveonline.com/blog/route-to-the-future-upgrading-the-route-route
         // and the current OpenAPI spec's RouteRequestBody schema.
         const result = await window.eveAPI.esiFetch(
-          `https://esi.evetech.net/route/${anchorId}/${destId}/?datasource=tranquility`,
+          Esi.url(`/route/${anchorId}/${destId}`),
           { method: 'POST', body: { preference: 'Shorter' } }
         );
         const route = result?.route;

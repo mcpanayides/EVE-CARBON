@@ -268,7 +268,7 @@ async function _indGetCostIndex(systemId) {
   try {
     let systems = (typeof _ciAllSystems !== 'undefined' && _ciAllSystems) ? _ciAllSystems : null;
     if (!systems) {
-      systems = await window.eveAPI.esiFetch('https://esi.evetech.net/industry/systems/?datasource=tranquility');
+      systems = await window.eveAPI.esiFetch(Esi.url('/industry/systems'));
     }
     (Array.isArray(systems) ? systems : []).forEach(s => {
       const mfg = (s.cost_indices || []).find(c => c.activity === 'manufacturing' || c.activity === 1);

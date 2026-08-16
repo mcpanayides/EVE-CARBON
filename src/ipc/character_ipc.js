@@ -1,6 +1,10 @@
 ﻿const { ipcMain } = require('electron');
 
-const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
+const { ESI_BASE, Esi } = require('../app_ident');   // one definition — src/shared/esi.js
+// Esi.headers({ token }) is the full set: bearer token, identity, and the
+// compatibility date. The two raw fetch() calls below sent only the token, so
+// they reached CCP anonymous and unpinned — httpGet's wrapper adds the compat
+// header for the calls that go through it, and these two do not.
 
 /**
  * registerCharacterHandlers
@@ -83,7 +87,7 @@ function registerCharacterHandlers({
                 + `&clear_other_waypoints=true&destination_id=${systemId}&datasource=tranquility`;
     const res   = await fetch(url, {
       method:  'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: Esi.headers({ token }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
@@ -112,7 +116,7 @@ function registerCharacterHandlers({
   ipcHandle('set-autopilot-route', async (_, { characterId, systemIds }) => {
     if (!Array.isArray(systemIds) || !systemIds.length) throw new Error('No route to send.');
     const token   = await getValidToken(characterId);
-    const headers = { Authorization: `Bearer ${token}` };
+    const headers = Esi.headers({ token });
     const sleep   = ms => new Promise(r => setTimeout(r, ms));
     let first = true, count = 0;
     for (const systemId of systemIds) {

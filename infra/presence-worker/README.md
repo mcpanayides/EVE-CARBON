@@ -1,5 +1,28 @@
 # EVE-Carbon presence worker
 
+> **Sessions must be written to storage. Do not "simplify" this back to a
+> memory-only Map.**
+>
+> The first version kept sessions only in `this.sessions`, on the reasoning that
+> a memory-only counter stores nothing and therefore leaks nothing. The
+> reasoning was fine; the assumption under it was not. **A Durable Object is
+> evicted from memory within about fifteen seconds of going idle** — measured
+> against this live worker on 2026-08-17: two sessions registered with a
+> 7-minute TTL read back as `count: 0` fifteen seconds later.
+>
+> With a 5-minute heartbeat that means no two clients are ever resident
+> together. Every beat lands on a cold object holding nothing, registers itself,
+> and is told `count: 1`. The symptom in the wild was three users on three
+> machines each seeing **"1 online"** — which looks exactly like a counter that
+> works. The 7-minute TTL was never doing anything; eviction collected sessions
+> long before it could.
+>
+> `test/presence_worker.test.js` now covers this by constructing a fresh
+> instance over the same storage, which is what eviction does. Note that the
+> nine tests written before it **all passed while this was broken in
+> production**, because every one of them used a single long-lived object — the
+> one condition under which a memory-only counter behaves perfectly.
+
 Counts how many copies of EVE-Carbon are running right now — anonymously.
 Apps send a heartbeat every ~5 minutes containing only a random per-launch
 session UUID; the worker keeps the IDs in memory for 7 minutes and answers

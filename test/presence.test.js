@@ -117,6 +117,12 @@ test('no breakdown at all is not an error', () => {
 });
 
 test('the count is reported alongside the breakdown', () => {
+  // Every field is null until the first heartbeat lands. `platforms` joined
+  // `versions` when the tooltip started reporting Windows/macOS/Linux; it is
+  // pinned here for the same reason `versions` is — the renderer destructures
+  // this shape, and a field silently disappearing from it blanks part of the
+  // tooltip with nothing thrown anywhere.
   presence.initPresence({ url: 'https://presence.example.com/presence', broadcast: () => {} });
-  assert.deepStrictEqual(presence.getPresenceCount(), { count: null, versions: null });
+  assert.deepStrictEqual(presence.getPresenceCount(),
+    { count: null, versions: null, platforms: null });
 });

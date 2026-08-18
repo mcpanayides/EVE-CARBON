@@ -6,8 +6,13 @@ compatibility_date = "2026-07-01"
 name = "PRESENCE"
 class_name = "PresenceCounter"
 
-# SQLite-backed DO classes are required on the free plan (we never actually
-# write to storage — the counter is memory-only by design).
+# SQLite-backed DO classes are required on the free plan.
+#
+# The original comment here said "we never actually write to storage — the
+# counter is memory-only by design". That design was wrong: a Durable Object is
+# evicted from memory within seconds of going idle (measured 2026-08-17), so a
+# memory-only counter with a 5-minute heartbeat reports 1 to everybody. Sessions
+# are now written through to storage, which is what this migration provides.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["PresenceCounter"]

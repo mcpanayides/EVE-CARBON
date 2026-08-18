@@ -20,6 +20,7 @@ let _timer = null;
 let _sessionId = null;
 let _lastCount = null;
 let _lastVersions = null;   // { "3.3.0": 12, "unknown": 5 } from the worker
+let _lastPlatforms = null;  // { Windows: 9, macOS: 8 } from the worker
 let _deps = null;   // { url, broadcast(channel, payload) }
 // Why the counter is not showing. Three states used to look identical from the
 // outside — never configured, configured but unreachable, and working but alone
@@ -35,10 +36,20 @@ async function _beat() {
     const res = await fetch(_deps.url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      // The version rides along so the worker can report which releases are in
-      // use. It is not what identifies the session — a worker that ignores the
-      // field, or a client that omits it, still counts perfectly well.
-      body:    JSON.stringify({ id: _sessionId, v: _deps.version || undefined }),
+      // Version and platform ride along so the worker can report which releases
+      // and which operating systems are actually in use. Neither identifies the
+      // session — a worker that ignores them, or a client that omits them,
+      // still counts perfectly well.
+      //
+      // `process.platform` is sent raw ("win32" / "darwin" / "linux") and the
+      // worker maps it to a display name from a fixed allowlist. Coarse by
+      // design: three buckets across every user is not something a person can
+      // be picked out of.
+      body:    JSON.stringify({
+        id: _sessionId,
+        v:  _deps.version  || undefined,
+        p:  _deps.platform || undefined,
+      }),
       signal:  AbortSignal.timeout(10000),
     });
     const data = await res.json();
@@ -48,7 +59,9 @@ async function _beat() {
       // Absent from an older worker, which is fine: the tooltip simply has
       // nothing to show while the count carries on working.
       _lastVersions = (data.versions && typeof data.versions === 'object') ? data.versions : null;
-      _deps.broadcast('presence-count', { count: _lastCount, versions: _lastVersions });
+      _lastPlatforms = (data.platforms && typeof data.platforms === 'object') ? data.platforms : null;
+      _deps.broadcast('presence-count',
+        { count: _lastCount, versions: _lastVersions, platforms: _lastPlatforms });
       return;
     }
   } catch (e) {
@@ -59,7 +72,8 @@ async function _beat() {
   }
   _lastCount = null;
   _lastVersions = null;
-  _deps.broadcast('presence-count', { count: null, versions: null });
+  _lastPlatforms = null;
+  _deps.broadcast('presence-count', { count: null, versions: null, platforms: null });
 }
 
 function _schedule() {
@@ -137,7 +151,7 @@ function summarisePresenceVersions(versions, topN = 3) {
 }
 
 function getPresenceCount() {
-  return { count: _lastCount, versions: _lastVersions };
+  return { count: _lastCount, versions: _lastVersions, platforms: _lastPlatforms };
 }
 
 /** Why the counter is or is not showing — surfaced in the app's console strip. */

@@ -287,6 +287,27 @@ function _presenceVersionParts(v) {
  * build", and a client too old to report its version is the furthest behind of
  * all.
  */
+/**
+ * Platform rows for the tooltip, biggest first.
+ *
+ * Returns NOTHING when every session is "unknown". Every build before platform
+ * reporting existed lands in that bucket, so until people have upgraded the
+ * honest answer is to show no breakdown at all rather than a row reading
+ * "unknown — 12 users", which tells the reader nothing and looks like a fault.
+ * Once some clients do report, "unknown" is kept as a real row: those users
+ * exist and dropping them would make the rows disagree with the headline count.
+ */
+function _presencePlatformRows(platforms) {
+  if (!platforms || typeof platforms !== 'object') return [];
+  const rows = Object.entries(platforms)
+    .filter(([, n]) => Number(n) > 0)
+    .map(([label, count]) => ({ label, count: Number(count) }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+
+  if (!rows.some(r => r.label !== 'unknown')) return [];
+  return rows;
+}
+
 function _presenceVersionRows(versions, topN = 3) {
   if (!versions || typeof versions !== 'object') return [];
   const named = Object.entries(versions)
@@ -312,25 +333,63 @@ function _updatePresenceCount(payload) {
   // Accepts either the plain number this used to receive or the richer payload
   // the heartbeat sends now, so a stale renderer never blanks the counter.
   const n = (payload && typeof payload === 'object') ? payload.count : payload;
-  const versions = (payload && typeof payload === 'object') ? payload.versions : null;
+  const versions  = (payload && typeof payload === 'object') ? payload.versions  : null;
+  const platforms = (payload && typeof payload === 'object') ? payload.platforms : null;
 
   if (typeof n === 'number' && n > 0) {
     label.textContent  = `${n.toLocaleString()} ONLINE`;
     wrap.style.display = 'inline-flex';
 
+    const users = (c) => `${c.toLocaleString()} user${c === 1 ? '' : 's'}`;
+    const parts = [`${n.toLocaleString()} running EVE Carbon right now`];
+
     const rows = _presenceVersionRows(versions);
-    wrap.title = rows.length
-      ? `${n.toLocaleString()} running EVE Carbon right now\n\n`
-        + rows.map(r => `${r.label} — ${r.count.toLocaleString()} user${r.count === 1 ? '' : 's'}`).join('\n')
-      : `${n.toLocaleString()} running EVE Carbon right now`;
+    if (rows.length) parts.push(rows.map(r => `${r.label} — ${users(r.count)}`).join('\n'));
+
+    const plat = _presencePlatformRows(platforms);
+    if (plat.length) parts.push(plat.map(r => `${r.label} — ${users(r.count)}`).join('\n'));
+
+    wrap.title = parts.join('\n\n');
   } else {
     wrap.style.display = 'none';
     wrap.removeAttribute('title');
   }
 }
+/**
+ * Stop animating a window nobody is looking at.
+ *
+ * MEASURED 2026-08-17, app open and idle: Electron's GPU process sat at
+ * 130-210% CPU — one and a half to two cores — indefinitely. The main offender
+ * was a pair of huge animated background gradients, and those have since been
+ * DELETED outright (see base.css). What remains are the two ticker tracks,
+ * which scroll on a 120s loop and are pinned into their own compositor layers
+ * by `will-change: transform`.
+ *
+ * That cost is invisible while the app is the thing you are looking at. It is
+ * not invisible here: this app exists to sit BEHIND EVE, so any idle animation
+ * competes with the very thing it is meant to support, on a machine already
+ * running several game clients.
+ *
+ * Chromium throttles animation in a HIDDEN window but not in one that is merely
+ * unfocused and occluded, which is this app's normal state. So we do it
+ * ourselves. Decorative animation only — spinners and progress indicators mean
+ * something and keep running.
+ */
+function _initIdleAnimationPause() {
+  const set = (idle) => document.body.classList.toggle('app-unfocused', idle);
+  window.addEventListener('blur',  () => set(true));
+  window.addEventListener('focus', () => set(false));
+  // Covers minimise and workspace switches, which do not always emit blur.
+  document.addEventListener('visibilitychange', () => set(document.hidden || !document.hasFocus()));
+  // Start in whatever state the window is actually in — launching straight into
+  // the background (an updater restart, say) must not leave it animating.
+  set(!document.hasFocus());
+}
+
 (function initPresenceCounterUI() {
   try {
     window.eveAPI?.on?.('presence-count', p => _updatePresenceCount(p));
+    _initIdleAnimationPause();
     window.eveAPI?.getPresenceCount?.().then(_updatePresenceCount).catch(() => {});
     // Say why the counter is missing. A hidden counter looks the same whether the
     // feature was never configured, the endpoint is down, or nobody else is

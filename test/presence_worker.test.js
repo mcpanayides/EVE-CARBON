@@ -29,6 +29,36 @@ async function counter() {
   return new PresenceCounter();
 }
 
+// ── A stand-in for Durable Object storage ────────────────────────────────────
+//
+// Enough of the real API to exercise the one property that matters: what
+// survives when the object is evicted. `evict()` throws away the instance and
+// builds a new one over the SAME storage, which is exactly what Cloudflare does
+// when an idle object is reclaimed and later woken.
+function fakeState() {
+  const map = new Map();
+  return {
+    _map: map,
+    blockConcurrencyWhile: (fn) => fn(),
+    storage: {
+      async put(k, v) { map.set(k, v); },
+      async delete(keys) { for (const k of [].concat(keys)) map.delete(k); },
+      async list({ prefix } = {}) {
+        return new Map([...map].filter(([k]) => !prefix || k.startsWith(prefix)));
+      },
+    },
+  };
+}
+
+async function durableCounter(state) {
+  const { PresenceCounter } = await import(WORKER);
+  const c = new PresenceCounter(state);
+  // The real constructor's hydration is fire-and-forget behind
+  // blockConcurrencyWhile; our fake runs it synchronously, so one tick settles it.
+  await Promise.resolve();
+  return c;
+}
+
 test('each distinct session adds one, and re-beating does not', async () => {
   const c = await counter();
   const a = uuid(), b = uuid();
@@ -115,4 +145,140 @@ test('the router answers only /presence, and only GET or POST', async () => {
   assert.strictEqual((await worker.fetch(new Request('https://x/other'), env)).status, 404);
   assert.strictEqual((await worker.fetch(new Request('https://x/presence', { method: 'DELETE' }), env)).status, 404);
   assert.strictEqual((await worker.fetch(new Request('https://x/presence'), env)).status, 200);
+});
+
+// ── Surviving eviction ───────────────────────────────────────────────────────
+//
+// THE BUG THESE EXIST FOR, and the reason the nine tests above all passed while
+// the counter was broken in production: every one of them uses a single
+// long-lived object, which is the one condition under which a memory-only
+// counter works perfectly.
+//
+// Cloudflare evicts an idle Durable Object within about fifteen seconds
+// (measured against the live worker, 2026-08-17: two sessions with a 7-minute
+// TTL read back as count 0). With a 5-minute heartbeat that means no two
+// clients are ever resident together — each beat lands on a cold object, counts
+// itself, and is told "1". Three users, three machines, each showing 1 online.
+
+test('sessions survive the object being evicted and woken', async () => {
+  const state = fakeState();
+  const a = uuid(), b = uuid();
+
+  let c = await durableCounter(state);
+  assert.strictEqual((await (await c.fetch(post({ id: a, v: '3.4.0' }))).json()).count, 1);
+
+  // Evicted between heartbeats — a new instance over the same storage.
+  c = await durableCounter(state);
+  const second = await (await c.fetch(post({ id: b, v: '3.4.0' }))).json();
+  assert.strictEqual(second.count, 2,
+    'the first client must still be counted after the object was reclaimed');
+  assert.deepStrictEqual(second.versions, { '3.4.0': 2 });
+});
+
+test('a GET after eviction still reports everyone', async () => {
+  const state = fakeState();
+  let c = await durableCounter(state);
+  await c.fetch(post({ id: uuid() }));
+  await c.fetch(post({ id: uuid() }));
+
+  c = await durableCounter(state);
+  assert.strictEqual((await (await c.fetch(get())).json()).count, 2);
+});
+
+test('expiry still removes a session, and clears it from storage too', async () => {
+  // The TTL has to keep working now that it is not the only thing collecting
+  // sessions — otherwise storage grows forever with pilots who logged off.
+  const state = fakeState();
+  const c = await durableCounter(state);
+  const old = uuid();
+  await c.fetch(post({ id: old }));
+  assert.strictEqual(state._map.size, 1);
+
+  // Age the stored session past the 7-minute TTL.
+  const rec = state._map.get('s:' + old);
+  rec.seen -= 8 * 60 * 1000;
+  c.sessions.get(old).seen = rec.seen;
+
+  assert.strictEqual((await (await c.fetch(get())).json()).count, 0);
+  assert.strictEqual(state._map.size, 0, 'storage must not keep the dead session');
+});
+
+test('a re-beat refreshes the stored record, not just the cached one', async () => {
+  const state = fakeState();
+  const c = await durableCounter(state);
+  const id = uuid();
+  await c.fetch(post({ id, v: '3.3.0' }));
+  await c.fetch(post({ id, v: '3.4.0' }));   // same session, upgraded app
+
+  const fresh = await durableCounter(state);
+  const out = await (await fresh.fetch(get())).json();
+  assert.strictEqual(out.count, 1, 'still one session, not two');
+  assert.deepStrictEqual(out.versions, { '3.4.0': 1 }, 'the newer version must have been written through');
+});
+
+test('the counter still works with no storage behind it at all', async () => {
+  // The offline path the other tests use. Passing no state must not throw —
+  // it simply behaves as the old memory-only counter did.
+  const c = await counter();
+  assert.strictEqual((await (await c.fetch(post({ id: uuid() }))).json()).count, 1);
+});
+
+// ── Platform breakdown ───────────────────────────────────────────────────────
+
+test('sessions are bucketed by platform under display names', async () => {
+  const c = await counter();
+  await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'win32' }));
+  await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'darwin' }));
+  await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'darwin' }));
+  const body = await (await c.fetch(get())).json();
+  assert.strictEqual(body.count, 3);
+  assert.deepStrictEqual(body.platforms, { Windows: 1, macOS: 2 });
+});
+
+test('a client that sends no platform still counts, as unknown', async () => {
+  // Every build shipped before platform reporting existed. They must keep
+  // counting exactly as before and simply not contribute to the breakdown.
+  const c = await counter();
+  await c.fetch(post({ id: uuid(), v: '3.4.0' }));
+  await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'linux' }));
+  const body = await (await c.fetch(get())).json();
+  assert.strictEqual(body.count, 2);
+  assert.deepStrictEqual(body.platforms, { unknown: 1, Linux: 1 });
+});
+
+test('an unrecognised platform is never echoed back', async () => {
+  // The field is attacker-controlled and the response is public. Unlike the
+  // version field, which must pass arbitrary release numbers through, this is a
+  // closed allowlist — nothing the client says can ever reach the response.
+  const c = await counter();
+  for (const p of ['<script>alert(1)</script>', 'sunos', 'x'.repeat(500), 42, { a: 1 }, null]) {
+    await c.fetch(post({ id: uuid(), p }));
+  }
+  const body = await (await c.fetch(get())).json();
+  assert.deepStrictEqual(Object.keys(body.platforms), ['unknown']);
+  assert.strictEqual(body.platforms.unknown, 6);
+});
+
+test('platform buckets sum to the count, and drop with a pruned session', async () => {
+  const c = await counter();
+  const stale = uuid();
+  await c.fetch(post({ id: stale, p: 'win32' }));
+  await c.fetch(post({ id: uuid(), p: 'darwin' }));
+  c.sessions.get(stale).seen = Date.now() - (8 * 60 * 1000);
+
+  const body = await (await c.fetch(get())).json();
+  assert.strictEqual(body.count, 1);
+  assert.deepStrictEqual(body.platforms, { macOS: 1 }, 'a pruned session must leave no bucket behind');
+  assert.strictEqual(Object.values(body.platforms).reduce((a, b) => a + b, 0), body.count);
+});
+
+test('platform survives eviction along with the session', async () => {
+  const state = fakeState();
+  let c = await durableCounter(state);
+  await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'win32' }));
+
+  c = await durableCounter(state);
+  const body = await (await c.fetch(post({ id: uuid(), v: '3.4.0', p: 'darwin' }))).json();
+  assert.strictEqual(body.count, 2);
+  assert.deepStrictEqual(body.platforms, { Windows: 1, macOS: 1 });
 });

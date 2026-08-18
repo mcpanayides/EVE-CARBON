@@ -27,7 +27,7 @@
   border: 1px solid var(--border); background: transparent; color: var(--text-2); transition: all 0.15s;
 }
 .cal-view-btn:hover  { background: var(--bg-hover); color: var(--text-1); }
-.cal-view-btn.active { background: rgba(0,122,204,0.18); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.cal-view-btn.active { background: var(--accent-20); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
 .cal-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .cal-legend  { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

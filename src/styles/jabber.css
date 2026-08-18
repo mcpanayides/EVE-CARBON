@@ -172,9 +172,6 @@
   font-size: 9px;
 }
 .jabber-link:hover { text-decoration: underline; opacity: 0.85; }
-/* ⊕ icon shown when a configured comms URL exists but isn't embedded in the text */
-.jabber-comms-join { font-size: 11px; vertical-align: middle; text-decoration: none !important; opacity: 0.7; }
-.jabber-comms-join:hover { opacity: 1; }
 
 /* TARGET column badges */
 .jtgt-badge {

@@ -107,6 +107,15 @@
   --nullsec:        #e0483a;                  /* null-sec space label            */
   --lawless:        #6a3a7a;                  /* wormhole / lawless space label  */
 
+  /* ── INDUSTRY EFFICIENCY ─────────────────────────────────────────────────────
+     EVE's own ME/TE colours, kept game-accurate by default so a blueprint reads
+     the same here as in the client. Declared as tokens rather than typed at each
+     call site so a user palette can re-point them: theme-vars.js binds --me to
+     the green swatch and --te to teal, the same way --hisec/--lowsec/--nullsec
+     bind to blue/yellow/red above. */
+  --me:             #4ada8a;                  /* material efficiency — ME bars, pills */
+  --te:             #00e5ff;                  /* time efficiency — TE bars, pills     */
+
   /* ── ESI BADGE ───────────────────────────────────────────────────────────── */
   --esi-green:      rgba(74, 218, 138, 0.25); /* esi-badge border                */
   --esi-green-dim:  rgba(74, 218, 138, 0.08); /* esi-badge background            */
@@ -159,12 +168,15 @@
   --glow-body-b1:   rgba(50, 130, 180, 0.10);
   --glow-body-b2:   rgba(40, 80, 200, 0.14);
 
-  /* ── AMBIENT GLOW DIVS — large nebula behind the frame ───────────────────── */
-  /* .concord-glow-main — large primary glow injected by HTML */
+  /* ── AMBIENT GLOW — PING-ALERT POPUP ONLY ────────────────────────────────
+     These used to colour a pair of huge animated gradients behind the whole
+     app. Those are deleted (see base.css: they cost 130-210% GPU-process CPU
+     for something glass blur had already hidden). The tokens remain because
+     `ping-alert.css` still uses them for its own small, transient popup, where
+     the same cost does not apply. Do not reintroduce them into the main frame. */
   --glow-main-1:    rgba(30, 80, 220, 0.34);
   --glow-main-2:    rgba(30, 40, 120, 0.30);
   --glow-main-3:    rgba(10, 20, 80, 0.08);
-  /* .concord-glow-secondary — mid-screen secondary glow */
   --glow-sec-1:     rgba(20, 60, 140, 0.10);
   --glow-sec-2:     rgba(40, 70, 150, 0.24);
 }

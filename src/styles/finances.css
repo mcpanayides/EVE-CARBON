@@ -135,7 +135,7 @@ body.lp-resizing, body.lp-resizing * { cursor: col-resize !important; -webkit-us
 .tr-row-bad { background: color-mix(in srgb, var(--danger) 7%, transparent); }
 
 .tr-td-name { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: normal; }
-.tr-icon { width: 24px; height: 24px; flex-shrink: 0; border-radius: 3px; border: 1px solid var(--border); }
+.tr-icon { width: 24px; height: 24px; flex-shrink: 0; border-radius: 3px; }
 
 .tr-side { font-family: var(--mono); font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; letter-spacing: 0.05em; }
 .mo-buy  { color: var(--pal-green, #4ada8a); background: color-mix(in srgb, var(--pal-green, #4ada8a) 14%, transparent); }

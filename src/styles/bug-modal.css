@@ -1,30 +1,10 @@
 /* ══════════════════════════════════════════════════════════════════
-   bug-modal.css  —  bug FAB button + bug report modal
+   bug-modal.css  —  bug report modal
    Modernized to the spatial-glass design language: the shell is a
    glass slab (glass.css supplies blur/tint in glass mode), header and
    footer are transparent bands with hairline dividers, fields are
    rounded recessed wells, and severity picks are floating tiles.
    ══════════════════════════════════════════════════════════════════ */
-
-/* ── BUG FAB ── */
-.bug-fab {
-  position: absolute; bottom: 24px; left: 74px;
-  width: 54px; height: 54px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-e);
-  border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-1); cursor: pointer; font-size: 21px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
-  z-index: 10005;
-}
-.bug-fab:hover {
-  background: rgba(192, 57, 43, 0.10);
-  border-color: var(--danger);
-  color: var(--danger);
-  transform: translateY(-2px);
-}
 
 /* ── BACKDROP ── */
 .bug-backdrop { align-items: center; justify-content: center; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); z-index: 10010; }

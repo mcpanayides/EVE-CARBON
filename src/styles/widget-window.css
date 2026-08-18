@@ -120,35 +120,10 @@ body.glass-on { background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alp
 .iw-list::-webkit-scrollbar       { width: 4px; }
 .iw-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-.iw-row {
-  display: flex; align-items: center; gap: 9px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
-}
-/* Jumps lead here too — the exact number. Time is inferred and sits below. */
-.iw-jumps {
-  flex: none; width: 34px; text-align: center;
-  font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1;
-}
-.iw-j    { font-size: 10px; font-weight: 400; opacity: 0.55; }
-.iw-body { min-width: 0; flex: 1; }
-.iw-name {
-  font-size: 12px; font-weight: 600; color: var(--text-1);
-  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
-}
-.iw-meta {
-  font-size: 10px; color: var(--text-3); margin-top: 1px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-
-/* Urgency reuses the shared intel colours so the widget and the page agree. */
-.iw-row.intel-critical { border-left-color: var(--pal-red); }
-.iw-row.intel-critical .iw-jumps { color: var(--pal-red); }
-.iw-row.intel-warning  { border-left-color: var(--pal-gold); }
-.iw-row.intel-warning .iw-jumps  { color: var(--pal-gold); }
-.iw-row.intel-watch    { border-left-color: var(--border); }
-.iw-row.intel-watch .iw-jumps    { color: var(--text-2); }
+/* Rows themselves are styled by fc.css: this window renders them through the
+   SAME shared builder the Early Warning page uses (src/shared/intel-row.js),
+   which emits .ir-* markup. A local .iw-row/.iw-jumps set used to live here
+   and was left behind when the window moved onto the shared builder. */
 
 /* A brief edge flash on a new alert: visible in peripheral vision when the
    window is parked at the side of the screen and you're looking at the game. */

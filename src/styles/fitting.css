@@ -440,7 +440,6 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fit-stats-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 10px; }
 .fit-note { color: var(--text-3); opacity: 0.7; }
-.fit-pending { opacity: 0.85; border-style: dashed; }
 
 .fit-stat-row { margin-bottom: 10px; }
 .fit-stat-top { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--mono); color: var(--text-2); margin-bottom: 4px; }

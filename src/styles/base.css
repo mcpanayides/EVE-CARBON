@@ -13,16 +13,13 @@
 
   /* ── REEDED GLASS / SPATIAL UI ───────────────────────────────────────────────
      The window itself is transparent (Windows acrylic blurs the desktop behind
-     it — see main.js). These tokens drive the see-through tint and the reeded
-     (fluted) glass overlay. All are user-tunable from Settings → Background
-     and overridden inline on :root at startup from localStorage 'eve-glass'.  */
+     it — see main.js). These tokens drive the see-through tint. All are
+     user-tunable from Settings → Background and overridden inline on :root at
+     startup from localStorage 'eve-glass'.  */
   --glass-tint-rgb:      7, 18, 18;             /* tint colour of all glass surfaces (darkened #2B7273 default) */
   --glass-bg-alpha:      0.15;                  /* body wash over the raw acrylic     */
   --glass-tint-alpha:    0.45;                  /* panel/card surface opacity         */
   --glass-blur-scale:    1.45;                  /* frost blur multiplier (Settings → Background) */
-  --flute-width:         8px;                   /* pitch of one vertical glass rib    */
-  --flute-highlight:     rgba(255, 255, 255, 0.055); /* specular edge of each rib     */
-  --flute-shadow:        rgba(0, 0, 0, 0.16);   /* concave centre of each rib         */
   --glass-edge:          rgba(255, 255, 255, 0.09);  /* 1px panel rim light            */
   --glass-specular:      rgba(255, 255, 255, 0.14);  /* inset top highlight            */
   --glass-shadow:        rgba(0, 0, 0, 0.45);   /* floating panel depth shadow        */
@@ -131,25 +128,18 @@ body::after {
   pointer-events: none;
 }
 
-/* ── REEDED GLASS MODE ──────────────────────────────────────────────────────────
+/* ── GLASS MODE ────────────────────────────────────────────────────────────────
    body.glass-on: the page background becomes a translucent wash so the OS
-   acrylic (blurred desktop) shows through, and #appGlassFlutes lays a sheet of
-   vertical glass ribs across the whole window. Each rib is one repeat of the
-   gradient: a bright specular line on its left edge, falling into a soft
-   concave shadow at its centre, then a faint counter-highlight — which is what
-   reads as fluted/reeded glass over the blur. */
+   acrylic (blurred desktop) shows through.
+
+   A reeded-glass flute overlay used to sit on top of this — a full-window sheet
+   of vertical ribs. It was retired because the rib lines fought the dense UI
+   instead of reading as glass, and the hidden layer, its #appGlassFlutes div and
+   its three --flute-* tokens were all removed with it. Do not reinstate without
+   a new design: the acrylic blur alone carries the texture now. */
 body.glass-on {
   background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alpha));
-}
-
-/* Flute stripe overlay retired — the vertical rib lines fought the dense UI
-   instead of reading as glass. The layer stays in the DOM (harmless, hidden)
-   in case a subtler treatment returns later. */
-#appGlassFlutes { display: none; }
-
-/* In glass mode the heavy opaque hatch pattern fights the flutes — drop it and
-   let the acrylic + flute layer carry the texture instead. */
-body.glass-on {
+  /* The heavy opaque hatch pattern fights the acrylic — drop it in glass mode. */
   background-image: none;
 }
 
@@ -178,7 +168,6 @@ body.glass-on {
 .main-content { flex: 1; overflow: hidden; background: transparent; min-width: 0; display: flex; flex-direction: column; padding-top: 20px; }
 .main-content::-webkit-scrollbar { width: 5px; }
 .main-content::-webkit-scrollbar-thumb { background: var(--border-b); border-radius: 3px; }
-.results-area { padding: 16px; }
 
 /* ── ANIMATIONS ── */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -186,47 +175,43 @@ body.glass-on {
 .sync-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--spinner-track); border-top-color: var(--accent); display: inline-block; box-sizing: border-box; }
 .sync-spinner.spin { animation: spin 1s linear infinite; }
 
-/* ── AMBIENT GLOW DIVS (injected by HTML) ── */
-.concord-bg-glow {
-  position: fixed;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: 50%;
-  mix-blend-mode: screen;
+/* ── The ambient glow divs are GONE. Do not reinstate them. ─────────────────
+   There used to be two fixed-position radial gradients behind the whole app —
+   `.concord-glow-main` at 1600x1600px and a 500x500px secondary — each pulsing
+   `transform: scale()` and `opacity` on an infinite loop.
+
+   MEASURED 2026-08-17, app merely open and idle: Electron's GPU process sat at
+   130-210% CPU. One and a half to two cores, continuously, for a decoration.
+
+   Scaling a GRADIENT is not the cheap compositor path that scaling a texture
+   is — the gradient is re-rasterised every frame, so this was ~2.5 million
+   pixels repainted 60 times a second, forever, on every page.
+
+   And it mattered more here than it would in most apps: this one is designed to
+   sit BEHIND the EVE client. It was spending two cores animating a background
+   that a game window was covering, competing with the very thing it exists to
+   support, on a machine already running several EVE clients.
+
+   By the time it was measured the design had moved on anyway — glass blur and
+   background imagery had left the glow invisible. Deleted rather than paused.
+   The `--glow-main-*` / `--glow-sec-*` tokens stay because `ping-alert.css`
+   still uses them for its own (small, transient) popup window. */
+
+/* ── Stop animating a window nobody is looking at ───────────────────────────
+   Chromium throttles animation in a HIDDEN window but not in one that is merely
+   unfocused and occluded — which is this app's normal state, sitting behind the
+   game. So the remaining decorative loops are paused explicitly. Spinners and
+   progress indicators are deliberately excluded: they mean something. */
+body.app-unfocused .market-ticker-track,
+body.app-unfocused .kt-track {
+  animation-play-state: paused;
 }
 
-.concord-glow-main {
-  top: -300px;
-  left: -300px;
-  width: 1600px;
-  height: 1600px;
-  background: radial-gradient(
-    ellipse at 35% 35%,
-    var(--glow-main-1) 0%,
-    var(--glow-main-2) 28%,
-    var(--glow-main-3) 52%,
-    transparent 35%
-  );
-  animation: concordGlowPulse 8s ease-in-out infinite;
-}
-
-.concord-glow-secondary {
-  top: 40%;
-  left: -120px;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(
-    ellipse at center,
-    var(--glow-sec-1) 0%,
-    var(--glow-sec-2) 45%,
-    transparent 70%
-  );
-  animation: concordGlowPulse 12s ease-in-out infinite reverse;
-}
-
-@keyframes concordGlowPulse {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50%       { opacity: 1.0;  transform: scale(1.06); }
+/* will-change permanently promotes a layer and permanently costs memory and
+   compositor work. Only worth paying while the thing is actually animating. */
+body.app-unfocused .market-ticker-track,
+body.app-unfocused .kt-track {
+  will-change: auto;
 }
 
 /* ── REDUCED MOTION ──────────────────────────────────────────────────────────
@@ -241,8 +226,6 @@ body.glass-on {
    Centralised here with !important so one reviewable block wins over the same-
    specificity animation rules declared later in dashboard/fitting/PI CSS. */
 @media (prefers-reduced-motion: reduce) {
-  .concord-glow-main,
-  .concord-glow-secondary,
   .market-ticker-track,
   .kt-track,
   .dash-ping-dot,
@@ -384,8 +367,6 @@ body.glass-on {
 .panel-header { font-size: 9px; letter-spacing: 0.2em; color: var(--text-4); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border-e); }
 .panel-icon  { color: var(--accent); }
 .panel-count { margin-left: auto; background: var(--accent-dim); color: var(--accent); font-size: 10px; padding: 1px 6px; border-radius: 10px; font-family: var(--mono); }
-.add-btn     { margin-left: auto; width: 20px; height: 20px; background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 2px; color: var(--accent); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
-.add-btn:hover { background: var(--accent); color: var(--text-on-accent); }
 
 /* ── SHARED LOADING ROW ── */
 .loading-row { text-align: center; padding: 2rem; color: var(--text-2); font-size: 12px; letter-spacing: 0.08em; }
@@ -445,24 +426,6 @@ input[type="range"] { accent-color: var(--accent); }
 .character-card > * {
   position: relative;
   z-index: 2;
-}
-
-/* ── BLUEPRINT CARD ── */
-.blueprint-card {
-  background: var(--bg-card-deep);
-  border: 1px solid var(--border-e);
-  border-radius: var(--radius);
-}
-.blueprint-card:hover {
-  border-color: var(--accent-30);
-  background: var(--accent-03);
-}
-
-/* ── SELECTED BP CARD ── */
-.selected-bp-card {
-  background: var(--bg-card-deep);
-  border: 1px solid var(--accent-25);
-  box-shadow: 0 0 12px var(--accent-06);
 }
 
 /* ── MODALS / DRAWERS ── */
@@ -608,11 +571,6 @@ input[type="range"] { accent-color: var(--accent); }
 .sidebar.nav-collapsed .panel-icon           { display: none; }       /* drop header text */
 .sidebar.nav-collapsed .nav-header           { justify-content: center; }
 .sidebar.nav-collapsed .nav-toggle-btn       { position: static; }    /* center the toggle */
-/* Active character panel: keep the portrait, drop the text when narrow. */
-.sidebar.nav-collapsed .active-char-header,
-.sidebar.nav-collapsed .active-char-info     { display: none; }
-.sidebar.nav-collapsed .active-char-card     { justify-content: center; }
-.sidebar.nav-collapsed .active-char-portrait { width: 32px; height: 32px; }
 
 /* ── NAV DIVIDER (separates utility buttons at bottom of nav list) ── */
 .nav-divider {
@@ -630,7 +588,6 @@ input[type="range"] { accent-color: var(--accent); }
 .settings-menu-btn:hover  { background: var(--bg-card); }
 .settings-menu-btn.active { background: var(--bg-card); color: var(--accent); border: 1px solid var(--border); }
 
-.settings-content      { flex: 1; overflow-y: auto; padding: 16px; }
 .settings-tab          { width: 100%; }
 .settings-panel-block  { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .settings-panel-title  { font-size: 14px; font-weight: 600; color: var(--text-1); }
@@ -699,19 +656,6 @@ input[type="range"] { accent-color: var(--accent); }
 .asset-table tbody tr:hover { background: rgba(255,255,255,0.03); }
 .asset-table tbody td       { padding: 4px 10px; vertical-align: middle; color: var(--text-1); font-size: 12px; }
 
-/* Owner cell — portrait + name stacked */
-.asset-owner-cell           { white-space: nowrap; }
-.asset-owner-wrap           { display: flex; align-items: center; gap: 7px; }
-.asset-owner-portrait       { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); object-fit: cover; flex-shrink: 0; }
-.asset-owner-name           { font-size: 11px; color: var(--text-2); white-space: nowrap; }
-
-/* Qty column — right-aligned, monospace */
-.asset-qty-header,
-.asset-qty                  { text-align: right; font-family: var(--mono); color: var(--text-2); white-space: nowrap; }
-
-/* Numeric / status columns */
-.asset-sec, .asset-price    { text-align: right; font-family: var(--mono); white-space: nowrap; }
-.asset-region, .asset-corp  { color: var(--text-2); }
 /* ── Update banner ─────────────────────────────────────────────────────────────
    Two severities. The ordinary one is the calm green it has always been; the
    critical one has to survive being ignored, because the whole point is that

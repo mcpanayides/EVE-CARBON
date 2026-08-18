@@ -388,9 +388,6 @@
 <!-- ── User background wallpaper (behind all UI; hidden until one is chosen) ─ -->
 <div id="appBackground" aria-hidden="true"><div id="appBackgroundOverlay"></div></div>
 
-<!-- ── Reeded glass flutes — full-window vertical ribs over the acrylic layer ─ -->
-<div id="appGlassFlutes" aria-hidden="true"></div>
-
 <!-- Apply saved glass state BEFORE first paint so acrylic never flashes solid -->
 <script>
 (function () {
@@ -419,9 +416,9 @@
 })();
 </script>
 
-<!-- ── Ambient glow ──────────────────────────────────────────────────────── -->
-<div class="concord-bg-glow concord-glow-main"      aria-hidden="true"></div>
-<div class="concord-bg-glow concord-glow-secondary" aria-hidden="true"></div>
+<!-- The two ambient glow divs that used to sit here are gone: measured at
+     130-210% GPU-process CPU for a decoration that glass blur and the
+     background imagery had already hidden. See base.css for the measurement. -->
 
 <!-- ── Title bar ────────────────────────────────────────────────────────── -->
 <div class="titlebar">

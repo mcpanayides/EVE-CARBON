@@ -26,7 +26,7 @@
   transition: all 0.15s ease;
 }
 .rx-hub-btn:hover  { background: var(--bg-hover); color: var(--text-1); }
-.rx-hub-btn.active { background: rgba(0,122,204,0.18); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.rx-hub-btn.active { background: var(--accent-20); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
 /* Scrap-return slider block */
 .rx-scrap {
@@ -52,9 +52,9 @@
 }
 .rx-card:hover {
   background: rgba(255,255,255,0.04); transform: translateY(-2px);
-  border-top-color: rgba(0,122,204,0.16);
-  border-right-color: rgba(0,122,204,0.16);
-  border-bottom-color: rgba(0,122,204,0.16);
+  border-top-color: var(--accent-15);
+  border-right-color: var(--accent-15);
+  border-bottom-color: var(--accent-15);
 }
 
 /* Top row holding the colour-coded group chip */

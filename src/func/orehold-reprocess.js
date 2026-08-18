@@ -333,7 +333,7 @@ function renderOreholdResults() {
         <div style="display:flex;align-items:center;gap:8px;">
           <img src="https://images.evetech.net/types/${r.id}/icon?size=32"
                onerror="this.onerror=null;this.style.display='none';"
-               style="width:22px;height:22px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+               style="width:22px;height:22px;border-radius:3px;flex-shrink:0;">
           <span style="color:var(--text-1);">${escHtml(r.name)}</span>
         </div>
       </td>

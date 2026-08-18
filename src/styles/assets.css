@@ -14,30 +14,6 @@
   overflow: hidden;
 }
 
-.asset-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 14px 20px 10px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.asset-page-header h2 {
-  font-size: 13px;
-  letter-spacing: 0.18em;
-  color: var(--text-1);
-  font-weight: 600;
-  margin-bottom: 3px;
-}
-
-.asset-page-desc {
-  font-size: 10px;
-  color: var(--text-3);
-  font-family: var(--mono);
-  letter-spacing: 0.05em;
-}
-
 .close-page-btn {
   background: none;
   border: none;
@@ -88,26 +64,6 @@
   min-width: 140px;
 }
 
-/* Reload button */
-.asset-reload-btn {
-  padding: 6px 14px;
-  font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  background: var(--bg-deep);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-.asset-reload-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--accent);
-  color: var(--accent);
-}
 
 /* ── TABLE WRAPPER ───────────────────────────────────────────────────────────── */
 .asset-table-wrapper {
@@ -270,16 +226,6 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
   font-style: normal;
 }
 
-/* Character portrait */
-.asset-group-portrait {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.1);
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
 /* Security badge. Colour comes from the shared data palette rather than a hex
    literal written into the row markup — themes override those tokens, and a
    hardcoded hue would survive a theme change while nothing around it did. */
@@ -407,9 +353,6 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
 }
 .asset-item-row:hover td { background: rgba(255,255,255,0.025); }
 
-/* Hidden state — toggled by collapse */
-.asset-row-hidden { display: none !important; }
-
 /* Type icon cell */
 .asset-item-icon-cell {
   width: 42px;
@@ -506,8 +449,7 @@ tbody tr:first-child.asset-group-header .asset-group-header-cell {
 /* Highlight items with a known price */
 .asset-item-price-cell.has-price { color: var(--text-1); }
 
-/* Loading / N/A states */
-.asset-item-price-cell.price-loading { color: var(--text-3); font-style: italic; }
+/* N/A state */
 .asset-item-price-cell.price-na      { color: var(--text-3); }
 
 /* ── COLUMN RESIZE HANDLES ───────────────────────────────────────────────────── */

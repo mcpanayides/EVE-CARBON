@@ -2,8 +2,6 @@
    Reuses .mail-tabs for the Wallets│Contracts strip; everything below is the
    contract list itself. Palette tokens only, so it follows every theme. */
 
-.wallets-tabs { flex-shrink: 0; }
-
 .ct-bar {
   display: flex;
   align-items: center;

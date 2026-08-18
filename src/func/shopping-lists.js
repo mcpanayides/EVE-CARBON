@@ -249,7 +249,13 @@ function renderShoppingLists(container) {
 //
 // One modal serves both naming a new list and renaming an existing one; the
 // version that only handled "new" is what left rename reaching for prompt().
-function showShoppingListNameModal({ title, value = '', confirmLabel, onSubmit }) {
+//
+// It is also the app's ONLY name-entry dialog, so the Fleet Tracker names its
+// ops through it rather than adding a second one (or reaching for the prompt()
+// that throws). Hence `placeholder` being a parameter — the name is the only
+// list-specific thing left about it.
+function showShoppingListNameModal({ title, value = '', confirmLabel, onSubmit,
+                                     placeholder = 'List name…' }) {
   const backdrop = document.createElement('div');
   backdrop.id = 'slNameBackdrop';
   backdrop.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9000;
@@ -263,7 +269,7 @@ function showShoppingListNameModal({ title, value = '', confirmLabel, onSubmit }
                 cursor:pointer;font-size:18px;padding:0;">✕</button>
       </div>
       <div style="display:flex;gap:8px;">
-        <input id="slNameInput" class="field-input" placeholder="List name…" style="flex:1;"/>
+        <input id="slNameInput" class="field-input" placeholder="${escHtml(placeholder)}" style="flex:1;"/>
         <button id="slNameConfirm" class="bp-view-btn" style="padding:6px 14px;font-size:11px;white-space:nowrap;">${escHtml(confirmLabel)}</button>
       </div>
     </div>`;
@@ -417,7 +423,7 @@ async function _renderSlContent() {
           <div style="display:flex;align-items:center;gap:10px;">
             <img src="${ESI_IMG_SL}/${item.typeId}/icon?size=32"
                  onerror="this.style.display='none'"
-                 style="width:26px;height:26px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+                 style="width:26px;height:26px;border-radius:3px;flex-shrink:0;">
             <div>
               <div style="font-size:12px;color:var(--text-1);">${escHtml(item.name)}</div>
               ${item.sources?.length

@@ -149,15 +149,6 @@ body.glass-on .toast {
   border-radius: 12px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 var(--glass-specular);
 }
-body.glass-on .bug-fab {
-  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.15));
-  backdrop-filter: blur(calc(16px * var(--glass-blur-scale, 1))) saturate(140%);
-  -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale, 1))) saturate(140%);
-  border: 1px solid var(--glass-edge);
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
 /* ── FORM CONTROLS — thin glass wells inside panels ────────────────────────── */
 body.glass-on input[type="text"],
 body.glass-on input[type="number"],

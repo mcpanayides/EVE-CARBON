@@ -338,8 +338,7 @@ async function _buildSalvageTable() {
                 onmouseleave="this.style.background=''">
       <td style="padding:9px 14px;display:flex;align-items:center;gap:9px;">
         <img src="${ESI_IMAGE}/${rig.rigTypeID}/icon?size=32"
-             style="width:28px;height:28px;border-radius:6px;
-                    border:1px solid var(--border);background:var(--bg-deep);flex-shrink:0;"
+             style="width:28px;height:28px;border-radius:6px;flex-shrink:0;"
              onerror="this.style.display='none'"/>
         <span style="color:var(--text-1);font-size:12px;">${escHtml(rig.rigName)}</span>
       </td>
@@ -553,8 +552,7 @@ async function _runBulkSalvage() {
                 onmouseleave="this.style.background='${rowBg}'">
       <td style="padding:8px 14px;display:flex;align-items:center;gap:9px;">
         <img src="${ESI_IMAGE}/${rig.rigTypeID}/icon?size=32"
-             style="width:26px;height:26px;border-radius:5px;border:1px solid var(--border);
-                    background:var(--bg-deep);flex-shrink:0;"
+             style="width:26px;height:26px;border-radius:5px;flex-shrink:0;"
              onerror="this.style.display='none'"/>
         <span style="color:${canBuild > 0 ? 'var(--text-1)' : 'var(--text-3)'};font-size:12px;">
           ${escHtml(rig.rigName)}

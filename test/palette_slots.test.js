@@ -73,6 +73,42 @@ test('the operational signals are NOT offered as swatches', () => {
   }
 });
 
+test('the game-derived ME/TE colours are tokens, not literals', () => {
+  // EVE's own material/time-efficiency hues. They ship game-accurate, but they
+  // are tokens so a user palette can re-point them — the opposite of a signal,
+  // which must never move. The failure this guards is the one that was here
+  // before: #00e5ff typed straight into four rules, so a custom palette
+  // recoloured everything around the ME/TE bars and left the bars behind.
+  const theme = fs.readFileSync(path.join(STYLES_DIR, 'theme-default.css'), 'utf8');
+  for (const tok of ['--me', '--te']) {
+    assert.ok(new RegExp(`\\s${tok}:`).test(theme), `${tok} must be declared in theme-default.css`);
+  }
+
+  // No stylesheet outside the theme may re-type the hues.
+  for (const f of fs.readdirSync(STYLES_DIR).filter(n => n.endsWith('.css') && n !== 'theme-default.css')) {
+    const css = fs.readFileSync(path.join(STYLES_DIR, f), 'utf8');
+    for (const lit of ['#00e5ff', '#2c6b2a', '#0f6b74']) {
+      assert.ok(!css.toLowerCase().includes(lit), `${f} hardcodes ${lit} instead of var(--me)/var(--te)`);
+    }
+  }
+
+  // And a custom palette must actually move them, or "customizable" is a claim
+  // rather than a behaviour.
+  const TV = require(path.join(ROOT, 'src', 'shared', 'theme-vars.js'));
+  const sw = {
+    red: '#e0483a', teal: '#4ecbb0', purple: '#9b7fd4', pink: '#e47baf', green: '#4ada8a',
+    yellow: '#e6c84a', orange: '#f58c42', gold: '#ffd24a', blue: '#4a9fd4',
+    background: '#070a12', panel: '#10141f', text: '#ccd1da', border: '#3a4150',
+  };
+  const roles = { accent: 'red', danger: 'red', success: 'green', warning: 'orange', info: 'blue' };
+  const base = TV.buildCssVarsFromCustom(sw, roles);
+  const alt  = TV.buildCssVarsFromCustom({ ...sw, green: '#ff8800', teal: '#8800ff' }, roles);
+  for (const tok of ['--me', '--te']) {
+    assert.ok(base[tok], `${tok} is not derived for user palettes`);
+    assert.notStrictEqual(alt[tok], base[tok], `${tok} ignored the user's swatch`);
+  }
+});
+
 test('no theme file overrides a signal', () => {
   // signals.css is linked after the theme so it wins anyway, but a theme that
   // tries is a sign somebody misunderstood the split.

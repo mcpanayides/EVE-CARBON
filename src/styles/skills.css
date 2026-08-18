@@ -237,22 +237,6 @@
 .sk-boost-tag.fast  { color: var(--accent); }
 .sk-boost-tag.value { color: var(--success, var(--pal-green)); }
 
-.sk-imp-rows { display: flex; flex-direction: column; gap: 2px; }
-.sk-imp-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 3px 6px;
-  border-radius: 3px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-2);
-}
-.sk-imp-row > span { width: 74px; }
-.sk-imp-row > b    { flex: 1; color: var(--value-bright, var(--text-1)); }
-.sk-imp-row > i    { font-style: normal; color: var(--success, var(--pal-green)); }
-.sk-imp-row.current { background: var(--nav-active-bg); color: var(--accent); }
-
 /* ── Modal (Electron has no window.prompt) ── */
 .sk-modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; }
 .sk-modal {
@@ -302,17 +286,6 @@
   margin-bottom: 14px;
 }
 
-/* ── Add-a-skill row (legacy single-line variant) ── */
-.sk-add {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.sk-add .field-input:first-child { flex: 1; min-width: 220px; }
 .sk-check {
   display: flex;
   align-items: center;
@@ -321,45 +294,6 @@
   font-size: 11px;
   color: var(--text-2);
   white-space: nowrap;
-}
-
-/* Search results float over the content so the layout doesn't jump. */
-.sk-suggest {
-  position: absolute;
-  top: calc(100% - 6px);
-  left: 16px;
-  right: 16px;
-  z-index: 20;
-  background: var(--bg-panel);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  max-height: 320px;
-  overflow-y: auto;
-  box-shadow: 0 14px 40px var(--shadow-dark, rgba(0,0,0,0.5));
-}
-.sk-suggest:empty { display: none; }
-.sk-suggest-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-1);
-  font-family: var(--font);
-  font-size: 12px;
-  cursor: pointer;
-}
-.sk-suggest-row:hover { background: var(--bg-hover); color: var(--accent); }
-.sk-suggest-empty {
-  padding: 10px 12px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
 }
 
 /* ── Character comparison chips ── */
@@ -480,13 +414,6 @@
 .sk-mini.wide       { padding: 3px 10px; font-size: 11px; }
 
 .sk-plans { padding: 16px; }
-.sk-note {
-  margin-top: 14px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-3);
-  line-height: 1.6;
-}
 
 .sk-empty {
   padding: 36px 20px;

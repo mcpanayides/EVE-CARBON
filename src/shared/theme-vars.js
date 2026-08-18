@@ -130,6 +130,12 @@
       '--nullsec':         p.red?.base,
       '--lawless':         p.indigo?.dim    || p.purple?.dim,
 
+      // Industry efficiency. EVE ships ME green / TE cyan and theme-default.css
+      // keeps those exact hues; a user palette re-points them at its own green
+      // and teal so the ME/TE bars stay in step with the rest of the theme.
+      '--me':              p.green?.base,
+      '--te':              p.teal?.bright   || p.teal?.base,
+
       // Popup-window slot colours (ping-alert buttons/badges)
       '--teal-bg':         hexToRgba(p.teal?.base, 0.12),
       '--teal-border':     hexToRgba(p.teal?.base, 0.35),

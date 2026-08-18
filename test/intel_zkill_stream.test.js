@@ -64,7 +64,13 @@ test('sequential fetches are spaced, and going quiet waits much longer', async (
   await s._cycle();                                  // cursor -> 10
   assert.strictEqual(await s._cycle(), STEP_MS, 'a hit steps on promptly');
   assert.strictEqual(await s._cycle(), IDLE_MS, 'caught up: back off hard');
-  assert.ok(STEP_MS >= 100, 'at most ~10 req/s against a 15/s ceiling');
+  // zKillboard publishes NO numeric rate limit — the "15/s ceiling" this test
+  // used to cite is not in their API wiki or information page (checked
+  // 2026-08-17). Against a free volunteer-run service the floor is set by what
+  // is defensible, not by a number we cannot source: 400ms = 2.5/s, which still
+  // clears New Eden's baseline kill rate. Mirrored in request_broker.js's rate
+  // table for r2z2.zkillboard.com.
+  assert.ok(STEP_MS >= 400, 'no faster than 2.5 req/s against a free service');
   assert.ok(IDLE_MS >= 6000, "zKillboard's own guidance on seeing a 404");
   s.stop();
 });

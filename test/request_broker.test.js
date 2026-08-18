@@ -118,3 +118,84 @@ test('invalidate clears cached entries for a host', async () => {
   await broker.get(u, {}, perform);
   assert.strictEqual(calls, 2, 'an explicit refresh must go past the cache');
 });
+
+// ── Rate governor ────────────────────────────────────────────────────────────
+// Concurrency is not rate: the lane limit above bounds how many requests are in
+// flight, never how many go out per second. These guard the second property.
+// Each uses its own host so the buckets cannot interfere, and its own rate so
+// the assertion is sharp rather than inheriting a production number.
+
+const uncached = () => ({ value: 1, headers: {} });          // never cached, never coalesced
+const burstUrl = (host, p) => `https://${host}/${p}/${++n}/`;
+
+test('a burst goes out immediately — the governor does not tax ordinary use', async () => {
+  // The measured page-open peak is 34 requests. If the governor paced those, it
+  // would have made every page feel slower to fix a problem nobody had.
+  broker.setRate('burst.test', { perSec: 1, burst: 5 });
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 5 }, () => broker.get(burstUrl('burst.test', 'b'), {}, uncached)));
+  const elapsed = Date.now() - t0;
+  assert.ok(elapsed < 150, `a full bucket must not be paced (took ${elapsed}ms at 1/s)`);
+});
+
+test('the sustained rate is enforced once the burst is spent', async () => {
+  // 2 free, then 4 more at 20/s = 50ms apart => ~200ms floor.
+  broker.setRate('paced.test', { perSec: 20, burst: 2 });
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 6 }, () => broker.get(burstUrl('paced.test', 'p'), {}, uncached)));
+  const elapsed = Date.now() - t0;
+  assert.ok(elapsed >= 150, `4 requests past a burst of 2 at 20/s should take ~200ms, took ${elapsed}ms`);
+  assert.ok(elapsed < 2000, `but must not stall (took ${elapsed}ms)`);
+});
+
+test('everything queued still completes, in order', async () => {
+  // A governor that dropped or reordered work would be worse than none: callers
+  // would see sporadic failures that look like the network.
+  broker.setRate('fifo.test', { perSec: 50, burst: 1 });
+  const order = [];
+  const runs = Array.from({ length: 8 }, (_, i) =>
+    broker.get(burstUrl('fifo.test', 'f'), {}, async () => { order.push(i); return { value: i, headers: {} }; }));
+  const out = await Promise.all(runs);
+  assert.strictEqual(out.length, 8, 'nothing may be dropped');
+  assert.deepStrictEqual(order, [0, 1, 2, 3, 4, 5, 6, 7], 'the queue must stay FIFO');
+});
+
+test('the zKillboard REST API is strictly limited as shipped', async () => {
+  // Guards the actual production number, not a test-local one. zKillboard is a
+  // free volunteer service that publishes no numeric limit at all — the "15/s"
+  // our own code used to cite could not be sourced from their docs — so the
+  // shipped ceiling is deliberately strict and must not drift upward unnoticed.
+  // This host serves the fleet-AAR bulk pull: one page per system, once.
+  broker.resetRates();
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 4 }, () =>
+    broker.get(burstUrl('zkillboard.com', 'z'), {}, uncached)));
+  const elapsed = Date.now() - t0;
+  assert.ok(elapsed >= 800,
+    `a 4th request should wait ~1s behind a burst of 3, took ${elapsed}ms`);
+});
+
+test('the live stream host is paced but not throttled into uselessness', async () => {
+  // r2z2 carries the sequence cursor and has to keep pace with New Eden's kill
+  // rate. Limiting it as hard as the REST host would not tune the feature, it
+  // would break it: the cursor falls behind and kills get discarded at
+  // MAX_CATCHUP. 2.5/s clears the ~0.3-1/s baseline with headroom.
+  broker.resetRates();
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 10 }, () =>
+    broker.get(burstUrl('r2z2.zkillboard.com', 'z'), {}, uncached)));
+  const elapsed = Date.now() - t0;
+  // 5 free, then 5 more at 2.5/s = 400ms apart => ~2s.
+  assert.ok(elapsed >= 1500, `should be paced at 2.5/s, took ${elapsed}ms`);
+  assert.ok(elapsed < 4000, `but must stay fast enough to follow the feed, took ${elapsed}ms`);
+});
+
+test('setRate retunes a bucket that is already running', async () => {
+  broker.setRate('retune.test', { perSec: 1, burst: 1 });
+  await broker.get(burstUrl('retune.test', 'r'), {}, uncached);   // spend the only token
+  broker.setRate('retune.test', { perSec: 1000, burst: 50 });     // open it up
+  const t0 = Date.now();
+  await Promise.all(Array.from({ length: 5 }, () => broker.get(burstUrl('retune.test', 'r'), {}, uncached)));
+  assert.ok(Date.now() - t0 < 300, 'a raised limit must take effect without a restart');
+  broker.resetRates();
+});

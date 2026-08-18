@@ -50,14 +50,31 @@
 
 const https = require('https');
 const { APP_USER_AGENT } = require('../app_ident');
+const broker = require('../request_broker');   // for reserve() — the rate gate only
 
 const DEFAULT_BASE = 'https://r2z2.zkillboard.com';
 
-// Their published ceiling is 15/s. This is the floor between our own sequential
-// requests, which keeps us near 10/s even while catching up.
-const STEP_MS = 100;
+// The floor between our own sequential requests while catching up.
+//
+// This was 100ms — ~10 requests/second — justified by a comment claiming
+// zKillboard "publishes a hard limit of 15/s". THAT NUMBER IS NOT IN THEIR
+// DOCS (checked 2026-08-17: neither the API wiki nor the information page
+// states any numeric limit, only "do not hammer the server, be polite"). We
+// were pacing ourselves against a ceiling we could not source, and 10/s from
+// one desktop client against a volunteer-run service is indefensible whatever
+// the true number is.
+//
+// 400ms = 2.5/s, which still clears New Eden's baseline kill rate (~0.3-1/s)
+// with headroom for spikes. Mirrored by the r2z2 entry in request_broker.js's
+// rate table; change both or they fight.
+const STEP_MS = 400;
 // Their guidance on seeing a 404: we are current, so stop asking for a while.
-const IDLE_MS = 6000;
+// Raised from 6s: this is the single biggest driver of aggregate load, and at
+// 100k users even this cadence is ~1000x zKillboard's stated total traffic. It
+// costs up to 15s of intel latency on a feed that is already seconds behind the
+// kill, which is a fair trade. The real fix is fanning out through our own
+// Worker so there is ONE consumer instead of 100,000 — see TODO.md.
+const IDLE_MS = 15_000;
 
 const BACKOFF_MIN_MS = 10_000;
 const BACKOFF_MAX_MS = 5 * 60_000;
@@ -71,7 +88,12 @@ const STALL_ROUNDS = 3;
 // Too far behind to be worth walking. Everything in the gap is older than the
 // relevance window anyway, so jump to the present instead of spending hundreds
 // of requests to arrive at the same place.
-const MAX_CATCHUP = 200;
+//
+// Lowered from 200 alongside the slower STEP_MS: 200 steps at 400ms is 80
+// seconds of catching up to reach kills that were already too old to matter.
+// At 50 it is 20 seconds, and the discarded remainder is by definition outside
+// the relevance window.
+const MAX_CATCHUP = 50;
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
@@ -85,8 +107,14 @@ const REQUEST_TIMEOUT_MS = 20_000;
  * cursor never advances and no killmail ever arrives again, while the loop keeps
  * running and the status keeps saying connected. A 404 is a NORMAL answer on
  * this endpoint, so it is returned rather than thrown.
+ *
+ * It does, however, take a token from the broker's RATE GOVERNOR first. Skipping
+ * the cache is necessary; skipping the ceiling was not, and this was the only
+ * feature in the app fast enough to need one. `reserve()` exists for exactly
+ * this: the rate gate without any of the caching.
  */
-function directGet(url, timeoutMs = REQUEST_TIMEOUT_MS) {
+async function directGet(url, timeoutMs = REQUEST_TIMEOUT_MS) {
+  await broker.reserve(url);
   return new Promise((resolve, reject) => {
     const req = https.request(url, {
       headers: {

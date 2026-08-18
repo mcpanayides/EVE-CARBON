@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-09T11:08:10.448Z",
+  "generatedAt": "2026-08-17T16:23:54.561Z",
   "title": "Design System: EVE Carbon",
   "extensions": {
     "colorMeta": {
@@ -288,6 +288,36 @@
           "#f8b17f",
           "#fcd6bc"
         ]
+      },
+      "me-green": {
+        "role": "tertiary",
+        "displayName": "Material Efficiency Green",
+        "canonical": "#4ada8a",
+        "tonalRamp": [
+          "#0b2115",
+          "#143a24",
+          "#1c5334",
+          "#246b44",
+          "#469d6c",
+          "#68d096",
+          "#8bffc0",
+          "#aeffea"
+        ]
+      },
+      "te-cyan": {
+        "role": "tertiary",
+        "displayName": "Time Efficiency Cyan",
+        "canonical": "#00e5ff",
+        "tonalRamp": [
+          "#002226",
+          "#003d43",
+          "#005761",
+          "#00717e",
+          "#19a4b3",
+          "#33d8eb",
+          "#4dffff",
+          "#67ffff"
+        ]
       }
     },
     "typographyMeta": {
@@ -365,7 +395,7 @@
       {
         "name": "glow-pulse",
         "value": "concordGlowPulse 8s ease-in-out infinite (secondary 12s reverse)",
-        "purpose": "Slow ambient breathing of the backdrop blue-nebula glows."
+        "purpose": "Ping-alert popup only. The main frame no longer paints an ambient gradient (see The Atmosphere-Is-Free Rule)."
       },
       {
         "name": "ticker-scroll",
@@ -443,82 +473,89 @@
     }
   ],
   "narrative": {
-    "northStar": "The Tactical Reeded Glass Terminal",
-    "overview": "EVE Carbon is a dense, utility-forward data overlay whose primary material is translucent fluted glass floating over the operating system — the resting default, not a toggle. It merges the physical, refractive identity of reeded glass with an all-business tactical layout: subdued blue-nebula glows bleed through from behind, contrasting with crisp edges, hatch textures, and scanline-thin scrollbars on the surface. The chrome is deliberately near-invisible so that the information-heavy data and the textured glass remain the sole focus.\n\nThe system lives in a permanent tension between two registers. The backdrop is cinematic: cool deep-space black, twin ambient blue glows that pulse slowly, a whisper-fine diagonal hatch, and acrylic glass refracting the desktop. The foreground is instrument-grade: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win.\n\nThis is EVE Carbon's own identity, not a reskin of the in-game client. A single built-in theme ships — Default (Nebula Glass): cool deep-space surfaces, a refined crimson signal over blue nebula. There are no other named presets; users recolour by editing the 16-swatch palette, and every colour routes through tokens so a custom palette repaints the whole terminal at once.",
+    "northStar": "The Tactical Glass Terminal",
+    "overview": "EVE Carbon is a dense, utility-forward data overlay whose primary material is translucent frosted glass floating over the operating system. It merges the physical, refractive identity of acrylic glass with an all-business tactical layout: a user-chosen wallpaper and the blurred desktop read faintly through the panes from behind, contrasting with sharp 2px edges, hatch textures, and scanline-thin scrollbars on the surface. The chrome is deliberately near-invisible so that the information-heavy data and the textured glass remain the sole focus.\n\nThe system lives in a permanent tension between two registers, and future work must hold both. The **backdrop is cinematic**: cool deep-space black (#070a12), a user wallpaper behind the frame (default \"Citadel Overlook\", shipped un-dimmed), a whisper-fine diagonal hatch across every surface, and translucent acrylic glass that refracts the desktop behind the window. The **foreground is instrument-grade**: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, and crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win — a stat value never blurs into ambience, and the ambience is never flattened into a spreadsheet.\n\nThe atmosphere comes from the wallpaper and the blur, not from painted light. A pair of huge animated nebula gradients used to sit behind the whole frame; they were removed in August 2026 once the glass blur and wallpaper had made them invisible, and they were costing 130–210% CPU in the GPU process for something nobody could see. They survive only in the small, transient ping-alert popup, where the cost does not apply.\n\nThis is EVE Carbon's own identity, not a reskin of the in-game client. It respects EVE's world — a crimson signal, capsuleer-console density, faction-inspired data hues — but commits to a distinct, fully themeable brand. A single built-in theme ships: **Default** — cool deep-space surfaces, crisp edges, a refined crimson signal. There are no other named presets; users recolor by editing the 13-swatch palette (Settings → Colour Palette), and every color, chart series, and status hue routes through tokens so a custom palette repaints the whole terminal at once.",
     "keyCharacteristics": [
-      "Translucent reeded/acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.",
+      "Translucent acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.",
       "Instrument-grade data foreground: monospace values, uppercase tracked labels, crisp white-alpha hairline structure.",
       "Sharp 2px geometry that rounds into glass as the default surface treatment; a clear focus/blur depth hierarchy for overlays.",
       "A single restrained crimson signal riding on top of an eight-hue data palette that carries all quantitative meaning.",
-      "Total themeability by derivation — a ~120-token map computed from just 16 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes)."
+      "Total themeability by derivation — a ~120-token map computed from just 13 user swatches, with the accent bound by role, not hardcoded (one Default theme + user palettes)."
     ],
     "rules": [
       {
         "name": "The Accent-Is-A-Role Rule",
-        "body": "Never hardcode the highlight color. The accent is roles.accent resolved against the active 16-swatch palette and expressed only through the --accent* tokens. A literal crimson hex breaks every user palette instantly.",
+        "body": "Never hardcode the highlight color. The accent is `roles.accent` resolved against the active palette and expressed only through the `--accent*` tokens. A literal crimson hex in a component breaks every user palette instantly.",
         "section": "colors"
       },
       {
         "name": "The Derive-Don't-Author Rule",
-        "body": "Any new accent tint, hue variant, or state color is generated from a swatch via the theme-vars.js helpers (hexToRgba / lighten / darken), not typed as a fresh literal. Sixteen swatches are the only hand-set colors; the rest is math so themes stay coherent.",
+        "body": "Any new accent tint, hue variant, or state color is generated from a swatch via the `theme-vars.js` helpers (`hexToRgba` / `lighten` / `darken`), not typed as a fresh literal. Thirteen swatches are the only hand-set colors; the rest is math so themes stay coherent.",
         "section": "colors"
       },
       {
         "name": "The One Signal Rule",
-        "body": "The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead.",
+        "body": "The accent — whatever hue the active theme binds it to — is a guideline of restraint, not a hard cap: it should mark the single most important state or action in view. When two things both want the accent, one of them is wrong — promote it with the data palette or hierarchy instead, and let the accent stay rare enough to still mean something.",
         "section": "colors"
       },
       {
         "name": "The Token-Or-Nothing Rule",
-        "body": "No chart, KPI, badge, or status may hardcode one of the eight data hues. Reference --pal-* / --chart-* so a user palette repaints the whole app. A raw hex in a component is a bug.",
+        "body": "No chart, KPI, badge, or status may hardcode one of the eight data hues. Reference `--pal-*` / `--chart-*` so themes (and the user's own swatches) repaint the whole app. A raw hex in a component is a bug.",
         "section": "colors"
       },
       {
         "name": "The Color-Is-Not-The-Only-Signal Rule",
-        "body": "In dense data views, color reinforces meaning but never carries it alone — pair every hue with a label, icon, sign, or position.",
+        "body": "In dense data views, color reinforces meaning but never carries it alone — pair every hue with a label, icon, sign, or position so the terminal survives any user theme and any contrast need.",
         "section": "colors"
       },
       {
         "name": "The Numbers-Are-Mono Rule",
-        "body": "Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is how the eye finds the data.",
+        "body": "Every quantity — ISK, LP, quantities, percentages, IDs, timers — is set in Fira Code. Language is Fira Sans. This split is not decorative; it is how the eye finds the data.",
         "section": "typography"
       },
       {
         "name": "The Muted-Label / Bright-Value Rule",
-        "body": "Labels are muted and tracked (--label-muted); the value they describe is bright (--value-bright). Never invert this, and never inline-style either — always class + token.",
+        "body": "Labels are muted and tracked (`--label-muted`); the value they describe is bright (`--value-bright`, = primary text). Never invert this, and never inline-style either — always class + token.",
         "section": "typography"
       },
       {
         "name": "The Focus-Stack Rule",
-        "body": "Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing at the same clarity.",
+        "body": "Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing for attention at the same clarity.",
         "section": "elevation"
       },
       {
-        "name": "The Ambient-Glow-Never-Interacts Rule",
-        "body": "The nebula glows are backdrop only: z-index:0, pointer-events:none, mix-blend-mode:screen. They set mood behind the frame and never touch, tint, or obscure data.",
+        "name": "The Atmosphere-Is-Free Rule",
+        "body": "Ambience comes from the wallpaper and the glass blur — layers the compositor is already paying for — never from a full-frame painted gradient. A scaling or pulsing gradient re-rasterizes instead of taking the cheap texture path; the pair this app used to run cost 130–210% CPU in the GPU process, permanently, for something the blur had already hidden. If a future treatment needs its own light, it must be small, transient, and measured (the ping-alert popup is the one place that passes).",
+        "section": "elevation"
+      },
+      {
+        "name": "The Nothing-Animates-Unwatched Rule",
+        "body": "This app's normal state is sitting behind the game, unfocused and occluded — and Chromium only throttles animation in a *hidden* window, not an unfocused one. Every decorative loop pauses on `body.app-unfocused` and releases its `will-change` promotion. Spinners and progress indicators are deliberately exempt: they carry meaning.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "Do route every chart, KPI, badge, and status color through the --pal-* / --chart-* tokens so a user palette repaints the whole app.",
-      "Do treat the accent as a role over a 16-swatch palette — bind it via roles.accent and consume it only through --accent*, so the Default theme and every user palette resolve correctly.",
-      "Do set every quantity in Fira Code and every piece of language in Fira Sans.",
-      "Do keep labels muted and tracked (--label-muted) with the value they describe bright (--value-bright) — via class + token, never inline style.",
-      "Do encode focus with depth: the active surface is sharp and lifted; blur and dim whatever it sits on top of. When an overlay opens, blur and scrim the layer behind it.",
-      "Do hold the tension: cinematic atmosphere in the backdrop, instrument-grade precision in the foreground.",
-      "Do keep the accent rare enough to still signal — mark the single most important state or action per surface.",
-      "Do use the fixed 28px nav icon slot so Material (18px) and EVE-neocom (28px) glyphs share a baseline."
+      "**Do** route every chart, KPI, badge, and status color through the `--pal-*` / `--chart-*` tokens so a user palette repaints the whole app.",
+      "**Do** treat the accent as a role over a 13-swatch palette — bind it via `roles.accent` and consume it only through `--accent*`, so the Default theme and every user palette resolve correctly.",
+      "**Do** set every quantity in Fira Code and every piece of language in Fira Sans.",
+      "**Do** keep labels muted and tracked (`--label-muted`) with the value they describe bright (`--value-bright`) — via class + token, never inline style.",
+      "**Do** encode focus with depth: the active surface is sharp and lifted; blur and dim whatever it sits on top of. When an overlay opens, blur and scrim the layer behind it.",
+      "**Do** hold the tension: cinematic atmosphere in the backdrop, instrument-grade precision in the foreground — and buy that atmosphere from the wallpaper and the blur, which the compositor is already paying for.",
+      "**Do** keep the accent rare enough to still signal — mark the single most important state or action per surface.",
+      "**Do** use the fixed 28px nav icon slot so Material (18px) and EVE-neocom (28px) glyphs share a baseline."
     ],
     "donts": [
-      "Don't hardcode one of the eight data hues, or inline-style any color in JS markup — always class + token.",
-      "Don't hardcode the accent color — it is roles.accent over the active palette, expressed only through --accent*. A literal crimson hex breaks every user palette.",
-      "Don't type a fresh accent tint or hue variant by hand — derive it from a swatch via theme-vars.js (hexToRgba / lighten / darken). Only the 16 swatches are hand-set.",
-      "Don't leave two planes competing at the same clarity — an open overlay must take focus while the layer behind it blurs and dims.",
-      "Don't let the ambient nebula glows become interactive, tint data, or leave pointer-events:none / z-index:0.",
-      "Don't set numbers in the sans font or spread the accent across a field of equally-weighted buttons.",
-      "Don't add manual Sync/Refresh buttons — data auto-refreshes on ESI's own cache cadence.",
-      "Don't use emoji in the app chrome; use the Material or EVE-neocom icon families.",
-      "Don't re-introduce a YAML/JS theme engine or add a second named preset — there is one built-in theme (theme-default.css); user palettes are generated plain-CSS files, one custom property per token."
+      "**Don't** hardcode one of the eight data hues, or inline-style any color in JS markup — always class + token.",
+      "**Don't** hardcode the accent color — it is `roles.accent` over the active palette, expressed only through `--accent*`. A literal crimson hex breaks every user palette.",
+      "**Don't** type a fresh accent tint or hue variant by hand — derive it from a swatch via `theme-vars.js` (`hexToRgba` / `lighten` / `darken`). Only the 13 swatches are hand-set.",
+      "**Don't** leave two planes competing at the same clarity — an open overlay must take focus while the layer behind it blurs and dims.",
+      "**Don't** paint a full-frame ambient gradient behind the app, or reinstate the reeded flute overlay. Atmosphere is the wallpaper plus the blur; both of those were removed for being invisible and expensive.",
+      "**Don't** leave a decorative animation running while the window is unfocused, or leave `will-change` set on something that has stopped moving.",
+      "**Don't** frame a type icon in a list row with a border or background plate — the artwork carries itself; only 64px hero images are matted.",
+      "**Don't** set numbers in the sans font or spread the accent across a field of equally-weighted buttons.",
+      "**Don't** add manual Sync/Refresh buttons — data auto-refreshes on ESI's own cache cadence.",
+      "**Don't** use emoji in the app chrome; use the Material or EVE-neocom icon families.",
+      "**Don't** re-introduce a YAML/JS theme engine or add a second named preset — there is one built-in theme (`src/styles/theme-default.css`); user palettes are generated plain-CSS files, one custom property per token."
     ]
   }
 }

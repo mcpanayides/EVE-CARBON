@@ -1,6 +1,6 @@
 ---
 name: EVE Carbon
-description: A tactical nebula-glass terminal for EVE Online — instrument-grade data on cool cinematic space.
+description: A tactical glass terminal for EVE Online — instrument-grade data on cool cinematic space.
 colors:
   crimson-signal: "#e0483a"
   crimson-deep: "#7d201a"
@@ -21,6 +21,8 @@ colors:
   data-blue: "#4a9fd4"
   data-pink: "#e47baf"
   data-orange: "#f58c42"
+  me-green: "#4ada8a"
+  te-cyan: "#00e5ff"
 typography:
   stat:
     fontFamily: "'Fira Code', monospace"
@@ -128,16 +130,18 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Tactical Reeded Glass Terminal"**
+**Creative North Star: "The Tactical Glass Terminal"**
 
-EVE Carbon is a dense, utility-forward data overlay whose primary material is translucent fluted glass floating over the operating system. It merges the physical, refractive identity of reeded glass with an all-business tactical layout: subdued nebula glows bleed through the frosted flutes from behind, contrasting with sharp 2px edges, hatch textures, and scanline-thin scrollbars on the surface. The chrome is deliberately near-invisible so that the information-heavy data and the textured glass remain the sole focus.
+EVE Carbon is a dense, utility-forward data overlay whose primary material is translucent frosted glass floating over the operating system. It merges the physical, refractive identity of acrylic glass with an all-business tactical layout: a user-chosen wallpaper and the blurred desktop read faintly through the panes from behind, contrasting with sharp 2px edges, hatch textures, and scanline-thin scrollbars on the surface. The chrome is deliberately near-invisible so that the information-heavy data and the textured glass remain the sole focus.
 
-The system lives in a permanent tension between two registers, and future work must hold both. The **backdrop is cinematic**: cool deep-space black (#070a12), twin ambient blue-nebula glows that pulse slowly behind the frame, a whisper-fine diagonal hatch across every surface, and translucent acrylic glass that refracts the desktop behind the window. The **foreground is instrument-grade**: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, and crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win — a stat value never blurs into ambience, and the ambience is never flattened into a spreadsheet.
+The system lives in a permanent tension between two registers, and future work must hold both. The **backdrop is cinematic**: cool deep-space black (#070a12), a user wallpaper behind the frame (default "Citadel Overlook", shipped un-dimmed), a whisper-fine diagonal hatch across every surface, and translucent acrylic glass that refracts the desktop behind the window. The **foreground is instrument-grade**: monospace figures, uppercase micro-labels on tight tracking, right-aligned numeric columns, and crisp white-alpha hairlines. Atmosphere sets the mood; precision carries the meaning. Neither is allowed to win — a stat value never blurs into ambience, and the ambience is never flattened into a spreadsheet.
 
-This is EVE Carbon's own identity, not a reskin of the in-game client. It respects EVE's world — a crimson signal, capsuleer-console density, faction-inspired data hues — but commits to a distinct, fully themeable brand. A single built-in theme ships: **Default (Nebula Glass)** — cool deep-space surfaces, crisp edges, a refined crimson signal over blue nebula. There are no other named presets; users recolor by editing the 13-swatch palette (Settings → Colour Palette), and every color, chart series, and status hue routes through tokens so a custom palette repaints the whole terminal at once.
+The atmosphere comes from the wallpaper and the blur, not from painted light. A pair of huge animated nebula gradients used to sit behind the whole frame; they were removed in August 2026 once the glass blur and wallpaper had made them invisible, and they were costing 130–210% CPU in the GPU process for something nobody could see. They survive only in the small, transient ping-alert popup, where the cost does not apply.
+
+This is EVE Carbon's own identity, not a reskin of the in-game client. It respects EVE's world — a crimson signal, capsuleer-console density, faction-inspired data hues — but commits to a distinct, fully themeable brand. A single built-in theme ships: **Default** — cool deep-space surfaces, crisp edges, a refined crimson signal. There are no other named presets; users recolor by editing the 13-swatch palette (Settings → Colour Palette), and every color, chart series, and status hue routes through tokens so a custom palette repaints the whole terminal at once.
 
 **Key Characteristics:**
-- Translucent reeded/acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.
+- Translucent acrylic glass as the defining material and the resting default, over a cool deep-space backdrop.
 - Instrument-grade data foreground: monospace values, uppercase tracked labels, crisp white-alpha hairline structure.
 - Sharp 2px geometry that rounds into glass as the default surface treatment; a clear focus/blur depth hierarchy for overlays.
 - A single restrained crimson signal riding on top of an eight-hue data palette that carries all quantitative meaning.
@@ -152,8 +156,8 @@ The palette is a cool deep-space stage lit by a single crimson signal, with mean
 - **Crimson Deep** (#7d201a): The dim companion — filled backgrounds behind the accent, count-badge and add-button fills where crimson needs a body rather than a stroke.
 
 ### Neutral
-- **Space Black** (#070a12): The `<body>` base — a cool, faintly blue deep-space stage everything floats over. Deliberately cooler than a pure neutral black so the glass and nebula read as space, not soot.
-- **Surface / Panel Glass** (rgba(12,16,24,0.85) / rgba(14,18,28,0.85)): The translucent working surfaces — cards, panels, sidebar. The 0.85 alpha is intentional: even off-glass they let the backdrop and glows read faintly through; with glass on (the default) they remap to the live tint.
+- **Space Black** (#070a12): The `<body>` base — a cool, faintly blue deep-space stage everything floats over. Deliberately cooler than a pure neutral black so the glass reads as space, not soot.
+- **Surface / Panel Glass** (rgba(12,16,24,0.85) / rgba(14,18,28,0.85)): The translucent working surfaces — cards, panels, sidebar. The 0.85 alpha is intentional: even off-glass they let the backdrop and wallpaper read faintly through; with glass on (the default) they remap to the live tint.
 - **Cool Hairline** (rgba(255,255,255,0.09) → rgba(255,255,255,0.06)): Borders are crisp cool white-alpha, not tinted — dividers, panel headers, card edges. Clean and neutral so the crimson signal stays the only chromatic edge.
 - **Text ramp** (#ccd1da primary → #909090 muted → #565b63 faint): A cool gray ramp from primary body text down to console timestamps. Labels sit muted; values sit bright.
 - **Portrait Teal** (#00c4b4): Reserved identity color for the active character — portrait ring and active-pilot name. The one place teal means "you."
@@ -171,12 +175,19 @@ Eight consolidated hues drive every chart series, KPI value, badge, ticker and s
 
 Chart series resolve in a fixed order (red, teal, purple, gold, green, blue, pink, orange) read from CSS via `getComputedStyle`, so re-theming the tokens re-colors every canvas chart.
 
+### Game-Derived Colors
+A small set of hues are not ours to invent: they mirror what EVE itself uses, so a value reads the same here as it does in the client. These are declared as semantic tokens in `theme-default.css` and re-pointed at palette swatches by `theme-vars.js`, which is what keeps them game-accurate out of the box *and* customizable.
+- **Security status** (`--hisec` #3d85c8, `--lowsec` #d4a017, `--nullsec` #e0483a, `--lawless` #6a3a7a, `--newbie` #4ec9b0): bound to the blue / yellow / red / indigo / teal swatches.
+- **Industry efficiency** (`--me` #4ada8a, `--te` #00e5ff): EVE's own material- and time-efficiency colors, used by the ME/TE bars and pills on blueprint cards. Bound to the green and teal swatches.
+
+Derived shades of these — a gradient's dark end, a pill's 13% wash — are mixed from the token with `color-mix()` rather than typed, so re-pointing a token re-shades everything that depends on it instead of leaving a stale hue behind.
+
 ### Theming & The Custom Accent
 The accent is **not a fixed hex — it is a role binding over a 13-swatch palette.** Settings → Colour Palette lets the user edit thirteen swatches: nine EVE hues (red, green, gold, yellow, blue, teal, purple, pink, orange) plus four structural colors (background, panel, text, border). A `roles` map (`{accent, danger, success, warning, info}`) then points each semantic role at one of those swatch slots. The Default theme binds `accent → red` (crimson). Change the swatch or re-point the role and the highlight color changes everywhere at once.
 
 `baby_blue`, `indigo` and `cyan` were deliberately removed from the editor (see `SWATCH_SLOTS` in `src/func/palette.js`): they were offered and written into every saved theme, but nothing ever read them, so picking a colour changed nothing. **Do not reinstate them to give a hardcoded hue somewhere a token to point at** — a control that does nothing costs the user a decision and then ignores it. `theme-vars.js` still derives those three internally for backwards-compatible theme files; that is not a reason to expose them.
 
-There is **one built-in theme** — `theme-default.css` (Default / Nebula Glass) — the single canonical token source. From the thirteen swatches, `theme-vars.js` **derives the entire ~120-token variable map**: the full accent alpha ladder (`--accent-03` … `--accent-50`) via `hexToRgba`, and each hue's bright/dim/glow variants via HSL `lighten`/`darken`. Hand-authoring stops at thirteen colors — everything downstream is computed, which is why a user palette repaints charts, KPIs, badges, borders, glows, and focus rings coherently. User palettes are saved as generated plain-CSS files in `userData/themes/*.css` (with `@roles` / `@swatches` metadata in header comments); applying one swaps the `#themeStylesheet` link, and the live editor previews edits by injecting an inline `<style>` of the derived vars. Separately, a **Glass tint** control (Settings → Background) sets the translucent surface tint and follows the OS accent color by default — it colors the glass, not the data.
+There is **one built-in theme** — `theme-default.css` (`@name: Default`) — the single canonical token source. Its file-header comment still subtitles it "Nebula Glass", a leftover from the removed background gradients; the theme's actual name is Default. From the thirteen swatches, `theme-vars.js` **derives the entire ~120-token variable map**: the full accent alpha ladder (`--accent-03` … `--accent-50`) via `hexToRgba`, and each hue's bright/dim/glow variants via HSL `lighten`/`darken`. Hand-authoring stops at thirteen colors — everything downstream is computed, which is why a user palette repaints charts, KPIs, badges, borders, glows, and focus rings coherently. User palettes are saved as generated plain-CSS files in `userData/themes/*.css` (with `@roles` / `@swatches` metadata in header comments); applying one swaps the `#themeStylesheet` link, and the live editor previews edits by injecting an inline `<style>` of the derived vars. Separately, a **Glass tint** control (Settings → Background) sets the translucent surface tint and follows the OS accent color by default — it colors the glass, not the data.
 
 ### Named Rules
 **The Accent-Is-A-Role Rule.** Never hardcode the highlight color. The accent is `roles.accent` resolved against the active palette and expressed only through the `--accent*` tokens. A literal crimson hex in a component breaks every user palette instantly.
@@ -229,7 +240,7 @@ Content reflows by the sidebar, not by breakpoint — collapsing the rail widens
 1. **The main content is the focus** at rest. Page panels sit as clean glass slabs on the deep-space backdrop; the sidebar and titlebar frame reads as one continuous glass surface.
 2. **When an overlay opens, it takes focus and the world behind recedes into blurred glass.** Every modal, drawer, and settings surface (`.modal-backdrop`) blurs and gently dims what's behind it (`backdrop-filter: blur(...)` + a light scrim) while the overlay itself lifts on a heavy drop shadow, a crimson-tinted top border (`border-top: var(--accent-25)`), and an inset specular highlight — so the popup is unmistakably the subject and the terminal beneath is context, not clutter.
 
-Behind everything, two ambient blue-nebula glows (`concord-glow-main`, `concord-glow-secondary`) pulse on an 8–12s cycle in `screen` blend mode — atmosphere, never interactive, always `z-index:0` and `pointer-events:none`.
+Behind everything sits the user's wallpaper and the blurred desktop — that is the entire ambient layer. There is no painted glow in the main frame: two large animated nebula gradients (`concord-glow-main` / `concord-glow-secondary`) used to pulse there and were removed once the glass blur and wallpaper had rendered them invisible. They remain in `ping-alert.css` for the small transient popup, which has no wallpaper of its own and is on screen for seconds.
 
 A global **Glass tint** control (Settings → Background) sets the translucent surface tint. The shipped default is a fixed deep teal (`#2B7273`, darkened ×0.16 to the surface tint) with panel opacity 0.45, blur 1.45×, and desktop wash 0.15 — a cool teal-glass out of the box; users can switch it to any custom color or the OS accent. The default wallpaper is the "Citadel Overlook" plate (fetched lazily from CCP's resfile CDN, un-dimmed).
 
@@ -241,7 +252,9 @@ A global **Glass tint** control (Settings → Background) sets the translucent s
 ### Named Rules
 **The Focus-Stack Rule.** Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing for attention at the same clarity.
 
-**The Ambient-Glow-Never-Interacts Rule.** The nebula glows are backdrop only: `z-index:0`, `pointer-events:none`, `mix-blend-mode:screen`. They set mood behind the frame and never touch, tint, or obscure data.
+**The Atmosphere-Is-Free Rule.** Ambience comes from the wallpaper and the glass blur — layers the compositor is already paying for — never from a full-frame painted gradient. A scaling or pulsing gradient re-rasterizes instead of taking the cheap texture path; the pair this app used to run cost 130–210% CPU in the GPU process, permanently, for something the blur had already hidden. If a future treatment needs its own light, it must be small, transient, and measured (the ping-alert popup is the one place that passes).
+
+**The Nothing-Animates-Unwatched Rule.** This app's normal state is sitting behind the game, unfocused and occluded — and Chromium only throttles animation in a *hidden* window, not an unfocused one. Every decorative loop pauses on `body.app-unfocused` and releases its `will-change` promotion. Spinners and progress indicators are deliberately exempt: they carry meaning.
 
 ## Shapes
 
@@ -249,7 +262,9 @@ Softened glass geometry by default: with glass on (the resting state), the globa
 
 Beneath the structural radii sits a **small-radius tier for interior parts** — `hair` (3px), `chip` (4px), `inset` (6px). Structural containers round with `--radius`; the pieces *inside* them (inline badges, swatches, progress fills, table-cell chips, mini-buttons) take one of these three so a 10px glass corner never repeats at 10px on a 16px badge. Interior radii are the one place a literal value is expected rather than the shared token — but only these three.
 
-Texture is part of the form language: a whisper-fine −45°/45° diagonal hatch (`--hatch-color`, white at ~1.8% alpha) overlays select cards (KPI tiles, character/blueprint/PI cards) — the "brushed" surface of the terminal. With glass on (the default) the heavy body hatch drops and the fluted acrylic carries the texture instead.
+Texture is part of the form language: a whisper-fine −45°/45° diagonal hatch (`--hatch-color`, white at ~1.8% alpha) overlays select cards (KPI tiles, character/blueprint/PI cards) — the "brushed" surface of the terminal. With glass on (the default) the heavy body hatch drops and the acrylic blur over the wallpaper carries the texture instead.
+
+A reeded-glass flute overlay — a full-window sheet of vertical ribs — was part of this language and is not any more. It was retired because the rib lines fought the dense UI instead of reading as glass, and its DOM node, rule and `--flute-*` tokens were deleted in August 2026. Do not reinstate it without a new design; the blur alone carries the material now.
 
 ## Components
 
@@ -266,6 +281,10 @@ For each component, the character line comes first, then shape, color, and state
 - **Count badge:** crimson-dim fill, crimson mono text, pill radius, tiny (1×6px padding, 10px). Sits right-aligned in panel headers.
 - **ESI badge:** green-tinted stroke + fill, uppercase mono — the "live data" marker.
 - **Status chips / tier labels:** color from the data palette or tier ramp; always paired with a label.
+
+### Type Icons
+
+EVE type icons (ore, ice, gas, moon ore, blueprints, modules) sit **bare** in list rows — 20–28px, `border-radius: 3px`, no border and no background plate. The artwork is already a rendered object on its own ground; framing every one of them added a box per row that competed with the hairline table structure for the same visual weight. Large detail images (64px hero thumbs on blueprint and material pages) are the exception and keep their frame, because there the border reads as intentional matting rather than chrome.
 
 ### Cards & Panels
 - **Corner:** 14px glass panels by default (2px sharp in flat fallback).
@@ -284,7 +303,7 @@ For each component, the character line comes first, then shape, color, and state
 - **States:** default gray → hover crimson → active crimson on blue-tint. Collapsed mode drops labels and centers icons in a 64px rail.
 
 ### Signature: The Market Ticker
-A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKET" label with a crimson glyph, then an infinitely scrolling track of item icon + name + price + signed percentage (green up / red down / gray flat). Pauses on hover. It is the terminal's heartbeat: live data always in motion at the bottom of the frame.
+A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKET" label with a crimson glyph, then an infinitely scrolling track of item icon + name + price + signed percentage (green up / red down / gray flat). Pauses on hover, and pauses again whenever the window loses focus (per the Nothing-Animates-Unwatched Rule) — this app spends most of its life behind the game. It is the terminal's heartbeat: live data always in motion at the bottom of the frame.
 
 ## Do's and Don'ts
 
@@ -294,16 +313,18 @@ A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKE
 - **Do** set every quantity in Fira Code and every piece of language in Fira Sans.
 - **Do** keep labels muted and tracked (`--label-muted`) with the value they describe bright (`--value-bright`) — via class + token, never inline style.
 - **Do** encode focus with depth: the active surface is sharp and lifted; blur and dim whatever it sits on top of. When an overlay opens, blur and scrim the layer behind it.
-- **Do** hold the tension: cinematic atmosphere in the backdrop, instrument-grade precision in the foreground.
+- **Do** hold the tension: cinematic atmosphere in the backdrop, instrument-grade precision in the foreground — and buy that atmosphere from the wallpaper and the blur, which the compositor is already paying for.
 - **Do** keep the accent rare enough to still signal — mark the single most important state or action per surface.
 - **Do** use the fixed 28px nav icon slot so Material (18px) and EVE-neocom (28px) glyphs share a baseline.
 
 ### Don't:
 - **Don't** hardcode one of the eight data hues, or inline-style any color in JS markup — always class + token.
 - **Don't** hardcode the accent color — it is `roles.accent` over the active palette, expressed only through `--accent*`. A literal crimson hex breaks every user palette.
-- **Don't** type a fresh accent tint or hue variant by hand — derive it from a swatch via `theme-vars.js` (`hexToRgba` / `lighten` / `darken`). Only the 16 swatches are hand-set.
+- **Don't** type a fresh accent tint or hue variant by hand — derive it from a swatch via `theme-vars.js` (`hexToRgba` / `lighten` / `darken`). Only the 13 swatches are hand-set.
 - **Don't** leave two planes competing at the same clarity — an open overlay must take focus while the layer behind it blurs and dims.
-- **Don't** let the ambient nebula glows become interactive, tint data, or leave `pointer-events:none` / `z-index:0`.
+- **Don't** paint a full-frame ambient gradient behind the app, or reinstate the reeded flute overlay. Atmosphere is the wallpaper plus the blur; both of those were removed for being invisible and expensive.
+- **Don't** leave a decorative animation running while the window is unfocused, or leave `will-change` set on something that has stopped moving.
+- **Don't** frame a type icon in a list row with a border or background plate — the artwork carries itself; only 64px hero images are matted.
 - **Don't** set numbers in the sans font or spread the accent across a field of equally-weighted buttons.
 - **Don't** add manual Sync/Refresh buttons — data auto-refreshes on ESI's own cache cadence.
 - **Don't** use emoji in the app chrome; use the Material or EVE-neocom icon families.

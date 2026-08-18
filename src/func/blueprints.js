@@ -1511,7 +1511,7 @@ function renderFlatMaterialList(flatMap, depth, prices = {}) {
           <div style="display:flex;align-items:center;gap:8px;">
             <img src="https://images.evetech.net/types/${row.typeid}/icon?size=32"
                  onerror="this.onerror=null;this.style.display='none';"
-                 style="width:22px;height:22px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+                 style="width:22px;height:22px;border-radius:3px;flex-shrink:0;">
             <span style="color:var(--text-1);">${escHtml(row.name)}</span>
           </div>
         </td>
@@ -1944,7 +1944,7 @@ function buildMoonTable() {
     const isTop = i === 0;
     const barW  = Math.round((iskPerM3 / maxIskM3) * 100);
     const icons = parts.slice(0, 6).map(p =>
-      `<img src="https://images.evetech.net/types/${p.id}/icon?size=32" title="${escHtml(p.name)} ×${formatNumber(p.yielded)}" onerror="this.onerror=null;this.style.display='none';" style="width:20px;height:20px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">`).join('');
+      `<img src="https://images.evetech.net/types/${p.id}/icon?size=32" title="${escHtml(p.name)} ×${formatNumber(p.yielded)}" onerror="this.onerror=null;this.style.display='none';" style="width:20px;height:20px;border-radius:3px;flex-shrink:0;">`).join('');
     const more  = parts.length > 6 ? `<span style="color:var(--text-3);font-size:10px;">+${parts.length - 6}</span>` : '';
     const tip   = parts.map(p => `${p.name} ×${formatNumber(p.yielded)}`).join(', ');
     return `
@@ -2928,7 +2928,7 @@ function buildOreTable() {
           <div style="display:flex;align-items:center;gap:8px;">
             <img src="https://images.evetech.net/types/${ore.typeId}/icon?size=32"
                  onerror="this.onerror=null;this.style.display='none';"
-                 style="width:24px;height:24px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+                 style="width:24px;height:24px;border-radius:3px;flex-shrink:0;">
             <span style="color:var(--text-1);font-weight:600;">${escHtml(ore.name)}</span>
           </div>
         </td>
@@ -3024,19 +3024,19 @@ const ICE_DATA = [
   },
   // ── Improved variants (Highsec enhanced) ─────────────────────────────────
   {
-    name: 'Thick Blue Ice',           typeId: 17975, group: 'Highsec+', volume: 1000, batchSize: 1,
+    name: 'Blue Ice IV-Grade',        typeId: 17975, group: 'Highsec+', volume: 1000, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Oxygen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Pristine White Glaze',     typeId: 17976, group: 'Highsec+', volume: 1000, batchSize: 1,
+    name: 'White Glaze IV-Grade',     typeId: 17976, group: 'Highsec+', volume: 1000, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Nitrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Smooth Glacial Mass',      typeId: 17977, group: 'Highsec+', volume: 1000, batchSize: 1,
+    name: 'Glacial Mass IV-Grade',    typeId: 17977, group: 'Highsec+', volume: 1000, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Hydrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Enriched Clear Icicle',    typeId: 17978, group: 'Highsec+', volume: 1000, batchSize: 1,
+    name: 'Clear Icicle IV-Grade',    typeId: 17978, group: 'Highsec+', volume: 1000, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Helium Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   // ── Compressed ───────────────────────────────────────────────────────────
@@ -3053,7 +3053,7 @@ const ICE_DATA = [
     products: { 'Heavy Water': 691, 'Liquid Ozone': 1381, 'Strontium Clathrates': 69 },
   },
   {
-    name: 'Compressed Enriched Clear Icicle', typeId: 28436, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Clear Icicle IV-Grade', typeId: 28436, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Helium Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
@@ -3073,15 +3073,15 @@ const ICE_DATA = [
     products: { 'Heavy Water': 173, 'Liquid Ozone': 691, 'Strontium Clathrates': 173 },
   },
   {
-    name: 'Compressed Pristine White Glaze',  typeId: 28441, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed White Glaze IV-Grade',  typeId: 28441, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Nitrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Smooth Glacial Mass',   typeId: 28442, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Glacial Mass IV-Grade', typeId: 28442, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Hydrogen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
-    name: 'Compressed Thick Blue Ice',        typeId: 28443, group: 'Compressed', volume: 100, batchSize: 1,
+    name: 'Compressed Blue Ice IV-Grade',     typeId: 28443, group: 'Compressed', volume: 100, batchSize: 1,
     products: { 'Heavy Water': 104, 'Liquid Ozone': 55, 'Oxygen Isotopes': 483, 'Strontium Clathrates': 1 },
   },
   {
@@ -3312,7 +3312,7 @@ function buildIceTable() {
           <div style="display:flex;align-items:center;gap:8px;">
             <img src="https://images.evetech.net/types/${ice.typeId}/icon?size=32"
                  onerror="this.onerror=null;this.style.display='none';"
-                 style="width:24px;height:24px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+                 style="width:24px;height:24px;border-radius:3px;flex-shrink:0;">
             <span style="color:var(--text-1);font-weight:600;">${escHtml(ice.name)}</span>
           </div>
         </td>
@@ -3356,6 +3356,14 @@ function buildIceTable() {
 
 // ── Gas type data ─────────────────────────────────────────────────────────────
 // typeId from EVE SDE. volume = m³ per unit.
+// VERIFY IDs AGAINST THE SDE, never by hand: 11 of these 26 were wrong until
+// 2026-08-17, and the failure was near-silent. Prices are fetched by typeId
+// (see _loadGasPrices below), so a wrong ID does not error — it quietly prices
+// the row as a different item. Malachite Cytoserocin was valued as "The Red
+// Card", Hiemal as the ore Talassonite, and four Mykoserocins pointed at
+// unpublished booster reaction formulas. Only the last group looked broken (no
+// icon); the rest showed a plausible icon and a plausible, wrong ISK number.
+// Every harvestable gas lives in invGroups.groupID = 711 ('Harvestable Cloud').
 // ventureHold: the standard Venture gas-cloud scoop cargo hold is 5000 m³,
 //   so ventureUnits = 5000 / volume.
 const GAS_DATA = [
@@ -3365,18 +3373,18 @@ const GAS_DATA = [
   { name: 'Celadon Cytoserocin',   typeId: 25275, group: 'Cytoserocin', volume: 10 },
   { name: 'Golden Cytoserocin',    typeId: 25273, group: 'Cytoserocin', volume: 10 },
   { name: 'Lime Cytoserocin',      typeId: 25277, group: 'Cytoserocin', volume: 10 },
-  { name: 'Malachite Cytoserocin', typeId: 25281, group: 'Cytoserocin', volume: 10 },
-  { name: 'Vermillion Cytoserocin',typeId: 25271, group: 'Cytoserocin', volume: 10 },
-  { name: 'Viridian Cytoserocin',  typeId: 25269, group: 'Cytoserocin', volume: 10 },
+  { name: 'Malachite Cytoserocin', typeId: 25276, group: 'Cytoserocin', volume: 10 },
+  { name: 'Vermillion Cytoserocin',typeId: 25278, group: 'Cytoserocin', volume: 10 },
+  { name: 'Viridian Cytoserocin',  typeId: 25274, group: 'Cytoserocin', volume: 10 },
   // ── Mykoserocin — Nullsec booster gas ───────────────────────────────────
   { name: 'Amber Mykoserocin',     typeId: 28694, group: 'Mykoserocin', volume: 10 },
-  { name: 'Azure Mykoserocin',     typeId: 28700, group: 'Mykoserocin', volume: 10 },
-  { name: 'Celadon Mykoserocin',   typeId: 28698, group: 'Mykoserocin', volume: 10 },
-  { name: 'Golden Mykoserocin',    typeId: 28696, group: 'Mykoserocin', volume: 10 },
-  { name: 'Lime Mykoserocin',      typeId: 28702, group: 'Mykoserocin', volume: 10 },
-  { name: 'Malachite Mykoserocin', typeId: 28704, group: 'Mykoserocin', volume: 10 },
-  { name: 'Vermillion Mykoserocin',typeId: 28706, group: 'Mykoserocin', volume: 10 },
-  { name: 'Viridian Mykoserocin',  typeId: 28708, group: 'Mykoserocin', volume: 10 },
+  { name: 'Azure Mykoserocin',     typeId: 28695, group: 'Mykoserocin', volume: 10 },
+  { name: 'Celadon Mykoserocin',   typeId: 28696, group: 'Mykoserocin', volume: 10 },
+  { name: 'Golden Mykoserocin',    typeId: 28697, group: 'Mykoserocin', volume: 10 },
+  { name: 'Lime Mykoserocin',      typeId: 28698, group: 'Mykoserocin', volume: 10 },
+  { name: 'Malachite Mykoserocin', typeId: 28699, group: 'Mykoserocin', volume: 10 },
+  { name: 'Vermillion Mykoserocin',typeId: 28700, group: 'Mykoserocin', volume: 10 },
+  { name: 'Viridian Mykoserocin',  typeId: 28701, group: 'Mykoserocin', volume: 10 },
   // ── Fullerites — Wormhole reaction gas ──────────────────────────────────
   { name: 'Fullerite-C50',  typeId: 30370, group: 'Fullerite', volume: 1  },
   { name: 'Fullerite-C60',  typeId: 30371, group: 'Fullerite', volume: 1  },
@@ -3388,7 +3396,7 @@ const GAS_DATA = [
   { name: 'Fullerite-C320', typeId: 30377, group: 'Fullerite', volume: 5  },
   { name: 'Fullerite-C540', typeId: 30378, group: 'Fullerite', volume: 10 },
   // ── Hiemal — Pochven ────────────────────────────────────────────────────
-  { name: 'Hiemal Tricarboxyl Vapor', typeId: 52306, group: 'Pochven', volume: 10 },
+  { name: 'Hiemal Tricarboxyl Vapor', typeId: 49787, group: 'Pochven', volume: 10 },
 ];
 
 // Venture gas hold = 5000 m³
@@ -3566,7 +3574,7 @@ function buildGasTable() {
           <div style="display:flex;align-items:center;gap:8px;">
             <img src="https://images.evetech.net/types/${gas.typeId}/icon?size=32"
                  onerror="this.onerror=null;this.style.display='none';"
-                 style="width:24px;height:24px;border-radius:3px;border:1px solid var(--border);flex-shrink:0;">
+                 style="width:24px;height:24px;border-radius:3px;flex-shrink:0;">
             <span style="color:var(--text-1);font-weight:600;">${escHtml(gas.name)}</span>
           </div>
         </td>

@@ -59,6 +59,7 @@ const { registerCharacterHandlers } = characterIpc;
 const { registerEsiHandlers }       = require('./src/ipc/esi_ipc');
 const { registerAssetHandlers }     = require('./src/ipc/assets_ipc');
 const { registerValuationHandlers } = require('./src/ipc/valuation_ipc');
+const { registerFleetOpHandlers }   = require('./src/ipc/fleet_ops_ipc');
 const { registerStationHandlers }   = require('./src/ipc/station_ipc');
 const { registerConfigHandlers }    = require('./src/ipc/config_ipc');
 const { registerPIHandlers, syncPIForCharacter } = require('./src/ipc/pi_ipc');
@@ -988,7 +989,12 @@ ipcMain.handle('fc-get-ship-roles', async () => {
 // The fleet the character is currently in. ESI returns 404 when the character is
 // not in a fleet — surfaced as { inFleet:false } rather than an error. A token
 // predating esi-fleets.read_fleet.v1 returns 403 → { needsReauth:true }.
-// Returns { inFleet, fleetId, role, wingId, squadId } on success.
+// Returns { inFleet, fleetId, fleetBossId, role, wingId, squadId } on success.
+//
+// fleetBossId is what lets an op notice the FC handing boss to someone else.
+// Without it the first symptom is /fleets/{id}/members starting to 403, which is
+// indistinguishable from a token problem — the op would just go blind and the
+// record would stop with no explanation in it.
 ipcMain.handle('fc-get-character-fleet', async (_, characterId) => {
   if (!characterId) return { inFleet: false };
   try {
@@ -998,11 +1004,12 @@ ipcMain.handle('fc-get-character-fleet', async (_, characterId) => {
       _esiAuthHeaders(token)
     );
     return {
-      inFleet: true,
-      fleetId: data.fleet_id,
-      role:    data.role,
-      wingId:  data.wing_id,
-      squadId: data.squad_id,
+      inFleet:     true,
+      fleetId:     data.fleet_id,
+      fleetBossId: data.fleet_boss_id,
+      role:        data.role,
+      wingId:      data.wing_id,
+      squadId:     data.squad_id,
     };
   } catch (e) {
     const msg = e.message || '';
@@ -1969,6 +1976,10 @@ app.whenReady().then(async () => {
     // from the app rather than package.json so a packaged build reports the
     // version it was built as.
     version: app.getVersion(),
+    // Raw process.platform ("win32"/"darwin"/"linux"); the worker maps it to a
+    // display name from a fixed allowlist, so the naming lives in one place
+    // rather than in every shipped app version.
+    platform: process.platform,
     broadcast: (channel, payload) => {
       BrowserWindow.getAllWindows().forEach(win => {
         if (!win.isDestroyed()) win.webContents.send(channel, payload);
@@ -2067,6 +2078,17 @@ app.whenReady().then(async () => {
     fetchTypeMetadata,
     loadDB,
     esiBase: ESI_BASE,
+  });
+
+  // Fleet ops share the character database — an op is character-scoped data and
+  // belongs beside the rest of it rather than in a file of its own.
+  // httpGet, not a bare https call: the kill pull hits zKillboard, and going
+  // through the broker is what paces it at their 1/s ceiling. Both the ESI
+  // error-limit gate and the compat-date header are host-gated, so they
+  // correctly sit this one out.
+  registerFleetOpHandlers({
+    ipcHandle, getCharDb: () => charInfoDb.getDb(), httpGet,
+    loadDB, charInfoDb, resolveNames,
   });
   // Every path that writes assets tells the valuation layer, which coalesces a
   // ninety-character sync into one rebuild. Published on the module so the

@@ -7,13 +7,21 @@ let currentFcTab    = null;
 
 // ── Fleet Composition state ──────────────────────────────────────────────────
 const FC_POLL_MS = 6000;            // ESI caches /fleets/members for ~5s
+// Not in a fleet? /characters/{id}/fleet answers 404, and at 6s that is 600 4xx
+// an hour against a shared 100-errors-per-60s budget the whole app draws on —
+// spent entirely on learning nothing changed. Idle polling backs off to this.
+const FC_IDLE_POLL_MS = 30_000;
 let _fcShipRoles  = null;           // { [typeId]: {name, group_name, tactical_role} } — loaded once
 let _fcPollTimer  = null;
+let _fcPollEveryMs = FC_POLL_MS;    // current cadence, so a change can restart the timer
 let _fcBusy       = false;          // guards against overlapping poll cycles
 let _fcTracking   = false;
 let _fcCharId     = null;           // character authenticating as fleet boss
 let _fcFleetId    = null;
 let _fcDoctrine   = 'shield';
+let _fcOpId       = null;           // running op, or null when only watching
+let _fcOpName     = '';
+let _fcBossId     = null;           // last seen fleet_boss_id, to notice a handover
 const _fcNameCache     = new Map(); // characterId -> name (resolved via ESI, cached)
 const _fcTypeNameCache = new Map(); // shipTypeId  -> name (ESI fallback when the SDE lacks the hull)
 const _fcExpanded  = new Set();     // expanded chip keys ("roleKey|typeId") — survives the 6s refresh
@@ -113,8 +121,11 @@ function initFcPage() {
 
 function navigateFcTab(tab) {
   // Leaving the composition tab tears down the polling loop so it never runs in
-  // the background against a hidden page.
-  if (currentFcTab === 'composition' && tab !== 'composition') _fcStopTracking();
+  // the background against a hidden page — UNLESS an op is recording. An FC
+  // checks a fit or the intel tab constantly mid-fleet, and an op that stopped
+  // collecting every time they did would have holes exactly where the
+  // interesting parts are.
+  if (currentFcTab === 'composition' && tab !== 'composition' && !_fcOpId) _fcStopTracking();
   // Leaving Early Warning stops the contact refresh, but NOT the watcher — the
   // whole point is that it keeps warning you while you're on another tab.
   if (currentFcTab === 'intel' && tab !== 'intel' && typeof teardownIntelEarlyWarning === 'function') {
@@ -203,6 +214,9 @@ async function renderFleetComposition(mount) {
           </select>
         </label>
         <button id="fcTrackBtn" class="fc-track-btn">Start Tracking</button>
+        <button id="fcOpBtn" class="fc-track-btn fc-op-btn"
+                title="Record this fleet as an op — roster, ship changes and where the fleet actually went">Start Op</button>
+        <button id="fcReportBtn" class="fc-track-btn fc-invite-btn" style="display:none;">Report</button>
         <button id="fcInviteBtn" class="fc-track-btn fc-invite-btn"
                 title="Invite all your other characters to this fleet (they must accept in-game)">Invite All Alts</button>
         <span id="fcStatus" class="fc-status">Idle</span>
@@ -237,6 +251,16 @@ async function renderFleetComposition(mount) {
   });
 
   document.getElementById('fcInviteBtn').addEventListener('click', _fcInviteAllAlts);
+  document.getElementById('fcOpBtn').addEventListener('click', _fcToggleOp);
+  document.getElementById('fcReportBtn').addEventListener('click', _fcShowReport);
+  // The page is rebuilt on every visit, so a report offered before navigating
+  // away has to be re-offered rather than silently lost.
+  if (_fcReportOpId) _fcOfferReport(_fcReportOpId, _fcReportOpName);
+
+  // An op outlives this page. Navigating away and back — or restarting the app
+  // mid-fleet — must find the op still running rather than silently recording
+  // nothing while the button says "Start Op".
+  _fcResumeOp();
 
   // Delegated click: expand/collapse a ship chip to reveal its pilots. Bound on
   // the persistent #fcResults container so it survives the per-poll re-render.
@@ -268,16 +292,25 @@ async function _fcStartTracking() {
 
   _fcTracking = true;
   _fcFleetId  = null;
+  _fcPollEveryMs = FC_POLL_MS;                      // assume in-fleet; the poll corrects it
   _fcSetTrackBtn(true);
   await _fcPoll();                                  // immediate first cycle
-  if (_fcTracking) _fcPollTimer = setInterval(_fcPoll, FC_POLL_MS);
+  if (_fcTracking) _fcPollTimer = setInterval(_fcPoll, _fcPollEveryMs);
 }
 
-function _fcStopTracking() {
+// `reason` keeps the caller's explanation on screen. Without it this always
+// overwrote the specific message that preceded it — "Only the fleet boss can
+// read the roster" became a bare "Stopped.", which is the one case where the
+// user most needs to be told why.
+function _fcStopTracking(reason = 'stopped') {
+  // Stopping the poll deliberately ends any op with it: the poll IS what feeds
+  // the record, so an "open" op receiving nothing would quietly accumulate a gap
+  // and then claim the fleet sat still for it.
+  if (_fcOpId) _fcEndOp(reason);
   _fcTracking = false;
   if (_fcPollTimer) { clearInterval(_fcPollTimer); _fcPollTimer = null; }
   _fcSetTrackBtn(false);
-  _fcSetStatus('Stopped.', '');
+  if (reason === 'stopped') _fcSetStatus('Stopped.', '');
 }
 
 // Page-visibility hooks (called from navigateToPage). Leaving the fleet page
@@ -285,12 +318,17 @@ function _fcStopTracking() {
 // spam ESI while away. Returning resumes the loop and immediately re-checks that
 // the fleet is still up — your setup is exactly as you left it.
 function _fcOnPageHidden() {
+  // A recording op keeps polling off-page. That is the one case where the calls
+  // are the point: the FC is on the map or in Jabber and the record has to keep
+  // covering the fleet. It is bounded — one character, 6s, only while an op the
+  // user deliberately started is open.
+  if (_fcOpId) return;
   if (_fcPollTimer) { clearInterval(_fcPollTimer); _fcPollTimer = null; }
 }
 function _fcOnPageShown() {
   if (_fcTracking && !_fcPollTimer) {
     _fcPoll();                                     // re-check the fleet right away
-    _fcPollTimer = setInterval(_fcPoll, FC_POLL_MS);
+    _fcPollTimer = setInterval(_fcPoll, _fcPollEveryMs);
   }
 }
 
@@ -325,6 +363,283 @@ async function _fcInviteAllAlts() {
   }
 }
 
+// ─── Ops — the recorded outing behind the live view ───────────────────────────
+//
+// Tracking and recording are deliberately separate buttons. Tracking is a live
+// glance at composition and an FC does it constantly, often for thirty seconds
+// while forming up; an op is a record somebody will read later. Making Start
+// Tracking also start an op would fill the history with thirty-second stubs.
+
+// Pick up an op left running by a previous visit to this page or a restart.
+async function _fcResumeOp() {
+  try {
+    const op = await window.eveAPI.fleetOpCurrent();
+    if (!op) return;
+    _fcOpId   = op.op_id;
+    _fcOpName = op.name;
+    _fcSetOpBtn(true);
+
+    // An op survives a restart but tracking does not, so the op can be open with
+    // nothing feeding it. Say so: a button reading "End Op" while no poll is
+    // running would otherwise look exactly like recording.
+    if (!_fcTracking) {
+      _fcSetStatus(`Op “${op.name}” is open but paused — press Start Tracking to keep recording it.`, 'warn');
+    }
+  } catch (_) { /* no op is a normal state */ }
+}
+
+function _fcToggleOp() {
+  if (_fcOpId) return _fcEndOp('stopped');
+
+  if (!_fcTracking) { _fcSetStatus('Start tracking first — an op records what the poll sees.', 'warn'); return; }
+  if (!_fcFleetId)  { _fcSetStatus('No fleet detected yet — join one in-game first.', 'warn'); return; }
+
+  // The app's one name-entry modal. Electron has no window.prompt() — it THROWS
+  // "prompt() is not supported", killing the handler mid-click with nothing
+  // shown, which is exactly how renaming a shopping list came to do nothing.
+  showShoppingListNameModal({
+    title: 'Name this op',
+    confirmLabel: 'Start Op',
+    placeholder: 'Home Defence, Rorqual Hunt…',
+    value: _fcDefaultOpName(),
+    onSubmit: async (name) => {
+      const res = await window.eveAPI.fleetOpStart({
+        name, doctrine: _fcDoctrine, bossCharacterId: Number(_fcCharId), fleetId: _fcFleetId,
+      }).catch(e => ({ ok: false, error: e.message }));
+
+      if (!res.ok) { _fcSetStatus(res.error || 'Could not start the op.', 'warn'); return; }
+      _fcOpId   = res.opId;
+      _fcOpName = name;
+      _fcSetOpBtn(true);
+      _fcSetStatus(`Recording “${name}”.`, 'ok');
+    },
+  });
+}
+
+// A date-stamped default, because the overwhelmingly common case is one fleet a
+// day and an FC should not have to invent a name to press the button.
+function _fcDefaultOpName() {
+  const d = new Date();
+  return `Fleet ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Why an op ended, in the FC's words rather than the code's. Anything not listed
+// is a plain stop and needs no explanation.
+const FC_END_REASONS = {
+  'boss-handover':    'fleet boss changed',
+  'lost-boss':        'lost fleet boss',
+  'needs-reauth':     'fleet access expired',
+  'tracking-stopped': 'tracking stopped',
+};
+
+async function _fcEndOp(reason) {
+  if (!_fcOpId) return;
+  const id = _fcOpId, name = _fcOpName;
+  _fcOpId = null; _fcOpName = '';        // stop recording before the await
+  _fcSetOpBtn(false);
+  const why = FC_END_REASONS[reason] ? ` (${FC_END_REASONS[reason]})` : '';
+  try {
+    const res = await window.eveAPI.fleetOpStop(id, reason);
+    const moves = res && res.op ? res.op.movement.length : 0;
+    const pilots = res && res.op ? new Set(res.op.roster.map(r => r.character_id)).size : 0;
+    _fcSetStatus(
+      `Op “${name}” saved${why} — ${pilots} pilot${pilots === 1 ? '' : 's'}, ${moves} system${moves === 1 ? '' : 's'}. Fetching kills…`,
+      why ? 'warn' : 'ok');
+    _fcPullKills(id, name);            // not awaited — the op is already saved
+  } catch (e) {
+    _fcSetStatus(`Op “${name}” closed${why} (${e.message || 'with an error saving'}).`, 'warn');
+  }
+}
+
+// Kills and losses, pulled once now that the op has an end time.
+//
+// Deliberately AFTER the op is safely closed and not awaited by the caller: this
+// makes ~one request per system through a 1/s rate gate, so a fifteen-system
+// roam takes about fifteen seconds. Blocking the stop button on that would make
+// ending a fleet feel broken.
+async function _fcPullKills(opId, name) {
+  try {
+    const r = await window.eveAPI.fleetOpPullKills(opId);
+    if (!r || !r.ok) { _fcSetStatus(`Op “${name}” saved — kills unavailable (${(r && r.error) || 'failed'}).`, 'warn'); return; }
+
+    // "We could not look" must never render as "nothing happened".
+    if (r.reason) { _fcSetStatus(`Op “${name}” saved — ${r.reason}`, 'warn'); return; }
+
+    const s = r.summary || {};
+    const isk = (n) => !n ? '0' : n >= 1e9 ? (n / 1e9).toFixed(1) + 'b' : (n / 1e6).toFixed(0) + 'm';
+    let msg = `Op “${name}” saved — ${s.kills || 0} kill${s.kills === 1 ? '' : 's'} (${isk(s.iskDestroyed)} ISK), ` +
+              `${s.losses || 0} loss${s.losses === 1 ? '' : 'es'} (${isk(s.iskLost)} ISK).`;
+
+    // An incomplete pull says so. A report that quietly under-counts is worse
+    // than one that admits a gap, because nobody can tell it happened.
+    const gaps = [];
+    if (r.failed && r.failed.length)       gaps.push(`${r.failed.length} system${r.failed.length === 1 ? '' : 's'} unreachable`);
+    if (r.truncated && r.truncated.length) gaps.push(`${r.truncated.length} hit the result cap`);
+    if (gaps.length) msg += ` Incomplete: ${gaps.join(', ')}.`;
+
+    // Mining runs after kills rather than in parallel: both write to the same
+    // op and the status line can only say one thing at a time.
+    const m = await window.eveAPI.fleetOpPullMining(opId).catch(() => null);
+    if (m && m.ok && m.summary && m.summary.units > 0) {
+      const c = m.summary.coverage || {};
+      msg += ` Mined ${m.summary.units.toLocaleString('en-US')} units`
+           + (c.pilotsInFleet ? ` (${c.pilotsMeasured} of ${c.pilotsInFleet} pilots visible)` : '') + '.';
+    }
+
+    _fcSetStatus(msg, gaps.length ? 'warn' : 'ok');
+    _fcOfferReport(opId, name);
+  } catch (e) {
+    _fcSetStatus(`Op “${name}” saved — kills unavailable (${e.message || 'error'}).`, 'warn');
+    _fcOfferReport(opId, name);          // the record is still worth reading
+  }
+}
+
+// ─── The after action report ──────────────────────────────────────────────────
+
+let _fcReportOpId = null, _fcReportOpName = '';
+
+// A closed op has nowhere else to be reached from yet, so the button that opens
+// its report lives next to the op controls until another op starts.
+function _fcOfferReport(opId, name) {
+  _fcReportOpId = opId; _fcReportOpName = name;
+  const btn = document.getElementById('fcReportBtn');
+  if (btn) { btn.style.display = ''; btn.title = `After action report for “${name}”`; }
+}
+
+async function _fcShowReport() {
+  if (!_fcReportOpId) return;
+  const res = await window.eveAPI.fleetOpReport(_fcReportOpId).catch(e => ({ ok: false, error: e.message }));
+  if (!res || !res.ok) { _fcSetStatus(`Could not build the report (${(res && res.error) || 'failed'}).`, 'warn'); return; }
+
+  const formats = { markdown: res.markdown, bbcode: res.bbcode, text: res.text };
+  let active = 'bbcode';        // most EVE alliance forums run BBCode
+  try { active = localStorage.getItem('fc_aar_format') || 'bbcode'; } catch (_) {}
+  if (!formats[active]) active = 'bbcode';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'fc-aar-backdrop';
+  backdrop.innerHTML = `
+    <div class="fc-aar-modal">
+      <div class="fc-aar-head">
+        <div class="fc-aar-title">After action report — ${_fcEsc(_fcReportOpName)}</div>
+        <button class="fc-aar-close" title="Close">&#10005;</button>
+      </div>
+      <div class="fc-aar-tabs">
+        ${['bbcode', 'markdown', 'text'].map(f => `
+          <button class="fc-aar-tab${f === active ? ' active' : ''}" data-fmt="${f}">
+            ${f === 'bbcode' ? 'BBCode' : f === 'markdown' ? 'Markdown' : 'Plain text'}</button>`).join('')}
+        <span class="fc-aar-hint">Most EVE alliance forums take BBCode.</span>
+      </div>
+      <textarea class="fc-aar-body" spellcheck="false" readonly></textarea>
+      <div class="fc-aar-foot">
+        <input class="fc-aar-notes field-input" placeholder="FC notes — what happened, what to do differently…"/>
+        <button class="fc-aar-refresh fc-track-btn fc-invite-btn"
+                title="Re-fetch kills and mining. zKillboard publishes a killmail a few minutes after the fact, and the mining ledger is up to an hour behind — so a report built the moment a fleet stood down can legitimately be short.">Refresh data</button>
+        <button class="fc-aar-save fc-track-btn fc-invite-btn">Save file</button>
+        <button class="fc-aar-copy fc-track-btn">Copy</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const body  = backdrop.querySelector('.fc-aar-body');
+  const notes = backdrop.querySelector('.fc-aar-notes');
+  const paint = () => { body.value = formats[active]; };
+  paint();
+
+  const close = () => backdrop.remove();
+  backdrop.querySelector('.fc-aar-close').addEventListener('click', close);
+  backdrop.addEventListener('click', e => { if (e.target === backdrop) close(); });
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
+  });
+
+  backdrop.querySelectorAll('.fc-aar-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      active = tab.dataset.fmt;
+      try { localStorage.setItem('fc_aar_format', active); } catch (_) {}
+      backdrop.querySelectorAll('.fc-aar-tab').forEach(t => t.classList.toggle('active', t === tab));
+      paint();
+    });
+  });
+
+  // Notes are saved and the report rebuilt, so what you copy includes them.
+  let notesTimer = null;
+  notes.addEventListener('input', () => {
+    clearTimeout(notesTimer);
+    notesTimer = setTimeout(async () => {
+      await window.eveAPI.fleetOpSetNotes(_fcReportOpId, notes.value).catch(() => {});
+      const fresh = await window.eveAPI.fleetOpReport(_fcReportOpId).catch(() => null);
+      if (fresh && fresh.ok) {
+        formats.markdown = fresh.markdown; formats.bbcode = fresh.bbcode; formats.text = fresh.text;
+        paint();
+      }
+    }, 600);
+  });
+
+  // Both sources lag: zKillboard publishes a killmail minutes after the fact and
+  // the mining ledger up to an hour. Without this, a report built the moment a
+  // fleet stood down would be permanently short with no way to correct it — and
+  // both pulls are idempotent, so re-running only ever corrects the numbers.
+  backdrop.querySelector('.fc-aar-refresh').addEventListener('click', async () => {
+    const b = backdrop.querySelector('.fc-aar-refresh');
+    const was = b.textContent;
+    b.disabled = true; b.textContent = 'Fetching…';
+    try {
+      const [k, m] = await Promise.all([
+        window.eveAPI.fleetOpPullKills(_fcReportOpId).catch(() => null),
+        window.eveAPI.fleetOpPullMining(_fcReportOpId).catch(() => null),
+      ]);
+      const fresh = await window.eveAPI.fleetOpReport(_fcReportOpId);
+      if (fresh && fresh.ok) {
+        formats.markdown = fresh.markdown; formats.bbcode = fresh.bbcode; formats.text = fresh.text;
+        paint();
+      }
+      const found = (k && k.found) || 0;
+      const mined = (m && m.summary && m.summary.units) || 0;
+      b.textContent = `${found} kill${found === 1 ? '' : 's'}${mined ? ', mining updated' : ''}`;
+      setTimeout(() => { b.textContent = was; }, 2500);
+    } catch (e) {
+      b.textContent = 'Failed';
+      setTimeout(() => { b.textContent = was; }, 2000);
+    } finally { b.disabled = false; }
+  });
+
+  backdrop.querySelector('.fc-aar-copy').addEventListener('click', () => {
+    navigator.clipboard.writeText(formats[active]).then(() => {
+      const b = backdrop.querySelector('.fc-aar-copy');
+      b.textContent = 'Copied';
+      setTimeout(() => { b.textContent = 'Copy'; }, 1500);
+    }).catch(() => _fcSetStatus('Could not copy to clipboard.', 'warn'));
+  });
+
+  backdrop.querySelector('.fc-aar-save').addEventListener('click', async () => {
+    const r = await window.eveAPI.fleetOpSaveReport({
+      name: _fcReportOpName, format: active, content: formats[active],
+    }).catch(e => ({ ok: false, error: e.message }));
+    if (r && r.ok) _fcSetStatus(`Report saved as ${r.name}.`, 'ok');
+    else if (r && !r.canceled) _fcSetStatus(`Could not save (${r.error || 'failed'}).`, 'warn');
+  });
+}
+
+function _fcSetOpBtn(recording) {
+  const btn = document.getElementById('fcOpBtn');
+  if (!btn) return;
+  btn.textContent = recording ? 'End Op' : 'Start Op';
+  btn.classList.toggle('recording', recording);
+}
+
+// The poll cadence changes with what we found — active in a fleet, idle out of
+// one. Restarting the interval rather than checking a counter inside the tick
+// keeps the ESI call rate honestly equal to the cadence.
+function _fcSetCadence(ms) {
+  if (ms === _fcPollEveryMs) return;
+  _fcPollEveryMs = ms;
+  if (_fcPollTimer) {
+    clearInterval(_fcPollTimer);
+    _fcPollTimer = setInterval(_fcPoll, ms);
+  }
+}
+
 let _fcLastMembers = null;
 
 async function _fcPoll() {
@@ -334,21 +649,55 @@ async function _fcPoll() {
     // Resolve the fleet id (cheap; also catches the fleet closing/reforming).
     const f = await window.eveAPI.fcGetCharacterFleet(_fcCharId);
     if (!_fcTracking) return;                       // stopped mid-await
-    if (f.needsReauth) { _fcSetStatus('Re-authenticate this character to grant fleet access.', 'warn'); _fcStopTracking(); return; }
-    if (!f.inFleet)    { _fcFleetId = null; _fcSetStatus('Character is not in a fleet.', 'warn'); _fcShowEmpty('Not in a fleet. Join one in-game, then keep tracking running.'); return; }
+    if (f.needsReauth) { _fcSetStatus('Re-authenticate this character to grant fleet access.', 'warn'); _fcStopTracking('needs-reauth'); return; }
+    if (!f.inFleet) {
+      _fcFleetId = null;
+      // Back off: this branch is a 404 every time, and at 6s it drains the
+      // shared ESI error budget for the whole app while learning nothing.
+      _fcSetCadence(FC_IDLE_POLL_MS);
+      _fcSetStatus('Character is not in a fleet — checking every 30s.', 'warn');
+      _fcShowEmpty('Not in a fleet. Join one in-game, then keep tracking running.');
+      return;
+    }
+    _fcSetCadence(FC_POLL_MS);
     _fcFleetId = f.fleetId;
+
+    // Boss handover. The roster is boss-only, so the moment someone else holds
+    // boss the reads start failing — and a 403 alone is indistinguishable from
+    // a token problem. Catching it here means the op record says what happened
+    // instead of just stopping.
+    if (_fcOpId && _fcBossId && f.fleetBossId && f.fleetBossId !== _fcBossId) {
+      await _fcEndOp('boss-handover');
+      _fcSetStatus('Fleet boss changed — op closed and saved. Restart it as the new boss to keep recording.', 'warn');
+    }
+    _fcBossId = f.fleetBossId ?? _fcBossId;
 
     const res = await window.eveAPI.fcGetFleetMembers(_fcCharId, _fcFleetId);
     if (!_fcTracking) return;
-    if (res.notBoss)   { _fcSetStatus('Only the fleet boss can read the roster.', 'warn'); _fcStopTracking(); return; }
+    if (res.notBoss)   { _fcSetStatus('Only the fleet boss can read the roster.', 'warn'); _fcStopTracking('lost-boss'); return; }
     if (res.fleetGone) { _fcSetStatus('Fleet changed — re-checking…', ''); return; }
     if (!res.ok)       { _fcSetStatus(res.error || 'Failed to read roster.', 'warn'); return; }
 
     _fcLastMembers = res.members;
+
+    // Record BEFORE the name resolution and render. Those are cosmetic and can
+    // fail; the roster we just read is the thing that cannot be fetched again.
+    let opNote = '';
+    if (_fcOpId) {
+      const rec = await window.eveAPI.fleetOpRecord(_fcOpId, res.members).catch(() => ({ ok: false }));
+      if (rec && rec.ended) {
+        // The op was closed elsewhere (another window, or the DB). Stop claiming
+        // to record rather than dropping polls silently.
+        _fcOpId = null; _fcOpName = ''; _fcSetOpBtn(false);
+      } else {
+        opNote = ` · recording “${_fcOpName}”`;
+      }
+    }
+
     await _fcResolveNames(res.members);             // fill pilot-name cache before render
     if (!_fcTracking) return;
     _fcRenderStats(res.members);
-    _fcSetStatus(`Live · ${res.members.length} in fleet · updated ${new Date().toLocaleTimeString()}`, 'ok');
+    _fcSetStatus(`Live · ${res.members.length} in fleet${opNote} · updated ${new Date().toLocaleTimeString()}`, 'ok');
   } catch (e) {
     _fcSetStatus(e.message || 'Polling error.', 'warn');
   } finally {

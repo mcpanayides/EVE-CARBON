@@ -42,12 +42,80 @@
 .fc-invite-btn:hover { background: var(--bg-hover); filter: none; }
 .fc-invite-btn:disabled { opacity: 0.55; cursor: default; }
 
+/* Recording an op. Outlined while idle like the other secondary action, then
+   filled red once live — an FC must be able to tell at a glance across the room
+   whether the fleet is being recorded, and "is it on?" is the one question this
+   button exists to answer. Uses --pal-red so themes re-colour it with everything
+   else rather than pinning a hue here. */
+.fc-op-btn { background: transparent; color: var(--pal-red); border: 1px solid var(--pal-red); }
+.fc-op-btn:hover { background: var(--bg-hover); filter: none; }
+.fc-op-btn.recording { background: var(--pal-red); color: #fff; border-color: var(--pal-red); }
+.fc-op-btn.recording::before {
+  content: '';
+  display: inline-block; width: 7px; height: 7px; margin-right: 7px;
+  border-radius: 50%; background: currentColor; vertical-align: middle;
+  animation: fc-op-pulse 2s ease-in-out infinite;
+}
+@keyframes fc-op-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Someone watching a fleet for three hours should not have a dot pulsing at
+   them the whole time if they have asked the OS to stop that. */
+@media (prefers-reduced-motion: reduce) {
+  .fc-op-btn.recording::before { animation: none; }
+}
+
+/* ─── After action report ──────────────────────────────────────────────────── */
+/* The deliverable. It is a text box on purpose: the report exists to be selected
+   and pasted into a forum, so the primary affordance is the text itself rather
+   than a prettier rendering of it that nobody can copy. */
+.fc-aar-backdrop {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex; align-items: center; justify-content: center;
+}
+.fc-aar-modal {
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+  width: 780px; max-width: 95vw; height: 78vh; max-height: 900px;
+  display: flex; flex-direction: column; font-family: var(--font);
+}
+.fc-aar-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.fc-aar-title { font-size: 13px; font-weight: 700; color: var(--text-1); }
+.fc-aar-close {
+  background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 13px; padding: 0;
+}
+.fc-aar-close:hover { color: var(--text-1); }
+
+.fc-aar-tabs { display: flex; align-items: center; gap: 6px; padding: 12px 20px 0; }
+.fc-aar-tab {
+  background: transparent; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-3); cursor: pointer;
+  font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 5px 12px;
+}
+.fc-aar-tab:hover { color: var(--text-1); }
+.fc-aar-tab.active { background: var(--accent); border-color: var(--accent); color: #07101a; }
+.fc-aar-hint { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+
+.fc-aar-body {
+  flex: 1; min-height: 0; margin: 12px 20px;
+  background: var(--bg-input, var(--bg-panel)); color: var(--text-1);
+  border: 1px solid var(--border); border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; line-height: 1.55;
+  padding: 14px; resize: none; white-space: pre; overflow: auto;
+}
+
+.fc-aar-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 20px 16px;
+}
+.fc-aar-notes { flex: 1; }
+
 .fc-status {
   font-family: var(--mono); font-size: 11px; color: var(--text-3);
   margin-left: auto; align-self: center;
 }
-.fc-status-ok   { color: var(--pal-teal); }
-.fc-status-warn { color: var(--pal-gold); }
 
 .fc-results { flex: 1; overflow-y: auto; padding: 18px; min-height: 0; }
 .fc-empty {
@@ -91,9 +159,6 @@
 .fc-tile-sub   { font-size: 10px; color: var(--text-3); margin-top: 4px; }
 
 .fc-accent { color: var(--accent); }
-.fc-green  { color: var(--pal-teal); }
-.fc-yellow { color: var(--pal-gold); }
-.fc-red    { color: var(--pal-red); }
 
 /* ── Outliers / false flags ────────────────────────────────────────────────── */
 .fc-outliers { border-color: #e0564b66; background: #e0564b14; }
@@ -333,15 +398,6 @@
 .ifc              { font-size: 10px; padding: 1px 5px; border-radius: 3px;
                     border: 1px solid var(--border); color: var(--text-2); white-space: nowrap; }
 .ifc-sys          { border-color: var(--pal-teal); color: var(--pal-teal); font-weight: 700; }
-.ifc-j            { margin-left: 4px; padding-left: 4px; border-left: 1px solid var(--border);
-                    opacity: 0.8; font-weight: 400; }
-.ifc-pilot        { border-color: var(--border); color: var(--text-1); }
-.ifc-ship         { border-color: var(--pal-blue); color: var(--pal-blue); }
-.ifc-count        { border-color: var(--pal-gold); color: var(--pal-gold); font-weight: 700; }
-.ifc-clear        { border-color: var(--pal-green); color: var(--pal-green); }
-.ifc-camp,
-.ifc-red          { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
-.ifc-kill         { border-color: var(--pal-red); color: var(--pal-red); }
 
 /* Patterns — habits rather than live contacts. The visual job here is to keep
    statistics from looking more authoritative than their sample warrants, so the

@@ -281,7 +281,7 @@ const PAGE_HTML = {
         <div class="industry-subnav">
           <div class="industry-subnav-label">TOOLS</div>
           <button class="industry-sub-btn fc-sub-btn active" data-fc-tab="composition">
-            <span class="industry-sub-icon material-symbols-outlined">groups</span>Fleet Composition
+            <span class="industry-sub-icon material-symbols-outlined">groups</span>Fleet Tracker
           </button>
           <button class="industry-sub-btn fc-sub-btn" data-fc-tab="fitting">
             <span class="industry-sub-icon material-symbols-outlined">build</span>Fitting Simulator

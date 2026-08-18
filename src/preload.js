@@ -296,6 +296,19 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fcGetFleetMembers:   (characterId, fleetId) => ipcRenderer.invoke('fc-get-fleet-members', characterId, fleetId),
   fcInviteCharacters:  (bossId, fleetId, ids) => ipcRenderer.invoke('fc-invite-characters', bossId, fleetId, ids),
 
+  // Fleet ops — the recorded outing behind the live composition view.
+  fleetOpStart:   (opts)            => ipcRenderer.invoke('fleet-op-start', opts),
+  fleetOpStop:    (opId, reason)    => ipcRenderer.invoke('fleet-op-stop', opId, reason),
+  fleetOpRecord:  (opId, members)   => ipcRenderer.invoke('fleet-op-record', opId, members),
+  fleetOpCurrent: ()                => ipcRenderer.invoke('fleet-op-current'),
+  fleetOpList:    (limit)           => ipcRenderer.invoke('fleet-op-list', limit),
+  fleetOpGet:     (opId)            => ipcRenderer.invoke('fleet-op-get', opId),
+  fleetOpPullKills:  (opId)         => ipcRenderer.invoke('fleet-op-pull-kills', opId),
+  fleetOpPullMining: (opId)         => ipcRenderer.invoke('fleet-op-pull-mining', opId),
+  fleetOpReport:     (opId)         => ipcRenderer.invoke('fleet-op-report', opId),
+  fleetOpSetNotes:   (opId, notes)  => ipcRenderer.invoke('fleet-op-set-notes', opId, notes),
+  fleetOpSaveReport: (payload)      => ipcRenderer.invoke('fleet-op-save-report', payload),
+
   // Fitting tool
   fitSearch:        (query, kind, limit) => ipcRenderer.invoke('fit-search', query, kind, limit),
   fitBrowseTree:    (kind)               => ipcRenderer.invoke('fit-browse-tree', kind),

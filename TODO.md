@@ -376,6 +376,442 @@ most of the items (the shape that hurts, not just the row count).
 
 ---
 
+## Network rate — a governor, not good manners
+
+**Status:** audited 2026-08-17 by enumerating every timer in the app. Not built.
+
+### What is running today
+
+18 `setInterval` timers. **Six of the fastest make no network request at all**,
+which is worth knowing before anyone "fixes" them:
+
+| timer | cadence | what it actually does |
+|---|---|---|
+| `src/intel/chatlog_reader.js:291` | 1 s | reads local EVE chat-log files off disk |
+| `src/func/dashboard.js:3345` | 1 s | DOM countdown on industry-job cards |
+| `src/func/fc_intel.js:203` | 2 s | `intelContacts()` — IPC to main, in-memory |
+| `src/func/dashboard.js:1124` | 3 s | same, IPC only |
+| `src/jabber_ipc.js:81` | 60 s | XMPP stanza on the already-open connection |
+| `src/func/blueprints.js:2472` | 30 s | DOM re-render |
+
+The ones that do reach the network, for a user with 20 characters:
+
+| source | cadence | reqs/tick | sustained |
+|---|---|---|---|
+| mail unread (`src/func/mail.js:681`) | 30 s | **one per character**, `Promise.all` | **0.67/s** |
+| fc poll (FC only, while tracking) | 6 s | 2 | 0.33/s |
+| **`zkill_stream` catch-up** | **100 ms** | 1 | **10/s** |
+| `zkill_stream` idle | 6 s | 1 | 0.17/s |
+| eve status | 60 s | 1 | 0.02/s |
+| trading / map / mining | 5 min | few | <0.05/s |
+| kill_watch / ticker / FW | 10–30 min | few | negligible |
+
+**Steady state is ~0.9 requests/second.** Nothing is near any plausible ceiling
+**except `zkill_stream`**, which walks its sequence cursor at `STEP_MS = 100`
+(10/s) whenever it falls behind, and which **bypasses the request broker
+entirely** via its own `directGet`.
+
+### Two structural gaps
+
+1. `src/request_broker.js:46-47` caps **concurrency** (8 per host for ESI, 6
+   default) but has **no requests-per-second limit at all**. Concurrency is not
+   rate: 8 in flight against fast responses is far more than 8/s.
+2. `zkill_stream` does not go through the broker, so even adding one there would
+   not have covered the one feature that needed it.
+
+### The number that actually matters
+
+Rate limits are **per IP**, so 100k users never share a budget and nobody is
+banned by someone else's traffic. That framing makes this look smaller than it
+is. zKillboard's own information page describes their scale as *"serving
+thousands of requests per minute."* 100k clients each polling at the stream's
+**idle** cadence of one request per 6 seconds is **~16,700 requests/second —
+a million per minute**, on the order of a thousand times their entire stated
+traffic, from this app alone.
+
+**Any design where every client independently polls a third-party free service
+does not scale to 100k users, at any cadence.** ESI is different: CCP built it
+for third-party apps, it is CDN-backed, and cache timers are published precisely
+so clients can poll. There the constraint is the error budget (100 errors/60 s
+per IP), not volume.
+
+### Also worth recording
+
+The comment in `src/intel/zkill_stream.js` asserts zKillboard "publishes a hard
+limit of 15 requests per second per IP" with a one-hour ban. **That number is
+not in their API wiki or their information page** — both state only "do not
+hammer the server, be polite." It may be right from their Discord, but it is
+currently a number we design against and cannot source. Treat it as unverified
+and stay well under it regardless.
+
+### The work
+
+- [x] **Token bucket per host in `request_broker.js`. DONE.** A fourth mechanism
+      beside the fresh-cache, single-flight and lane limits, because
+      **concurrency is not rate**: a lane of 8 against fast responses was never
+      a bound on requests/second. Shipped ceilings — `esi.evetech.net` 15/s
+      burst 30 (burst sized to the measured 34-request page-open peak, so
+      ordinary use is not taxed), `zkillboard.com` 1/s burst 3 (REST API, used
+      once per op by the AAR), `r2z2.zkillboard.com` 2.5/s burst 5 (the live
+      cursor, which must keep pace with the kill feed), default 5/s burst 10.
+      `setRate()` / `resetRates()` allow tuning without a release. FIFO is
+      preserved deliberately — a bucket that let new arrivals overtake the queue
+      would never drain it under load.
+- [x] **Bring `zkill_stream` under the governor. DONE — but not the way this
+      item originally said.** "Route it through the broker" was wrong: the
+      bypass is deliberate and documented at `src/intel/zkill_stream.js`, since
+      every caching layer breaks that feed silently (a cached `sequence.json`
+      means the cursor never advances and no killmail ever arrives again, while
+      the loop keeps reporting itself healthy). It needed the rate gate WITHOUT
+      the caching, so the broker now exports `reserve(url)` — take a token, skip
+      everything else — and `directGet` awaits it.
+- [x] **Slow the stream. DONE.** `STEP_MS` 100 → 400 ms (10/s → 2.5/s),
+      `IDLE_MS` 6 s → 15 s, `MAX_CATCHUP` 200 → 50 (200 steps at 400 ms would be
+      80 s spent catching up to kills already outside the relevance window).
+      The old 100 ms was justified by a comment citing a 15/s zKillboard ceiling
+      that **is not in their documentation** — the test asserting it has been
+      corrected to state what we actually know.
+
+  One property worth knowing before touching the bucket: its timers are
+  `unref`'d so a backlog of throttled polls cannot delay app quit. Verified
+  consequence — if nothing else holds the event loop, the process exits and a
+  queued promise **never settles**, rather than rejecting. Fine in Electron
+  main, visible in bare `node` probes. Do not await a broker call from a
+  shutdown path.
+- [x] **Confirmed what the governor actually covers**, by enumerating every file
+      making direct `https.request`/`https.get` calls rather than assuming.
+      Eight do; six are legitimately outside it and should stay there:
+      `accounts_ipc.js` is the OAuth **POST** (POSTs are never brokered),
+      `net_log.js` only instruments other callers, and `sde_fetch.js` /
+      `resfile.js` pull large static files from CCP's own CDNs. The two that
+      matter are in: `main.js:2760`'s `httpGet` wraps `requestBroker.get()` with
+      the raw transport as its `perform`, so **every ESI GET passes the
+      governor** — including `locator.js`, which takes that same `httpGet`
+      injected rather than rolling its own — and `zkill_stream` now takes a
+      token via `reserve()`.
+- [ ] **Fan the stream out through our own Worker** (we already run Cloudflare
+      for presence). One consumer instead of 100,000. This is the only version
+      of live intel that survives the growth target. **Still the real fix** —
+      everything above bounds one client; nothing above changes the arithmetic
+      that 100k clients polling a volunteer-run service is ~1000x their traffic.
+- [ ] **Stagger the mail poll** instead of firing N parallel requests, and back
+      it off when the window is not focused. It runs from launch, always,
+      whatever page you are on.
+- [ ] **Back the FC poll off to ~30 s when not in a fleet.**
+      `/characters/{id}/fleet` 404s every 6 seconds forever otherwise, and every
+      404 spends the shared ESI error budget.
+
+---
+
+## Fleet Tracker — ops, movement, kills and the AAR
+
+**Status:** ESI surface verified 2026-08-17 against `esi.evetech.net/meta/openapi.json`
+(204 paths, offline diff — no route-by-route probing). Not built.
+
+Rename **Fleet Composition → Fleet Tracker**: it already tracks more than
+composition. Change the display label only — the internal tab key is
+`'composition'`, persisted to `localStorage.fcLastTab` (`src/func/fc.js:110`), so
+renaming the key would break everyone's saved last-tab on upgrade.
+
+### What ESI's fleet endpoints actually contain — verified, so nobody re-checks
+
+The complete fleet API is **14 routes and contains no combat data of any kind**.
+It is a roster and org-chart API: no damage, no HP, no kills, no losses, in any
+field of any route.
+
+- `GET /characters/{id}/fleet` → `fleet_id, fleet_boss_id, role, wing_id, squad_id`
+- `GET /fleets/{id}` → `motd, is_free_move, is_registered, is_voice_enabled`
+- `GET /fleets/{id}/members` → `character_id, ship_type_id, solar_system_id,
+  station_id, wing_id, squad_id, role, role_name, join_time, takes_fleet_warp`
+- `GET /fleets/{id}/wings` → `id, name, squads`
+- 10 write routes: invite, kick, move member, create/delete/rename wing and squad.
+
+**Two consequences that shape everything below:**
+
+1. **`solar_system_id` is already in the roster payload** the poller fetches
+   every 6 s (`src/func/fc.js:341`) and currently throws away. Movement history,
+   ship swaps and join/leave times cost **zero new ESI calls and zero new
+   scopes**.
+2. **`fleet_boss_id`** lets us detect boss handover deliberately instead of
+   eating a 403 and going blind.
+
+### Kills and losses — where they actually come from
+
+| route | coverage | scope |
+|---|---|---|
+| `/characters/{id}/killmails/recent` | that character's kills **and** losses, **90 days** | `esi-killmails.read_killmails.v1` — **not currently requested** |
+| `/corporations/{id}/killmails/recent` | that corp's kills and losses, 90 days | `esi-killmails.read_corporation_killmails.v1` (director) |
+| `/killmails/{id}/{hash}` | attackers, victim, items, system, time | **public, no scope** |
+| `/universe/system_kills` | per-system counts, last hour, no attribution | public |
+
+**The coverage is asymmetric, and this is the design constraint.** A killmail is
+attributed to a corp if *any attacker* is a member — and a fleet kill carries a
+dozen attackers, so the corp route picks up **most of the fleet's kills**. A loss
+appears only if the *victim* is a member, so the same route shows **your corp's
+losses and nobody else's**. In a multi-corp alliance fleet, that is blind to most
+of what died.
+
+Mechanics: the list routes return **only `killmail_id` and `killmail_hash`** — no
+timestamp — so each needs a `/killmails/{id}/{hash}` fetch for detail. They
+paginate by page number with **no time filter**. Killmail IDs *appear* to
+increase monotonically, which would allow stopping early; **that is convention,
+not guaranteed by the spec — verify it against real data before relying on it**,
+or a report silently truncates.
+
+ESI killmails carry **no ISK value** — that is zKillboard's own calculation. We
+have pricing in `asset_valuation.js` / `appraisal.js` and can compute destroyed
+value locally. It will differ from zKill's because the price basis differs, so
+the AAR must state which basis it used.
+
+### Mining — what is and is not possible
+
+`/characters/{id}/mining` returns `date, solar_system_id, type_id, quantity`: a
+**daily aggregate with no timestamp**, for characters we hold a token for only.
+There is no ESI route that reports another pilot's mining. So a live fleet-wide
+ore counter **cannot be built**. What can:
+
+- **Own characters** — snapshot the ledger at op start, diff during and at close.
+  Refreshes at the ledger's cache cadence, so a handful of updates in a long op,
+  not live.
+- **Corp-wide** — `/corporation/{corp_id}/mining/observers/{observer_id}` gives
+  `character_id, type_id, quantity, last_updated` for *everyone* at that
+  observer. The only fleet-wide mining data that exists. Needs director access
+  and covers **moon drills and corp structures only** — not belt mining.
+
+Label the scope on the table itself, so an alt-only total is never read as a
+fleet total.
+
+### Phase 1 — op lifecycle and movement
+
+Zero new ESI calls, zero new scopes.
+
+"Start Tracking" becomes "Start Op" (named: *Home Defence 17/08*, *Rorqual
+Hunt*). New tables:
+
+| table | holds |
+|---|---|
+| `fleet_ops` | id, name, doctrine, boss char, started/ended, notes |
+| `fleet_op_roster` | op, character, ship_type, first_seen, last_seen |
+| `fleet_op_movement` | op, ts, system, members_there, total_members |
+| `fleet_op_kills` | op, killmail id+hash, ts, system, victim, ship, ISK, kill\|loss |
+| `fleet_op_mining` | op, character, type, quantity delta, system, source |
+
+**"Where the fleet is" is the modal system, not the boss's.** The FC is often not
+where the fleet is. Each poll, take the mode across members; record a movement
+entry only when it changes **and holds for 2–3 consecutive polls**, or a fleet
+mid-warp across three systems writes noise. Store dwell time per system — that is
+what makes the report readable ("held OWN-5GQ for 14 minutes").
+
+- [x] Rename the tab label; leave the `'composition'` key alone. **DONE.**
+- [x] Schema + migrations. **DONE** — `src/fleet_ops.js`. Reads
+      `PRAGMA table_info` and ALTERs what is missing, rather than a
+      hand-maintained list of ALTERs someone has to remember to append to.
+      **Never DROPs**: `asset_index` answers a shape mismatch by dropping, which
+      is right for a rebuildable cache and would be data loss here.
+- [x] Op start/stop, persisted roster and movement from the existing poll.
+      **DONE** — `src/ipc/fleet_ops_ipc.js`, wired through `preload.js` and
+      `src/func/fc.js`. Zero new ESI calls: it records what the 6 s poll was
+      already fetching and discarding.
+- [x] Modal-system debounce + dwell time. **DONE.** Verified by mutation, not
+      just by a green test: with the debounce removed, one gate crossing writes
+      **3** movement entries showing the fleet bouncing back and forth. With it,
+      zero. Ties break on lowest system id — arbitrary, but it must be
+      deterministic or an even split would flap forever and never settle.
+- [x] Boss-handover handling via `fleet_boss_id`. **DONE — the op ends and
+      says why.** Keeping it open would have gone on recording a fleet whose
+      roster we can no longer read, which is worse than stopping: the gap would
+      later read as the fleet having sat still.
+- [x] Not-in-fleet backoff. **DONE** — 6 s → 30 s while out of fleet.
+
+  Two behaviours that came out of building it and are worth knowing before
+  changing anything. **A recording op keeps polling off-page and across
+  sub-tabs** — an FC checks a fit or the intel tab constantly mid-fleet, and an
+  op that stopped collecting each time would have holes exactly where the
+  interesting parts are. And **an op survives a restart but tracking does not**,
+  so the page says so explicitly rather than showing an "End Op" button next to
+  nothing actually recording.
+
+  Also fixed in passing, since the new messages made it obvious: `_fcStopTracking()`
+  set `'Stopped.'` *after* the caller's message, so every specific reason
+  ("Only the fleet boss can read the roster") was overwritten with a bare
+  "Stopped." — the one case where the user most needs telling why.
+
+### Phase 2 — kills and losses, pulled once at op close
+
+**No live stream.** At close, one bulk pull. A 3-hour fleet through 15 systems
+costs ~15 requests once; the live-stream equivalent was ~1,800. Roughly 120×
+less, and it captures every pilot in fleet rather than only your alts.
+
+**ESI first, zKill as gap-filler:**
+
+- **ESI** — corp + character killmails cover most kills and your own losses, on
+  CCP infrastructure built for this, cacheable, and it scales to 100k users with
+  no third-party courtesy problem.
+- **zKill** — fills the gap: kills by fleet members in other corps, and losses by
+  anyone outside yours. `GET /api/systemID/{id}/pastSeconds/{n}/` for each system
+  in the movement timeline, then filter locally by roster and op window.
+  Verified against their API docs: both filters valid, at least two modifiers
+  required (these are two), `pastSeconds` must be a **multiple of 3600** and maxes
+  at **7 days** — so an op must be closed within the week.
+
+- [x] **Bulk pull at close. DONE** — `src/fleet_kills.js`, one request per system
+      through the broker's 1/s zKillboard bucket.
+- [x] **Include every system *seen*, not only debounce-stable ones. DONE** —
+      `fleet_op_systems`, written undebounced on every poll. Proven rather than
+      assumed: a fleet crossing a system in a single poll leaves it **absent
+      from the movement log** but present in systems-seen, and the kill there is
+      still found. Searching the movement log would have lost it silently.
+- [x] **The `zkb` block gives ISK for free. DONE** — `totalValue`,
+      `destroyedValue`, `droppedValue` and an `npc` flag come back inline,
+      verified against the live API on 2026-08-17. No local valuation needed and
+      no price-basis footnote: the number is zKillboard's own, which is the one
+      an FC will compare the report against anyway.
+
+  **Three items below turned out to be unnecessary, and the reason is worth
+  recording so nobody re-adds them.** The plan assumed ESI would be the primary
+  source and zKillboard the gap-filler. Probing the live API inverted that:
+  `/api/systemID/{id}/pastSeconds/{n}/` returns the **full killmail inline** —
+  `attackers[]`, `victim{}`, `killmail_time`, `solar_system_id` — plus `zkb`.
+  ESI's routes return `{killmail_id, killmail_hash}` with **no timestamp**, so
+  the ESI path needs a scope we do not request, covers only characters we hold
+  tokens for, and then needs one extra fetch per killmail just to learn *when*
+  it happened. One unauthenticated request per system beats it outright.
+
+- [x] ~~Add `esi-killmails.read_killmails.v1`~~ **Not needed.** No new scope, no
+      re-authentication for existing users, and it works for every pilot in
+      fleet regardless of corp — not just the ones we have tokens for.
+- [x] ~~Verify killmail-ID monotonicity~~ **Not needed** — that was only ever a
+      trick for stopping ESI pagination early. `pastSeconds` bounds the window
+      directly.
+- [x] ~~Local ISK valuation from the item list~~ **Not needed** — `zkb` carries it.
+- [ ] Recover an op if the app dies mid-fleet (within the 7-day window). The
+      op itself survives (Phase 1 resumes it), but nothing yet re-pulls kills
+      for an op that was closed while the network was down.
+
+### Phase 3 — mining table and the After Action Report
+
+Because movement and kills share timestamps and systems, the report can be
+structured the way an FC actually narrates it:
+
+```text
+OWN-5GQ · 19:42–20:03 (21m)
+  Kills   7   2.1B ISK    (Rorqual, 2× Hulk, 4× pod)
+  Losses  5   340M ISK    (3× Sabre, 2× Malediction)
+```
+
+- [x] **Mining delta. DONE** — `src/fleet_mining.js`. A baseline is photographed
+      at op start (`fleet_op_mining_baseline`) because the ledger is a **daily
+      running total with no timestamp**: without the photograph there is no way,
+      ever, to separate an op's yield from the rest of the pilot's day.
+      Restricted to systems the fleet was actually in — verified end to end that
+      an alt mining at home during the op is **excluded**, which is what stops a
+      ratting alt inflating the haul.
+- [x] **AAR generator. DONE** — `src/fleet_aar.js`. One model, three renderers,
+      so a number cannot exist in one format and be missing from another.
+- [x] **Markdown, BBCode and plain text; copy and save to file. DONE.** All
+      three are built, so **the Goonfleet-forum question never needed
+      answering** — the modal defaults to BBCode (most EVE alliance forums) and
+      remembers the choice.
+- [ ] **Corp mining observers** — the only fleet-WIDE mining source
+      (`/corporation/{id}/mining/observers/{observer_id}`). Needs director
+      access and covers moon drills and corp structures only, not belt mining,
+      so it belongs with the corp tooling rather than here. The `source` column
+      on `fleet_op_mining` already exists to hold it alongside `'ledger'`.
+
+  **Three limits of the ESI route, not of this code, that the report states
+  rather than hides.** There is no live ore counter for anyone — not even your
+  own pilots. We can only see our own characters, so a 40-pilot mining fleet
+  reports whatever fraction is signed into this app, and **the coverage caveat
+  travels with every mining figure in all three formats** ("covers 3 of 41
+  pilots"). And it is up to an hour behind, because ESI caches the route for
+  3600s and `sync-mining-ledger` self-throttles to match — asking sooner returns
+  identical bytes. Hence the pull being **re-runnable**: running it again later
+  recomputes from the same baseline and corrects the numbers instead of adding
+  to them.
+
+### FC Testing — live validation with two accounts
+
+**Everything in Phases 1-3 is verified against real SQLite, real payload shapes
+and probed endpoints — but no real fleet has run through any of it.** These are
+the things that cannot be tested from one desktop, parked deliberately rather
+than left as an unstated assumption. To be done together, with two accounts
+signed in.
+
+#### Running the session
+
+Everything needed is committed and ready; none of it has to be re-derived.
+
+```bash
+$env:EVE_CARBON_NET_LOG=1 ; npm run start   # app, with every request recorded
+npm run watch:op                            # second terminal: live view of the op
+```
+
+`npm run watch:op` (`scripts/watch-fleet-op.js`) opens the app's database
+**read-only** — the app holds one write connection in WAL mode — and prints the
+op as it builds, marking pass-through systems that are correctly absent from the
+movement narrative. `EVE_CARBON_NET_LOG=1` writes `net-log.csv` in the userData
+folder, one row per request with millisecond timestamps, which is what confirms
+the 6 s → 30 s not-in-fleet backoff and the rate governor actually behaving.
+
+**Tranquility with Mia's own accounts is the right place for this.** Reading
+your own fleet roster over ESI is exactly what the API is for, and forming a
+fleet and passing boss is ordinary gameplay. The standing "don't test against
+the real Goonfleet server" rule is about their **Jabber**, which none of this
+touches.
+
+#### The sequence
+
+**Op 1 — movement, roster churn, kills, mining.** Form a fleet, Start Tracking,
+Start Op. Fly **4-6 systems: sit still in two for a couple of minutes, pass
+straight through two without stopping.** Mia writes down the actual route — that
+is the ground truth; the app's record is what gets checked against it. Then the
+second account joins mid-op, swaps hull, and leaves.
+
+**Op 2 — boss handover.** Short, both accounts, pass boss A → B. Expect the op
+to close by itself with `end_reason='boss-handover'` and say so on screen.
+
+**The kill test needs a decision, because it costs a ship.** Recommended: in
+low or null, A shoots B in a throwaway frigate. That is not arbitrary — it
+produces a killmail with one of our pilots as victim AND another as attacker,
+which is exactly the friendly-fire case that must score as a **loss, never a
+kill**. It is the trickiest logic in Phase 2 and there is no other way to test
+it for real. Cheaper fallbacks: die to an NPC (tests the loss path and the `npc`
+flag, not friendly fire), or skip it and wait for a real fleet.
+
+**Wait 2-5 minutes after any kill before closing the op** — zKillboard publishes
+a killmail some minutes after the fact. If the report comes back short, the
+**Refresh data** button in the report modal re-pulls kills and mining; both
+pulls are idempotent, so re-running only ever corrects the numbers.
+
+- [ ] **The boss-handover path has never executed against ESI.** The logic is a
+      `fleet_boss_id` comparison between polls and it is unit-tested, but the
+      branch has only ever run against synthetic data. Two accounts, form a
+      fleet, pass boss, confirm the op closes with `end_reason='boss-handover'`
+      and says so on screen.
+- [ ] **`HOLD_POLLS = 3` is an estimate, not a measurement.** ~18 s at the 6 s
+      cadence, chosen as "longer than a gate crossing, shorter than a real
+      stop". Take a fleet through several gates and check the movement log
+      against what actually happened — too low and one crossing writes phantom
+      moves, too high and a genuine short stop is missed entirely.
+- [ ] **Roster churn against a live fleet** — join late, leave early, refit
+      mid-fleet, and confirm each shows up as expected (a refit should be a
+      second roster row, not an overwrite).
+- [ ] **The kill pull against a fleet that actually killed something.** Phase 2
+      is verified against a probed live zKillboard response, but the roster
+      matching has only seen fixtures. One real fight settles it.
+
+### Complications
+
+- **The roster is boss-only.** `/fleets/{id}/members` 403s for anyone who is not
+  the fleet boss (`src/func/fc.js:343`). Op tracking works only for the FC. This
+  also means fleet-tracking load scales with **concurrent fleets (hundreds)**,
+  not users (100k).
+- Long ops write a lot of movement rows — bound the retention.
+- A member who joins late or leaves early needs roster-membership-over-time, not
+  a final roster. The 6 s poll gives this naturally; the schema must keep it.
+
+---
+
 ## Smaller things noticed in passing
 
 - ~~**`prompt()` in `src/func/shopping-lists.js`**~~ **Fixed.** One in-app modal

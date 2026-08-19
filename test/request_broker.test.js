@@ -128,6 +128,25 @@ test('invalidate clears cached entries for a host', async () => {
 const uncached = () => ({ value: 1, headers: {} });          // never cached, never coalesced
 const burstUrl = (host, p) => `https://${host}/${p}/${++n}/`;
 
+// KEEP THE EVENT LOOP ALIVE FOR THESE TESTS.
+//
+// The governor's pump timer is unref'd on purpose, so a backlog of throttled
+// background polls can never delay app quit (see the comment on _pump). The
+// documented consequence is that with nothing else holding the loop open, the
+// process exits and a queued promise never settles — it does not reject, it
+// simply never comes back.
+//
+// In Electron main the app holds the loop, so this is invisible in production.
+// In a bare test runner it is not: these passed locally, where other handles
+// happened to keep the loop alive, and failed on CI with "Promise resolution is
+// still pending but the event loop has already resolved" — cancelling nine
+// tests at once and blocking a release.
+//
+// A ref'd heartbeat makes the suite independent of that ambient luck. It is
+// cleared below so the runner still exits on its own.
+const _keepAlive = setInterval(() => {}, 50);
+test.after(() => clearInterval(_keepAlive));
+
 test('a burst goes out immediately — the governor does not tax ordinary use', async () => {
   // The measured page-open peak is 34 requests. If the governor paced those, it
   // would have made every page feel slower to fix a problem nobody had.

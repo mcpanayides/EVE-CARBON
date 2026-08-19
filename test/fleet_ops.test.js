@@ -293,3 +293,74 @@ test('ops are listed newest first, with pilot and system counts', async () => {
     assert.strictEqual(b, list[0].op_id);
   } finally { await cleanup(db); }
 });
+
+// ─── Deleting an op ───────────────────────────────────────────────────────────
+//
+// There are no foreign keys on these tables, so nothing cascades. A delete that
+// only removed the fleet_ops row would leave roster, movement, systems, kills
+// and mining rows keyed to an id that resolves to nothing — invisible to every
+// query and freed by none of them.
+
+test('deleting an op removes every child row, not just the op', async () => {
+  const db = await freshDb();
+  try {
+    const opId = await ops.startOp(db, {
+      name: 'Doomed', doctrine: 'armour', bossCharacterId: 7, fleetId: 1, at: 1000 });
+    await ops.recordRoster(db, opId, at(30000001, 3), 1000);
+    await ops.recordSystemsSeen(db, opId, at(30000001, 3), 1000);
+    await ops.recordMovement(db, opId, { solarSystemId: 30000001, membersThere: 3, membersTotal: 3 }, 1000);
+    await ops.recordKills(db, opId, [{
+      killmailId: 1, killmailHash: 'h', at: 1200, solarSystemId: 30000001, side: 'kill',
+      victimCharacterId: 9, victimShipTypeId: 600, isk: 10, involved: 1, npc: false,
+    }]);
+    await ops.saveMiningBaseline(db, opId, 7, [{ date: '2026-01-01', type_id: 1, solar_system_id: 30000001, quantity: 5 }]);
+    await ops.endOp(db, opId, { at: 2000 });
+
+    const countAll = async () => {
+      const out = {};
+      for (const t of ['fleet_ops', 'fleet_op_roster', 'fleet_op_movement', 'fleet_op_systems',
+                       'fleet_op_kills', 'fleet_op_mining_baseline']) {
+        out[t] = (await db.get('SELECT COUNT(*) c FROM ' + t + ' WHERE op_id = ?', [opId])).c;
+      }
+      return out;
+    };
+
+    const filled = await countAll();
+    for (const [t, n] of Object.entries(filled)) assert.ok(n > 0, t + ' should have rows before the delete');
+
+    const res = await ops.deleteOp(db, opId);
+    assert.strictEqual(res.ok, true, res.error);
+
+    const after = await countAll();
+    for (const [t, n] of Object.entries(after)) assert.strictEqual(n, 0, t + ' still has rows after the delete');
+  } finally { await cleanup(db); }
+});
+
+test('an op that is still recording cannot be deleted', async () => {
+  const db = await freshDb();
+  try {
+    const opId = await ops.startOp(db, {
+      name: 'Live', doctrine: 'shield', bossCharacterId: 7, fleetId: 1, at: 1000 });
+    await ops.recordRoster(db, opId, at(30000001, 2), 1000);
+
+    const res = await ops.deleteOp(db, opId);
+    assert.strictEqual(res.ok, false, 'an open op must not be deletable');
+    assert.match(res.error, /still recording/i);
+
+    // and it is genuinely still there
+    assert.ok(await ops.getOp(db, opId), 'the op survived the refused delete');
+
+    // once closed, it goes
+    await ops.endOp(db, opId, { at: 2000 });
+    assert.strictEqual((await ops.deleteOp(db, opId)).ok, true);
+  } finally { await cleanup(db); }
+});
+
+test('deleting an op that does not exist fails cleanly', async () => {
+  const db = await freshDb();
+  try {
+    const res = await ops.deleteOp(db, 4242);
+    assert.strictEqual(res.ok, false);
+    assert.match(res.error, /not found/i);
+  } finally { await cleanup(db); }
+});

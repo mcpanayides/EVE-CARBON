@@ -1,7 +1,7 @@
 {
   "name": "eve-carbon",
   "productName": "EVE Carbon",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "author": "Mia Christina Panayides",
   "description": "EVE Online desktop companion for industrialists: recursive blueprint calculations, live ESI wealth tracking, industry job monitoring, and integrated Jabber comms.",
   "main": "main.js",
@@ -22,7 +22,8 @@
     "build-win": "npm run fetch-sde && electron-builder --win --x64",
     "build-mac": "electron-builder --mac",
     "build-linux": "electron-builder --linux",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "shots": "node scripts/shots.js"
   },
   "build": {
     "appId": "com.eve.carbon",
@@ -83,7 +84,9 @@
     "files": [
       "**/*",
       "!node_modules/.cache",
-      "!**/*.map"
+      "!**/*.map",
+      "!screenshots",
+      "!demo-shots"
     ]
   },
   "devDependencies": {

@@ -255,3 +255,71 @@ function openExternal(url) {
     return _origFetch.call(this, input, init);
   };
 })();
+
+// ─── Confirm dialog ───────────────────────────────────────────────────────────
+//
+// window.confirm() draws the OS dialog — a grey Windows box in the middle of a
+// themed glass terminal, with the app's name in the titlebar and no way to say
+// which button is the dangerous one. This is the same question in the app's own
+// language.
+//
+// Returns a Promise<boolean>. Unlike window.confirm it does NOT block, so every
+// call site has to await it; that is the one behavioural difference to watch
+// when converting the remaining raw confirm() sites (fitting, jabber, mail,
+// palette, rooms).
+//
+//   showConfirm({ title, body, confirmText, cancelText, danger })
+//
+// `danger: true` makes the confirm button destructive-red AND focuses Cancel
+// instead, so a reflexive Enter dismisses rather than destroys.
+function showConfirm({ title, body = '', confirmText = 'Confirm', cancelText = 'Cancel', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'cf-backdrop';
+    wrap.innerHTML =
+      '<div class="cf-modal' + (danger ? ' danger' : '') + '" role="dialog" aria-modal="true">' +
+        '<div class="cf-head">' +
+          (danger ? '<span class="cf-icon material-symbols-outlined">warning</span>' : '') +
+          '<span class="cf-title"></span>' +
+        '</div>' +
+        '<div class="cf-body"></div>' +
+        '<div class="cf-foot">' +
+          '<button class="cf-btn cf-cancel"></button>' +
+          '<button class="cf-btn cf-go"></button>' +
+        '</div>' +
+      '</div>';
+
+    // Text set as textContent, never innerHTML: these strings carry op names and
+    // other user input, and a fit called "<img onerror=…>" is not a dialog.
+    wrap.querySelector('.cf-title').textContent  = title || 'Are you sure?';
+    wrap.querySelector('.cf-cancel').textContent = cancelText;
+    wrap.querySelector('.cf-go').textContent     = confirmText;
+
+    const bodyEl = wrap.querySelector('.cf-body');
+    for (const line of String(body).split('\n')) {
+      const p = document.createElement('p');
+      p.className = 'cf-line';
+      p.textContent = line;
+      bodyEl.appendChild(p);
+    }
+
+    const done = (val) => {
+      document.removeEventListener('keydown', onKey, true);
+      wrap.remove();
+      resolve(val);
+    };
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); done(false); }
+      if (e.key === 'Enter' && !danger) { e.preventDefault(); done(true); }
+    }
+
+    wrap.querySelector('.cf-cancel').addEventListener('click', () => done(false));
+    wrap.querySelector('.cf-go').addEventListener('click', () => done(true));
+    // Clicking the backdrop cancels; clicking inside the panel must not.
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) done(false); });
+    document.addEventListener('keydown', onKey, true);
+
+    document.body.appendChild(wrap);
+    wrap.querySelector(danger ? '.cf-cancel' : '.cf-go').focus();
+  });
+}

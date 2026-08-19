@@ -48,7 +48,7 @@ test('toggling it on persists to config and asks for a restart', async ({ window
   await openGeneralSettings(window);
 
   // confirm() would block the run; take the "not now" branch so the app stays up.
-  await window.evaluate(() => { window.confirm = () => false; });
+  await window.evaluate(() => { window.showConfirm = async () => false; });
   await flip(window, 'demoModeToggle');
 
   const cfgPath = path.join(profile.userDataDir, 'config.json');
@@ -67,7 +67,7 @@ test('toggling it on persists to config and asks for a restart', async ({ window
 
 test('toggling it back off clears the flag rather than leaving it set', async ({ window, profile }) => {
   await openGeneralSettings(window);
-  await window.evaluate(() => { window.confirm = () => false; });
+  await window.evaluate(() => { window.showConfirm = async () => false; });
 
   const cfgPath = path.join(profile.userDataDir, 'config.json');
   const demoFlag = () => {
@@ -90,7 +90,7 @@ test('the toggle does not disturb other settings', async ({ window, profile }) =
   // setEnabled writes the real config directly rather than going through
   // loadConfig/saveConfig, so it has its own chance to clobber neighbours.
   await openGeneralSettings(window);
-  await window.evaluate(() => { window.confirm = () => false; });
+  await window.evaluate(() => { window.showConfirm = async () => false; });
 
   await flip(window, 'minimizeToTrayToggle');
   const cfgPath = path.join(profile.userDataDir, 'config.json');

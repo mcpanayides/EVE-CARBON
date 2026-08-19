@@ -272,4 +272,4 @@ function registerAccountHandlers({
   callbackServerState.start = startCallbackServer;
 }
 
-module.exports = { registerAccountHandlers };
+module.exports = { registerAccountHandlers, SCOPES };

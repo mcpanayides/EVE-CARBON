@@ -184,9 +184,25 @@ function reset({ userDataDir, dataDir }) {
     try { if (fs.existsSync(t)) fs.rmSync(t, { force: true }); }
     catch (e) { console.warn(`[demo] could not clear ${path.basename(t)}: ${e.message}`); }
   }
-  // The HTTP cache is a directory and is safe to drop wholesale — it only ever
-  // holds fetched responses.
-  try { fs.rmSync(path.join(userDataDir, 'cache'), { recursive: true, force: true }); } catch (_) {}
+  // The cache directory holds two unrelated things: our own dashboard snapshots
+  // (dash_snap_*.json — RENDERED HTML, 7-day TTL) and Electron's HTTP cache
+  // (Cache_Data), which is LOCKED while a previous instance is still exiting.
+  //
+  // This used to be one recursive rmSync in an empty catch. A single locked
+  // entry made the whole call throw, the failure was swallowed, and the stale
+  // snapshots survived — so a widget kept rendering last week's "No active corp
+  // industry jobs" no matter what the fixtures returned. Clearing entry by entry
+  // means a locked Electron cache can no longer protect our own snapshots, and
+  // anything that does fail is reported rather than hidden.
+  const cacheDir = path.join(userDataDir, 'cache');
+  let stuck = 0;
+  try {
+    for (const entry of fs.readdirSync(cacheDir)) {
+      try { fs.rmSync(path.join(cacheDir, entry), { recursive: true, force: true }); }
+      catch (_) { stuck++; }
+    }
+  } catch (_) { /* no cache dir yet — nothing to clear */ }
+  if (stuck) console.warn(`[demo] ${stuck} cache entr${stuck === 1 ? 'y' : 'ies'} were locked and left in place`);
 }
 
 /** Apply demo overrides to the main window's BrowserWindow options. */

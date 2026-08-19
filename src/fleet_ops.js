@@ -482,6 +482,48 @@ async function recordMining(db, opId, rows, source = 'ledger') {
 }
 
 /** Everything recorded for one op, ready to render or report. */
+/**
+ * Delete an op and everything hanging off it.
+ *
+ * There are no foreign keys on these tables, so nothing cascades: deleting the
+ * fleet_ops row alone would leave roster, movement, systems, kills and mining
+ * rows behind, still keyed to an op id that no longer resolves. They would then
+ * be counted by nothing and freed by nothing.
+ *
+ * The child list is DERIVED from TABLES rather than typed out, so a table added
+ * later is cleaned up without anyone remembering to come back here.
+ *
+ * Refuses to delete an op that is still open. A running tracker would carry on
+ * writing rows under the old id and resurrect the op as a half-record; stop it
+ * first, then delete.
+ */
+async function deleteOp(db, opId) {
+  await ensureFleetOpTables(db);
+  const id = Number(opId);
+  if (!Number.isFinite(id)) return { ok: false, error: 'bad op id' };
+
+  const op = await db.get('SELECT op_id, ended_at FROM fleet_ops WHERE op_id = ?', [id]);
+  if (!op) return { ok: false, error: 'op not found' };
+  if (!op.ended_at) return { ok: false, error: 'that op is still recording — stop it first' };
+
+  const children = TABLES.map((t) => t.name).filter((n) => n !== 'fleet_ops');
+
+  await db.exec('BEGIN');
+  try {
+    let rows = 0;
+    for (const t of children) {
+      const r = await db.run('DELETE FROM ' + t + ' WHERE op_id = ?', [id]);
+      rows += r.changes || 0;
+    }
+    const r = await db.run('DELETE FROM fleet_ops WHERE op_id = ?', [id]);
+    await db.exec('COMMIT');
+    return { ok: true, deleted: r.changes || 0, childRows: rows };
+  } catch (e) {
+    await db.exec('ROLLBACK');
+    return { ok: false, error: e.message || 'delete failed' };
+  }
+}
+
 async function getOp(db, opId) {
   await ensureFleetOpTables(db);
   const op = await db.get(`SELECT * FROM fleet_ops WHERE op_id = ?`, [opId]);
@@ -502,12 +544,19 @@ async function getOp(db, opId) {
   return { op, roster, movement: withDwell(movement, op.ended_at), kills, mining };
 }
 
+// Subqueries, not joins: joining roster, movement and kills at once multiplies
+// rows and inflates every total. The list is read far more often than written.
 async function listOps(db, limit = 50) {
   await ensureFleetOpTables(db);
   return db.all(
     `SELECT o.*,
             (SELECT COUNT(DISTINCT character_id) FROM fleet_op_roster r WHERE r.op_id = o.op_id) AS pilots,
-            (SELECT COUNT(*) FROM fleet_op_movement m WHERE m.op_id = o.op_id)                   AS systems
+            (SELECT COUNT(*) FROM fleet_op_movement m WHERE m.op_id = o.op_id)                   AS systems,
+            (SELECT COUNT(*) FROM fleet_op_kills k WHERE k.op_id = o.op_id AND k.side = 'kill')  AS kills,
+            (SELECT COUNT(*) FROM fleet_op_kills k WHERE k.op_id = o.op_id AND k.side = 'loss')  AS losses,
+            (SELECT COALESCE(SUM(isk),0) FROM fleet_op_kills k WHERE k.op_id = o.op_id AND k.side = 'kill') AS isk_killed,
+            (SELECT COALESCE(SUM(isk),0) FROM fleet_op_kills k WHERE k.op_id = o.op_id AND k.side = 'loss') AS isk_lost,
+            (SELECT COALESCE(SUM(isk),0) FROM fleet_op_mining g WHERE g.op_id = o.op_id)         AS isk_mined
        FROM fleet_ops o ORDER BY o.started_at DESC LIMIT ?`, [limit]);
 }
 
@@ -530,4 +579,5 @@ module.exports = {
   recordMining,
   getOp,
   listOps,
+  deleteOp,
 };

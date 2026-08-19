@@ -30,6 +30,65 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [3.5.0] - 2026-08-19
+
+Fleet ops get a record and an after-action report, the demo profile now fills
+every page, and eleven gas type IDs that were quietly pricing the wrong item are
+fixed.
+
+### Added
+- **Fleet Tracker records an op.** Start an op alongside fleet tracking and it
+  keeps the roster over time, the fleet's movement, the systems it passed
+  through, its kills and losses, and its mining — then renders an after-action
+  report you can paste straight into a forum post as Markdown, BBCode or text.
+  Movement is debounced so gate crossings do not fill the narrative, kills are
+  pulled once at the end rather than streamed, and friendly fire scores as a
+  loss instead of being counted twice.
+- **Op History.** Every past op with its pilots, systems, kills and ISK, and its
+  report — reachable after the fleet is over. Previously the report existed only
+  inside the live tracking flow, so closing the app put it out of reach.
+- **An op closes itself when the FC hands over boss**, ending the record with a
+  reason rather than simply going blind.
+- **A screenshot pipeline.** `npm run shots` walks all 44 screens in demo mode
+  and writes the published image set. Screenshots no longer ship inside the
+  installer.
+
+### Changed
+- **The demo profile now populates every page**, not just the ones reading from
+  disk. Mail, notifications, calendar, killboard, skill queue, market orders,
+  industry jobs and early warning all render invented data, so the app can be
+  demonstrated without exposing a real account's assets or killboard.
+- **Outbound requests are rate-governed per host.** A token bucket paces ESI at
+  15/s and zKillboard at 1/s, and the live kill stream backs off from a 100 ms
+  step to 400 ms — it is somebody else's free server.
+- **Confirmations use the app's own dialog** rather than the operating system's
+  grey box, and destructive ones are red with Cancel focused.
+- Type icons in list rows are no longer boxed, and the ambient background
+  gradient is gone — it cost 130-210% CPU in the GPU process for something the
+  glass blur had already hidden.
+
+### Fixed
+- **Eleven of the twenty-six gas types were priced as the wrong item.** Prices
+  are fetched by type ID, so a wrong ID never errored — Malachite Cytoserocin
+  was valued as "The Red Card", Hiemal Tricarboxyl Vapor as an ore, and four
+  Mykoserocins pointed at unpublished booster formulas. Only the last group
+  looked broken; the rest showed a plausible icon and a plausible, wrong price.
+  All four ore/ice/gas/moon tables now verify against the bundled SDE.
+- **Eight ice names were years out of date.** Thick Blue Ice, Pristine White
+  Glaze, Smooth Glacial Mass and Enriched Clear Icicle were renamed by CCP to
+  the "IV-Grade" convention; the ore-hold screen already used the new names, so
+  the app disagreed with itself.
+- **The online counter under-reported.** Sessions were held in memory by a
+  Durable Object that Cloudflare evicts after about 15 seconds, so three clients
+  each saw only themselves. The tooltip now also breaks the count down by
+  platform.
+- **ME and TE bars ignored custom palettes.** EVE's efficiency colours were
+  typed into four rules rather than bound to tokens, so a user palette
+  recoloured everything around the bars and left the bars behind.
+- Settings panels no longer get clipped when the window is not maximised — the
+  drawer body guessed at its own height and tall tabs had no way to scroll.
+- 197 dead CSS selectors and 6 unused tokens removed.
+
 ## [3.4.0] - 2026-08-16
 
 > **CRITICAL UPDATE** — fixes a security flaw in the SDE updater that let a

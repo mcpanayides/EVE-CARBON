@@ -536,3 +536,74 @@
    the habit points TOWARD us — the one version that changes a decision. */
 .intel-tag-predict     { border-color: var(--pal-blue); color: var(--pal-blue); }
 .intel-predict-closer  { border-color: var(--pal-red); color: var(--pal-red); font-weight: 700; }
+
+/* ══ Op History ══════════════════════════════════════════════════════════════
+   Past ops, so a report is reachable after the fleet is over. Before this the
+   report existed only inside the live tracking flow: close the app and the data
+   was still in the database with no way to reach it — which is exactly when an
+   FC wants it, having run three fleets back to back and written up none. */
+
+.oph-wrap { padding: 18px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+
+.oph-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.oph-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; color: var(--text-2); }
+.oph-note  { font-family: var(--mono); font-size: 10px; color: var(--text-4); }
+
+.oph-table { width: 100%; border-collapse: collapse; }
+.oph-table thead th {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-4); text-align: left; padding: 6px 10px;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.oph-table thead th.r { text-align: right; }
+.oph-table tbody tr { border-bottom: 1px solid var(--border-e); transition: background 0.12s; }
+.oph-table tbody tr:hover { background: var(--bg-hover); }
+.oph-table td { padding: 9px 10px; font-size: 12px; vertical-align: middle; }
+.oph-table td.r { text-align: right; font-family: var(--mono); }
+
+.oph-name   { color: var(--text-1); font-weight: 600; }
+.oph-doct   { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin-left: 6px; }
+.oph-when   { font-family: var(--mono); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.oph-num    { color: var(--text-2); }
+.oph-kill   { color: var(--pal-green); }
+.oph-loss   { color: var(--pal-red); }
+.oph-zero   { color: var(--text-6); }
+
+/* End reason. A handover or a boss-loss is not a normal close and should not
+   read like one — an FC scanning the list needs to see why it stopped. */
+.oph-end {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-4);
+  white-space: nowrap;
+}
+.oph-end.handover { color: var(--pal-gold); border-color: color-mix(in srgb, var(--pal-gold) 35%, transparent); }
+.oph-end.live     { color: var(--pal-green); border-color: color-mix(in srgb, var(--pal-green) 35%, transparent); }
+
+.oph-report-btn {
+  background: transparent; border: 1px solid var(--accent); border-radius: 999px;
+  color: var(--accent); font-family: var(--font); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; padding: 5px 14px; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.oph-report-btn:hover { background: var(--accent); color: var(--text-on-accent); }
+
+.oph-empty {
+  padding: 40px 20px; text-align: center; color: var(--text-3);
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+}
+
+/* Delete sits beside Report but must never be mistaken for it: ghost by
+   default, and only commits to danger red on hover. A destructive action that
+   looks identical to the safe one next to it is a mis-click waiting to happen. */
+.oph-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.oph-del-btn {
+  background: transparent; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-4); font-family: var(--font); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; padding: 5px 12px; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.oph-del-btn:hover:not(:disabled) {
+  color: var(--danger); border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.oph-del-btn:disabled { opacity: 0.5; cursor: default; }

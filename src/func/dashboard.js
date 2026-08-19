@@ -625,14 +625,21 @@ const DASH_LAYOUT_VERSION = 2;
 // (e.g. a widget renamed in a later version) so a stale entry never breaks init.
 // A layout from an older schema version is ignored (auto-reset to the default).
 function _loadDashLayout() {
+  // Beehive is GoonFleet-specific — it reads one alliance's room MOTD. The
+  // add-widget menu already hides it from non-Goons, but that filter does not
+  // touch a layout that already contains it, so it still renders. Drop it from
+  // the DEMO layout: these screenshots are published, and a marketing image
+  // carrying one alliance's internal beacon state is neither generic nor
+  // something that alliance agreed to.
+  const strip = (items) => ((window.eveAPI && window.eveAPI.isDemo) ? items.filter((it) => _widgetBase(it.id) !== 'beehive') : items);
   try {
     const saved = JSON.parse(localStorage.getItem('dashboardGridLayout') || 'null');
     if (saved && saved.v === DASH_LAYOUT_VERSION && Array.isArray(saved.items) && saved.items.length) {
       const valid = saved.items.filter(it => it && _widgetDef(it.id));
-      if (valid.length) return valid;
+      if (valid.length) return strip(valid);
     }
   } catch (_) {}
-  return DEFAULT_DASH_LAYOUT.map(it => ({ ...it }));
+  return strip(DEFAULT_DASH_LAYOUT.map(it => ({ ...it })));
 }
 
 function _saveDashLayout() {
@@ -1563,8 +1570,20 @@ async function _renderNetWorthSection(accounts, mainAccount) {
 // never be persisted and replayed as if it were real. While the refresh is in
 // flight the host carries `data-stale`, which dashboard.css uses to mark the tile
 // as last-known rather than live — the data is real, just not yet revalidated.
+// Demo mode skips snapshots entirely, in both directions.
+//
+// The placeholder exists to cover seconds of per-character IPC and ESI latency.
+// In demo mode the data is local fixtures and arrives immediately, so there is
+// nothing to cover — and a stale tile is actively harmful there: the screenshot
+// pipeline would capture last week's markup instead of the live render, which is
+// exactly how a widget spent a week insisting there were no corp industry jobs.
+//
+// window.eveAPI.isDemo is synchronous (preload reads --demo-active), so this
+// decision is made before the first paint rather than racing it.
+
 async function _paintSnapshot(key, el) {
   if (!el) return false;
+  if (window.eveAPI && window.eveAPI.isDemo) return false;   // render live, never from cache
   try {
     const snap = await window.eveAPI.cacheGet(key);
     if (snap && typeof snap.html === 'string' && snap.html) {
@@ -1582,6 +1601,10 @@ async function _paintSnapshot(key, el) {
 function _saveSnapshot(key, el) {
   if (!el) return;
   delete el.dataset.stale;
+  // Not written in demo mode either: a snapshot saved from a demo run would
+  // otherwise sit in the profile and be replayed on the next one, re-creating
+  // the same staleness the paint side now avoids.
+  if (window.eveAPI && window.eveAPI.isDemo) return;
   window.eveAPI.cacheSet(key, { html: el.innerHTML, at: Date.now() }, 7).catch(() => {});
 }
 

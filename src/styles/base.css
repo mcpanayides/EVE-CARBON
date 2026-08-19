@@ -581,14 +581,20 @@ input[type="range"] { accent-color: var(--accent); }
 }
 
 /* ── SETTINGS DRAWER ── */
-.settings-drawer-inner { display: flex; min-height: 280px; max-height: calc(90vh - 90px); overflow: hidden; }
-.settings-menu         { min-width: 150px; width: 170px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+/* The drawer body fills whatever height the modal has left after its header,
+   rather than guessing at it. It used to carry max-height: calc(90vh - 90px),
+   where 90px was an estimate of the header — on a smaller window, or when the
+   header wrapped, the estimate was wrong and the tab content was CLIPPED with
+   no way to scroll to it (the Danger Zone panel would sit half off the box). */
+#uiSettingsDrawer .modal { display: flex; flex-direction: column; min-height: 0; }
+.settings-drawer-inner { display: flex; flex: 1; min-height: 280px; overflow: hidden; }
+.settings-menu         { flex-shrink: 0; min-width: 150px; width: 170px; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .settings-menu-title   { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-2); margin-bottom: 4px; }
 .settings-menu-btn     { width: 100%; text-align: left; background: transparent; border: none; border-radius: 8px; padding: 12px 14px; color: var(--text-1); cursor: pointer; font-size: 13px; transition: background 0.2s ease, color 0.2s ease; }
 .settings-menu-btn:hover  { background: var(--bg-card); }
 .settings-menu-btn.active { background: var(--bg-card); color: var(--accent); border: 1px solid var(--border); }
 
-.settings-tab          { width: 100%; }
+.settings-tab          { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .settings-panel-block  { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .settings-panel-title  { font-size: 14px; font-weight: 600; color: var(--text-1); }
 
@@ -702,3 +708,66 @@ input[type="range"] { accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   #updateBanner.is-critical .update-banner-label { animation: none; }
 }
+
+/* ── Confirm dialog ───────────────────────────────────────────────────────────
+   Replaces window.confirm(), which drew an OS-grey box in the middle of a
+   themed terminal. Follows the modal language: glass panel, hairline rules,
+   crimson accent, tracked mono title. The destructive variant is the only place
+   the confirm button goes red — a delete that looks like a save is a bug. */
+
+.cf-backdrop {
+  position: fixed; inset: 0; z-index: 10020;
+  background: var(--backdrop);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  animation: cf-in 0.12s ease-out;
+}
+@keyframes cf-in { from { opacity: 0; } to { opacity: 1; } }
+
+.cf-modal {
+  width: 440px; max-width: 92vw;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--accent-25);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 80px var(--shadow-darker), inset 0 1px 0 var(--glass-specular);
+  display: flex; flex-direction: column;
+}
+.cf-modal.danger { border-top-color: var(--danger); }
+
+.cf-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 16px 20px 0;
+}
+.cf-icon { font-size: 19px; color: var(--danger); flex-shrink: 0; }
+.cf-title {
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.1em; color: var(--text-1);
+}
+
+.cf-body { padding: 12px 20px 4px; }
+.cf-line {
+  font-size: 12px; line-height: 1.6; color: var(--text-3); margin: 0 0 6px;
+}
+.cf-line:empty { height: 6px; margin: 0; }
+.cf-line:first-child { color: var(--text-1); }
+
+.cf-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px 18px;
+}
+.cf-btn {
+  font-family: var(--font); font-size: 12px; font-weight: 700; letter-spacing: 0.05em;
+  padding: 8px 18px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text-2);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.cf-btn:hover { background: var(--bg-hover); color: var(--text-1); }
+.cf-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-08); }
+
+.cf-go { border-color: var(--accent); color: var(--accent); }
+.cf-go:hover { background: var(--accent); color: var(--text-on-accent); }
+.cf-modal.danger .cf-go { border-color: var(--danger); color: var(--danger); }
+.cf-modal.danger .cf-go:hover { background: var(--danger); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) { .cf-backdrop { animation: none; } }

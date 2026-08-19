@@ -283,6 +283,10 @@ const PAGE_HTML = {
           <button class="industry-sub-btn fc-sub-btn active" data-fc-tab="composition">
             <span class="industry-sub-icon material-symbols-outlined">groups</span>Fleet Tracker
           </button>
+          <button class="industry-sub-btn fc-sub-btn" data-fc-tab="ophistory"
+                  title="Past ops and their after-action reports — a report outlives the fleet that made it">
+            <span class="industry-sub-icon material-symbols-outlined">history</span>Op History
+          </button>
           <button class="industry-sub-btn fc-sub-btn" data-fc-tab="fitting">
             <span class="industry-sub-icon material-symbols-outlined">build</span>Fitting Simulator
           </button>

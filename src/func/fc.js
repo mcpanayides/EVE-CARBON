@@ -147,6 +147,8 @@ function navigateFcTab(tab) {
     if (typeof renderFitting === 'function') renderFitting(mount);
   } else if (tab === 'fleetfight') {
     renderFleetFightNotify(mount);
+  } else if (tab === 'ophistory') {
+    renderOpHistory(mount);
   } else if (tab === 'intel') {
     if (typeof renderIntelEarlyWarning === 'function') renderIntelEarlyWarning(mount);
   }
@@ -157,6 +159,139 @@ function navigateFcTab(tab) {
 // reinforce the destination node server-side. Embedded in-app like the Forums
 // page (webview) — the form lives entirely on CCP's site; nothing is stored.
 const FLEET_FIGHT_URL = 'https://community.eveonline.com/support/fleet-fight/';
+
+/* ── Op History ───────────────────────────────────────────────────────────────
+   Every past op, so a report survives the fleet that made it. The report used
+   to be reachable only from the live tracking flow: stop tracking or restart
+   the app and the data sat in the database with no route to it — precisely when
+   an FC wants it, having run three fleets back to back and written up none.
+
+   Times are UTC because EVE is, and because the report itself is. A local
+   column here would silently disagree with the report it opens. */
+
+const _ophWhen = (ms) => (ms ? new Date(ms).toISOString().slice(0, 16).replace('T', ' ') : '—');
+
+function _ophDur(a, b) {
+  if (!a) return '—';
+  const ms = (b || Date.now()) - a;
+  const m = Math.round(ms / 60000);
+  if (m < 60) return m + 'm';
+  return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+}
+
+function _ophIsk(v) {
+  const n = Number(v) || 0;
+  if (!n) return '—';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'b';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'm';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return n.toFixed(0);
+}
+
+async function renderOpHistory(mount) {
+  mount.innerHTML = '<div class="oph-wrap"><div class="oph-empty">Loading past ops…</div></div>';
+
+  let ops = [];
+  try { ops = await window.eveAPI.fleetOpList(100); } catch (_) { ops = []; }
+  if (!Array.isArray(ops)) ops = [];
+
+  if (!ops.length) {
+    mount.innerHTML =
+      '<div class="oph-wrap"><div class="oph-empty">' +
+      'No ops recorded yet.<br>' +
+      'Start one from <strong>Fleet Tracker</strong> — Start Tracking, then Start Op.' +
+      '</div></div>';
+    return;
+  }
+
+  const rows = ops.map((o) => {
+    const live    = !o.ended_at;
+    const endCls  = live ? 'live' : (o.end_reason === 'boss-handover' ? 'handover' : '');
+    const endText = live ? 'recording' : (o.end_reason || 'stopped');
+    const k = Number(o.kills) || 0, l = Number(o.losses) || 0;
+    return '' +
+      '<tr>' +
+        '<td><span class="oph-when">' + _ophWhen(o.started_at) + '</span></td>' +
+        '<td><span class="oph-name">' + escHtml(o.name || 'Untitled') + '</span>' +
+            (o.doctrine ? '<span class="oph-doct">' + escHtml(o.doctrine) + '</span>' : '') + '</td>' +
+        '<td class="r oph-num">' + _ophDur(o.started_at, o.ended_at) + '</td>' +
+        '<td class="r oph-num">' + (o.pilots || 0) + '</td>' +
+        '<td class="r oph-num">' + (o.systems || 0) + '</td>' +
+        '<td class="r ' + (k ? 'oph-kill' : 'oph-zero') + '">' + k + '</td>' +
+        '<td class="r ' + (l ? 'oph-loss' : 'oph-zero') + '">' + l + '</td>' +
+        '<td class="r ' + (Number(o.isk_killed) ? 'oph-kill' : 'oph-zero') + '">' + _ophIsk(o.isk_killed) + '</td>' +
+        '<td class="r ' + (Number(o.isk_lost) ? 'oph-loss' : 'oph-zero') + '">' + _ophIsk(o.isk_lost) + '</td>' +
+        '<td><span class="oph-end ' + endCls + '">' + escHtml(endText) + '</span></td>' +
+        '<td class="r oph-actions">' +
+          '<button class="oph-report-btn" data-oph-op="' + Number(o.op_id) + '">REPORT</button>' +
+          (live ? '' : '<button class="oph-del-btn" title="Delete this op and all of its data"' +
+                       ' data-oph-del="' + Number(o.op_id) + '"' +
+                       ' data-oph-name="' + escHtml(o.name || 'Untitled') + '">DELETE</button>') +
+        '</td>' +
+      '</tr>';
+  }).join('');
+
+  mount.innerHTML =
+    '<div class="oph-wrap">' +
+      '<div class="oph-head">' +
+        '<span class="oph-title">OP HISTORY</span>' +
+        '<span class="oph-note">' + ops.length + ' recorded · times UTC</span>' +
+      '</div>' +
+      '<table class="oph-table"><thead><tr>' +
+        '<th>Started</th><th>Op</th><th class="r">Dur</th><th class="r">Pilots</th>' +
+        '<th class="r">Systems</th><th class="r">Kills</th><th class="r">Losses</th>' +
+        '<th class="r">Destroyed</th><th class="r">Lost</th><th>End</th><th></th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>';
+
+  // The modal reads a module-level op id, so point it at the chosen op and
+  // reuse the same renderer the live flow uses — one report, one code path.
+  mount.querySelectorAll('.oph-report-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      _fcReportOpId = Number(btn.dataset.ophOp);
+      _fcShowReport();
+    });
+  });
+
+  // Deleting an op is irreversible and there is no undo, so the confirm names
+  // the op and counts what goes with it. A bare "Are you sure?" trains people
+  // to click through it, which is worse than no dialog at all.
+  mount.querySelectorAll('.oph-del-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id   = Number(btn.dataset.ophDel);
+      const row  = ops.find((o) => Number(o.op_id) === id) || {};
+      const bits = [
+        (row.pilots  || 0) + ' pilot' + (row.pilots  === 1 ? '' : 's'),
+        (row.systems || 0) + ' system' + (row.systems === 1 ? '' : 's'),
+        ((row.kills || 0) + (row.losses || 0)) + ' killmail' + (((row.kills || 0) + (row.losses || 0)) === 1 ? '' : 's'),
+      ].join(', ');
+
+      const ok = await showConfirm({
+        title: 'Delete this op?',
+        body: '"' + (row.name || 'Untitled') + '"\n' +
+              'Started ' + _ophWhen(row.started_at) + ' UTC · ' + bits + '.\n\n' +
+              'The op and all of its recorded data are removed from the database. ' +
+              'This cannot be undone, and the report will no longer be available.',
+        confirmText: 'Delete op',
+        cancelText: 'Keep it',
+        danger: true,
+      });
+      if (!ok) return;
+
+      btn.disabled = true;
+      btn.textContent = '…';
+      const res = await window.eveAPI.fleetOpDelete(id).catch((e) => ({ ok: false, error: e.message }));
+      if (!res || !res.ok) {
+        btn.disabled = false;
+        btn.textContent = 'DELETE';
+        if (typeof showToast === 'function') showToast((res && res.error) || 'could not delete that op', 'error');
+        return;
+      }
+      if (typeof showToast === 'function') showToast('Op deleted', 'success');
+      renderOpHistory(mount);   // re-read rather than splice, so the list matches the database
+    });
+  });
+}
 
 function renderFleetFightNotify(mount) {
   mount.innerHTML = `

@@ -25,6 +25,28 @@ const aar = require('../fleet_aar');
 // shorter than any real stop.
 const HOLD_POLLS = 3;
 
+/**
+ * Deep copy with every function dropped.
+ *
+ * Electron IPC replies go through the structured clone algorithm; a function
+ * anywhere in the payload rejects the ENTIRE reply, not just that field, and
+ * the renderer sees a rejected promise rather than a partial object. Unit
+ * tests never catch it because in-process the same object is perfectly fine.
+ */
+function cloneable(v) {
+  if (typeof v === 'function') return undefined;
+  if (Array.isArray(v)) return v.map(cloneable).filter((x) => x !== undefined);
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const [k, val] of Object.entries(v)) {
+      const c = cloneable(val);
+      if (c !== undefined) out[k] = c;
+    }
+    return out;
+  }
+  return v;
+}
+
 function registerFleetOpHandlers({ ipcHandle, getCharDb, httpGet,
                                    loadDB, charInfoDb, resolveNames }) {
   /** Our own characters — the only ones ESI will report mining for. */
@@ -267,7 +289,14 @@ function registerFleetOpHandlers({ ipcHandle, getCharDb, httpGet,
         op: stored.op, roster: stored.roster, movement: stored.movement,
         kills: stored.kills, mining: miningSummary, names, gaps: [],
       });
-      return { ok: true, markdown: out.markdown, bbcode: out.bbcode, text: out.text, model: out.model };
+      // The model carries name-resolver CLOSURES for the renderers (_typeName,
+      // _charName). Electron sends IPC replies through structured clone, which
+      // cannot copy a function, so returning the model as-built fails the whole
+      // reply with "An object could not be cloned" — and the report modal shows
+      // nothing. Strip anything non-cloneable rather than naming the two known
+      // fields, so adding a third helper later cannot bring the bug back.
+      return { ok: true, markdown: out.markdown, bbcode: out.bbcode, text: out.text,
+               model: cloneable(out.model) };
     } catch (e) {
       return { ok: false, error: e.message || 'could not build the report' };
     }
@@ -316,6 +345,17 @@ function registerFleetOpHandlers({ ipcHandle, getCharDb, httpGet,
     } catch (_) { return null; }
   });
 
+  ipcHandle('fleet-op-delete', async (_, opId) => {
+    try {
+      const db = getCharDb();
+      if (!db) return { ok: false, error: 'database not ready' };
+      // Drop any cached movement tracker for this op first: leaving one keyed to
+      // a deleted id would let a stale debounce state apply if the id is reused.
+      trackers.delete(Number(opId));
+      return await ops.deleteOp(db, opId);
+    } catch (e) { return { ok: false, error: e.message || 'delete failed' }; }
+  });
+
   ipcHandle('fleet-op-list', async (_, limit) => {
     try {
       const db = getCharDb();
@@ -333,4 +373,4 @@ function registerFleetOpHandlers({ ipcHandle, getCharDb, httpGet,
   });
 }
 
-module.exports = { registerFleetOpHandlers, HOLD_POLLS };
+module.exports = { registerFleetOpHandlers, HOLD_POLLS, cloneable };

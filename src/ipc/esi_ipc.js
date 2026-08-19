@@ -1,4 +1,5 @@
 const { APP_USER_AGENT, ESI_BASE } = require('../app_ident');   // ESI_BASE: one definition, src/shared/esi.js
+const demoMode = require('../demo_mode');   // demo mode answers some ESI routes locally — see esi-fetch below
 ﻿const { ipcMain } = require('electron');
 
 const FUZZWORK_BASE = 'https://www.fuzzwork.co.uk';
@@ -118,6 +119,14 @@ function registerEsiHandlers({
   // path as everything else, without every call site needing its own POST
   // plumbing. Omit options (or pass a GET) for the original bare-URL behaviour.
   ipcHandle('esi-fetch', async (_, url, options) => {
+    // In demo mode the cast are character ids that do not exist and there are no
+    // tokens, so Mail, Notifications and Calendar would render empty — the half
+    // of the app most worth showing. Answer those routes locally instead.
+    // `undefined` means "no fixture", which is distinct from a fixture of null.
+    if (demoMode.isEnabled()) {
+      const canned = require('../demo_fixtures').match(url);
+      if (canned !== undefined) return canned;
+    }
     if (options?.method === 'POST') return httpPost(url, options.body ?? {});
     return httpGet(url);
   });

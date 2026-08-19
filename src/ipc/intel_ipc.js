@@ -325,7 +325,11 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     return { running: false };
   });
 
-  ipcHandle('intel-status', async () => (ready && service ? service.status() : { running: false, systems: 0 }));
+  // Demo mode is 'watching' out of 1DQ1-A with invented contacts, so the widget
+  // shows its urgency banding instead of an idle 'Not watching' card.
+  ipcHandle('intel-status', async () =>
+    (require('../demo_mode').isEnabled() ? require('../demo_fixtures').intelStatus()
+                                         : (ready && service ? service.status() : { running: false, systems: 0 })));
 
   /**
    * Where the fleet is. Everything is measured from here, so a wrong or stale
@@ -337,7 +341,9 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     return { reach: svc.setOrigin(systemId), origin: systemId };
   });
 
-  ipcHandle('intel-contacts', async () => (ready && service ? service.contacts() : []));
+  ipcHandle('intel-contacts', async () =>
+    (require('../demo_mode').isEnabled() ? require('../demo_fixtures').intelContacts()
+                                         : (ready && service ? service.contacts() : [])));
   ipcHandle('intel-feed', async (_e, limit) => (ready && service ? service.feed(limit || 100) : []));
 
   // ── Patterns ────────────────────────────────────────────────────────────────

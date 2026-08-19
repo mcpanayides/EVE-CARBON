@@ -120,6 +120,10 @@ async function writeCharacterDb(charInfoDb, now) {
   await seedMain(charInfoDb, now);
   await seedIndy(charInfoDb, now);
   await seedScout(charInfoDb, now);
+
+  // Fleet ops live in the same database but are written through fleet_ops.js,
+  // which takes the raw handle rather than the character-info wrapper.
+  await seedFleetOps(charInfoDb.getDb(), now);
 }
 
 // ── Main: combat pilot with a deep wallet, broad assets, active trading ───────
@@ -389,4 +393,134 @@ async function seed({ userDataDir, dataDir, charInfoDb, now = Date.now() }) {
   return { characters: Object.values(CHARS).map(c => ({ id: c.id, name: c.name })) };
 }
 
-module.exports = { seed, CHARS, JITA, AMARR, DODIXIE, RENS, STAGING };
+module.exports = { seed, seedFleetOps, CHARS, JITA, AMARR, DODIXIE, RENS, STAGING };
+
+// ── Fleet ops (Op History) ────────────────────────────────────────────────────
+// Three closed ops, each showing a different face of the tool: a PvP roam with
+// kills and a refit, a mining op with yield, and one that ended on a boss
+// handover so the amber end-reason badge appears on camera.
+//
+// Written through src/fleet_ops.js rather than SQL, per rule 1 — the op schema
+// is create-and-migrate and hand-rolled inserts would drift out of it silently.
+// Every system and hull id below came out of the SDE (rule 4): a wrong one
+// renders as "Unknown" or a broken icon, which looks worse than fewer rows.
+const OPS_SYS = {
+  DQ:    30004759,   // 1DQ1-A  — staging
+  T319:  30004722,   // 319-3D
+  T5ZI:  30004735,   // T5ZI-S
+  YZ9:   30004719,   // YZ9-F6
+  ZXB:   30004777,   // ZXB-VC  — passed through, never held
+  K6K:   30004751,   // K-6K16  — passed through, never held
+};
+const OPS_SHIP = {
+  muninn: 12015, scimitar: 11978, sabre: 22456, loki: 29990,
+  retriever: 17478, covetor: 17476, venture: 32880,
+};
+
+async function seedFleetOps(db, now) {
+  const ops = require('./fleet_ops');
+  const M = CHARS.main.id, I = CHARS.indy.id, S = CHARS.scout.id;
+
+  // Start from a clean slate rather than assuming the profile was wiped.
+  // demo_mode.reset() deletes the database file up front, but on Windows that
+  // fails with EPERM when a previous demo instance has not finished releasing
+  // its handle — relaunching quickly is enough to hit it. The reset logs a
+  // warning and carries on, so without this the ops would stack up three at a
+  // time on every launch and the History list would fill with duplicates.
+  for (const row of await ops.listOps(db, 500)) {
+    if (!row.ended_at) await ops.endOp(db, row.op_id, { at: now, reason: 'stopped' });
+    await ops.deleteOp(db, row.op_id);
+  }
+  const member = (characterId, shipTypeId, solarSystemId) => ({ characterId, shipTypeId, solarSystemId });
+
+  // ── 1. Delve Roam — the hero row: kills, a loss, a refit, pass-throughs ──
+  {
+    const start = now - 2 * HOUR;
+    const end   = start + 47 * 60 * 1000;
+    const id = await ops.startOp(db, {
+      name: 'Delve Roam', doctrine: 'shield',
+      bossCharacterId: M, fleetId: 4_120_000_001, at: start,
+    });
+
+    const leg = [
+      { sys: OPS_SYS.DQ,   at: start,                 hold: true  },
+      { sys: OPS_SYS.ZXB,  at: start +  6 * 60000,    hold: false },
+      { sys: OPS_SYS.T319, at: start + 11 * 60000,    hold: true  },
+      { sys: OPS_SYS.K6K,  at: start + 24 * 60000,    hold: false },
+      { sys: OPS_SYS.T5ZI, at: start + 28 * 60000,    hold: true  },
+      { sys: OPS_SYS.YZ9,  at: start + 39 * 60000,    hold: true  },
+    ];
+    for (const l of leg) {
+      const roster = [member(M, OPS_SHIP.muninn, l.sys), member(I, OPS_SHIP.scimitar, l.sys), member(S, OPS_SHIP.sabre, l.sys)];
+      await ops.recordRoster(db, id, roster, l.at);
+      await ops.recordSystemsSeen(db, id, roster, l.at);
+      // Only held systems reach the movement narrative — the two pass-throughs
+      // exist in systems-seen alone, which is the distinction the tool is for.
+      if (l.hold) await ops.recordMovement(db, id, { solarSystemId: l.sys, membersThere: 3, membersTotal: 3 }, l.at);
+    }
+    // Scout refits mid-op: a SECOND roster row, never an overwrite.
+    await ops.recordRoster(db, id, [member(S, OPS_SHIP.loki, OPS_SYS.YZ9)], start + 41 * 60000);
+
+    await ops.recordKills(db, id, [
+      { killmailId: 121_400_881, killmailHash: 'demo-a1', at: start + 30 * 60000, solarSystemId: OPS_SYS.T5ZI,
+        side: 'kill', victimCharacterId: 2_119_000_101, victimCorporationId: 1000107, victimAllianceId: null,
+        victimShipTypeId: 24688, isk: 284_610_000, finalBlowCharacterId: M, involved: 3, npc: false },
+      { killmailId: 121_400_902, killmailHash: 'demo-a2', at: start + 31 * 60000, solarSystemId: OPS_SYS.T5ZI,
+        side: 'kill', victimCharacterId: 2_119_000_102, victimCorporationId: 1000107, victimAllianceId: null,
+        victimShipTypeId: 24702, isk: 96_250_000, finalBlowCharacterId: S, involved: 2, npc: false },
+      { killmailId: 121_401_144, killmailHash: 'demo-a3', at: start + 40 * 60000, solarSystemId: OPS_SYS.YZ9,
+        side: 'loss', victimCharacterId: S, victimCorporationId: CHARS.scout.corpId, victimAllianceId: null,
+        victimShipTypeId: OPS_SHIP.sabre, isk: 71_880_000, finalBlowCharacterId: 2_119_000_140, involved: 0, npc: false },
+      { killmailId: 121_401_190, killmailHash: 'demo-a4', at: start + 44 * 60000, solarSystemId: OPS_SYS.YZ9,
+        side: 'kill', victimCharacterId: 2_119_000_140, victimCorporationId: 1000107, victimAllianceId: null,
+        victimShipTypeId: 34828, isk: 148_020_000, finalBlowCharacterId: M, involved: 3, npc: false },
+    ]);
+    await ops.endOp(db, id, { at: end, reason: 'stopped' });
+  }
+
+  // ── 2. Ore Run — yield, no violence ──
+  {
+    const start = now - 26 * HOUR;
+    const end   = start + 110 * 60 * 1000;
+    const id = await ops.startOp(db, {
+      name: 'Ore Run — R64 Belt', doctrine: 'mining',
+      bossCharacterId: I, fleetId: 4_120_000_002, at: start,
+    });
+    for (const [i, sys] of [OPS_SYS.DQ, OPS_SYS.T319].entries()) {
+      const at = start + i * 55 * 60000;
+      const roster = [member(I, OPS_SHIP.retriever, sys), member(M, OPS_SHIP.covetor, sys), member(S, OPS_SHIP.venture, sys)];
+      await ops.recordRoster(db, id, roster, at);
+      await ops.recordSystemsSeen(db, id, roster, at);
+      await ops.recordMovement(db, id, { solarSystemId: sys, membersThere: 3, membersTotal: 3 }, at);
+    }
+    // Round-ish, lopsided quantities: an evenly-split ledger reads as generated.
+    await ops.recordMining(db, id, [
+      { character_id: I, solar_system_id: OPS_SYS.DQ,   type_id: 22,    quantity: 18_400, isk: 386_400_000 },
+      { character_id: I, solar_system_id: OPS_SYS.T319, type_id: 1223,  quantity: 12_050, isk: 168_700_000 },
+      { character_id: M, solar_system_id: OPS_SYS.DQ,   type_id: 22,    quantity: 14_900, isk: 312_900_000 },
+      { character_id: M, solar_system_id: OPS_SYS.T319, type_id: 1225,  quantity:  9_300, isk: 121_090_000 },
+      { character_id: S, solar_system_id: OPS_SYS.DQ,   type_id: 1230,  quantity:  6_200, isk:   4_960_000 },
+    ]);
+    await ops.endOp(db, id, { at: end, reason: 'stopped' });
+  }
+
+  // ── 3. Home Defence — closed by a boss handover ──
+  {
+    const start = now - 3 * DAY;
+    const end   = start + 22 * 60 * 1000;
+    const id = await ops.startOp(db, {
+      name: 'Home Defence', doctrine: 'armour',
+      bossCharacterId: M, fleetId: 4_120_000_003, at: start,
+    });
+    const roster = [member(M, OPS_SHIP.muninn, OPS_SYS.DQ), member(S, OPS_SHIP.sabre, OPS_SYS.DQ)];
+    await ops.recordRoster(db, id, roster, start);
+    await ops.recordSystemsSeen(db, id, roster, start);
+    await ops.recordMovement(db, id, { solarSystemId: OPS_SYS.DQ, membersThere: 2, membersTotal: 2 }, start);
+    await ops.recordKills(db, id, [
+      { killmailId: 121_180_455, killmailHash: 'demo-c1', at: start + 14 * 60000, solarSystemId: OPS_SYS.DQ,
+        side: 'kill', victimCharacterId: 2_119_000_210, victimCorporationId: 1000107, victimAllianceId: null,
+        victimShipTypeId: 22456, isk: 63_400_000, finalBlowCharacterId: M, involved: 2, npc: false },
+    ]);
+    await ops.endOp(db, id, { at: end, reason: 'boss-handover' });
+  }
+}

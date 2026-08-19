@@ -118,7 +118,14 @@ async function populateFileLogSetting() {
   };
 
   document.getElementById('fileLogClearBtn').onclick = async () => {
-    if (!confirm('Delete the diagnostic log and start a fresh one?')) return;
+    const ok = await showConfirm({
+      title: 'Clear the diagnostic log?',
+      body: 'The current log file is deleted and a fresh one started.\n\n'
+          + 'Anything already captured is lost, so export it first if you are '
+          + 'partway through chasing a bug.',
+      confirmText: 'Clear log', cancelText: 'Keep it', danger: true,
+    });
+    if (!ok) return;
     try { paint(await window.eveAPI.logClear()); showToast('Log cleared.', 'success'); }
     catch (e) { showToast(`Couldn't clear the log: ${e.message}`, 'error'); }
   };
@@ -175,9 +182,14 @@ async function populateDemoModeSetting() {
           ? 'Demo mode on. Restart to load the demo profile.'
           : 'Demo mode off. Restart to return to your real profile.';
         showToast(msg, 'success');
-        if (window.eveAPI.restartApp && confirm(`${msg}\n\nRestart now?`)) {
-          await window.eveAPI.restartApp();
-        }
+        const ok = window.eveAPI.restartApp && await showConfirm({
+          title: wanted ? 'Load the demo profile?' : 'Return to your real profile?',
+          body: msg + '\n\nThe app restarts now. Nothing in your real profile is '
+              + 'touched either way — demo mode uses a separate one.',
+          confirmText: 'Restart now',
+          cancelText: 'Later',
+        });
+        if (ok) await window.eveAPI.restartApp();
       }
     } catch (e) {
       toggle.checked = !wanted;   // revert — nothing was persisted
@@ -1247,9 +1259,15 @@ async function wipeAssetsDatabase() {
   const status = document.getElementById('assetWipeStatus');
   if (!btn || btn.disabled) return;
 
-  if (!confirm('Delete ALL stored assets for every character from the local database?\n\n'
-             + 'This clears stale or broken remnants. Your assets reload automatically '
-             + 'from ESI on the next sync.')) return;
+  const ok = await showConfirm({
+    title: 'Wipe every stored asset?',
+    body: 'Deletes ALL stored assets for EVERY character from the local database.\n\n'
+        + 'This clears stale or broken remnants. Your assets reload automatically '
+        + 'from ESI on the next sync, so nothing is lost permanently — but the '
+        + 'next sync will be a slow one.',
+    confirmText: 'Wipe assets', cancelText: 'Cancel', danger: true,
+  });
+  if (!ok) return;
 
   const orig = btn.textContent;
   btn.disabled      = true;

@@ -514,7 +514,8 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
 
   // Current Beehive beacon status (cached from the room MOTD) for the dashboard
   // widget to read on mount, before the next live subject update arrives.
-  ipcMain.handle('beehive-get-status', async () => beehiveStatus);
+  ipcMain.handle('beehive-get-status', async () =>
+    (require('./demo_mode').isEnabled() ? require('./demo_fixtures').beehiveStatus() : beehiveStatus));
 
   ipcMain.handle('jabber-get-messages', async (_, limit = 200) => {
     try {
@@ -737,6 +738,10 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
 
   // Latest director broadcast for the dashboard's Latest Ping widget.
   ipcMain.handle('jabber-get-latest-ping', async () => {
+    // Demo mode never connects to XMPP, so the widget would sit on "No director
+    // pings yet" — indistinguishable from a fault. The ping and its cast are
+    // invented; no real alliance, comms link or iconography appears in it.
+    if (require('./demo_mode').isEnabled()) return require('./demo_fixtures').latestPing();
     try {
       return await jabberDataDb.getLatestDirectorMessage();
     } catch (e) {

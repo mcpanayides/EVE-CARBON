@@ -225,6 +225,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
   intelFeed:             (limit)     => ipcRenderer.invoke('intel-feed', limit),
   intelPatterns:         ()          => ipcRenderer.invoke('intel-patterns'),
   intelClearPatterns:    ()          => ipcRenderer.invoke('intel-clear-patterns'),
+  // Synchronous — main passes --demo-active via webPreferences.additionalArguments.
+  // getDemoMode() below is the async form; code that must decide before its
+  // first await (the dashboard layout) needs this one.
+  isDemo:            process.argv.includes('--demo-active'),
   getDemoMode:       ()        => ipcRenderer.invoke('get-demo-mode'),
   setDemoMode:       (enabled) => ipcRenderer.invoke('set-demo-mode', enabled),
   restartApp:        ()        => ipcRenderer.invoke('restart-app'),
@@ -302,6 +306,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fleetOpRecord:  (opId, members)   => ipcRenderer.invoke('fleet-op-record', opId, members),
   fleetOpCurrent: ()                => ipcRenderer.invoke('fleet-op-current'),
   fleetOpList:    (limit)           => ipcRenderer.invoke('fleet-op-list', limit),
+  fleetOpDelete:  (opId)            => ipcRenderer.invoke('fleet-op-delete', opId),
   fleetOpGet:     (opId)            => ipcRenderer.invoke('fleet-op-get', opId),
   fleetOpPullKills:  (opId)         => ipcRenderer.invoke('fleet-op-pull-kills', opId),
   fleetOpPullMining: (opId)         => ipcRenderer.invoke('fleet-op-pull-mining', opId),

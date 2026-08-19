@@ -1488,7 +1488,7 @@ ipcMain.handle('fit-get-fittings', async (_, characterId) => {
   // X-Compatibility-Date pins the behaviour, so a 404 here means what a 404
   // should mean.
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, { headers: hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, { headers: hdr });
     if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings access (esi-fittings.read_fittings.v1).' };
     if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
     const data = await res.json();
@@ -1513,7 +1513,7 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
     };
     const hdr = _esiAuthHeaders(token, { 'Content-Type': 'application/json' });
     // One call — see the note on the read path above.
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, {
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, {
       method: 'POST', headers: hdr, body: JSON.stringify(body),
     });
     if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings write access (esi-fittings.write_fittings.v1).' };
@@ -1535,8 +1535,29 @@ ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
 
 // Shared: resolve a token and hand back the standard auth header, or a
 // structured error the renderer can show without needing to know about tokens.
+// In demo mode the authenticated ESI routes are answered from
+// src/demo_fixtures.js instead of the network. getValidToken() refuses to mint a
+// token on purpose (see its comment — a refresh there gets invalid_grant and
+// flags every character as needing re-auth, on camera), so without this every
+// authenticated page renders "token: demo mode — live ESI disabled" rather than
+// data. Mail, Notifications and Calendar are exactly the pages worth showing.
+//
+// Returns a Response-SHAPED object rather than a real Response: the handlers
+// only ever read .ok, .status and .json(), and faking those three leaves each
+// handler's own mapping running for real.
+async function _esiFetch(url, init) {
+  if (!demoPaths) return fetch(url, init);
+  const canned = require('./src/demo_fixtures').match(url);
+  if (canned === undefined) {
+    return { ok: false, status: 404, json: async () => ({}), text: async () => '' };
+  }
+  return { ok: true, status: 200, json: async () => canned, text: async () => JSON.stringify(canned) };
+}
+
 async function _mailAuth(characterId) {
   if (!characterId) return { error: { ok: false, error: 'no character' } };
+  // Demo mode never reaches the network, so the header only has to exist.
+  if (demoPaths) return { hdr: { Accept: 'application/json' } };
   try {
     const token = await getValidToken(characterId);
     // Identity and compatibility date, not just the bearer token. Twelve call
@@ -1573,7 +1594,7 @@ ipcMain.handle('mail-get-headers', async (_, characterId, opts = {}) => {
     const qs = new URLSearchParams({ datasource: 'tranquility' });
     if (opts.labelId != null && opts.labelId !== '') qs.set('labels', String(opts.labelId));
     if (opts.lastMailId) qs.set('last_mail_id', String(opts.lastMailId));
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/?${qs}`, { headers: auth.hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/?${qs}`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail headers');
     const rows = await res.json();
     const mails = (Array.isArray(rows) ? rows : []).map(m => ({
@@ -1596,7 +1617,7 @@ ipcMain.handle('mail-get-body', async (_, characterId, mailId) => {
   if (auth.error) return auth.error;
   if (!mailId) return { ok: false, error: 'no mail id' };
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail body');
     const m = await res.json();
     return { ok: true, mail: {
@@ -1617,7 +1638,7 @@ ipcMain.handle('mail-get-labels', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/labels/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/labels/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mail labels');
     const d = await res.json();
     const labels = (d.labels || []).map(l => ({
@@ -1633,7 +1654,7 @@ ipcMain.handle('mail-get-lists', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/lists/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/lists/?datasource=tranquility`, { headers: auth.hdr });
     if (!res.ok) return await _mailErr(res, 'mailing lists');
     const rows = await res.json();
     return { ok: true, lists: (Array.isArray(rows) ? rows : []).map(l => ({ id: l.mailing_list_id, name: l.name })) };
@@ -1657,7 +1678,7 @@ ipcMain.handle('mail-send', async (_, characterId, mail) => {
       subject:       (mail.subject || '').slice(0, 1000),
       recipients:    recipients.map(r => ({ recipient_id: Number(r.id), recipient_type: r.type })),
     };
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/?datasource=tranquility`, {
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/?datasource=tranquility`, {
       method: 'POST', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!res.ok) return await _mailErr(res, 'send mail');
@@ -1677,7 +1698,7 @@ ipcMain.handle('mail-update', async (_, characterId, mailId, patch = {}) => {
     if (typeof patch.read === 'boolean') body.read = patch.read;
     if (Array.isArray(patch.labels))     body.labels = patch.labels.map(Number);
     if (!Object.keys(body).length) return { ok: false, error: 'nothing to update' };
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
       method: 'PUT', headers: { ...auth.hdr, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     if (!res.ok) return await _mailErr(res, 'update mail');
@@ -1787,7 +1808,7 @@ ipcMain.handle('skills-get-character', async (_, characterId) => {
   if (auth.error) return auth.error;
   try {
     const get = async (path, what) => {
-      const res = await fetch(`${ESI_BASE}${path}?datasource=tranquility`, { headers: auth.hdr });
+      const res = await _esiFetch(`${ESI_BASE}${path}?datasource=tranquility`, { headers: auth.hdr });
       if (res.status === 403) return { forbidden: true, what };
       if (!res.ok) return { failed: `ESI ${res.status} on ${what}` };
       return { data: await res.json() };
@@ -1895,7 +1916,7 @@ ipcMain.handle('notif-get', async (_, characterId) => {
   const auth = await _mailAuth(characterId);
   if (auth.error) return auth.error;
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/notifications/?datasource=tranquility`, { headers: auth.hdr });
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/notifications/?datasource=tranquility`, { headers: auth.hdr });
     if (res.status === 403) {
       return { ok: false, needsReauth: true,
                error: 'Re-authenticate this character to grant notification access (esi-characters.read_notifications.v1).' };
@@ -1935,7 +1956,7 @@ ipcMain.handle('mail-delete', async (_, characterId, mailId) => {
   if (auth.error) return auth.error;
   if (!mailId) return { ok: false, error: 'no mail id' };
   try {
-    const res = await fetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
+    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/mail/${mailId}/?datasource=tranquility`, {
       method: 'DELETE', headers: auth.hdr,
     });
     if (!res.ok) return await _mailErr(res, 'delete mail');
@@ -2780,6 +2801,15 @@ function _httpJsonRaw(url, headers = {}) {
 // src/request_broker.js for why. The error-limit gate stays INSIDE the perform
 // callback so it only costs a wait on requests that actually go out.
 async function httpGet(url, headers = {}) {
+  // Demo mode answers from fixtures and NEVER reaches the network. getValidToken
+  // hands out a sentinel rather than a real token in demo, so a request that
+  // escaped to CCP would 401 and burn the shared error budget for nothing.
+  // Returning null for an unmatched route matches what callers already expect
+  // from a failed fetch, so pages degrade the way they always have.
+  if (demoPaths) {
+    const canned = require('./src/demo_fixtures').match(url);
+    return canned === undefined ? null : canned;
+  }
   const r = await requestBroker.get(url, headers, async () => {
     await _esiGateWait(url);
     const { value, headers: h } = await _httpJsonRaw(url, headers);
@@ -2792,6 +2822,13 @@ async function httpGet(url, headers = {}) {
 // Use this for paginated ESI endpoints so we never stop early.
 // Returns: { data: parsedBody, xPages: number }
 async function httpGetFull(url, headers = {}) {
+  // Same demo rule as httpGet — fixtures, never the network. One page is always
+  // the whole answer here, so xPages is 1 and the caller's do/while exits after
+  // a single pass instead of asking for page 2 of a canned list.
+  if (demoPaths) {
+    const canned = require('./src/demo_fixtures').match(url);
+    return { data: canned === undefined ? null : canned, xPages: 1 };
+  }
   // Keyed apart from httpGet's entry for the same URL: this one caches the page
   // count alongside the body, and handing a bare body to a paginating caller
   // would make it think there was only ever one page.
@@ -2899,14 +2936,55 @@ const callbackServerState = { server: null, start: null };
 // pure waste racing to overwrite each other.
 const _tokenRefreshes = new Map();   // characterId -> Promise<accessToken>
 
+// An unsigned JWT for demo mode, carrying every scope the app asks for. Built
+// once: nothing about it varies, and it never leaves this process.
+let _demoTokenCache = null;
+function _demoAccessToken() {
+  if (_demoTokenCache) return _demoTokenCache;
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  let scp = [];
+  try { scp = String(require('./src/ipc/accounts_ipc').SCOPES || '').split(/\s+/).filter(Boolean); }
+  catch (_) { /* fall back to no scopes rather than crashing the demo */ }
+  const payload = {
+    scp,
+    sub: 'CHARACTER:EVE:2118400001',
+    name: 'Demo Pilot',
+    exp: Math.floor(Date.now() / 1000) + 365 * 24 * 3600,
+    iss: 'demo-mode',                    // NOT login.eveonline.com — this is ours
+  };
+  // Signature segment is a placeholder: nothing verifies it, and it must never
+  // be presented to CCP.
+  _demoTokenCache = `${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.demo`;
+  return _demoTokenCache;
+}
+
 async function getValidToken(characterId) {
   // Demo mode has no real tokens and must never try to refresh one. Left to run,
-  // the refresh gets invalid_grant from CCP, which flags the account
-  // needsReauth and pops a "3 characters need to log back in" toast — on camera,
-  // over whatever you were demonstrating. Failing plainly here keeps that flag
-  // unset and lets every page fall back to its seeded local data, which is the
-  // whole point of the demo profile.
-  if (demoPaths) throw new Error('demo mode — live ESI disabled');
+  // the refresh gets invalid_grant from CCP, which flags the account needsReauth
+  // and pops a "3 characters need to log back in" toast — on camera, over
+  // whatever you were demonstrating.
+  //
+  // This used to THROW, which did avoid the refresh but also stopped every
+  // authenticated caller before it reached a URL — so Mail, Notifications,
+  // Calendar and the skill queue rendered "token: demo mode" instead of data.
+  // Returning a token avoids the refresh just as completely (nothing is sent to
+  // CCP either way) while letting callers proceed to the fetch, where
+  // httpGet/_esiFetch answer from src/demo_fixtures.js and never touch the
+  // network. It must never reach a real request; both of those functions check
+  // demo mode before they would use it.
+  //
+  // It is a real (UNSIGNED) JWT rather than a plain string because callers do
+  // not only pass the token along — some DECODE it to check granted scopes:
+  //
+  //   const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url')…)
+  //   if (!scopes.includes(CORP_JOBS_SCOPE)) return [];
+  //
+  // A plain string makes that parse throw, the scope list comes back empty, and
+  // the caller returns [] before fetching anything — which is exactly why corp
+  // industry jobs stayed blank in demo mode while every other widget filled.
+  // Granting every scope the app requests makes the demo character look fully
+  // authorised to any such probe, present or future.
+  if (demoPaths) return _demoAccessToken();
   const running = _tokenRefreshes.get(String(characterId));
   if (running) return running;
   const p = _getValidTokenUncoalesced(characterId)
@@ -3264,6 +3342,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,   // enables the embedded <webview> on the Forums page
+      // A SYNCHRONOUS demo flag for the renderer. get-demo-mode is IPC and
+      // therefore async, which is useless to code that runs before the first
+      // await — the dashboard builds its widget layout synchronously and has to
+      // know then whether to drop the Goon-only Beehive tile.
+      additionalArguments: demoPaths ? ['--demo-active'] : [],
     }
   }));
 

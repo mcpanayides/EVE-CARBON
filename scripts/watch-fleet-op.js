@@ -26,6 +26,9 @@ const DB = process.env.EVE_CARBON_DB
   || path.join(process.env.APPDATA || '', 'EVE Carbon', 'character_information.db');
 const ONCE = process.argv.includes('--once');
 
+// EVERY time printed here is UTC, because EVE runs on UTC and the report does
+// too. The header was local once; a local header over UTC data reads as a
+// two-hour gap on a SAST clock and makes a fresh op look stale.
 const t = (ms) => (ms ? new Date(ms).toISOString().slice(11, 19) : '—');
 const dur = (ms) => {
   if (!ms || ms < 0) return '0m';

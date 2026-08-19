@@ -504,7 +504,9 @@ function registerCharacterHandlers({
       // used (the dashboard banner's rank column simply stayed hidden).
       // Request the redirect target directly; the payload is unchanged and
       // still carries shipsDestroyed / iskDestroyed / rankings / rankHistory.
-      const raw = await httpGet(`https://zkillboard.com/api/stats/${ek}ID/${characterId}/kills/`);
+      const raw = require('../demo_mode').isEnabled()
+        ? require('../demo_fixtures').zkillStats(ek, characterId)
+        : await httpGet(`https://zkillboard.com/api/stats/${ek}ID/${characterId}/kills/`);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
       // Rank trend: current rank vs the oldest snapshot in zKill's rankHistory
@@ -602,7 +604,13 @@ function registerCharacterHandlers({
     if (cached) return cached;
     try {
       const url = `https://zkillboard.com/api/${ek}ID/${entityId}/page/${page}/`;
-      const raw = await httpGet(url);
+      // Demo mode answers with canned RAW killmails, not finished rows: the
+      // mapping below then runs for real, so the fixture exercises the same code
+      // a live feed would. A screenshot of a real killboard publishes what its
+      // owner flies and loses, which is why this page is faked at all.
+      const raw = require('../demo_mode').isEnabled()
+        ? require('../demo_fixtures').zkillFeed(ek, entityId, page)
+        : await httpGet(url);
       if (!Array.isArray(raw)) return null;
 
       const numId = Number(entityId);

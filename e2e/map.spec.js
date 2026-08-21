@@ -11,10 +11,8 @@
 // _persistModernLayout in src/func/map.js and src/ipc/map_ipc.js).
 const fs   = require('fs');
 const path = require('path');
-const { _electron: electron } = require('playwright');
 const { test, expect } = require('./support/electron-app');
 
-const AUTO_CACHE = 'modern-map-layout.auto.json';
 
 async function openMap(window) {
   await window.locator('.nav-btn[data-page="map"]').click();
@@ -39,72 +37,76 @@ test('map page opens and stays error-free', async ({ window }) => {
   expect(errors, `console/page errors on map: ${errors.join(' | ')}`).toEqual([]);
 });
 
-test('modern view lays out the galaxy and caches the result', async ({ window, profile }) => {
+test('the shipped curated layout is what gets drawn', async ({ window }) => {
+  // The curated layout used to live only in one machine's user-data directory,
+  // so every other install fell back to the algorithm and drew a noticeably
+  // more spread-out galaxy. It now ships with the app and outranks both the
+  // auto-cache and the algorithm, which is what makes every install identical.
   const logs = [];
   window.on('console', (msg) => logs.push(msg.text()));
 
   await openMap(window);
-  // The cache write is fire-and-forget after the build, so poll for the file
-  // rather than assuming it has landed.
-  const cachePath = path.join(profile.userDataDir, AUTO_CACHE);
-  await expect.poll(() => fs.existsSync(cachePath), { timeout: 25_000 }).toBe(true);
+  await expect
+    .poll(() => logs.some(l => /using CUSTOM saved layout/.test(l)), { timeout: 25_000 })
+    .toBe(true);
 
-  const saved = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-  // New Eden is ~5 200 k-space systems; a layout with far fewer means regions
-  // were dropped somewhere between the SDE read and the cache write.
-  expect(Object.keys(saved.systems).length).toBeGreaterThan(5000);
-  expect(saved.sdeVersion, 'cache must record which SDE it was built from').toBeTruthy();
-  expect(saved.algo, 'cache must record which layout algorithm built it').toBeGreaterThan(0);
-  expect(Array.isArray(saved.labels) && saved.labels.length).toBeGreaterThan(50);
-
-  // Every position must be a real pair of finite numbers — a NaN here renders
-  // as an invisible system rather than an error.
-  for (const [id, xz] of Object.entries(saved.systems).slice(0, 200)) {
-    expect(Array.isArray(xz) && xz.length === 2, `system ${id} has a malformed position`).toBe(true);
-    expect(Number.isFinite(xz[0]) && Number.isFinite(xz[1]), `system ${id} has a non-finite position`).toBe(true);
-  }
+  // …and it is the whole galaxy, not a partial file that happened to load.
+  const line = logs.find(l => /using CUSTOM saved layout/.test(l)) || '';
+  const n = Number((/\((\d+) systems/.exec(line) || [])[1] || 0);
+  expect(n, `curated layout should cover k-space, got: ${line}`).toBeGreaterThan(5000);
 });
 
-test('a second launch reuses the cached layout instead of rebuilding', async ({ electronApp, window, profile }) => {
-  // First launch: build + cache.
+test('the algorithm does not run when a curated layout is present', async ({ window }) => {
+  // The build costs ~1.6s of the renderer's only thread. With a curated layout
+  // shipped there is no reason to ever pay it, so a real build here means the
+  // shipped file was not found or was outranked.
+  const logs = [];
+  window.on('console', (msg) => logs.push(msg.text()));
+
   await openMap(window);
-  const cachePath = path.join(profile.userDataDir, AUTO_CACHE);
-  await expect.poll(() => fs.existsSync(cachePath), { timeout: 25_000 }).toBe(true);
-  const first = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+  await window.waitForTimeout(3000);
 
-  // The app takes a single-instance lock, so the first one has to go before a
-  // second can start against the same profile. (Closing it here is safe — the
-  // fixture's own teardown close() is tolerant of an already-closed app.)
-  await electronApp.close().catch(() => {});
+  // A ResizeObserver can fire before the layout loads and logs a harmless
+  // "built in 0ms (0 systems)" for a build that produced nothing. What must not
+  // happen is a build that actually laid systems out.
+  const realBuilds = logs
+    .map(l => /modern layout built in \d+ms \((\d+) systems\)/.exec(l))
+    .filter(m => m && Number(m[1]) > 0);
+  expect(realBuilds, 'the layout was rebuilt despite a curated layout shipping').toEqual([]);
+});
 
-  // Second launch against the SAME profile — this is the run every user gets
-  // after their first, and the one that must not spend 1.6s laying out again.
-  const app2 = await electron.launch({ args: profile.args, env: profile.childEnv });
-  try {
-    const w2 = await app2.firstWindow();
-    await w2.waitForLoadState('domcontentloaded');
-    const logs = [];
-    w2.on('console', (msg) => logs.push(msg.text()));
+// The system-search dropdown hangs out of .page-header, which the shared style
+// clips with `overflow: hidden` — so the list was cut off at the header's edge
+// and read as if the map were drawn over it. Reported 2026-08-21. Asserted by
+// hit-testing rather than by reading CSS: what matters is that a click below
+// the header lands on the dropdown and not on the canvas.
+test('the system-search dropdown is not clipped or covered by the map', async ({ window }) => {
+  await openMap(window);
 
-    await openMap(w2);
-    await expect
-      .poll(() => logs.some(l => /using CACHED saved layout/.test(l)), { timeout: 20_000 })
-      .toBe(true);
+  await window.locator('#mapSearchInput').fill('c-j');
+  const results = window.locator('#mapSearchResults');
+  await expect(results).toBeVisible({ timeout: 10_000 });
+  await expect(results.locator('.map-search-item').first()).toBeVisible({ timeout: 10_000 });
 
-    // And it must not have rebuilt. Matching "built in" alone is too broad and
-    // races: a ResizeObserver can fire before the cached layout has finished
-    // loading, and that call logs a harmless "built in 0ms (0 systems)" for a
-    // build that produced nothing and was neither kept nor cached. What must
-    // not happen is a build that actually laid systems out.
-    const realBuilds = logs
-      .map(l => /modern layout built in \d+ms \((\d+) systems\)/.exec(l))
-      .filter(m => m && Number(m[1]) > 0);
-    expect(realBuilds, 'second launch rebuilt the layout instead of reading the cache').toEqual([]);
+  const probe = await window.evaluate(() => {
+    const header = document.querySelector('#page-map .page-header');
+    const list   = document.querySelector('#mapSearchResults');
+    const h = header.getBoundingClientRect();
+    const l = list.getBoundingClientRect();
+    // A point inside the list and BELOW the header — the region that used to be
+    // clipped away and, once unclipped, would still be painted over by canvas.
+    const y = Math.min(l.bottom - 4, h.bottom + 8);
+    const el = document.elementFromPoint(l.left + l.width / 2, y);
+    return {
+      listHeight: l.height,
+      extendsBelowHeader: l.bottom > h.bottom + 4,
+      headerOverflow: getComputedStyle(header).overflow,
+      hitId: el ? (el.closest('#mapSearchResults') ? 'mapSearchResults' : (el.id || el.tagName)) : null,
+    };
+  });
 
-    // Same map, not merely a fast one.
-    const second = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    expect(second.systems).toEqual(first.systems);
-  } finally {
-    await app2.close().catch(() => {});
-  }
+  expect(probe.headerOverflow, 'the map header must let the dropdown out').not.toBe('hidden');
+  expect(probe.listHeight, 'the dropdown should have real height').toBeGreaterThan(10);
+  expect(probe.extendsBelowHeader, 'the dropdown should hang below the header').toBe(true);
+  expect(probe.hitId, 'a point inside the dropdown must hit the dropdown, not the canvas').toBe('mapSearchResults');
 });

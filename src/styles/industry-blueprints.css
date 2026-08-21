@@ -34,7 +34,7 @@
   background: var(--bg-card);
   border: 1px solid transparent;
   border-radius: 18px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 12px var(--shadow-soft);
   pointer-events: none;
 }
 
@@ -73,7 +73,7 @@
   position: relative; display: flex; flex-direction: column; gap: 12px;
   padding: 14px 16px 14px; background: var(--bg-card);
   border: 1px solid transparent; border-left-width: 3px;
-  border-radius: 16px; cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  border-radius: 18px; cursor: pointer; box-shadow: 0 2px 12px var(--shadow-soft);
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 .bp-card:hover {
@@ -92,12 +92,19 @@
 }
 .bp-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
 .bp-pill.no-dot::before { display: none; }
-.bp-pill.perfect { color: #c79bff; background: rgba(167,115,216,0.16); cursor: pointer; }
-.bp-pill.me      { color: var(--me); background: color-mix(in srgb, var(--me) 13%, transparent); }
-.bp-pill.te      { color: var(--te); background: color-mix(in srgb, var(--te) 13%, transparent); }
-.bp-pill.tech2   { color: var(--pal-gold); background: rgba(255,204,0,0.12); }
-.bp-pill.faction { color: var(--pal-green); background: rgba(74,218,138,0.12); }
-.bp-pill.cat     { color: var(--text-2); background: rgba(255,255,255,0.05); }
+/* Every pill takes its hue from a palette token and mixes its own wash from it,
+   so a user palette recolours the text and the background together. Three of
+   these used to set a themed colour but a LITERAL background — the same
+   half-converted state the ME/TE bars were in, where re-theming moved
+   everything around the pill and left the pill behind. */
+.bp-pill.perfect { color: var(--pal-purple); background: color-mix(in srgb, var(--pal-purple) 16%, transparent); cursor: pointer; }
+.bp-pill.me      { color: var(--me);         background: color-mix(in srgb, var(--me) 13%, transparent); }
+.bp-pill.te      { color: var(--te);         background: color-mix(in srgb, var(--te) 13%, transparent); }
+.bp-pill.tech2   { color: var(--pal-gold);   background: color-mix(in srgb, var(--pal-gold) 12%, transparent); }
+.bp-pill.faction { color: var(--pal-green);  background: color-mix(in srgb, var(--pal-green) 12%, transparent); }
+/* Structural, not palette: a neutral chip that must stay neutral under every
+   theme, so it keeps a white alpha rather than borrowing a hue. */
+.bp-pill.cat     { color: var(--text-2);     background: rgba(255,255,255,0.05); }
 
 /* Head: thumb + title + sub */
 .bp-card-head  { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -126,7 +133,7 @@
 .bp-econ-label { font-family: var(--mono); font-size: 8.5px; color: var(--text-3); letter-spacing: 0.1em; margin-bottom: 3px; }
 .bp-econ-cost  { font-family: var(--mono); font-size: 13px; color: var(--text-1); }
 .bp-econ-cost.muted { color: var(--text-3); }
-.bp-econ-profit { font-family: var(--mono); font-weight: 700; font-size: 15px; text-align: right; }
+.bp-econ-profit { font-family: var(--mono); font-weight: 700; font-size: 14px; text-align: right; }
 .bp-econ-profit.pos { color: var(--success); }
 .bp-econ-profit.neg { color: var(--danger); }
 .bp-econ-profit.na  { color: var(--text-3); font-size: 12px; }
@@ -298,7 +305,7 @@
 .wallet-bar-fill.liquid { background: var(--liquidisk); }
 .wallet-bar-fill.assets { background: var(--assets); }
 .wallet-bar-val  { font-size: 11px; font-family: var(--mono); color: var(--text-2); min-width: 80px; text-align: right; white-space: nowrap; }
-.wallet-footer { padding: 10px 16px; background: rgba(0,0,0,0.1); border-top: 1px solid var(--border-b); display: flex; justify-content: space-between; align-items: center; }
+.wallet-footer { padding: 10px 16px; background: var(--surface-well); border-top: 1px solid var(--border-b); display: flex; justify-content: space-between; align-items: center; }
 .wallet-meta   { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .wallet-action        { background: transparent; border: 1px solid var(--border); color: var(--text-2); padding: 4px 10px; border-radius: var(--radius); font-size: 11px; cursor: pointer; font-family: var(--font); transition: all 0.2s ease; }
 .wallet-action:hover  { background: var(--bg-hover); color: var(--accent); border-color: var(--accent-dim); }

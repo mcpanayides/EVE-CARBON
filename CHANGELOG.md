@@ -30,6 +30,72 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [3.6.0] - 2026-08-22
+
+The fitting simulator was wrong, and in places badly wrong — a bastioned
+Marauder read at half its real damage and a sieged Dreadnought at roughly a
+ninth. Every number below was checked against the game rather than against
+another tool. The map also now draws the same galaxy on every install.
+
+### Fixed
+- **Bastion, Siege, Triage and Industrial Cores did nothing.** None of them were
+  modelled, so the module that defines how a Marauder or Dreadnought fights was
+  simply absent from the simulation. Bastion halves the turret cycle (×2 damage);
+  Siege multiplies turret damage by 9.4. Their resistance, repair, sensor and
+  immobilising effects now apply too — all read from the module's own dogma
+  attributes, so faction variants and any future re-tune are picked up without a
+  code change.
+- **T2 specialization skills were dropped.** A T2 gun requires its size skill AND
+  a specialization; only the first was applied, silently losing ~10% of the
+  damage of every T2 turret in the game. Launcher specializations lost their
+  rate-of-fire bonus the same way.
+- **Weapon damage and rate-of-fire rigs contributed nothing.** Burst Aerators and
+  Collision Accelerators were excluded from the damage path — about 18% of the
+  DPS of any fit carrying one.
+- **Armour and shield hitpoint rigs contributed nothing**, so Trimarks and Core
+  Defence Field Extenders never reached EHP.
+- **Drones were about a quarter light**, missing their size and specialization
+  skills. **Fighters were worse** — squadrons flew on raw attributes with no
+  skills and no carrier hull bonus at all, so a Revenant's two racial bonuses
+  counted for nothing.
+- **Fighter Support Units were unread**, along with their rate-of-fire bonus.
+- **Smartbombs were left out of Offence**, and a **Nosferatu counted as nothing**
+  when it is one of the largest capacitor sources on a fit.
+- **Micro Jump Drives were charged 16× too much capacitor** — every 12s rather
+  than once per 192s duty cycle — and their signature bloom was missing.
+- **42.7% of every per-level hull trait in the game was silently discarded**
+  (now 35.1%). Capital hitpoint bonuses worth up to 500%, capacitor-use bonuses
+  on 93 hulls, inertia, signature and cargo traits all now apply.
+- **Two command-burst magnitudes were transposed**, leaving targeting range and
+  scan resolution wrong in opposite directions.
+- **The curated map layout only existed on one machine.** It lived in a local
+  user-data file, so every other install fell back to the algorithm and drew a
+  noticeably more spread-out galaxy. It now ships with the app.
+- **Regional gateway boxes could be drawn on top of each other** — two gateways
+  looking like one, at every zoom level. Gateway placement now reserves the room
+  the box actually occupies, without moving a single system.
+- **The map's system search was clipped by the page header**, so its results
+  list was cut off after the first row.
+
+### Added
+- **A cargo hold you can load.** Search or drag anything aboard — modules,
+  charges, drones, deployables — to carry a field refit. Volume is tracked
+  against the real hold, and the fit round-trips through EFT with its cargo.
+  Cargo is weight only and never counts toward damage or tank.
+- **Cargo capacity is simulated**: hauler traits, Expanded Cargoholds and
+  Cargohold Optimization rigs, including the expander's velocity cost.
+- **Saved fits can be deleted**, and in-game fits can be removed from EVE Carbon
+  without touching the game — with a way to restore them.
+
+### Changed
+- **Boosted stats read `base + boost [combined]`.** Previously only the base and
+  the boost were shown, leaving the reader to add them up.
+- **"Save to Game" is now "Copy to Clipboard".** EVE imports EFT from the
+  clipboard, which is how every other fitting tool hands a fit over, and it
+  carries the cargo hold. The ESI write path and its
+  `esi-fittings.write_fittings.v1` scope have been removed — the app no longer
+  asks for write access to your in-game fittings.
+
 ## [3.5.0] - 2026-08-19
 
 Fleet ops get a record and an after-action report, the demo profile now fills

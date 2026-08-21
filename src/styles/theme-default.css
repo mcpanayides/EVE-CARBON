@@ -157,6 +157,13 @@
   --shadow-dark:    rgba(0, 0, 0, 0.35);      /* toast box-shadow                */
   --shadow-darker:  rgba(0, 0, 0, 0.80);      /* modal box-shadow                */
   --shadow-black-12: rgba(0, 0, 0, 0.12);     /* status-light subtle ring        */
+  --shadow-soft:    rgba(0, 0, 0, 0.15);      /* card lift — one step under panel */
+
+  /* ── RECESSED SURFACES ───────────────────────────────────────────────────────
+     A band that sits BELOW its container rather than floating above it: card
+     footers, table sub-headers. Distinct from --shadow-*, which casts depth
+     outward; this darkens the surface itself. */
+  --surface-well:   rgba(0, 0, 0, 0.10);
   --spinner-track:  rgba(255, 255, 255, 0.08); /* sync-spinner track ring        */
 
   /* ── BODY PSEUDO-ELEMENT GLOWS — cool blue nebula, faint accent warmth ────── */

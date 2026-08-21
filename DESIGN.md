@@ -248,6 +248,12 @@ A global **Glass tint** control (Settings → Background) sets the translucent s
 - **Panel lift** (`box-shadow: 0 8px 28px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-specular)`): structural page panels.
 - **Modal lift** (`box-shadow: 0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 var(--glass-specular)`): dialogs and drawers — always the top of the focus stack.
 - **Toast lift** (`box-shadow: 0 12px 36px rgba(0,0,0,0.45), inset 0 1px 0 var(--glass-specular)`): transient notifications.
+- **Card lift** (`box-shadow: 0 2px 12px var(--shadow-soft)`): content cards inside a panel — blueprint and reaction cards. The shallowest step, one below panel lift: a card is a sibling of its neighbours, not a new focus plane, so it barely leaves the surface.
+
+Shadow alphas are tokens (`--shadow-soft` 0.15, `--shadow-dark` 0.35, `--shadow-darker` 0.80), not literals. A raw `rgba(0,0,0,…)` in a `box-shadow` is drift.
+
+### Recessed Surfaces
+`--surface-well` (`rgba(0,0,0,0.10)`) is the inverse of a lift: it darkens a band so it sits *below* its container instead of floating above it — card footers, table sub-headers. Reach for it when something should read as recessed; reach for a shadow when something should read as raised. Do not use a shadow token as a background tint, or vice versa.
 
 ### Named Rules
 **The Focus-Stack Rule.** Depth encodes focus. The active surface is sharp and lifted; whatever it sits on top of is blurred and dimmed. When an overlay opens, blur and scrim the layer behind it — never leave two planes competing for attention at the same clarity.

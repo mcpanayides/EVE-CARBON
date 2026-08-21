@@ -46,16 +46,36 @@ async function _fetchSovSystems({ httpGet, writeCache }) {
   return sovMap;
 }
 
-// Hand-curated Modern-map layout (the in-app layout editor writes this).
-// When present it wins over the algorithmic layout wholesale.
-const _modernLayoutPath = () => path.join(app.getPath('userData'), 'modern-map-layout.json');
+// Hand-curated Modern-map layout. It wins over the algorithmic layout wholesale.
+//
+// It SHIPS WITH THE APP (src/data/, packaged into the asar by the build's
+// files: ["**/*"]). It used to live only in userData, written by the in-app
+// layout editor — which meant the curated map existed on exactly one machine
+// and every install anywhere else silently fell back to the algorithm and drew
+// a noticeably more spread-out galaxy. The editor is gone and the layout is
+// finished, so the bundled copy is the canonical one.
+//
+// Deliberately NOT data/: that directory is gitignored (it holds the multi-
+// hundred-MB SDE) and only reaches a build via extraResources, so a file placed
+// there would ship from a local build and be MISSING from every CI release —
+// which is the exact shape of the bug this fixes.
+//
+// A userData file is still honoured as a fallback, so an existing hand-saved
+// layout keeps working if the bundled one is ever unreadable.
+const _bundledLayoutPath = () => path.join(__dirname, '..', 'data', 'modern-map-layout.json');
+const _modernLayoutPath  = () => path.join(app.getPath('userData'), 'modern-map-layout.json');
 
 function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb, getSdeMd5Path }) {
 
   // ── Custom Modern-map layout: persist / load / reset ───────────────────────
   ipcHandle('modern-layout-get', async () => {
+    // Bundled first, so every install draws the same galaxy.
+    try {
+      const bundled = JSON.parse(fs.readFileSync(_bundledLayoutPath(), 'utf8'));
+      if (bundled && bundled.systems && Object.keys(bundled.systems).length) return bundled;
+    } catch (_) { /* fall through to a locally saved layout */ }
     try { return JSON.parse(fs.readFileSync(_modernLayoutPath(), 'utf8')); }
-    catch (_) { return null; }   // no custom layout saved yet
+    catch (_) { return null; }   // neither present → algorithmic layout
   });
 
   // ── Computed Modern-map layout cache ──────────────────────────────────────

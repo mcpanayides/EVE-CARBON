@@ -62,6 +62,16 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  /* The system-search results hang below the header. The shared .page-header
+     sets `overflow: hidden`, which CLIPS them — no z-index escapes a clipping
+     ancestor, which is why this read as a stacking bug and was not one: the
+     list was cut off at the header's bottom edge, leaving one sliver of a row
+     visible. Only the map header needs to let a child out.
+     The z-index is the other half: .map-viewport is positioned and comes AFTER
+     the header in the DOM, so an unclipped dropdown would still paint under the
+     canvas. */
+  overflow: visible;
+  z-index: 2;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */

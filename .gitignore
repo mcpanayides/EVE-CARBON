@@ -8,7 +8,10 @@ config.json
 blueprints.json
 
 
-data/
+# Anchored to the repo root: the multi-hundred-MB SDE lives in /data.
+# Unanchored ("data/") this also swallowed src/data/, which holds the SHIPPED
+# modern-map layout — it stayed on one machine and never reached a CI release.
+/data/
 *.sql
 *.sqlite
 *.sqlite3

@@ -35,8 +35,14 @@ const SOURCE_TO_DOC = {
   'src/func/dashboard.js':             'src/docs/dahboards.md',
   'src/func/materials.js':             'src/docs/materials.md',
   'src/func/planetary-interaction.js': 'src/docs/planetary-interaction.md',
-  'src/func/map.js':                   'src/docs/fleet-up.md',
+  // The map is its own surface — it was documented into fleet-up.md alongside
+  // an unrelated module, which left the galaxy/region views, the layout engine
+  // and the gateway handling with no doc of their own.
+  'src/func/map.js':                   'src/docs/map.md',
   'src/func/fleetup.js':               'src/docs/fleet-up.md',
+  // The fitting simulator had NO mapping at all — ~3 500 lines of dogma
+  // simulation with nothing generated for it.
+  'src/func/fitting.js':               'src/docs/fitting.md',
   'src/func/cost-index.js':            'src/docs/cost-index.md',
   'src/func/blueprints.js':            'src/docs/blueprints.md',
 
@@ -50,7 +56,7 @@ const SOURCE_TO_DOC = {
   'src/ipc/config_ipc.js':             'src/docs/ui.md',
   'src/ipc/pi_ipc.js':                 'src/docs/planetary-interaction.md',
   'src/ipc/station_ipc.js':            'src/docs/locator.md',
-  'src/ipc/map_ipc.js':                'src/docs/fleet-up.md',
+  'src/ipc/map_ipc.js':                'src/docs/map.md',
   'src/ipc/updater_ipc.js':            'src/docs/updater.md',
 
   // Core modules

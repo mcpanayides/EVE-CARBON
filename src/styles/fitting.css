@@ -55,13 +55,28 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .ft-fit:hover { background: var(--bg-hover); }
 /* Fits saved locally in EVE Carbon (vs ⚙ game fits fetched over ESI). */
 .ft-fit-local .material-symbols-outlined { font-size: 14px; color: var(--text-3); flex-shrink: 0; }
+/* Always present so the fit is visibly deletable, but dimmed until the row is
+   hovered — hidden entirely (the old `display: none`) meant nobody found it. */
 .ft-fit-del {
   margin-left: auto; background: none; border: none; color: var(--text-3);
-  font-size: 10px; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 3px;
-  display: none;
+  line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+  display: flex; align-items: center; opacity: 0.35;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
-.ft-fit-local:hover .ft-fit-del { display: block; }
-.ft-fit-del:hover { color: var(--pal-red); }
+/* Same 14px as the save icon beside it. `inherit` matters: the row-level icon
+   rule sets its own colour, which would otherwise beat the button's hover red. */
+.ft-fit-del .material-symbols-outlined { font-size: 14px; color: inherit; }
+.ft-fit-local:hover .ft-fit-del,
+.ft-fit-game:hover  .ft-fit-del { opacity: 0.8; }
+.ft-fit-del:hover { opacity: 1; color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.ft-fit-del:focus-visible { opacity: 1; color: var(--danger); }
+/* The way back from a hidden in-game fit — it still exists in the game, so
+   without this it would just look lost. */
+.ft-fit-hidden-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 10px; color: var(--text-3); padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
 /* Notice at the top of Hulls & Fits when the ESI fits fetch fails. */
 .fit-hint-warn { color: var(--pal-gold); text-align: left; padding: 6px 8px 2px; font-size: 11px; }
 /* Section divider in ship-search results between hull matches and fit-name matches. */
@@ -92,6 +107,14 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 
 /* Command-burst boost contribution — green "+x" beside the base value. */
 .fit-boost-delta { color: var(--pal-green); font-family: var(--mono); font-size: 12px; margin-left: 5px; white-space: nowrap; }
+/* Sits bottom-right of a stats card: the headline figures already include the
+   boost, so this says what the green number beside them is. */
+.fit-boost-legend {
+  display: flex; align-items: center; justify-content: flex-end; gap: 2px;
+  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--text-3); text-align: right;
+}
+.fit-boost-legend .fit-boost-delta { margin-left: 0; font-size: 10px; }
 /* Repair-rate line under a defense layer row (boost / regen / rep hp/s). */
 .fit-rep-line {
   display: flex; justify-content: flex-end; gap: 10px;
@@ -230,6 +253,16 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   color: var(--text-3); border-bottom: 1px solid var(--border);
 }
 .fw-db-head span { letter-spacing: 0; color: var(--text-2); }
+/* Over capacity: the hold still accepts the load (you may be mid-plan), so this
+   warns rather than blocks — same signal on the chip and the panel header. */
+/* The combined base+boost figure, shown in brackets after the green delta so a
+   boosted stat reads "base + boost [total]" without any mental arithmetic. */
+.fit-boost-total { color: var(--text-2); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.fit-big .fit-boost-total { font-size: 14px; }
+.fit-boost-legend .fit-boost-total { font-size: 10px; }
+.fw-db-head.over, .fw-db-head.over span { color: var(--danger); }
+.fw-bay.over { border-color: var(--danger); color: var(--danger); }
+.fw-bay.over .material-symbols-outlined { color: var(--danger); }
 .fw-db-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 10px;
   border-bottom: 1px solid var(--border);

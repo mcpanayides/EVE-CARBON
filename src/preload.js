@@ -322,7 +322,6 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fitGetItems:      (typeIds)            => ipcRenderer.invoke('fit-get-items', typeIds),
   fitLookupNames:   (names)              => ipcRenderer.invoke('fit-lookup-names', names),
   fitGetFittings:   (characterId)        => ipcRenderer.invoke('fit-get-fittings', characterId),
-  fitSaveFitting:   (characterId, fit)   => ipcRenderer.invoke('fit-save-fitting', characterId, fit),
 
   // EVE Mail (live-fetched via ESI, never stored locally — see main.js).
   mailGetHeaders:   (characterId, opts)          => ipcRenderer.invoke('mail-get-headers', characterId, opts),

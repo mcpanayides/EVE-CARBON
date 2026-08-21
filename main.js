@@ -181,7 +181,6 @@ const SCOPES         = [
   'esi-fleets.read_fleet.v1',                    // for fleet role tags in Jabber messages (e.g. FC, squad commander, etc.)
   'esi-fleets.write_fleet.v1',                   // invite the user's own alts into the fleet (Fleet Composition tool)
   'esi-fittings.read_fittings.v1',               // import saved ship fits from the game (Fitting tool)
-  'esi-fittings.write_fittings.v1',              // push fits from the Fitting tool back to the game
   'esi-ui.write_waypoint.v1',                    // set autopilot destination in active EVE client
   'esi-industry.read_character_mining.v1',       // personal mining ledger (Mining Ledger tool)
   'esi-industry.read_corporation_mining.v1',     // corp mining observers + moon extractions (needs in-game role, else 403)
@@ -1119,7 +1118,14 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
 const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: 'subsystem' };
 // 'module' includes subsystems; 'charge' includes drones AND fighters (cat 87) —
 // one browser tab covers everything that goes in a bay.
-const FIT_CATS = { ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32], implant: [20] };
+// 'any' is the CARGO HOLD's search: a hold takes whatever you can carry, so it
+// spans modules, charges, drones, subsystems, fighters, implants, commodities
+// (4) and — the point of a field refit — deployables (22), where the Mobile
+// Depot lives. No other kind reaches category 22.
+const FIT_CATS = {
+  ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32], implant: [20],
+  any: [4, 7, 8, 18, 20, 22, 32, 87],
+};
 
 // Per-type fitting facts used by the renderer to place & cost a module.
 async function _fitItemFacts(typeId) {
@@ -1177,11 +1183,27 @@ async function _fitItemFacts(typeId) {
     traits = await sdeDb.all(
       `SELECT skillID, bonus, unitID, bonusText FROM invTraits WHERE typeID = ?`, [typeId]).catch(() => []);
   }
+  // Per-level damage / rate-of-fire carried by the skills this item REQUIRES
+  // (292 damageMultiplierBonus, 293 speedMultiplierBonus — both %/level).
+  // A T2 gun requires its size skill (Large Energy Turret, 5%/lvl damage) AND a
+  // specialization (Large Pulse Laser Specialization, 2%/lvl damage); a T2
+  // launcher's specialization instead carries 2%/lvl rate of fire. The renderer
+  // used to hardcode a single 5% skill, which silently dropped every
+  // specialization bonus in the game — ~10% of DPS on any T2 weapon.
+  const skillBonuses = [];
+  for (const sid of [attrs[182], attrs[183], attrs[184]].filter(Boolean)) {
+    const rows = await sdeDb.all(
+      `SELECT attributeID, COALESCE(valueInt, valueFloat) AS v FROM dgmTypeAttributes
+        WHERE typeID = ? AND attributeID IN (292, 293)`, [sid]).catch(() => []);
+    const dmg = rows.find(r => r.attributeID === 292)?.v || 0;
+    const rof = rows.find(r => r.attributeID === 293)?.v || 0;
+    if (dmg || rof) skillBonuses.push({ id: sid, dmg, rof });
+  }
   return {
     id: row.typeID, name: row.typeName, groupName: row.groupName,
     groupId: row.groupID, categoryId: row.categoryID, attrs,
     effects: effs.map(e => e.effectName),
-    traits,
+    traits, skillBonuses,
     volume: row.volume || 0,   // m³ (drone-bay accounting)
     slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
     dmgMult: a[64] || 0, rof: a[51] || 0,
@@ -1498,31 +1520,6 @@ ipcMain.handle('fit-get-fittings', async (_, characterId) => {
     }));
     return { ok: true, fittings };
   } catch (e) { return { ok: false, error: e.message }; }
-});
-
-// Save a fit to the game (ESI). Requires esi-fittings.write_fittings.v1.
-// fitting = { name, description, shipTypeId, items:[{ typeId, flag, quantity }] }.
-ipcMain.handle('fit-save-fitting', async (_, characterId, fitting) => {
-  if (!characterId || !fitting) return { ok: false, error: 'missing character or fit' };
-  try {
-    const token = await getValidToken(characterId);
-    const body = {
-      name: fitting.name || 'EVE Carbon Fit', description: fitting.description || '',
-      ship_type_id: fitting.shipTypeId,
-      items: (fitting.items || []).map(i => ({ type_id: i.typeId, flag: i.flag, quantity: i.quantity })),
-    };
-    const hdr = _esiAuthHeaders(token, { 'Content-Type': 'application/json' });
-    // One call — see the note on the read path above.
-    const res = await _esiFetch(`${ESI_BASE}/characters/${characterId}/fittings/?datasource=tranquility`, {
-      method: 'POST', headers: hdr, body: JSON.stringify(body),
-    });
-    if (res.status === 403) return { ok: false, needsReauth: true, error: 'Re-authenticate this character to grant fittings write access (esi-fittings.write_fittings.v1).' };
-    if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: `ESI ${res.status}${t ? ': ' + t : ''}` }; }
-    const j = await res.json().catch(() => ({}));
-    return { ok: true, fittingId: j.fitting_id };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  }
 });
 
 // ─── EVE Mail ─────────────────────────────────────────────────────────────────

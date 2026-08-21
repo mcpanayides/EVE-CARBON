@@ -1272,8 +1272,53 @@ function _buildRegionLayout(regionId) {
       for (const v of adj.get(id)) { const vp = map.get(v); if (vp) { const i = _dir8(vp.x - here.x, vp.z - here.z); if (i >= 0) set.add(i); } }
       return set;
     };
-    // Inter-region gate stubs hung at a clean outward angle, never along a gate line.
+    // Inter-region gate stubs hung at a clean outward angle, never along a gate
+    // line — and never on top of another stub.
+    //
+    // Two things went wrong before this. Nothing tracked where OTHER stubs had
+    // been placed (only systems, via `occ`, and only the same source system's
+    // own directions, via `usedDir`), so two stubs from different systems could
+    // land on the identical cell and draw as one box with a doubled outline —
+    // two gateways looking like one, at every zoom level. And a stub box is
+    // drawn at a FIXED SCREEN SIZE while its position is in world units, so two
+    // stubs a single cell apart look separated zoomed in and merge as you zoom
+    // out. The reservation below is therefore wider than a system's: the box
+    // carries two lines of text and is far wider than it is tall.
     const seen = new Set(), usedDir = new Map();
+    const exitOcc = new Set();
+    const EXIT_PAD_X = 2, EXIT_PAD_Z = 1;      // cells reserved either side of a stub
+    const exitCells = (x, z) => {
+      const cells = [];
+      for (let ax = -EXIT_PAD_X; ax <= EXIT_PAD_X; ax++) {
+        for (let az = -EXIT_PAD_Z; az <= EXIT_PAD_Z; az++) {
+          cells.push(ck(x + ax * _REGION_CELL, z + az * _REGION_CELL));
+        }
+      }
+      return cells;
+    };
+    // Clear of every system AND every stub the box would sit over — the whole
+    // footprint, not just the centre cell, because the box is wider than a
+    // system dot and a centre-only test let boxes overlap their neighbours.
+    const exitClear = (x, z) => !exitCells(x, z).some(c => occ.has(c) || exitOcc.has(c));
+    const stubAt = (ip, i, r) => ({
+      x: ip.x + _REGION_DIRS[i][0] * _REGION_CELL * r,
+      z: ip.z + _REGION_DIRS[i][1] * _REGION_CELL * r,
+    });
+    // Candidate spots for one stub, best first: the chosen direction stepping
+    // outward, then the neighbouring directions (nearest angle first) doing the
+    // same. Dense regions like The Forge hang a dozen stubs off a handful of
+    // border systems, so the search has to reach well out — stopping early is
+    // what left stubs sitting on top of each other.
+    const stubCandidates = function* (ip, di) {
+      for (let r = 1.7; r <= 7.0; r += 0.7) {
+        yield stubAt(ip, di, r);
+        for (let k = 1; k <= 4; k++) {
+          yield stubAt(ip, (di + k) % 8, r);
+          yield stubAt(ip, (di - k + 8) % 8, r);
+        }
+      }
+    };
+
     for (const j of _jumps) {
       if (!inRegion.has(j.from) || inRegion.has(j.to)) continue;
       const key = j.from + '>' + j.to;
@@ -1282,20 +1327,47 @@ function _buildRegionLayout(regionId) {
       if (!ext || !ip) continue;
       const blocked = edgeDirs(j.from, ip);
       for (const u of (usedDir.get(j.from) || [])) blocked.add(u);
+      // Direction choice is deliberately UNCHANGED by overlap handling (systems
+      // only, one cell out). It feeds the region-orientation test at the foot of
+      // this block, so widening it here silently mirrors whole regions.
       const free = (i) => !occ.has(ck(ip.x + _REGION_DIRS[i][0] * _REGION_CELL, ip.z + _REGION_DIRS[i][1] * _REGION_CELL));
       const di = _pickStubDir(ip.x, ip.z, cX0, cZ0, blocked, free);
       (usedDir.get(j.from) || usedDir.set(j.from, []).get(j.from)).push(di);
+
+      // First clear candidate wins. If the whole search is blocked, take the
+      // spot with the fewest conflicts rather than stacking on the default —
+      // a crowded gateway is readable, two drawn as one is not.
+      let at = null, fallback = null, fallbackCost = Infinity;
+      for (const p of stubCandidates(ip, di)) {
+        if (exitClear(p.x, p.z)) { at = p; break; }
+        const cost = exitCells(p.x, p.z).filter(c => occ.has(c) || exitOcc.has(c)).length;
+        if (cost < fallbackCost) { fallbackCost = cost; fallback = p; }
+      }
+      if (!at) at = fallback || stubAt(ip, di, 1.7);
+      for (const c of exitCells(at.x, at.z)) exitOcc.add(c);
+      // Where this stub WOULD have hung before overlap handling. The region's
+      // orientation is decided from these, so a nudge to avoid an overlap can
+      // never flip the whole region upside down.
+      const orientZ = stubAt(ip, di, 1.7).z;
+
       exits.push({
         fromId: j.from, name: ext.name, regionId: ext.regionId,
         regionName: _regions[ext.regionId] || '',
-        x: ip.x + _REGION_DIRS[di][0] * _REGION_CELL * 1.7,
-        z: ip.z + _REGION_DIRS[di][1] * _REGION_CELL * 1.7,
+        x: at.x, z: at.z, _orientZ: orientZ,
       });
     }
-    // Orient gateways to the top: flip vertically if exits sit in the lower half.
+    // Orient gateways to the top: flip vertically if the region's exits sit in
+    // the lower half.
+    //
+    // Measured from _orientZ — where each stub WOULD hang with no overlap
+    // handling — not from where it actually ended up. Taken from the nudged
+    // positions, a one-cell shift could tip this test and mirror the entire
+    // region: 15 of 70 regions flipped upside down from a stub-placement change
+    // alone, with every system position otherwise identical. That reads as "the
+    // whole layout changed" even though nothing in the force layout moved.
     let zmin = Infinity, zmax = -Infinity;
     for (const p of map.values()) { zmin = Math.min(zmin, p.z); zmax = Math.max(zmax, p.z); }
-    let emz = 0; for (const e of exits) emz += e.z; emz /= (exits.length || 1);
+    let emz = 0; for (const e of exits) emz += e._orientZ; emz /= (exits.length || 1);
     if (exits.length && emz > (zmin + zmax) / 2) {
       for (const p of map.values()) p.z = -p.z;
       for (const e of exits) e.z = -e.z;

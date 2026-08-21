@@ -34,7 +34,6 @@ const SCOPES = [
   'esi-fleets.read_fleet.v1',
   'esi-fleets.write_fleet.v1',                  // invite the user's own alts into the fleet (Fleet Composition tool)
   'esi-fittings.read_fittings.v1',              // import saved ship fits from the game (Fitting tool)
-  'esi-fittings.write_fittings.v1',             // push fits from the Fitting tool back to the game
   'esi-ui.write_waypoint.v1',
   'esi-ui.open_window.v1',
   'esi-mail.read_mail.v1',                      // EVE Mail: read headers/bodies, labels and mailing lists

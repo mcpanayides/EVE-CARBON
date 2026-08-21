@@ -41,10 +41,23 @@ jobs:
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
           echo "Source files: $FILES"
 
-      - name: Update all docs with GitHub Models (GPT-4o)
+      # continue-on-error so a partial run still commits the docs it DID manage
+      # to write; the job is failed deliberately at the end instead. Without the
+      # final gate this step's failures were invisible — every doc errored for
+      # four releases and the workflow reported success each time, because the
+      # script caught each error per-doc and exited 0.
+      - name: Update all docs
+        id: gen
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
           CHANGED_FILES: ${{ steps.sources.outputs.files }}
+          # Set these repo secrets to point at a provider that still serves an
+          # OpenAI-compatible endpoint. GitHub Models, the original backend, is
+          # retired and answers 410 on every path.
+          DOCS_API_BASE: ${{ secrets.DOCS_API_BASE }}
+          DOCS_API_KEY:  ${{ secrets.DOCS_API_KEY }}
+          DOCS_MODEL:    ${{ secrets.DOCS_MODEL }}
         run: node .github/scripts/update-docs.js
 
       - name: Commit updated docs to main
@@ -58,3 +71,12 @@ jobs:
             git commit -m "docs: update for ${{ github.ref_name }} [skip ci]"
             git push origin main
           fi
+
+      # The whole point of the change: a docs run that generated nothing must
+      # not show a green tick. Runs after the commit step so whatever succeeded
+      # is still saved before the job goes red.
+      - name: Fail if any doc could not be generated
+        if: steps.gen.outcome == 'failure'
+        run: |
+          echo "::error title=Docs not regenerated::update-docs could not generate one or more docs — see the 'Update all docs' step. src/docs is now stale."
+          exit 1

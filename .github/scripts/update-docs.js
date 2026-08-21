@@ -15,10 +15,17 @@ const path   = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');  // project root
 
+// models.inference.ai.azure.com no longer resolves at all — every generation
+// failed with a bare "Connection error", which the per-doc catch below swallowed
+// into a green run. models.github.ai is the current host; note that GitHub
+// Models is itself in a retirement brownout and answers 410 on every path, so
+// this endpoint is where a truthful error comes from rather than a working call.
+// Overridable so a replacement provider needs no code change.
 const client = new OpenAI({
-  baseURL: 'https://models.inference.ai.azure.com',
-  apiKey:  process.env.GITHUB_TOKEN,
+  baseURL: process.env.DOCS_API_BASE || 'https://models.github.ai/inference',
+  apiKey:  process.env.DOCS_API_KEY  || process.env.GITHUB_TOKEN,
 });
+const MODEL = process.env.DOCS_MODEL || 'gpt-4o';
 
 // ── Source file → doc file mapping ───────────────────────────────────────────
 const SOURCE_TO_DOC = {
@@ -131,7 +138,7 @@ async function updateDoc(docPath, sourcePaths) {
       `Source files:\n${sourceBlocks}`;
 
   const response = await client.chat.completions.create({
-    model:      'gpt-4o',
+    model:      MODEL,
     max_tokens: 8192,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -182,6 +189,7 @@ async function main() {
   console.log(`\nDocs to update: ${[...docsToUpdate].join(', ')}\n`);
 
   let updated = 0;
+  const failures = [];
   for (const docPath of docsToUpdate) {
     const sources = DOC_TO_SOURCES[docPath] || [];
     console.log(`Processing ${docPath}  (sources: ${sources.join(', ')})`);
@@ -189,10 +197,27 @@ async function main() {
       if (await updateDoc(docPath, sources)) updated++;
     } catch (err) {
       console.error(`  Error updating ${docPath}:`, err.message);
+      failures.push({ docPath, message: err.message, status: err.status, code: err.code || err.error?.code });
     }
   }
 
-  console.log(`\nFinished — updated ${updated} doc file(s)`);
+  console.log(`\nFinished — updated ${updated} doc file(s), ${failures.length} failed`);
+
+  if (!failures.length) return;
+
+  // A run that generated nothing must not report success. Every doc failed
+  // silently for four releases — the job exited 0 because each error was caught
+  // per-doc and never counted, so src/docs went stale behind a green tick.
+  const retired = failures.some(f => /retirement|410/.test(`${f.code || ''} ${f.status || ''} ${f.message}`));
+  if (retired) {
+    console.error(
+      '\nGitHub Models is retired — it answers 410 on every path, so no model is\n' +
+      'reachable through it. Point DOCS_API_BASE / DOCS_API_KEY / DOCS_MODEL at a\n' +
+      'provider that still serves an OpenAI-compatible chat completions endpoint.');
+  }
+  console.error(`\n${failures.length} doc(s) could not be generated:`);
+  for (const f of failures) console.error(`  ${f.docPath}: ${f.message}`);
+  process.exitCode = 1;
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

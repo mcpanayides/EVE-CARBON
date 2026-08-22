@@ -1,10 +1,15 @@
 name: Build and Release
 
+# Triggered directly by the version tag. This used to chain off the
+# "Auto-update Docs" workflow via workflow_run — that workflow generated
+# src/docs/*.md and, as a side effect, was the only thing that started a
+# release. Its backend (GitHub Models) was retired, the docs it produced went
+# four releases stale, and the wiki that replaced them is generated locally,
+# so it has been deleted. Releasing must not depend on a docs job at all.
 on:
-  workflow_run:
-    workflows: ["Auto-update Docs"]
-    types:
-      - completed
+  push:
+    tags:
+      - 'v*'
 
 # Least privilege by default. Without this the token handed to every job is
 # whatever the repository default happens to be — which is write access to the
@@ -25,7 +30,6 @@ jobs:
   test-gate:
     name: Test gate (lint + unit + e2e)
     runs-on: windows-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -71,7 +75,6 @@ jobs:
   build-windows:
     runs-on: windows-latest
     needs: test-gate
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: write
     steps:
@@ -126,7 +129,7 @@ jobs:
       - name: Extract changelog section for this tag
         shell: bash
         env:
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_BRANCH: ${{ github.ref_name }}
         run: |
           TAG="$HEAD_BRANCH"
           VER="${TAG#v}"
@@ -144,7 +147,7 @@ jobs:
         with:
           files: dist/*.exe
           body_path: RELEASE_NOTES.md
-          tag_name: ${{ github.event.workflow_run.head_branch }}
+          tag_name: ${{ github.ref_name }}
           # Publish as a STABLE release (not pre-release) so GitHub's
           # /releases/latest returns it — older installed clients check that
           # endpoint, which excludes pre-releases.
@@ -155,7 +158,12 @@ jobs:
 
   build-mac:
     runs-on: macos-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Waits on the test gate, like build-windows. It never did: the only thing
+    # sequencing it was the shared `if: workflow_run.conclusion == 'success'`
+    # guard, which tested the DOCS run, not the tests — so a red test gate still
+    # shipped a .dmg. The comment on test-gate has always claimed both builds
+    # wait for it; now they do.
+    needs: test-gate
     permissions:
       contents: write
     steps:
@@ -213,7 +221,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.dmg
-          tag_name: ${{ github.event.workflow_run.head_branch }}
+          tag_name: ${{ github.ref_name }}
           prerelease: false
           make_latest: true
         env:

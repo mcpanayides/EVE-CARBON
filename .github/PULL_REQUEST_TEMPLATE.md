@@ -39,4 +39,4 @@ Closes #
 - [ ] I targeted the `main` branch.
 - [ ] No secrets, `.env`, local DBs, or `dist/` artifacts are included in this PR.
 - [ ] I updated `CHANGELOG.md` if this is a user-facing change.
-- [ ] I updated relevant docs in `src/docs/` if behavior changed.
+- [ ] I ran `graphify update .` (and `graphify export wiki` if structure changed) so `graphify-out/wiki/` matches the code.

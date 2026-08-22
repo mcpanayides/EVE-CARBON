@@ -76,7 +76,7 @@ For developers who want to build or contribute:
 - **Linux**: `npm run fetch-sde && npm run build-linux`
 
 ### For what does what and where
-See [`./src/docs`](./src/docs) for module-by-module details.
+See [`./graphify-out/wiki`](./graphify-out/wiki/index.md) for a generated map of the codebase — one article per subsystem, with the functions in it and how it connects to its neighbours.
 
 ## 📝 Notes
 - **Character data requires an EVE SSO login** — you sign in with your EVE account and grant scopes; your tokens are stored locally and never leave your machine. Public data (Faction Warfare, market prices, killboard) needs no login.

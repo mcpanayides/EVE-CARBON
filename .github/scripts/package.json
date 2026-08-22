@@ -1,7 +1,0 @@
-{
-  "name": "eve-carbon-doc-updater",
-  "private": true,
-  "dependencies": {
-    "openai": "^4.0.0"
-  }
-}

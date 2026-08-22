@@ -78,4 +78,13 @@ demo-shots/
 # `graphify .` (see CLAUDE.md). ~14MB: graph.json + graph.html are a few MB each,
 # cache/semantic holds one file per extracted doc, and graphify writes a dated
 # backup folder of the previous graph on every rebuild.
-graphify-out/
+#
+# Written as `graphify-out/*`, NOT `graphify-out/`: git cannot re-include a path
+# whose parent DIRECTORY is excluded, so the bare form makes the !wiki rule below
+# silently do nothing. The `/*` form ignores the contents while still allowing
+# git to descend.
+graphify-out/*
+# …except the generated wiki, which replaced src/docs. It is the project's
+# documentation now (CLAUDE.md already points agents at wiki/index.md), so it
+# has to be readable from a fresh clone rather than living on one machine.
+!graphify-out/wiki/

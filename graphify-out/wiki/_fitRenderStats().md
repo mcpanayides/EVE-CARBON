@@ -1,0 +1,40 @@
+# _fitRenderStats()
+
+> God node · 33 connections · `src/func/fitting.js`
+
+**Community:** [Fitting Cargo & Charts](Fitting_Cargo_%26_Charts.md)
+
+## Connections by Relation
+
+### calls
+- [_fitRenderAll()](_fitRenderAll%28%29.md) `EXTRACTED`
+- _fitWeaponSim() `EXTRACTED`
+- _fitEsc() `EXTRACTED`
+- _fitShipDerived() `EXTRACTED`
+- _fitDroneSim() `EXTRACTED`
+- _fitNum() `EXTRACTED`
+- _fitDrawRangeChart() `EXTRACTED`
+- _fitEffOutputs() `EXTRACTED`
+- _fitOwnBursts() `EXTRACTED`
+- _fitIsFighter() `EXTRACTED`
+- _fitDroneUsedM3() `EXTRACTED`
+- _fitCapSim() `EXTRACTED`
+- _fitEffSlots() `EXTRACTED`
+- _fitEffDrone() `EXTRACTED`
+- _fitDroneActiveBw() `EXTRACTED`
+- _fitDroneActiveN() `EXTRACTED`
+- _fitDroneCtrlRange() `EXTRACTED`
+- _fitFighterUsedM3() `EXTRACTED`
+- _fitDroneCap() `EXTRACTED`
+- _fitComputeUsage() `EXTRACTED`
+
+### contains
+- fitting.js `EXTRACTED`
+
+### indirect_call
+- d() `INFERRED`
+- t() `INFERRED`
+
+---
+
+*Part of the graphify knowledge wiki. See [index](index.md) to navigate.*

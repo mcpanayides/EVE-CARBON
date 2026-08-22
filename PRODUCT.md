@@ -73,7 +73,7 @@ Technical constraints future work must respect:
 ## Evidence on Hand
 
 - **Working, shipping product** at v1.7.0 with a full changelog and GitHub Releases (Windows / macOS / Linux installers): `README.md`, `package.json`, `CHANGELOG`.
-- **Per-module developer docs**: `src/docs/*.md`.
+- **Developer docs**: `graphify-out/wiki/` — generated from the code by graphify, one article per subsystem.
 - **Live external data integrations** (real, not mocked): EVE ESI + SSO, images.evetech.net, Fuzzwork, zKillboard, EvE-Scout, EVERef.
 - Existing themes and stylesheets: `src/styles/` (incl. `theme-carbon.css`, `theme-sirius.css`, `palette.css`).
 - Icons/audio/backgrounds assets under `assets/`.

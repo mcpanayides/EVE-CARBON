@@ -5,15 +5,15 @@
 ## Key Concepts
 
 - **fc_intel_rules.js** (5 connections) — `src/func/fc_intel_rules.js`
-- **_intelEditRule()** (3 connections) — `src/func/fc_intel_rules.js`
 - **_intelOpenRules()** (3 connections) — `src/func/fc_intel_rules.js`
+- **_intelEditRule()** (3 connections) — `src/func/fc_intel_rules.js`
 - **_intelRuleSentence()** (2 connections) — `src/func/fc_intel_rules.js`
-- **_INTEL_ROLE_CHOICES** (1 connections) — `src/func/fc_intel_rules.js`
 - **_intelRulesCache** (1 connections) — `src/func/fc_intel_rules.js`
+- **_INTEL_ROLE_CHOICES** (1 connections) — `src/func/fc_intel_rules.js`
 
 ## Relationships
 
-- [Gridstack All](Gridstack_All.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

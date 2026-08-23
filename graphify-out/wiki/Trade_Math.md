@@ -6,15 +6,15 @@
 
 - **trade-math.js** (6 connections) — `src/func/trade-math.js`
 - **trade-math.test.js** (5 connections) — `test/trade-math.test.js`
+- **salesTax()** (1 connections) — `src/func/trade-math.js`
 - **brokerFee()** (1 connections) — `src/func/trade-math.js`
 - **netFactor()** (1 connections) — `src/func/trade-math.js`
 - **pickPrice()** (1 connections) — `src/func/trade-math.js`
 - **reprocessUnitValue()** (1 connections) — `src/func/trade-math.js`
-- **salesTax()** (1 connections) — `src/func/trade-math.js`
-- **approx()** (1 connections) — `test/trade-math.test.js`
-- **assert** (1 connections) — `test/trade-math.test.js`
 - **test** (1 connections) — `test/trade-math.test.js`
+- **assert** (1 connections) — `test/trade-math.test.js`
 - **TM** (1 connections) — `test/trade-math.test.js`
+- **approx()** (1 connections) — `test/trade-math.test.js`
 
 ## Relationships
 

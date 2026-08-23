@@ -7,13 +7,13 @@
 - **worker.js** (5 connections) — `infra/presence-worker/worker.js`
 - **PresenceCounter** (5 connections) — `infra/presence-worker/worker.js`
 - **.fetch()** (5 connections) — `infra/presence-worker/worker.js`
-- **normalisePlatform()** (2 connections) — `infra/presence-worker/worker.js`
 - **normaliseVersion()** (2 connections) — `infra/presence-worker/worker.js`
+- **normalisePlatform()** (2 connections) — `infra/presence-worker/worker.js`
 - **.prune()** (2 connections) — `infra/presence-worker/worker.js`
 - **.tally()** (2 connections) — `infra/presence-worker/worker.js`
-- **fetch()** (1 connections) — `infra/presence-worker/worker.js`
 - **PLATFORMS** (1 connections) — `infra/presence-worker/worker.js`
 - **.constructor()** (1 connections) — `infra/presence-worker/worker.js`
+- **fetch()** (1 connections) — `infra/presence-worker/worker.js`
 
 ## Relationships
 

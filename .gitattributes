@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings. Git on Windows would otherwise check the
+# pre-push hook out with CRLF, and `sh` reads the trailing \r as part of the
+# shebang/commands -- the hook then fails with "bad interpreter" or silently
+# mis-parses, which would take the wiki out of sync without anyone noticing.
+.githooks/* text eol=lf
+*.sh        text eol=lf

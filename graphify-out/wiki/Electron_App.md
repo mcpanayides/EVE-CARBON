@@ -9,8 +9,8 @@
 - **faction-warfare.spec.js** (3 connections) — `e2e/faction-warfare.spec.js`
 - **fleet-commander.spec.js** (3 connections) — `e2e/fleet-commander.spec.js`
 - **forums.spec.js** (3 connections) — `e2e/forums.spec.js`
-- **seedCharacterDb()** (2 connections) — `e2e/fixtures/seed.js`
 - **seedUserData()** (2 connections) — `e2e/fixtures/seed.js`
+- **seedCharacterDb()** (2 connections) — `e2e/fixtures/seed.js`
 - **{ test, expect }** (1 connections) — `e2e/faction-warfare.spec.js`
 - **fs** (1 connections) — `e2e/fixtures/seed.js`
 - **path** (1 connections) — `e2e/fixtures/seed.js`
@@ -21,24 +21,24 @@
 - **fs** (1 connections) — `e2e/support/electron-app.js`
 - **os** (1 connections) — `e2e/support/electron-app.js`
 - **path** (1 connections) — `e2e/support/electron-app.js`
-- **removeProfile()** (1 connections) — `e2e/support/electron-app.js`
-- **REPO_ROOT** (1 connections) — `e2e/support/electron-app.js`
 - **{ seedUserData, seedCharacterDb, FAKE_CHAR_ID, FAKE_CHAR_NAME }** (1 connections) — `e2e/support/electron-app.js`
+- **REPO_ROOT** (1 connections) — `e2e/support/electron-app.js`
+- **removeProfile()** (1 connections) — `e2e/support/electron-app.js`
 
 ## Relationships
 
-- [Assets.spec](Assets.spec.md) (13 shared connections)
-- [Demo Mode.spec](Demo_Mode.spec.md) (1 shared connections)
-- [Diagnostic Log.spec](Diagnostic_Log.spec.md) (1 shared connections)
-- [Industry.spec](Industry.spec.md) (1 shared connections)
-- [Intel Patterns.spec](Intel_Patterns.spec.md) (1 shared connections)
-- [Jabber.spec](Jabber.spec.md) (1 shared connections)
-- [Map.spec](Map.spec.md) (1 shared connections)
-- [Navigation.spec](Navigation.spec.md) (1 shared connections)
-- [Palette Signals.spec](Palette_Signals.spec.md) (1 shared connections)
-- [Trading.spec](Trading.spec.md) (1 shared connections)
-- [Wallets.spec](Wallets.spec.md) (1 shared connections)
-- [Widget Fit.spec](Widget_Fit.spec.md) (1 shared connections)
+- [Assets Spec](Assets_Spec.md) (13 shared connections)
+- [Demo Mode Spec](Demo_Mode_Spec.md) (1 shared connections)
+- [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (1 shared connections)
+- [Industry Spec](Industry_Spec.md) (1 shared connections)
+- [Intel Patterns Spec](Intel_Patterns_Spec.md) (1 shared connections)
+- [Jabber Spec](Jabber_Spec.md) (1 shared connections)
+- [Map Spec](Map_Spec.md) (1 shared connections)
+- [Navigation Spec](Navigation_Spec.md) (1 shared connections)
+- [Palette Signals Spec](Palette_Signals_Spec.md) (1 shared connections)
+- [Trading Spec](Trading_Spec.md) (1 shared connections)
+- [Wallets Spec](Wallets_Spec.md) (1 shared connections)
+- [Widget Fit Spec](Widget_Fit_Spec.md) (1 shared connections)
 
 ## Source Files
 

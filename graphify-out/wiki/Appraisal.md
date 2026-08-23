@@ -6,12 +6,12 @@
 
 - **appraisal.js** (11 connections) — `src/func/appraisal.js`
 - **_apRenderResult()** (7 connections) — `src/func/appraisal.js`
-- **_apRun()** (4 connections) — `src/func/appraisal.js`
 - **_apTotals()** (4 connections) — `src/func/appraisal.js`
+- **_apRun()** (4 connections) — `src/func/appraisal.js`
 - **_apCandidates()** (3 connections) — `src/func/appraisal.js`
-- **_apRateMul()** (3 connections) — `src/func/appraisal.js`
 - **_apResolve()** (3 connections) — `src/func/appraisal.js`
 - **_apUnit()** (3 connections) — `src/func/appraisal.js`
+- **_apRateMul()** (3 connections) — `src/func/appraisal.js`
 - **renderAppraisal()** (3 connections) — `src/func/appraisal.js`
 - **_apNum()** (2 connections) — `src/func/appraisal.js`
 - **_apRows** (1 connections) — `src/func/appraisal.js`
@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Updater IPC](Updater_IPC.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

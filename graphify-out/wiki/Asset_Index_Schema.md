@@ -1,53 +1,55 @@
 # Asset Index Schema
 
-> 26 nodes · cohesion 0.15
+> 26 nodes · cohesion 0.16
 
 ## Key Concepts
 
 - **asset_index.js** (29 connections) — `src/asset_index.js`
 - **ensureAssetIndex()** (11 connections) — `src/asset_index.js`
+- **registerValuationHandlers()** (10 connections) — `src/ipc/valuation_ipc.js`
 - **rebuildAssetIndex()** (7 connections) — `src/asset_index.js`
 - **buildWhere()** (6 connections) — `src/asset_index.js`
-- **getGroupCharacters()** (4 connections) — `src/asset_index.js`
-- **getGroupItems()** (4 connections) — `src/asset_index.js`
-- **getLocationGroups()** (4 connections) — `src/asset_index.js`
-- **SCHEMA()** (4 connections) — `src/asset_index.js`
+- **getLocationGroups()** (5 connections) — `src/asset_index.js`
+- **getGroupCharacters()** (5 connections) — `src/asset_index.js`
+- **getGroupItems()** (5 connections) — `src/asset_index.js`
 - **searchBlob()** (4 connections) — `src/asset_index.js`
-- **CREATE_INDEXES()** (3 connections) — `src/asset_index.js`
-- **getSummary()** (3 connections) — `src/asset_index.js`
-- **getTopItems()** (3 connections) — `src/asset_index.js`
-- **isNumericSort()** (3 connections) — `src/asset_index.js`
+- **getSummary()** (4 connections) — `src/asset_index.js`
+- **getTopItems()** (4 connections) — `src/asset_index.js`
 - **locationIdentity()** (3 connections) — `src/asset_index.js`
-- **getFilterOptions()** (2 connections) — `src/asset_index.js`
-- **groupAliases()** (2 connections) — `src/asset_index.js`
+- **CREATE_INDEXES()** (3 connections) — `src/asset_index.js`
+- **isNumericSort()** (3 connections) — `src/asset_index.js`
+- **getFilterOptions()** (3 connections) — `src/asset_index.js`
 - **isUnresolvedLocName()** (2 connections) — `src/asset_index.js`
-- **itemOrderBy()** (2 connections) — `src/asset_index.js`
+- **groupAliases()** (2 connections) — `src/asset_index.js`
 - **pluralise()** (2 connections) — `src/asset_index.js`
+- **itemOrderBy()** (2 connections) — `src/asset_index.js`
 - **{ BPC_UNIT_VALUE }** (1 connections) — `src/asset_index.js`
-- **DROP_INDEXES()** (1 connections) — `src/asset_index.js`
-- **_ensured** (1 connections) — `src/asset_index.js`
-- **EXPECTED_COLUMNS** (1 connections) — `src/asset_index.js`
 - **GROUP_ALIASES** (1 connections) — `src/asset_index.js`
 - **INDEXES** (1 connections) — `src/asset_index.js`
+- **DROP_INDEXES()** (1 connections) — `src/asset_index.js`
+- **EXPECTED_COLUMNS** (1 connections) — `src/asset_index.js`
+- **_ensured** (1 connections) — `src/asset_index.js`
 - *... and 1 more nodes in this community*
 
 ## Relationships
 
-- [Asset Valuation](Asset_Valuation.md) (2 shared connections)
+- [Asset Valuation](Asset_Valuation.md) (4 shared connections)
+- [Valuation Rebuild Debounce Test](Valuation_Rebuild_Debounce_Test.md) (4 shared connections)
 - [Stress Index](Stress_Index.md) (1 shared connections)
-- [Valuation Rebuild Debounce.test](Valuation_Rebuild_Debounce.test.md) (1 shared connections)
-- [Asset Index.test](Asset_Index.test.md) (1 shared connections)
-- [Gridstack All](Gridstack_All.md) (1 shared connections)
+- [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files
 
 - `src/asset_index.js`
+- `src/ipc/valuation_ipc.js`
 
 ## Audit Trail
 
-- EXTRACTED: 70 (67%)
-- INFERRED: 35 (33%)
+- EXTRACTED: 82 (70%)
+- INFERRED: 35 (30%)
 - AMBIGUOUS: 0 (0%)
 
 ---

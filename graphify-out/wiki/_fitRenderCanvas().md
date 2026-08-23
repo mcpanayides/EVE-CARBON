@@ -2,7 +2,7 @@
 
 > God node · 25 connections · `src/func/fitting.js`
 
-**Community:** [Fitting](Fitting.md)
+**Community:** [Fitting Simulator](Fitting_Simulator.md)
 
 ## Connections by Relation
 

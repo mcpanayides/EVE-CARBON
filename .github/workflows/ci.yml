@@ -38,6 +38,26 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Syntax / lint check
         run: npm run lint
+
+      # The graphify wiki is the project's documentation (it replaced src/docs),
+      # so it is committed and has to stay readable from a fresh clone.
+      #
+      # This LINTS the committed wiki; it does not regenerate it. Regeneration
+      # happens on the developer's machine via the pre-push hook
+      # (npm run hooks:install), because graphify-out/ is gitignored apart from
+      # wiki/ — a CI checkout has no graph.json and no semantic cache, so it
+      # would rebuild code-only, silently drop the ~230 doc/design/image nodes
+      # and commit a degraded wiki.
+      #
+      # What it catches: a community named "Index" writes Index.md, which IS
+      # index.md on Windows/macOS — one clobbers the other, and every "back to
+      # index" link 404s here on GitHub, where paths are case-sensitive.
+      #
+      # Uses the runner's preinstalled python3 and the standard library only —
+      # no setup-python, no pip install, nothing to pin or drift.
+      - name: Wiki lint (links + filename collisions)
+        run: python3 scripts/graphify-wiki.py --lint
+
       # Reports known vulnerabilities. Non-blocking: a new upstream advisory
       # shouldn't turn every PR red. Drop continue-on-error to make it a gate.
       - name: Security audit

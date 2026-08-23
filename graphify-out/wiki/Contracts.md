@@ -9,22 +9,22 @@
 - **_ctLoad()** (5 connections) — `src/func/contracts.js`
 - **_ctRenderDetail()** (5 connections) — `src/func/contracts.js`
 - **initContractsTab()** (4 connections) — `src/func/contracts.js`
-- **_ctFmtDate()** (3 connections) — `src/func/contracts.js`
 - **_ctName()** (3 connections) — `src/func/contracts.js`
+- **_ctFmtDate()** (3 connections) — `src/func/contracts.js`
 - **_ctToggle()** (3 connections) — `src/func/contracts.js`
-- **_ctExpiry()** (2 connections) — `src/func/contracts.js`
-- **_ctFiltered()** (2 connections) — `src/func/contracts.js`
-- **_ctResolveNames()** (2 connections) — `src/func/contracts.js`
 - **_ctSet()** (2 connections) — `src/func/contracts.js`
 - **_ctStatus()** (2 connections) — `src/func/contracts.js`
-- **CT_TYPE_LABEL** (1 connections) — `src/func/contracts.js`
-- **_ctItems** (1 connections) — `src/func/contracts.js`
+- **_ctResolveNames()** (2 connections) — `src/func/contracts.js`
+- **_ctFiltered()** (2 connections) — `src/func/contracts.js`
+- **_ctExpiry()** (2 connections) — `src/func/contracts.js`
 - **_ctList** (1 connections) — `src/func/contracts.js`
+- **_ctItems** (1 connections) — `src/func/contracts.js`
 - **_ctNames** (1 connections) — `src/func/contracts.js`
+- **CT_TYPE_LABEL** (1 connections) — `src/func/contracts.js`
 
 ## Relationships
 
-- [Gridstack All](Gridstack_All.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

@@ -1,39 +1,35 @@
-# Todo
+# TODO
 
-> 11 nodes · cohesion 0.20
+> 10 nodes · cohesion 0.22
 
 ## Key Concepts
 
-- **Assets Page Table** (4 connections) — `src/html/page-assets.html`
-- **Assets At Real-User Scale Rework** (4 connections) — `TODO.md`
-- **type_prices Materialised Unit Value** (4 connections) — `TODO.md`
-- **Price-Age Label Instead Of A Refresh Button** (3 connections) — `src/html/page-assets.html`
-- **resolvedCols** (3 connections) — `src/html/page-assets.html`
-- **No Manual Sync/Refresh Buttons** (2 connections) — `DESIGN.md`
-- **loadAssets (called by navigateToPage)** (2 connections) — `src/docs/ui.md`
-- **Mining Ledger Baseline Photograph** (2 connections) — `TODO.md`
-- **load (localStorage column state)** (1 connections) — `src/html/page-assets.html`
-- **Tiered Price Resolution (CCP baseline, market refine, hull defaults)** (1 connections) — `TODO.md`
-- **Virtualised Asset Row Rendering** (1 connections) — `TODO.md`
+- **Network Rate Governor Audit** (4 connections) — `TODO.md`
+- **EVE-Carbon Presence Worker** (4 connections) — `infra/presence-worker/README.md`
+- **Token Bucket Per Host** (3 connections) — `TODO.md`
+- **Per-Host Rate Governing (3.5.0)** (2 connections) — `CHANGELOG.md`
+- **zkill_stream Rate Gate Without Caching (reserve)** (2 connections) — `TODO.md`
+- **Durable Object Eviction Defeats Memory-Only Sessions** (2 connections) — `infra/presence-worker/README.md`
+- **PRESENCE_URL Secret (unset disables the counter silently)** (2 connections) — `infra/presence-worker/README.md`
+- **Online Counter Under-Report Fix** (1 connections) — `CHANGELOG.md`
+- **Per-Client Polling Of A Free Third-Party Service Does Not Scale** (1 connections) — `TODO.md`
+- **Optional Version Reporting (unknown bucket)** (1 connections) — `infra/presence-worker/README.md`
 
 ## Relationships
 
-- [Page Assets](Page_Assets.md) (2 shared connections)
-- [Design](Design.md) (1 shared connections)
-- [UI](UI.md) (1 shared connections)
-- [Todo](Todo.md) (1 shared connections)
+- [TODO (Fleet Tracker Op Record and AA)](TODO_%28Fleet_Tracker_Op_Record_and_AA%29.md) (1 shared connections)
+- [CI Workflow](CI_Workflow.md) (1 shared connections)
 
 ## Source Files
 
-- `DESIGN.md`
+- `CHANGELOG.md`
 - `TODO.md`
-- `src/docs/ui.md`
-- `src/html/page-assets.html`
+- `infra/presence-worker/README.md`
 
 ## Audit Trail
 
-- EXTRACTED: 15 (56%)
-- INFERRED: 12 (44%)
+- EXTRACTED: 16 (73%)
+- INFERRED: 6 (27%)
 - AMBIGUOUS: 0 (0%)
 
 ---

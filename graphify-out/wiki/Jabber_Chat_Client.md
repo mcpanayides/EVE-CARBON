@@ -10,32 +10,32 @@
 - **openPackEditor()** (7 connections) — `src/func/jabber.js`
 - **savePackFromEditor()** (7 connections) — `src/func/jabber.js`
 - **_populatePingSounds()** (6 connections) — `src/func/jabber.js`
-- **initJabberColResize()** (5 connections) — `src/func/jabber.js`
-- **initJabberColsToggle()** (5 connections) — `src/func/jabber.js`
 - **jabberBadgeFromYaml()** (5 connections) — `src/func/jabber.js`
+- **initJabberColsToggle()** (5 connections) — `src/func/jabber.js`
+- **initJabberColResize()** (5 connections) — `src/func/jabber.js`
 - **populatePackDropdown()** (5 connections) — `src/func/jabber.js`
-- **initJabberFeedFilter()** (4 connections) — `src/func/jabber.js`
-- **initJabberZoom()** (4 connections) — `src/func/jabber.js`
-- **jabberBuildColsDropdown()** (4 connections) — `src/func/jabber.js`
-- **jabberCommsCell()** (4 connections) — `src/func/jabber.js`
-- **loadJabberHistory()** (4 connections) — `src/func/jabber.js`
 - **loadJabberSigsMap()** (4 connections) — `src/func/jabber.js`
+- **jabberCommsCell()** (4 connections) — `src/func/jabber.js`
+- **jabberBuildColsDropdown()** (4 connections) — `src/func/jabber.js`
+- **initJabberFeedFilter()** (4 connections) — `src/func/jabber.js`
+- **loadJabberHistory()** (4 connections) — `src/func/jabber.js`
 - **_savePingSound()** (4 connections) — `src/func/jabber.js`
 - **updatePackInfo()** (4 connections) — `src/func/jabber.js`
-- **_gatherPingSound()** (3 connections) — `src/func/jabber.js`
-- **jabberApplyColVisibility()** (3 connections) — `src/func/jabber.js`
-- **jabberFeedMode()** (3 connections) — `src/func/jabber.js`
-- **jabberGetColVisibility()** (3 connections) — `src/func/jabber.js`
-- **jabberLinkify()** (3 connections) — `src/func/jabber.js`
-- **jabberLiveToRow()** (3 connections) — `src/func/jabber.js`
+- **initJabberZoom()** (4 connections) — `src/func/jabber.js`
 - **jabberNormSig()** (3 connections) — `src/func/jabber.js`
+- **jabberParseMessage()** (3 connections) — `src/func/jabber.js`
+- **jabberLiveToRow()** (3 connections) — `src/func/jabber.js`
+- **jabberLinkify()** (3 connections) — `src/func/jabber.js`
+- **jabberTargetBadge()** (3 connections) — `src/func/jabber.js`
+- **jabberSigBadge()** (3 connections) — `src/func/jabber.js`
+- **jabberGetColVisibility()** (3 connections) — `src/func/jabber.js`
 - *... and 41 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack All](Gridstack_All.md) (3 shared connections)
-- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
-- [Fitting Tree & Scheduling](Fitting_Tree_%26_Scheduling.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (3 shared connections)
+- [Ping Alert](Ping_Alert.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 

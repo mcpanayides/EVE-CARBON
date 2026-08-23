@@ -5,9 +5,9 @@
 ## Key Concepts
 
 - **stress-render.js** (3 connections) — `scripts/stress-render.js`
+- **{ spawnSync }** (1 connections) — `scripts/stress-render.js`
 - **extra** (1 connections) — `scripts/stress-render.js`
 - **r** (1 connections) — `scripts/stress-render.js`
-- **{ spawnSync }** (1 connections) — `scripts/stress-render.js`
 
 ## Relationships
 

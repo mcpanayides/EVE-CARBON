@@ -1,0 +1,45 @@
+#!/bin/sh
+# Keep the committed graphify wiki in step with what is being pushed.
+#
+# This runs LOCALLY rather than in CI on purpose. graphify-out/ is gitignored
+# apart from wiki/, so a CI checkout has no graph.json and no semantic cache --
+# it would rebuild code-only, silently drop the ~230 doc/design/image nodes, and
+# commit a degraded wiki. Your machine has the full graph, so generation happens
+# here and CI only lints the result (see .github/workflows/ci.yml).
+#
+# Install once:  npm run hooks:install
+# Skip once:     git push --no-verify   (or SKIP_GRAPHIFY=1 git push)
+
+[ -n "$SKIP_GRAPHIFY" ] && exit 0
+
+# Nothing to do when graphify was never run here (fresh clone, CI, a contributor
+# without it installed). Never block a push over a missing optional tool.
+[ -f graphify-out/.graphify_python ] || exit 0
+[ -f graphify-out/graph.json ] || exit 0
+
+PY=$(cat graphify-out/.graphify_python)
+[ -x "$PY" ] || { echo "pre-push: graphify python missing, skipping wiki sync"; exit 0; }
+
+echo "pre-push: refreshing the knowledge graph..."
+# AST-only, no LLM, no API cost. Leaves outputs untouched when the code-graph
+# topology is unchanged, so an unrelated push produces no diff at all.
+"$PY" -m graphify update . >/dev/null 2>&1 || {
+  echo "pre-push: graphify update failed, skipping wiki sync"; exit 0; }
+
+"$PY" scripts/graphify-wiki.py || exit 1
+
+# Compare against HEAD, not the index: a wiki that was `git add`ed but never
+# committed is NOT part of the push, and `git diff --quiet` alone would call
+# that clean and let a stale wiki through.
+if ! git diff --quiet HEAD -- graphify-out/wiki; then
+  echo
+  echo "  The graphify wiki changed and is not committed."
+  echo "  It is the project's documentation, so it ships with the code:"
+  echo
+  echo "      git add graphify-out/wiki && git commit -m 'docs: refresh graphify wiki' && git push"
+  echo
+  exit 1
+fi
+
+echo "pre-push: wiki is current"
+exit 0

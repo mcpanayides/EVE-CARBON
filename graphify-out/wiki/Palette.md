@@ -12,23 +12,23 @@
 - **editorSwatches()** (4 connections) — `src/func/palette.js`
 - **renderSwatches()** (4 connections) — `src/func/palette.js`
 - **setEditMode()** (4 connections) — `src/func/palette.js`
+- **removeThemePreview()** (3 connections) — `src/func/palette.js`
 - **initTheme()** (3 connections) — `src/func/palette.js`
 - **populatePaletteSettings()** (3 connections) — `src/func/palette.js`
-- **removeThemePreview()** (3 connections) — `src/func/palette.js`
-- **getPanelOpacity()** (2 connections) — `src/func/palette.js`
-- **getSwatchColor()** (2 connections) — `src/func/palette.js`
-- **_parseRgb()** (2 connections) — `src/func/palette.js`
-- **previewTheme()** (2 connections) — `src/func/palette.js`
-- **SWATCH_SLOTS** (2 connections) — `src/func/palette.js`
 - **themeHref()** (2 connections) — `src/func/palette.js`
+- **previewTheme()** (2 connections) — `src/func/palette.js`
 - **UI_SURFACE_VARS** (2 connections) — `src/func/palette.js`
+- **_parseRgb()** (2 connections) — `src/func/palette.js`
+- **getPanelOpacity()** (2 connections) — `src/func/palette.js`
+- **SWATCH_SLOTS** (2 connections) — `src/func/palette.js`
+- **getSwatchColor()** (2 connections) — `src/func/palette.js`
+- **SWATCH_GROUPS** (1 connections) — `src/func/palette.js`
 - **_allThemes** (1 connections) — `src/func/palette.js`
 - **isLightColor()** (1 connections) — `src/func/palette.js`
-- **SWATCH_GROUPS** (1 connections) — `src/func/palette.js`
 
 ## Relationships
 
-- [Gridstack All](Gridstack_All.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

@@ -5,12 +5,12 @@
 ## Key Concepts
 
 - **demo-shots.js** (6 connections) — `scripts/demo-shots.js`
-- **arg()** (1 connections) — `scripts/demo-shots.js`
-- **{ _electron: electron }** (1 connections) — `scripts/demo-shots.js`
 - **fs** (1 connections) — `scripts/demo-shots.js`
-- **PAGES** (1 connections) — `scripts/demo-shots.js`
 - **path** (1 connections) — `scripts/demo-shots.js`
+- **{ _electron: electron }** (1 connections) — `scripts/demo-shots.js`
 - **REPO_ROOT** (1 connections) — `scripts/demo-shots.js`
+- **PAGES** (1 connections) — `scripts/demo-shots.js`
+- **arg()** (1 connections) — `scripts/demo-shots.js`
 
 ## Relationships
 

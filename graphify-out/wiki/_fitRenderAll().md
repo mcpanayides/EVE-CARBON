@@ -2,7 +2,7 @@
 
 > God node · 31 connections · `src/func/fitting.js`
 
-**Community:** [Fitting](Fitting.md)
+**Community:** [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md)
 
 ## Connections by Relation
 

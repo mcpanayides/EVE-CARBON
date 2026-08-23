@@ -5,14 +5,14 @@
 ## Key Concepts
 
 - **bugs.js** (10 connections) — `src/func/bugs.js`
-- **bindBugEvents()** (5 connections) — `src/func/bugs.js`
 - **openBugReport()** (5 connections) — `src/func/bugs.js`
 - **submitBugReport()** (5 connections) — `src/func/bugs.js`
+- **bindBugEvents()** (5 connections) — `src/func/bugs.js`
 - **closeBugReport()** (3 connections) — `src/func/bugs.js`
-- **bugLogBlock()** (2 connections) — `src/func/bugs.js`
 - **injectBugModal()** (2 connections) — `src/func/bugs.js`
 - **populateBugAccounts()** (2 connections) — `src/func/bugs.js`
 - **populateBugLogSection()** (2 connections) — `src/func/bugs.js`
+- **bugLogBlock()** (2 connections) — `src/func/bugs.js`
 - **resetBugReport()** (2 connections) — `src/func/bugs.js`
 - **validateBugReport()** (2 connections) — `src/func/bugs.js`
 

@@ -5,12 +5,12 @@
 ## Key Concepts
 
 - **repair-jabber-feed.js** (6 connections) — `scripts/repair-jabber-feed.js`
-- **defaultDbPath()** (1 connections) — `scripts/repair-jabber-feed.js`
 - **fs** (1 connections) — `scripts/repair-jabber-feed.js`
-- **{ open }** (1 connections) — `scripts/repair-jabber-feed.js`
 - **os** (1 connections) — `scripts/repair-jabber-feed.js`
 - **path** (1 connections) — `scripts/repair-jabber-feed.js`
 - **sqlite3** (1 connections) — `scripts/repair-jabber-feed.js`
+- **{ open }** (1 connections) — `scripts/repair-jabber-feed.js`
+- **defaultDbPath()** (1 connections) — `scripts/repair-jabber-feed.js`
 
 ## Relationships
 

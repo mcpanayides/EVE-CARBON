@@ -4,8 +4,8 @@
 
 ## Key Concepts
 
-- **Buckyball / C60 Truncated Icosahedron Brand Motif** (6 connections) — `img/Carbon_hires.jpg`
 - **Carbon Logo Master Art, High Resolution** (6 connections) — `img/Carbon_hires.jpg`
+- **Buckyball / C60 Truncated Icosahedron Brand Motif** (6 connections) — `img/Carbon_hires.jpg`
 - **EVE Carbon Vertical Splash / Marketing Key Art** (6 connections) — `img/Gemini_Generated_Image_s3iv5is3iv5is3iv.png`
 - **EVE Carbon Application Icon (512px PNG)** (4 connections) — `assets/icon.png`
 - **Carbon Logo Mark, 512px Square Raster** (4 connections) — `img/Carbon_512px.jpg`

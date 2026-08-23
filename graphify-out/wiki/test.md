@@ -2,7 +2,7 @@
 
 > God node · 24 connections · `e2e/support/electron-app.js`
 
-**Community:** [Assets.spec](Assets.spec.md)
+**Community:** [Assets Spec](Assets_Spec.md)
 
 ## Connections by Relation
 

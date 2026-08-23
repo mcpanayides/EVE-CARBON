@@ -2,7 +2,7 @@
 
 > God node · 59 connections · `src/vendor/gridstack/gridstack-all.js`
 
-**Community:** [Gridstack Layout Engine](Gridstack_Layout_Engine.md)
+**Community:** [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md)
 
 ## Connections by Relation
 

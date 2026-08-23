@@ -10,9 +10,9 @@
 - **renderStationCheckout()** (3 connections) — `src/func/station-checkout.js`
 - **_scStatus()** (3 connections) — `src/func/station-checkout.js`
 - **_scScope()** (2 connections) — `src/func/station-checkout.js`
-- **_scAccounts** (1 connections) — `src/func/station-checkout.js`
 - **_scAssets** (1 connections) — `src/func/station-checkout.js`
 - **_scLocs** (1 connections) — `src/func/station-checkout.js`
+- **_scAccounts** (1 connections) — `src/func/station-checkout.js`
 
 ## Relationships
 

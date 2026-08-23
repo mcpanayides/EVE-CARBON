@@ -5,13 +5,13 @@
 ## Key Concepts
 
 - **stress-index.js** (10 connections) — `scripts/stress-index.js`
-- **assetIndex** (1 connections) — `scripts/stress-index.js`
-- **charInfoDb** (1 connections) — `scripts/stress-index.js`
-- **ms()** (1 connections) — `scripts/stress-index.js`
-- **{ open }** (1 connections) — `scripts/stress-index.js`
 - **path** (1 connections) — `scripts/stress-index.js`
 - **sqlite3** (1 connections) — `scripts/stress-index.js`
+- **{ open }** (1 connections) — `scripts/stress-index.js`
+- **charInfoDb** (1 connections) — `scripts/stress-index.js`
 - **valuation** (1 connections) — `scripts/stress-index.js`
+- **assetIndex** (1 connections) — `scripts/stress-index.js`
+- **ms()** (1 connections) — `scripts/stress-index.js`
 
 ## Relationships
 

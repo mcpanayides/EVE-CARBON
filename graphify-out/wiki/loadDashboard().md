@@ -2,7 +2,7 @@
 
 > God node · 25 connections · `src/func/dashboard.js`
 
-**Community:** [Industry Job Sync](Industry_Job_Sync.md)
+**Community:** [Dashboard Auto-Sync & Live Widgets](Dashboard_Auto-Sync_%26_Live_Widgets.md)
 
 ## Connections by Relation
 

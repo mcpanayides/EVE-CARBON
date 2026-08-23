@@ -9,14 +9,14 @@
 - **closePage()** (2 connections) — `src/app.js`
 - **#mapCanvas** (2 connections) — `src/html/page-map.html`
 - **Classic vs Modern map view styles** (2 connections) — `src/html/page-map.html`
-- **bindEvents()** (1 connections) — `src/app.js`
 - **bindIndustrySubNav()** (1 connections) — `src/app.js`
 - **calculate()** (1 connections) — `src/app.js`
+- **bindEvents()** (1 connections) — `src/app.js`
 - **#mapViewport** (1 connections) — `src/html/page-map.html`
 
 ## Relationships
 
-- [Galaxy Map Rendering](Galaxy_Map_Rendering.md) (3 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (3 shared connections)
 
 ## Source Files
 

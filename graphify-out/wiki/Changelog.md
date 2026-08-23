@@ -1,4 +1,4 @@
-# Changelog
+# CHANGELOG
 
 > 2 nodes · cohesion 1.00
 

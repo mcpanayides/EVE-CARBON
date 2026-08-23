@@ -1,6 +1,6 @@
 # Assets Table & Virtualisation
 
-> 67 nodes · cohesion 0.06
+> 68 nodes · cohesion 0.06
 
 ## Key Concepts
 
@@ -12,28 +12,28 @@
 - **_assetEnsureOpenBranches()** (7 connections) — `src/func/assets.js`
 - **_bindAssetCollapse()** (6 connections) — `src/func/assets.js`
 - **_formatAssetIsk()** (5 connections) — `src/func/assets.js`
-- **initAssetColResize()** (5 connections) — `src/func/assets.js`
 - **loadAssets()** (5 connections) — `src/func/assets.js`
+- **initAssetColResize()** (5 connections) — `src/func/assets.js`
 - **renderWallets()** (5 connections) — `src/func/assets.js`
-- **_assetBindScroll()** (4 connections) — `src/func/assets.js`
 - **assetFilters()** (4 connections) — `src/func/assets.js`
-- **_assetLoadItems()** (4 connections) — `src/func/assets.js`
-- **_assetLocHeaderRow()** (4 connections) — `src/func/assets.js`
-- **_assetTbody()** (4 connections) — `src/func/assets.js`
-- **_assetToggleCharacter()** (4 connections) — `src/func/assets.js`
-- **_assetToggleLocation()** (4 connections) — `src/func/assets.js`
 - **populateAssetFilters()** (4 connections) — `src/func/assets.js`
+- **_assetTbody()** (4 connections) — `src/func/assets.js`
+- **_assetBindScroll()** (4 connections) — `src/func/assets.js`
+- **_assetLocHeaderRow()** (4 connections) — `src/func/assets.js`
+- **_assetLoadItems()** (4 connections) — `src/func/assets.js`
+- **_assetToggleLocation()** (4 connections) — `src/func/assets.js`
+- **_assetToggleCharacter()** (4 connections) — `src/func/assets.js`
 - **setAssetSort()** (4 connections) — `src/func/assets.js`
-- **_assetCharHeaderRow()** (3 connections) — `src/func/assets.js`
-- **_assetItemRow()** (3 connections) — `src/func/assets.js`
-- **_assetLoadCharacters()** (3 connections) — `src/func/assets.js`
+- **_repairSetStatus()** (3 connections) — `src/func/assets.js`
+- **repairAssetLocations()** (3 connections) — `src/func/assets.js`
 - **_assetScroller()** (3 connections) — `src/func/assets.js`
-- **_assetToggleShip()** (3 connections) — `src/func/assets.js`
-- *... and 42 more nodes in this community*
+- **_assetBuildModel()** (3 connections) — `src/func/assets.js`
+- **_assetCharHeaderRow()** (3 connections) — `src/func/assets.js`
+- *... and 43 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack All](Gridstack_All.md) (4 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (3 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 266 (99%)
-- INFERRED: 4 (1%)
+- EXTRACTED: 268 (98%)
+- INFERRED: 5 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

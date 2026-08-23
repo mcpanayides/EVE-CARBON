@@ -5,13 +5,13 @@
 ## Key Concepts
 
 - **shots.js** (7 connections) — `scripts/shots.js`
-- **arg()** (1 connections) — `scripts/shots.js`
-- **{ _electron: electron }** (1 connections) — `scripts/shots.js`
 - **fs** (1 connections) — `scripts/shots.js`
 - **path** (1 connections) — `scripts/shots.js`
+- **{ _electron: electron }** (1 connections) — `scripts/shots.js`
 - **REPO_ROOT** (1 connections) — `scripts/shots.js`
-- **shootWithin()** (1 connections) — `scripts/shots.js`
 - **SHOTS** (1 connections) — `scripts/shots.js`
+- **arg()** (1 connections) — `scripts/shots.js`
+- **shootWithin()** (1 connections) — `scripts/shots.js`
 
 ## Relationships
 

@@ -10,21 +10,21 @@
 - **buildWalks()** (4 connections) — `src/intel/patterns.js`
 - **computeDelta()** (3 connections) — `src/fleet_mining.js`
 - **row()** (2 connections) — `test/fleet_mining.test.js`
-- **priceRows()** (1 connections) — `src/fleet_mining.js`
 - **restrictToSystems()** (1 connections) — `src/fleet_mining.js`
+- **priceRows()** (1 connections) — `src/fleet_mining.js`
 - **summarise()** (1 connections) — `src/fleet_mining.js`
+- **test** (1 connections) — `test/fleet_mining.test.js`
 - **assert** (1 connections) — `test/fleet_mining.test.js`
 - **fm** (1 connections) — `test/fleet_mining.test.js`
-- **test** (1 connections) — `test/fleet_mining.test.js`
 
 ## Relationships
 
-- [Intel Patterns.test](Intel_Patterns.test.md) (2 shared connections)
-- [Fleet Ops IPC](Fleet_Ops_IPC.md) (1 shared connections)
+- [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
+- [Fleet After-Action Report](Fleet_After-Action_Report.md) (1 shared connections)
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
-- [Dashboard Widget Popouts](Dashboard_Widget_Popouts.md) (1 shared connections)
+- [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
 - [Notifications](Notifications.md) (1 shared connections)
-- [Updater IPC](Updater_IPC.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

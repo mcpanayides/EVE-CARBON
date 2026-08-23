@@ -2,7 +2,7 @@
 
 > God node · 33 connections · `src/func/fitting.js`
 
-**Community:** [Fitting Cargo & Charts](Fitting_Cargo_%26_Charts.md)
+**Community:** [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md)
 
 ## Connections by Relation
 

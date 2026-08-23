@@ -33,18 +33,14 @@
 
 ## Relationships
 
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (8 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (5 shared connections)
 - [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (5 shared connections)
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (3 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (3 shared connections)
+- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (4 shared connections)
 - [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (3 shared connections)
-- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (2 shared connections)
-- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
-- [Intel Patterns Test](Intel_Patterns_Test.md) (1 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
+- [Gridstack Vendor Library (createDiv)](Gridstack_Vendor_Library_%28createDiv%29.md) (1 shared connections)
 
 ## Source Files
 

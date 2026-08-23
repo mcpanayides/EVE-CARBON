@@ -13,9 +13,9 @@
 - **_fitDoSearch()** (7 connections) — `src/func/fitting.js`
 - **_fitFillTypes()** (7 connections) — `src/func/fitting.js`
 - **_fitRenderFilters()** (7 connections) — `src/func/fitting.js`
+- **_fitPassesFilters()** (7 connections) — `src/func/fitting.js`
 - **_fitHideGameFit()** (7 connections) — `src/func/fitting.js`
 - **_fitApplySnapshot()** (6 connections) — `src/func/fitting.js`
-- **_fitShowTubeMenu()** (6 connections) — `src/func/fitting.js`
 - **_fitLocalFits()** (6 connections) — `src/func/fitting.js`
 - **_fitRestoreHiddenGameFits()** (6 connections) — `src/func/fitting.js`
 - **_fitDeleteLocalFit()** (6 connections) — `src/func/fitting.js`
@@ -33,11 +33,13 @@
 
 ## Relationships
 
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (34 shared connections)
-- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (25 shared connections)
-- [Fitting Simulator](Fitting_Simulator.md) (6 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (5 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (33 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (23 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (6 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
+- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (3 shared connections)
 - [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (1 shared connections)
 
 ## Source Files
 
@@ -45,8 +47,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 179 (95%)
-- INFERRED: 10 (5%)
+- EXTRACTED: 178 (94%)
+- INFERRED: 12 (6%)
 - AMBIGUOUS: 0 (0%)
 
 ---

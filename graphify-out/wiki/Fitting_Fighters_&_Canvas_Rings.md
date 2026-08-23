@@ -1,43 +1,36 @@
 # Fitting Fighters & Canvas Rings
 
-> 40 nodes · cohesion 0.06
+> 17 nodes · cohesion 0.14
 
 ## Key Concepts
 
-- **fitting.js** (166 connections) — `src/func/fitting.js`
-- **_fitInitSkillBar()** (5 connections) — `src/func/fitting.js`
-- **_fitLoadSkillProfile()** (5 connections) — `src/func/fitting.js`
-- **_fitImplantPanelHtml()** (4 connections) — `src/func/fitting.js`
-- **_fitLayerRow()** (4 connections) — `src/func/fitting.js`
-- **_fitCopyEFT()** (4 connections) — `src/func/fitting.js`
-- **_fitSkillNote()** (3 connections) — `src/func/fitting.js`
-- **_fitImplantCount()** (3 connections) — `src/func/fitting.js`
-- **_fitResistCells()** (3 connections) — `src/func/fitting.js`
+- **_fitRenderCanvas()** (25 connections) — `src/func/fitting.js`
+- **_fitAddFighter()** (10 connections) — `src/func/fitting.js`
+- **_fitTubeUnits()** (6 connections) — `src/func/fitting.js`
+- **_fitShowTubeMenu()** (6 connections) — `src/func/fitting.js`
+- **_fitFighterUsedM3()** (5 connections) — `src/func/fitting.js`
+- **_fitComputeUsage()** (5 connections) — `src/func/fitting.js`
+- **_fitFighterType()** (4 connections) — `src/func/fitting.js`
+- **_fitFighterTypeCount()** (4 connections) — `src/func/fitting.js`
+- **_fitFighterTubeDps()** (4 connections) — `src/func/fitting.js`
+- **_fitBombFacts()** (4 connections) — `src/func/fitting.js`
+- **_fitCycleState()** (3 connections) — `src/func/fitting.js`
+- **_fitCalUsed()** (3 connections) — `src/func/fitting.js`
+- **_fitCloseSlotMenu()** (3 connections) — `src/func/fitting.js`
 - **_fitFighterTubeCaps()** (2 connections) — `src/func/fitting.js`
-- **_fitChargeAccepts()** (2 connections) — `src/func/fitting.js`
-- **_fitParseTrait()** (2 connections) — `src/func/fitting.js`
-- **_fitSubsKey()** (2 connections) — `src/func/fitting.js`
-- **FIT_MODE_XL_GROUPS** (2 connections) — `src/func/fitting.js`
-- **_fitWeaponFlavor()** (2 connections) — `src/func/fitting.js`
-- **_fitResistPct()** (2 connections) — `src/func/fitting.js`
-- **_fitLayerEHP()** (2 connections) — `src/func/fitting.js`
-- **_fitToEFT()** (2 connections) — `src/func/fitting.js`
-- **_fitFlagToSlot()** (2 connections) — `src/func/fitting.js`
-- **FIT_SLOTS** (1 connections) — `src/func/fitting.js`
-- **FIT_WHEEL** (1 connections) — `src/func/fitting.js`
-- **FIT_WHEEL_ARCS** (1 connections) — `src/func/fitting.js`
-- **FIT_CHART_COLORS** (1 connections) — `src/func/fitting.js`
-- **FIT_SK** (1 connections) — `src/func/fitting.js`
-- **FIT_SK_IDS** (1 connections) — `src/func/fitting.js`
-- *... and 15 more nodes in this community*
+- **_fitPolar()** (2 connections) — `src/func/fitting.js`
+- **_fitArcAngles()** (2 connections) — `src/func/fitting.js`
+- **_fitRingSvg()** (2 connections) — `src/func/fitting.js`
 
 ## Relationships
 
-- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (40 shared connections)
-- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (39 shared connections)
-- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (34 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (19 shared connections)
-- [Fitting Simulator](Fitting_Simulator.md) (14 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (17 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (13 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (9 shared connections)
+- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (5 shared connections)
+- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (5 shared connections)
+- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (2 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 
 ## Source Files
 
@@ -45,8 +38,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 236 (99%)
-- INFERRED: 2 (1%)
+- EXTRACTED: 89 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

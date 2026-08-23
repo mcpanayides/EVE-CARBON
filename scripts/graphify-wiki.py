@@ -298,7 +298,7 @@ def repair_git_case() -> None:
         print(f"graphify-wiki: repaired tracked filename case {name} -> {real}")
 
 
-def lint_wiki() -> list[str]:
+def lint_wiki(use_git: bool = True) -> list[str]:
     """Checks that need only the committed markdown -- no graph, stdlib only.
 
     This is what CI runs. It catches the failure that actually bit us: a
@@ -314,9 +314,12 @@ def lint_wiki() -> list[str]:
     if not disk:
         return [f"{WIKI}/ contains no markdown"]
 
-    # Check what git will hand CI and GitHub, falling back to the working tree
-    # only when git is unavailable.
-    tracked = _git_wiki_files()
+    # Which spelling ships? For a committed wiki (CI, a bare checkout) that is
+    # git's. Straight after regeneration it is the working tree's: the new
+    # articles are not tracked yet, so resolving links against git would call
+    # every one of them missing. The case-drift check below runs either way,
+    # and regeneration repairs drift before it can reach git.
+    tracked = _git_wiki_files() if use_git else None
     files = tracked or disk
     if tracked:
         lower = {t.lower() for t in tracked}
@@ -348,7 +351,9 @@ def lint_wiki() -> list[str]:
 
 def verify(labels: dict[str, str], graph_nodes: list[dict]) -> None:
     """Fail loudly rather than commit a broken wiki."""
-    problems = list(lint_wiki())
+    # use_git=False: this runs immediately after regeneration, when the new
+    # articles exist on disk but are not yet tracked.
+    problems = list(lint_wiki(use_git=False))
 
     lower = Counter(v.lower() for v in labels.values())
     dupes = [k for k, c in lower.items() if c > 1]

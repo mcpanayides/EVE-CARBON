@@ -35,7 +35,7 @@
 
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
+- [Intel Service](Intel_Service.md) (1 shared connections)
 
 ## Source Files
 

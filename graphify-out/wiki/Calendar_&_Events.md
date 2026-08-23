@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
+- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
 
 ## Source Files
 

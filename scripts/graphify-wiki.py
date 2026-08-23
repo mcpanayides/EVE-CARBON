@@ -391,6 +391,18 @@ def main() -> None:
 
     reexec_into_graphify_python()
 
+    # Re-extract BEFORE relabelling. Relabelling a stale graph produces a wiki
+    # that describes the previous revision, and the next `graphify update .`
+    # then yields a different one -- the two fight each other forever.
+    if "--no-update" not in sys.argv:
+        import subprocess
+        # AST-only, no LLM, no API cost; leaves outputs untouched when the
+        # code-graph topology has not changed.
+        r = subprocess.run([sys.executable, "-m", "graphify", "update", "."],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            die("`graphify update .` failed:\n" + (r.stderr or r.stdout).strip())
+
     from networkx.readwrite import json_graph as jg
     from graphify.analyze import god_nodes, suggest_questions, surprising_connections
     from graphify.cluster import score_all

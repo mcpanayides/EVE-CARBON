@@ -31,10 +31,11 @@
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (27 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (7 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (26 shared connections)
+- [Galaxy Map (_fetchAllianceIdents)](Galaxy_Map_%28_fetchAllianceIdents%29.md) (6 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
-- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
 
 ## Source Files

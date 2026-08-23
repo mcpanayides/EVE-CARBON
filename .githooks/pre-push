@@ -21,11 +21,9 @@ PY=$(cat graphify-out/.graphify_python)
 [ -x "$PY" ] || { echo "pre-push: graphify python missing, skipping wiki sync"; exit 0; }
 
 echo "pre-push: refreshing the knowledge graph..."
-# AST-only, no LLM, no API cost. Leaves outputs untouched when the code-graph
-# topology is unchanged, so an unrelated push produces no diff at all.
-"$PY" -m graphify update . >/dev/null 2>&1 || {
-  echo "pre-push: graphify update failed, skipping wiki sync"; exit 0; }
-
+# The script runs `graphify update .` itself (AST-only, no LLM, no API cost) and
+# then relabels. Doing the update separately here would let the two drift: a
+# relabel of a stale graph describes the previous revision.
 "$PY" scripts/graphify-wiki.py || exit 1
 
 # Compare against HEAD, not the index: a wiki that was `git add`ed but never

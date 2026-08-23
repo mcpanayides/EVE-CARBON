@@ -260,6 +260,44 @@ def reexec_into_graphify_python() -> None:
                              env=env))
 
 
+def _git_wiki_files() -> set[str] | None:
+    """The wiki filenames git has, or None if git is unavailable.
+
+    Git's view is the one that ships, and on Windows it can disagree with the
+    working tree. core.ignorecase=true means git does not notice a PURE CASE
+    rename, so when a community is relabelled TODO where it used to be Todo,
+    the file on disk becomes TODO.md while the index still says Todo.md.
+    Every local check passes -- Windows resolves either -- and then CI checks
+    out Todo.md on Linux and three links to TODO.md 404. Look at git, not glob.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z", "--", str(WIKI)],
+                             capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return {Path(p).name for p in out.stdout.split("\0") if p.strip()} or None
+
+
+def repair_git_case() -> None:
+    """Re-point the index at the on-disk spelling after a pure case rename."""
+    tracked = _git_wiki_files()
+    if not tracked:
+        return
+    disk = {p.name for p in WIKI.glob("*.md")}
+    by_lower = {n.lower(): n for n in disk}
+    import subprocess
+    for name in sorted(tracked - disk):
+        real = by_lower.get(name.lower())
+        if not real:
+            continue  # genuinely gone; a normal `git add -A` records the delete
+        subprocess.run(["git", "mv", "--force", str(WIKI / name), str(WIKI / real)],
+                       capture_output=True, text=True)
+        print(f"graphify-wiki: repaired tracked filename case {name} -> {real}")
+
+
 def lint_wiki() -> list[str]:
     """Checks that need only the committed markdown -- no graph, stdlib only.
 
@@ -272,9 +310,22 @@ def lint_wiki() -> list[str]:
     if not WIKI.exists():
         return [f"{WIKI}/ does not exist"]
 
-    files = {p.name for p in WIKI.glob("*.md")}
-    if not files:
+    disk = {p.name for p in WIKI.glob("*.md")}
+    if not disk:
         return [f"{WIKI}/ contains no markdown"]
+
+    # Check what git will hand CI and GitHub, falling back to the working tree
+    # only when git is unavailable.
+    tracked = _git_wiki_files()
+    files = tracked or disk
+    if tracked:
+        lower = {t.lower() for t in tracked}
+        drift = sorted(n for n in disk - tracked if n.lower() in lower)
+        if drift:
+            problems.append(
+                f"git tracks a different case than the file on disk for {drift} "
+                "-- a pure case rename git missed; run: npm run graphify:sync")
+
     if "index.md" not in files:
         problems.append("wiki/index.md is missing (a community article clobbered it?)")
     case_clash = [k for k, c in Counter(f.lower() for f in files).items() if c > 1]
@@ -430,6 +481,9 @@ def apply_all(raw, G, labels, jg, score_all, god_nodes,
         if WIKI.exists():
             shutil.rmtree(WIKI)
         shutil.copytree(staged, WIKI)
+    # A relabel can change only a filename's case (Todo -> TODO). Windows git
+    # will not notice on its own, and the stale index entry is what CI gets.
+    repair_git_case()
     print(f"graphify-wiki: {n} articles written to {WIKI}/")
 
 

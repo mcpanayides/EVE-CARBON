@@ -2,7 +2,7 @@
 
 > God node · 37 connections · `src/vendor/gridstack/gridstack-all.js`
 
-**Community:** [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md)
+**Community:** [Gridstack Vendor Library](Gridstack_Vendor_Library.md)
 
 ## Connections by Relation
 

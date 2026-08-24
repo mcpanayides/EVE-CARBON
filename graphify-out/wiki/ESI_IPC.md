@@ -22,7 +22,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
+- [Package Manifest](Package_Manifest.md) (2 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
 
 ## Source Files

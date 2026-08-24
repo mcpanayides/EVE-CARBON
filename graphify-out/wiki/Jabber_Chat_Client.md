@@ -33,8 +33,9 @@
 
 ## Relationships
 
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (4 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (3 shared connections)
 - [Ping Alert](Ping_Alert.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 

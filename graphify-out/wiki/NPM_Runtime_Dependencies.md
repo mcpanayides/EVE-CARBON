@@ -22,7 +22,7 @@
 
 ## Relationships
 
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
+- [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 

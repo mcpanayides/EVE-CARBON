@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 

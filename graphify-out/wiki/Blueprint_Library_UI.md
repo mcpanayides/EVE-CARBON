@@ -25,7 +25,7 @@
 - [Blueprint Economics & Sorting](Blueprint_Economics_%26_Sorting.md) (6 shared connections)
 - [Industry Settings & Structures](Industry_Settings_%26_Structures.md) (4 shared connections)
 - [Moon & Ore Calculators](Moon_%26_Ore_Calculators.md) (4 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 - [Blueprint Library (buildTreeFromSdeMaterials)](Blueprint_Library_%28buildTreeFromSdeMaterials%29.md) (1 shared connections)
 - [Materials & Reprocessing](Materials_%26_Reprocessing.md) (1 shared connections)
 

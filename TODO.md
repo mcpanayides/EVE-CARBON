@@ -497,9 +497,19 @@ and stay well under it regardless.
 - [ ] **Stagger the mail poll** instead of firing N parallel requests, and back
       it off when the window is not focused. It runs from launch, always,
       whatever page you are on.
-- [ ] **Back the FC poll off to ~30 s when not in a fleet.**
-      `/characters/{id}/fleet` 404s every 6 seconds forever otherwise, and every
-      404 spends the shared ESI error budget.
+- [x] **Back the FC poll off to ~30 s when not in a fleet. DONE** — shipped with
+      Fleet Tracker Phase 1 (9440af7), which is why that section ticked it while
+      this one went stale. `FC_IDLE_POLL_MS` in `src/func/fc.js`: the not-in-fleet
+      branch calls `_fcSetCadence(FC_IDLE_POLL_MS)` and the in-fleet branch
+      restores 6 s, so it recovers on rejoining rather than staying slow.
+
+      It shipped with no test, so nothing stopped a refactor from quietly putting
+      it back to 6 s. `test/fc_poll_cadence.test.js` now pins it, and asserts the
+      RE-ARMED INTERVAL rather than the variable — `_fcSetCadence` returns early
+      when the value is unchanged, so a version that assigns without restarting
+      the timer reports 30 s while still polling every 6 s. Verified by mutation:
+      removing the backoff fails 2 tests, and dropping only the timer restart
+      fails the one assertion written for it.
 
 ---
 

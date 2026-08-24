@@ -1,6 +1,6 @@
 # Market Trading
 
-> 27 nodes · cohesion 0.16
+> 26 nodes · cohesion 0.16
 
 ## Key Concepts
 
@@ -9,7 +9,6 @@
 - **_trRenderPnl()** (7 connections) — `src/func/trading.js`
 - **_trRenderView()** (6 connections) — `src/func/trading.js`
 - **_trRenderProfit()** (6 connections) — `src/func/trading.js`
-- **_trAllTransactions()** (5 connections) — `src/func/trading.js`
 - **_trRenderAlertToggle()** (5 connections) — `src/func/trading.js`
 - **_trStatus()** (4 connections) — `src/func/trading.js`
 - **_trEvaluateUndercuts()** (4 connections) — `src/func/trading.js`
@@ -29,11 +28,12 @@
 - **_trOpenUndercutView()** (2 connections) — `src/func/trading.js`
 - **stopUndercutWatch()** (2 connections) — `src/func/trading.js`
 - **_trAccounts** (1 connections) — `src/func/trading.js`
-- *... and 2 more nodes in this community*
+- **_trSort** (1 connections) — `src/func/trading.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (4 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 106 (95%)
-- INFERRED: 5 (5%)
+- EXTRACTED: 102 (96%)
+- INFERRED: 4 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

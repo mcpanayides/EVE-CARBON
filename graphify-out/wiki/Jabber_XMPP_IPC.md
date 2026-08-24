@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Forum IPC](Forum_IPC.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (1 shared connections)
 
 ## Source Files

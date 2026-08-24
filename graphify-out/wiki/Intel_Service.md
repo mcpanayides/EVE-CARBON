@@ -36,7 +36,7 @@
 - [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (4 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (3 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
+- [Package Manifest](Package_Manifest.md) (2 shared connections)
 - [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)
 
 ## Source Files

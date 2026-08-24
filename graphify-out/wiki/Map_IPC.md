@@ -19,7 +19,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Galaxy Layout Engine](Galaxy_Layout_Engine.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 

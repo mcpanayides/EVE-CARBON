@@ -1,24 +1,39 @@
 # Intel Widget
 
-> 1 nodes · cohesion 1.00
+> 10 nodes · cohesion 0.22
 
 ## Key Concepts
 
-- **#iwCloseBtn close button** (0 connections) — `src/html/intel-widget.html`
+- **Early Warning Intel Widget Window** (5 connections) — `src/html/intel-widget.html`
+- **render() — compact intel rows** (4 connections) — `src/html/intel-widget.html`
+- **tick() — 2s intel poll loop** (3 connections) — `src/html/intel-widget.html`
+- **headerHtml()** (2 connections) — `src/shared/intel-row.js`
+- **#iwList contact list container** (2 connections) — `src/html/intel-widget.html`
+- **#iwStatus watcher status line** (2 connections) — `src/html/intel-widget.html`
+- **paintStatus() — watcher state line** (2 connections) — `src/html/intel-widget.html`
+- **Dashboard Widget Pop-out Window** (2 connections) — `src/html/widget-window.html`
+- **#pwContent pushed widget HTML** (2 connections) — `src/html/widget-window.html`
+- **Beehive comms channel** (2 connections) — `yaml/gsf_sigs.yaml`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Intel Row](Intel_Row.md) (3 shared connections)
+- [FC Intel](FC_Intel.md) (1 shared connections)
+- [Dashboard Widgets](Dashboard_Widgets.md) (1 shared connections)
+- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
 
 ## Source Files
 
 - `src/html/intel-widget.html`
+- `src/html/widget-window.html`
+- `src/shared/intel-row.js`
+- `yaml/gsf_sigs.yaml`
 
 ## Audit Trail
 
-- EXTRACTED: 0 (0%)
-- INFERRED: 0 (0%)
-- AMBIGUOUS: 0 (0%)
+- EXTRACTED: 20 (77%)
+- INFERRED: 4 (15%)
+- AMBIGUOUS: 2 (8%)
 
 ---
 

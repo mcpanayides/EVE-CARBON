@@ -1,6 +1,6 @@
 # Galaxy Map Layout & Drawing
 
-> 34 nodes · cohesion 0.11
+> 35 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -18,6 +18,7 @@
 - **_adjustZoom()** (5 connections) — `src/func/map.js`
 - **_enterRegion()** (5 connections) — `src/func/map.js`
 - **_startLivePolling()** (5 connections) — `src/func/map.js`
+- **_loadSavedBridges()** (5 connections) — `src/func/map.js`
 - **_fitGalaxy()** (4 connections) — `src/func/map.js`
 - **_hitTest()** (4 connections) — `src/func/map.js`
 - **_fetchDomTickers()** (4 connections) — `src/func/map.js`
@@ -28,17 +29,16 @@
 - **_loadYouAreHere()** (3 connections) — `src/func/map.js`
 - **_normalise()** (2 connections) — `src/func/map.js`
 - **_layoutWormholeBlock()** (2 connections) — `src/func/map.js`
-- **_declutterAll()** (2 connections) — `src/func/map.js`
-- *... and 9 more nodes in this community*
+- *... and 10 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (37 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (38 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (6 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (6 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (5 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (4 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (3 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -47,8 +47,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 180 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 184 (99%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

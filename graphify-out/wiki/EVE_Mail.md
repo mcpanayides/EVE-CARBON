@@ -1,10 +1,10 @@
 # EVE Mail
 
-> 48 nodes · cohesion 0.11
+> 53 nodes · cohesion 0.10
 
 ## Key Concepts
 
-- **mail.js** (47 connections) — `src/func/mail.js`
+- **mail.js** (52 connections) — `src/func/mail.js`
 - **_mailReload()** (16 connections) — `src/func/mail.js`
 - **_mailRenderReader()** (12 connections) — `src/func/mail.js`
 - **_mailOneId()** (10 connections) — `src/func/mail.js`
@@ -23,17 +23,17 @@
 - **_mailSetStatus()** (5 connections) — `src/func/mail.js`
 - **_mailSetNavUnread()** (5 connections) — `src/func/mail.js`
 - **_mailBumpNavUnread()** (5 connections) — `src/func/mail.js`
+- **_mailPollUnread()** (5 connections) — `src/func/mail.js`
+- **_mailPollUnreadInner()** (5 connections) — `src/func/mail.js`
+- **startMailUnreadWatch()** (5 connections) — `src/func/mail.js`
 - **_mailBoxIds()** (4 connections) — `src/func/mail.js`
 - **_mailCopyNodes()** (4 connections) — `src/func/mail.js`
-- **_mailPollUnread()** (4 connections) — `src/func/mail.js`
 - **_mailShowError()** (4 connections) — `src/func/mail.js`
-- **_mailSetTab()** (3 connections) — `src/func/mail.js`
-- **_mailResolveNames()** (3 connections) — `src/func/mail.js`
-- *... and 23 more nodes in this community*
+- *... and 28 more nodes in this community*
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -41,7 +41,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 244 (100%)
+- EXTRACTED: 266 (100%)
 - INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 

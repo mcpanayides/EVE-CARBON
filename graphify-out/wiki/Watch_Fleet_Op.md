@@ -4,9 +4,9 @@
 
 ## Key Concepts
 
-- **t()** (10 connections) — `scripts/watch-fleet-op.js`
+- **t()** (11 connections) — `scripts/watch-fleet-op.js`
 - **watch-fleet-op.js** (8 connections) — `scripts/watch-fleet-op.js`
-- **_trAllTransactions()** (5 connections) — `src/func/trading.js`
+- **_fitBuildTree()** (3 connections) — `main.js`
 - **render()** (3 connections) — `scripts/watch-fleet-op.js`
 - **dur()** (2 connections) — `scripts/watch-fleet-op.js`
 - **sqlite3** (1 connections) — `scripts/watch-fleet-op.js`
@@ -17,24 +17,26 @@
 
 ## Relationships
 
-- [Market Trading](Market_Trading.md) (4 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
-- [Galaxy Layout Engine](Galaxy_Layout_Engine.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (1 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
-- [Theme Vars](Theme_Vars.md) (1 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Jabber Chat Rooms](Jabber_Chat_Rooms.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 
+- `main.js`
 - `scripts/watch-fleet-op.js`
-- `src/func/trading.js`
 
 ## Audit Trail
 
-- EXTRACTED: 24 (73%)
-- INFERRED: 9 (27%)
+- EXTRACTED: 21 (66%)
+- INFERRED: 11 (34%)
 - AMBIGUOUS: 0 (0%)
 
 ---

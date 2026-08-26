@@ -6,8 +6,8 @@
 
 - **intel_resume.test.js** (21 connections) — `test/intel_resume.test.js`
 - **chatlog_reader.js** (14 connections) — `src/intel/chatlog_reader.js`
+- **createIntelService()** (7 connections) — `src/intel/intel_service.js`
 - **createChatlogReader()** (6 connections) — `src/intel/chatlog_reader.js`
-- **createProximityTracker()** (5 connections) — `src/intel/proximity.js`
 - **findChatlogDir()** (4 connections) — `src/intel/chatlog_reader.js`
 - **channelOf()** (3 connections) — `src/intel/chatlog_reader.js`
 - **discoverChannels()** (3 connections) — `src/intel/chatlog_reader.js`
@@ -33,22 +33,21 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (4 shared connections)
-- [Intel Test](Intel_Test.md) (4 shared connections)
+- [Intel Service](Intel_Service.md) (7 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
+- [Patterns](Patterns.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
-- [Intel Patterns Test](Intel_Patterns_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/chatlog_reader.js`
-- `src/intel/proximity.js`
+- `src/intel/intel_service.js`
 - `test/intel_resume.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 70 (81%)
-- INFERRED: 16 (19%)
+- EXTRACTED: 72 (82%)
+- INFERRED: 16 (18%)
 - AMBIGUOUS: 0 (0%)
 
 ---

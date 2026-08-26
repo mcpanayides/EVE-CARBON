@@ -664,10 +664,64 @@ const MAIL_UNREAD_POLL_MS = 30_000;
 // is dropped from the poll and only re-probed occasionally, so re-authenticating
 // it still heals without a restart.
 const MAIL_NOSCOPE_RETRY_MS = 10 * 60_000;
-let _mailUnreadTimer = null;
+// Nobody can see the badge when the window is not in front, so polling at full
+// cadence buys nothing and costs the most: this watcher runs from launch, on
+// every page, for every character. Becoming visible polls at once, so the count
+// is never stale by the time it can be read.
+const MAIL_IDLE_POLL_MS = 5 * 60_000;
+// Spread the per-character requests across a fraction of the poll window rather
+// than firing them together. `Promise.all` over 20 characters was 20 requests in
+// one tick — the largest single burst the app makes, and concurrency is not
+// rate: the broker's lane limit bounds how many are in flight, not how many
+// start per second.
+const MAIL_STAGGER_FRACTION = 0.6;   // leave the rest of the window as headroom
+const MAIL_STAGGER_MAX_MS   = 1500;  // a small mailbox count should not crawl
+let _mailUnreadTimer  = null;
+let _mailPollEveryMs  = MAIL_UNREAD_POLL_MS;
+let _mailPollBusy     = false;       // a staggered walk can outlive its own tick
 const _mailNoScope = new Map();   // charId → when it last refused
 
+/** Gap between per-character requests so a poll fits inside its own window. */
+function _mailStaggerGap(n, windowMs) {
+  if (!(n > 1)) return 0;
+  return Math.min(MAIL_STAGGER_MAX_MS,
+    Math.max(0, Math.floor((windowMs || MAIL_UNREAD_POLL_MS) * MAIL_STAGGER_FRACTION / n)));
+}
+
+/** Is the window actually in front of someone? */
+function _mailWindowActive() {
+  try {
+    if (typeof document === 'undefined') return true;
+    if (document.visibilityState && document.visibilityState !== 'visible') return false;
+    return typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+  } catch (_) { return true; }   // never let a missing API stop the badge working
+}
+
+const _mailSleep = (ms) => (ms > 0 ? new Promise(r => setTimeout(r, ms)) : Promise.resolve());
+
+/** Swap cadence and re-arm, so the change takes effect on the running timer. */
+function _mailSetCadence(ms) {
+  if (ms === _mailPollEveryMs) return;
+  _mailPollEveryMs = ms;
+  if (_mailUnreadTimer) {
+    clearInterval(_mailUnreadTimer);
+    _mailUnreadTimer = setInterval(() => { _mailPollUnread().catch(() => {}); }, ms);
+  }
+}
+
 async function _mailPollUnread() {
+  // A staggered walk takes most of the window; without this a slow one would be
+  // overlapped by the next tick and the burst would be back.
+  if (_mailPollBusy) return;
+  _mailPollBusy = true;
+  try {
+    await _mailPollUnreadInner();
+  } finally {
+    _mailPollBusy = false;
+  }
+}
+
+async function _mailPollUnreadInner() {
   const accounts = await window.eveAPI.getAccounts().catch(() => []);
   if (!Array.isArray(accounts) || !accounts.length) { _mailSetNavUnread(0); return; }
 
@@ -678,13 +732,22 @@ async function _mailPollUnread() {
   });
   if (!ask.length) return;
 
-  const results = await Promise.all(ask.map(async a => {
-    const id = Number(a.characterId);
+  // Sequential with a gap, not Promise.all: the point is requests per second,
+  // and 20 at once is 20 in one second however few are in flight at a time.
+  const gap = _mailStaggerGap(ask.length, _mailPollEveryMs);
+  const results = [];
+  for (let i = 0; i < ask.length; i++) {
+    if (i) await _mailSleep(gap);
+    // The watcher can be stopped, or the window hidden, part-way through a walk
+    // that takes most of the window. Finish early rather than spending requests
+    // on a badge nobody is looking at.
+    if (!_mailUnreadTimer) break;
+    const id = Number(ask[i].characterId);
     const r = await window.eveAPI.mailGetLabels(id).catch(() => ({ ok: false }));
     if (r && r.ok) _mailNoScope.delete(id);
     else if (r && r.needsReauth) _mailNoScope.set(id, Date.now());
-    return r;
-  }));
+    results.push(r);
+  }
 
   const usable = results.filter(r => r && r.ok);
   // A blip must not blank a count that was right a moment ago — only publish a
@@ -700,8 +763,22 @@ function startMailUnreadWatch() {
   if (_mailUnreadTimer) return;   // one watcher per window
   try { _mailNavUnread = Math.max(0, Number(localStorage.getItem(MAIL_UNREAD_KEY)) || 0); } catch (_) { /* ignore */ }
   _mailPaintNavUnread();
+  _mailPollEveryMs = _mailWindowActive() ? MAIL_UNREAD_POLL_MS : MAIL_IDLE_POLL_MS;
   _mailPollUnread().catch(() => {});
-  _mailUnreadTimer = setInterval(() => { _mailPollUnread().catch(() => {}); }, MAIL_UNREAD_POLL_MS);
+  _mailUnreadTimer = setInterval(() => { _mailPollUnread().catch(() => {}); }, _mailPollEveryMs);
+
+  // Poll at once on coming back, so the badge is right by the time it can be
+  // read — that is what makes backing off while hidden free rather than stale.
+  const onActive = () => {
+    _mailSetCadence(MAIL_UNREAD_POLL_MS);
+    _mailPollUnread().catch(() => {});
+  };
+  const onIdle = () => _mailSetCadence(MAIL_IDLE_POLL_MS);
+  try {
+    document.addEventListener('visibilitychange', () => (_mailWindowActive() ? onActive() : onIdle()));
+    window.addEventListener('focus', onActive);
+    window.addEventListener('blur',  onIdle);
+  } catch (_) { /* no DOM (tests) — the interval alone is enough */ }
 }
 
 // A 403 here means the character was authenticated before the mail scopes were

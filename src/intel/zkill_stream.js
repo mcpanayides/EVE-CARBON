@@ -29,12 +29,16 @@
 //
 // ── Being a good citizen of somebody else's free service ─────────────────────
 //
-// zKillboard publishes a hard limit of 15 requests per second per IP, and
-// exceeding it earns a ONE HOUR BAN — for the whole application, not just this
-// feature. Everything below is shaped by that:
+// zKillboard publish NO numeric rate limit (checked 2026-08-17: neither the API
+// wiki nor the information page states one, only "do not hammer the server, be
+// polite"). This header used to claim a hard 15/s with a one-hour ban; that
+// number could not be sourced, and STEP_MS below was lowered once we stopped
+// designing against it. Being unable to source a ceiling is a reason to stay
+// well under any plausible one, not a licence. Everything below is shaped by
+// that:
 //
-//   • ~100ms between sequential fetches, so ~10/s at the very most;
-//   • at least 6 seconds of quiet once we are caught up (their own guidance);
+//   • 400ms between sequential fetches, so ~2.5/s at the very most;
+//   • at least 15 seconds of quiet once we are caught up;
 //   • one request in flight, ever;
 //   • exponential backoff on errors;
 //   • a real User-Agent — Cloudflare answers 403 to blank ones, and it is how
@@ -53,6 +57,36 @@ const { APP_USER_AGENT } = require('../app_ident');
 const broker = require('../request_broker');   // for reserve() — the rate gate only
 
 const DEFAULT_BASE = 'https://r2z2.zkillboard.com';
+
+/**
+ * Where to walk the cursor.
+ *
+ * Everything else in this file bounds ONE client. It cannot touch the shape of
+ * the problem: request volume against zKillboard scales with installs, and at
+ * the growth target that is ~100x their entire stated traffic from this app
+ * alone. `workers/zkill-fanout/` is the fix — one consumer that every client
+ * reads through — and this is how a build points at it.
+ *
+ * Opt-in, and it must stay that way until a Worker is actually deployed and
+ * verified: a default pointing at a Worker that does not exist takes the intel
+ * feed down for every user at once. Once it is proven, change the fallback
+ * here rather than asking users to set a variable.
+ *
+ * Only http(s) is accepted — a malformed value silently falling through to a
+ * file:// or unsupported scheme would break the feed with no clue why.
+ */
+function resolveZkillBase(env = (typeof process !== 'undefined' ? process.env : {})) {
+  const raw = String(env?.EVE_CARBON_ZKILL_BASE || '').trim();
+  if (!raw) return DEFAULT_BASE;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('scheme');
+    return raw.replace(/\/+$/, '');   // the caller appends /ephemeral/...
+  } catch (_) {
+    console.warn('[zkill] ignoring invalid EVE_CARBON_ZKILL_BASE:', raw);
+    return DEFAULT_BASE;
+  }
+}
 
 // The floor between our own sequential requests while catching up.
 //
@@ -149,7 +183,7 @@ async function directGet(url, timeoutMs = REQUEST_TIMEOUT_MS) {
  * @param {Function} [deps.httpGet]   TEST SEAM. (url) => { body } | { notFound }
  *                                    Never pass the app's shared httpGet — see above.
  */
-function createZkillStream({ onKillmail, onStatus, base = DEFAULT_BASE, httpGet } = {}) {
+function createZkillStream({ onKillmail, onStatus, base = resolveZkillBase(), httpGet } = {}) {
   const fetch_ = httpGet || directGet;
 
   let running   = false;
@@ -290,6 +324,6 @@ function createZkillStream({ onKillmail, onStatus, base = DEFAULT_BASE, httpGet 
 }
 
 module.exports = {
-  createZkillStream, DEFAULT_BASE,
+  createZkillStream, DEFAULT_BASE, resolveZkillBase,
   STEP_MS, IDLE_MS, BACKOFF_MIN_MS, BACKOFF_MAX_MS, STALL_ROUNDS, MAX_CATCHUP,
 };

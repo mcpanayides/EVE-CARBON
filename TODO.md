@@ -494,9 +494,39 @@ and stay well under it regardless.
       of live intel that survives the growth target. **Still the real fix** —
       everything above bounds one client; nothing above changes the arithmetic
       that 100k clients polling a volunteer-run service is ~1000x their traffic.
-- [ ] **Stagger the mail poll** instead of firing N parallel requests, and back
-      it off when the window is not focused. It runs from launch, always,
-      whatever page you are on.
+
+      **WRITTEN, NOT DEPLOYED** — `workers/zkill-fanout/`. It mirrors the two
+      upstream routes exactly (`/ephemeral/sequence.json`,
+      `/ephemeral/<id>.json`), so the client needs no protocol change and can be
+      pointed back at zKillboard by unsetting one variable; a bespoke protocol
+      would have made the Worker a hard dependency instead of an optimisation.
+      The fan-out works because every client walks the SAME cursor and therefore
+      requests identical URLs, so edge caching collapses them onto one upstream
+      fetch. The sequence — the only moving part — is refreshed at most once
+      every 5s no matter how many clients ask, and that number does not grow
+      with users. It is not an open proxy: any other path 404s.
+
+      Remaining, and it needs a Cloudflare account rather than code:
+      `npx wrangler deploy`, then set `EVE_CARBON_ZKILL_BASE` and watch the
+      Worker's request count stay flat as clients are added. **Only once it is
+      proven under real traffic**, change the fallback in `resolveZkillBase()`
+      so it helps every user — a default pointing at a Worker that does not
+      exist takes the intel feed down for everyone at once. Until then it is
+      opt-in and nothing changes for anybody.
+- [x] **Stagger the mail poll. DONE.** It was `Promise.all` over every account
+      each 30s — the largest single burst the app makes, and the largest
+      steady-state contributor at ~0.67 req/s for 20 characters. Concurrency
+      limits did not help: the broker's lane bounds how many are IN FLIGHT, not
+      how many start per second. The walk is now sequential with a gap sized so
+      it always finishes inside its own window (the gap shrinks as characters
+      are added; 90 characters still fit), and a busy guard stops a slow walk
+      being overlapped by the next tick.
+
+      It also backs off to 5 minutes when the window is hidden OR unfocused,
+      and polls immediately on coming back — nobody can read the badge when the
+      window is behind something, so full-cadence polling there bought nothing
+      and cost the most. `test/mail_poll.test.js` pins both, and the stagger was
+      verified by mutation: restoring `Promise.all` fails the spread test.
 - [x] **Back the FC poll off to ~30 s when not in a fleet. DONE** — shipped with
       Fleet Tracker Phase 1 (9440af7), which is why that section ticked it while
       this one went stale. `FC_IDLE_POLL_MS` in `src/func/fc.js`: the not-in-fleet
@@ -849,10 +879,28 @@ pulls are idempotent, so re-running only ever corrects the numbers.
   calls, and running it on every navigation of a healthy dashboard would spend
   the shared error budget on nothing. A legitimately empty widget ("No active
   market orders") carries no marker and is left alone.
-- **Ping pop-up for structure alerts** — the pop-up fires on `isDirector`, which
-  is `/director/i` against the sender JID and body. Structure-alert bots posting
-  from a director JID would pop up as fleet pings. Worth checking during an
-  attack wave.
+- ~~**Ping pop-up for structure alerts**~~ **Fixed** — `src/intel/ping_classify.js`,
+  pinned by `test/ping_classify.test.js`. The note here understated it: the
+  window is EXCLUSIVE (`createPingAlertWindow` closes the current alert to open
+  the next), so a wave of structure alerts does not stack up windows, it
+  DESTROYS whatever is on screen — during an attack that is the fleet ping the
+  FC is waiting for. Suppressing structure alerts is what keeps a real ping up,
+  not tidiness.
+
+  Three faults, not one. `/director/i` tested the WHOLE JID, so a `director.*`
+  domain or a `/director-console` resource was a fleet ping. It tested the body
+  with no boundary, so a private message reading "ask the director when he's on"
+  took the screen. And structure bots legitimately post FROM a director address,
+  so the sender can never separate them — only the body can.
+
+  Now: the JID's NODE is tokenised and matched, excluding the look-alikes
+  (`directory`, `redirector`, `directions`) by name while still matching
+  `director_bot` and `alliance-directors` — no boundary rule gets both, which is
+  why it is a token list. A body-only match no longer pops for a 1:1 `chat`,
+  only for a broadcast. Structure alerts are still stored, still shown in the
+  panel and still flagged `is_director`; they just do not take the screen. An
+  explicit fleet signal ("form up", "undock") BEATS structure suppression, so
+  "Fortizar under attack — home defence fleet up" still pops.
 - **XHTML-IM for Jabber rooms** — bold/italic currently send `*asterisk*`
   markers, which every client shows as typed. True rich text means XEP-0071 on
   both the send and receive paths, with a sanitised render.

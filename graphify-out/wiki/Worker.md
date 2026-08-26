@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **worker.js** (5 connections) — `infra/presence-worker/worker.js`
+- **presence-worker/worker.js** (5 connections) — `infra/presence-worker/worker.js`
 - **PresenceCounter** (5 connections) — `infra/presence-worker/worker.js`
 - **.fetch()** (5 connections) — `infra/presence-worker/worker.js`
 - **normaliseVersion()** (2 connections) — `infra/presence-worker/worker.js`

@@ -1,11 +1,16 @@
 # README
 
-> 2 nodes · cohesion 1.00
+> 7 nodes · cohesion 0.29
 
 ## Key Concepts
 
-- **Background Wallpaper Presets** (1 connections) — `assets/backgrounds/README.md`
-- **Resfile CDN Background Sourcing** (1 connections) — `assets/backgrounds/README.md`
+- **zkill-fanout** (6 connections) — `workers/zkill-fanout/README.md`
+- **README.md** (1 connections) — `workers/zkill-fanout/README.md`
+- **Why** (1 connections) — `workers/zkill-fanout/README.md`
+- **What it serves** (1 connections) — `workers/zkill-fanout/README.md`
+- **Deploy** (1 connections) — `workers/zkill-fanout/README.md`
+- **Point the app at it** (1 connections) — `workers/zkill-fanout/README.md`
+- **Checking it works** (1 connections) — `workers/zkill-fanout/README.md`
 
 ## Relationships
 
@@ -13,11 +18,11 @@
 
 ## Source Files
 
-- `assets/backgrounds/README.md`
+- `workers/zkill-fanout/README.md`
 
 ## Audit Trail
 
-- EXTRACTED: 2 (100%)
+- EXTRACTED: 12 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

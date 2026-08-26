@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (3 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (3 shared connections)
 
 ## Source Files
 

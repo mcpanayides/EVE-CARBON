@@ -18,7 +18,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
-- [Package Manifest](Package_Manifest.md) (1 shared connections)
+- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
 
 ## Source Files
 

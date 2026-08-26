@@ -1,6 +1,6 @@
-# Intel Patterns Test
+# Patterns
 
-> 26 nodes · cohesion 0.13
+> 28 nodes · cohesion 0.12
 
 ## Key Concepts
 
@@ -9,10 +9,12 @@
 - **dayIndex()** (5 connections) — `src/intel/patterns.js`
 - **countOccasions()** (5 connections) — `src/intel/patterns.js`
 - **createPatternStore()** (5 connections) — `src/intel/patterns.js`
+- **buildWalks()** (4 connections) — `src/intel/patterns.js`
 - **routeStats()** (4 connections) — `src/intel/patterns.js`
 - **corridors()** (4 connections) — `src/intel/patterns.js`
 - **entryPoints()** (4 connections) — `src/intel/patterns.js`
 - **bucketPattern()** (3 connections) — `src/intel/patterns.js`
+- **hourBlocks()** (3 connections) — `src/intel/patterns.js`
 - **DEFAULTS** (2 connections) — `src/intel/patterns.js`
 - **WEEKDAY_NAMES** (2 connections) — `src/intel/patterns.js`
 - **at()** (2 connections) — `test/intel_patterns.test.js`
@@ -30,18 +32,14 @@
 - **sysSighting()** (1 connections) — `test/intel_patterns.test.js`
 - **hop()** (1 connections) — `test/intel_patterns.test.js`
 - **SDE** (1 connections) — `test/intel_patterns.test.js`
-- **evLine()** (1 connections) — `test/intel_patterns.test.js`
-- **CHAN** (1 connections) — `test/intel_patterns.test.js`
-- *... and 1 more nodes in this community*
+- *... and 3 more nodes in this community*
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (3 shared connections)
-- [Notifications](Notifications.md) (2 shared connections)
+- [Intel Service](Intel_Service.md) (6 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
-- [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Intel Test](Intel_Test.md) (2 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
+- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
+- [Notifications](Notifications.md) (1 shared connections)
 
 ## Source Files
 
@@ -50,8 +48,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 82 (85%)
-- INFERRED: 14 (15%)
+- EXTRACTED: 84 (82%)
+- INFERRED: 19 (18%)
 - AMBIGUOUS: 0 (0%)
 
 ---

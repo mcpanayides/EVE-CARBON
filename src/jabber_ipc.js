@@ -5,6 +5,8 @@
 
 const { ipcMain, BrowserWindow } = require('electron');
 
+const { classifyPing } = require('./intel/ping_classify');
+
 let jabberClient = null;
 let jabberConnectionActive = false;
 
@@ -483,7 +485,8 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
 
         const from       = stanza.attrs.from || '';
         const type       = stanza.attrs.type || 'chat';
-        const isDirector = /director/i.test(from) || /director/i.test(body);
+        const { isDirector, isStructureAlert, shouldPopup } =
+          classifyPing({ from, type, body });
         const msg        = { from, type, body, isDirector, raw: stanza.toString() };
 
         // ── Always persist every message to DB regardless of isDirector ──
@@ -499,8 +502,18 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
         broadcastToRenderers('jabber-message', stored || msg);
 
         // Open the ping-alert popup only for director broadcasts.
-        if (isDirector) {
+        //
+        // Not every director message earns the window. It is EXCLUSIVE — the
+        // next alert closes the current one — so a wave of structure alerts
+        // does not stack up, it wipes whatever was on screen, which during an
+        // attack is the fleet ping someone is waiting for. Structure alerts are
+        // still stored and still broadcast to the panel above; they just do not
+        // take the screen. See src/intel/ping_classify.js.
+        if (shouldPopup) {
           createPingAlertWindow(stored || msg);
+        } else if (isStructureAlert) {
+          console.log('[jabber] structure alert from a director address — panel only:',
+            body.slice(0, 80));
         }
       });
 

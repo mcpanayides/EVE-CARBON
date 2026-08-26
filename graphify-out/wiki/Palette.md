@@ -28,7 +28,7 @@
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 

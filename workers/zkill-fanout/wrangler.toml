@@ -1,0 +1,11 @@
+name = "eve-carbon-zkill-fanout"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# Upstream is a variable, not a literal, so the fan-out can be pointed at a
+# staging origin or moved if zKillboard change hosts, without a code change.
+[vars]
+UPSTREAM = "https://r2z2.zkillboard.com"
+# Sent on every upstream request. zKillboard ask that callers identify
+# themselves; a blank User-Agent is answered with 403 by Cloudflare.
+UPSTREAM_USER_AGENT = "EVE-Carbon-zkill-fanout (+https://github.com/mcpanayides/EVE-CARBON)"

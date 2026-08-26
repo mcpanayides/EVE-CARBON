@@ -34,7 +34,8 @@
 ## Relationships
 
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (3 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
+- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 

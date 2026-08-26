@@ -1,4 +1,4 @@
-# Patterns
+# Intel Patterns Test
 
 > 28 nodes · cohesion 0.12
 
@@ -9,7 +9,7 @@
 - **dayIndex()** (5 connections) — `src/intel/patterns.js`
 - **countOccasions()** (5 connections) — `src/intel/patterns.js`
 - **createPatternStore()** (5 connections) — `src/intel/patterns.js`
-- **buildWalks()** (4 connections) — `src/intel/patterns.js`
+- **h()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **routeStats()** (4 connections) — `src/intel/patterns.js`
 - **corridors()** (4 connections) — `src/intel/patterns.js`
 - **entryPoints()** (4 connections) — `src/intel/patterns.js`
@@ -36,20 +36,25 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (6 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
-- [Notifications](Notifications.md) (1 shared connections)
+- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
+- [Notifications](Notifications.md) (2 shared connections)
+- [Alert Rules](Alert_Rules.md) (2 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/patterns.js`
+- `src/vendor/gridstack/gridstack-all.js`
 - `test/intel_patterns.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 84 (82%)
-- INFERRED: 19 (18%)
+- EXTRACTED: 87 (84%)
+- INFERRED: 17 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

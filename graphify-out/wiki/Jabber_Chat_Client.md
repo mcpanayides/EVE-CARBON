@@ -33,8 +33,9 @@
 
 ## Relationships
 
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (4 shared connections)
-- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (3 shared connections)
+- [Ping Alert](Ping_Alert.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 

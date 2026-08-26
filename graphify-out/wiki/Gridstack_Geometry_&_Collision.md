@@ -1,6 +1,6 @@
 # Gridstack Geometry & Collision
 
-> 53 nodes · cohesion 0.08
+> 44 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -17,8 +17,6 @@
 - **.sortNodes()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.moveNodeCheck()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.isIntercepted()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.sort()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.defaults()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.batchUpdate()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.collide()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.swap()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
@@ -29,15 +27,18 @@
 - **.compact()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.saveInitial()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.beginUpdate()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 28 more nodes in this community*
+- **.save()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.findCacheLayout()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 19 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (32 shared connections)
-- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (17 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (5 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (3 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (24 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (20 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Gridstack Vendor Library (off)](Gridstack_Vendor_Library_%28off%29.md) (2 shared connections)
+- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -45,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 290 (100%)
+- EXTRACTED: 262 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

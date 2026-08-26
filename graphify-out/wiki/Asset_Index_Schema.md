@@ -37,7 +37,7 @@
 - [Valuation Rebuild Debounce Test](Valuation_Rebuild_Debounce_Test.md) (4 shared connections)
 - [Stress Index](Stress_Index.md) (1 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Notifications](Notifications.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 

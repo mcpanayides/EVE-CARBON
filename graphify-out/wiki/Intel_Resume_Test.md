@@ -1,12 +1,11 @@
 # Intel Resume Test
 
-> 28 nodes · cohesion 0.10
+> 27 nodes · cohesion 0.10
 
 ## Key Concepts
 
 - **intel_resume.test.js** (21 connections) — `test/intel_resume.test.js`
 - **chatlog_reader.js** (14 connections) — `src/intel/chatlog_reader.js`
-- **createIntelService()** (7 connections) — `src/intel/intel_service.js`
 - **createChatlogReader()** (6 connections) — `src/intel/chatlog_reader.js`
 - **findChatlogDir()** (4 connections) — `src/intel/chatlog_reader.js`
 - **channelOf()** (3 connections) — `src/intel/chatlog_reader.js`
@@ -29,25 +28,25 @@
 - **path** (1 connections) — `test/intel_resume.test.js`
 - **{ createChatlogReader, lineTimestamp }** (1 connections) — `test/intel_resume.test.js`
 - **{ createProximityTracker, buildAdjacency }** (1 connections) — `test/intel_resume.test.js`
-- *... and 3 more nodes in this community*
+- **{ createIntelService }** (1 connections) — `test/intel_resume.test.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (7 shared connections)
+- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Patterns](Patterns.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/chatlog_reader.js`
-- `src/intel/intel_service.js`
 - `test/intel_resume.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 72 (82%)
-- INFERRED: 16 (18%)
+- EXTRACTED: 66 (81%)
+- INFERRED: 15 (19%)
 - AMBIGUOUS: 0 (0%)
 
 ---

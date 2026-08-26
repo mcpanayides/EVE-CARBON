@@ -2,7 +2,7 @@
 
 > God node · 37 connections · `src/vendor/gridstack/gridstack-all.js`
 
-**Community:** [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md)
+**Community:** [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md)
 
 ## Connections by Relation
 

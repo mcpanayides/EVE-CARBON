@@ -1,52 +1,48 @@
 # Jabber Chat Rooms
 
-> 46 nodes · cohesion 0.08
+> 30 nodes · cohesion 0.13
 
 ## Key Concepts
 
 - **jabber_rooms.js** (29 connections) — `src/func/jabber_rooms.js`
-- **theme-vars.js** (11 connections) — `src/shared/theme-vars.js`
 - **initJabberRooms()** (9 connections) — `src/func/jabber_rooms.js`
 - **jabberOpenRoom()** (8 connections) — `src/func/jabber_rooms.js`
 - **jabberRefreshRooms()** (7 connections) — `src/func/jabber_rooms.js`
-- **theme_ipc.js** (6 connections) — `src/ipc/theme_ipc.js`
-- **buildCssVarsFromCustom()** (6 connections) — `src/shared/theme-vars.js`
 - **_jrRenderLog()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrRowEl()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrLoadOlder()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrPaintActive()** (4 connections) — `src/func/jabber_rooms.js`
 - **_jrRenderSubject()** (4 connections) — `src/func/jabber_rooms.js`
-- **hslToHex()** (4 connections) — `src/shared/theme-vars.js`
-- **darken()** (4 connections) — `src/shared/theme-vars.js`
-- **lighten()** (4 connections) — `src/shared/theme-vars.js`
 - **_jrRenderRoster()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrLinkify()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrInsertAtCursor()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrToggleEmojiPicker()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrLeaveRoom()** (3 connections) — `src/func/jabber_rooms.js`
-- **registerThemeHandlers()** (3 connections) — `src/ipc/theme_ipc.js`
-- **hexToRgba()** (3 connections) — `src/shared/theme-vars.js`
-- **hexToHsl()** (3 connections) — `src/shared/theme-vars.js`
-- **buildCssVars()** (3 connections) — `src/shared/theme-vars.js`
-- **buildThemeCssFileText()** (3 connections) — `src/shared/theme-vars.js`
-- *... and 21 more nodes in this community*
+- **_jrNotify()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrTime()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrFindRooms()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrWrapSelection()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrInsertLink()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrAddRoom()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrRooms** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrPulled** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrComplete** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrNoArchive** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrEsc()** (1 connections) — `src/func/jabber_rooms.js`
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 - [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/jabber_rooms.js`
-- `src/ipc/theme_ipc.js`
-- `src/shared/theme-vars.js`
 
 ## Audit Trail
 
-- EXTRACTED: 166 (98%)
-- INFERRED: 4 (2%)
+- EXTRACTED: 112 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -35,8 +35,9 @@
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (8 shared connections)
 - [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (7 shared connections)
 - [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (6 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (6 shared connections)
+- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (4 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files

@@ -1,0 +1,6 @@
+{
+  "name": "eve-carbon-zkill-fanout",
+  "private": true,
+  "type": "module",
+  "description": "Shared cache in front of zKillboard's R2Z2 feed. Deployed separately from the app: see README.md."
+}

@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (2 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Fleet After-Action Report](Fleet_After-Action_Report.md) (1 shared connections)
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)

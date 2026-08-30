@@ -1,11 +1,11 @@
 # Fitting Simulator Tests
 
-> 47 nodes · cohesion 0.08
+> 49 nodes · cohesion 0.08
 
 ## Key Concepts
 
-- **fitting_sim.test.js** (32 connections) — `test/fitting_sim.test.js`
-- **facts()** (19 connections) — `test/fitting_sim.test.js`
+- **fitting_sim.test.js** (34 connections) — `test/fitting_sim.test.js`
+- **facts()** (20 connections) — `test/fitting_sim.test.js`
 - **salvage.js** (13 connections) — `src/func/salvage.js`
 - **rig()** (10 connections) — `test/fitting_sim.test.js`
 - **renderSalvageCalculator()** (8 connections) — `src/func/salvage.js`
@@ -29,7 +29,7 @@
 - **EXPANDER()** (2 connections) — `test/fitting_sim.test.js`
 - **SPARE()** (2 connections) — `test/fitting_sim.test.js`
 - **DEPOT()** (2 connections) — `test/fitting_sim.test.js`
-- *... and 22 more nodes in this community*
+- *... and 24 more nodes in this community*
 
 ## Relationships
 
@@ -42,7 +42,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 166 (97%)
+- EXTRACTED: 172 (97%)
 - INFERRED: 6 (3%)
 - AMBIGUOUS: 0 (0%)
 

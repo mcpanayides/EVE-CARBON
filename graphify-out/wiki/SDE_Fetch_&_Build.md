@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
+- [Character IPC](Character_IPC.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files

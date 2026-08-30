@@ -30,7 +30,7 @@
 - [Intel Service](Intel_Service.md) (5 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files
 

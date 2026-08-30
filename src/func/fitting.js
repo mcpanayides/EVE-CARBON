@@ -3131,6 +3131,10 @@ function _fitRenderStats() {
       <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">navigation</span> NAVIGATION <span class="fit-note">incl. modules</span></div>
       ${line('Max velocity', gv(D.maxVel, DB.maxVel, 'm/s'))}
       ${line('Align time', gv(D.align, DB.align, 's'))}
+      ${/* Align is ln(4) x inertia x mass, so a wrong align is one of two
+            inputs — and with only mass shown there was no way to tell which.
+            The game shows it too, which makes them directly comparable. */''}
+      ${line('Inertia', gv(D.agility, DB.agility, '', v => `${v.toFixed(4)}x`))}
       ${line('Warp speed', `${_fitNum(D.warp)} AU/s`)}
       ${line('Mass', `${_fitNum(D.mass / 1000)} t`)}
       ${line('Sig radius', gv(D.sig, DB.sig, 'm'))}

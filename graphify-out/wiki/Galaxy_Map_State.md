@@ -39,7 +39,7 @@
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (10 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (9 shared connections)
 - [App](App.md) (3 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 - [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (1 shared connections)
 
 ## Source Files

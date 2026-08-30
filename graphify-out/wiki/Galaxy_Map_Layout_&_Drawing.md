@@ -38,13 +38,12 @@
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (7 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (5 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (5 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (2 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (2 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (2 shared connections)
+- [Forum IPC](Forum_IPC.md) (1 shared connections)
 - [Resfile Backgrounds](Resfile_Backgrounds.md) (1 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (1 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
-- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (1 shared connections)
 
 ## Source Files
 

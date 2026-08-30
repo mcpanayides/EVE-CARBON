@@ -924,3 +924,63 @@ test('armor HP rigs actually add armor', () => {
   assert.ok(Math.abs(two / none - 1.4085) < 0.001,
     `a second rig is stacking-penalized, got ${(two / none).toFixed(4)}x`);
 });
+
+// ── Agility and align time ───────────────────────────────────────────────────
+// Reported against a Nyx: ours 64.1s align, in-game 36.15s. EVE's own figures
+// reconcile exactly (1.386 x 0.0150 agility x 1,740,760t = 36.2s), so the
+// formula is not in question — an INPUT is. These pin the agility chain so the
+// question can be answered instead of argued: inertia bonuses are negative, and
+// a sign mishandled anywhere in the stacking chain would make modules help less
+// (or, worse, hurt) without anything throwing.
+const ISTAB = () => facts({ id: 1405, name: 'Inertial Stabilizers II', groupName: 'Inertial Stabilizer',
+  groupId: 77, slot: 'low', attrs: { 169: -20 } });   // SDE: attr 169 = -20
+
+// The codebase's own stacking curve, so the expectation is derived rather than
+// a copied magic number.
+const stackF = (i) => Math.exp(-((i / 2.67) ** 2));
+
+test('one inertia module gets the full, unpenalised bonus', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const bare = sb._fitShipDerived().agility;
+
+  rig(sb, {});
+  sb._fitState.modules.low.push(sb._fitMod(ISTAB()));
+  const one = sb._fitShipDerived().agility;
+
+  assert.ok(one < bare, 'an inertia stabiliser must LOWER inertia, not raise it');
+  assert.ok(Math.abs(one / bare - 0.8) < 1e-6,
+    `first module should be a flat -20% (got ${(one / bare).toFixed(6)})`);
+});
+
+test('inertia modules stack-penalise like every other chain', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const bare = sb._fitShipDerived().agility;
+
+  rig(sb, {});
+  for (let i = 0; i < 3; i++) sb._fitState.modules.low.push(sb._fitMod(ISTAB()));
+  const three = sb._fitShipDerived().agility;
+
+  let expect = 1;
+  for (let i = 0; i < 3; i++) expect *= 1 - 0.20 * stackF(i);
+  assert.ok(Math.abs(three / bare - expect) < 1e-6,
+    `3 istabs should give x${expect.toFixed(6)}, got x${(three / bare).toFixed(6)}`);
+  // The marginal module must still help, just less — the shape that proves the
+  // penalty is applied rather than the chain being truncated.
+  assert.ok(three > bare * 0.8 * 0.8 * 0.8, 'penalised, not multiplicative');
+});
+
+test('align time is ln(4) x agility x mass, and plate mass slows it', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const d = sb._fitShipDerived();
+  assert.ok(Math.abs(d.align - (Math.log(4) * d.agility * d.mass) / 1e6) < 1e-9,
+    'align must be the EVE formula over the ship-derived agility and mass');
+
+  rig(sb, {});
+  sb._fitState.modules.low.push(sb._fitMod(PLATE()));   // 796: +4,500,000 kg
+  const withPlate = sb._fitShipDerived();
+  assert.ok(withPlate.mass > d.mass, 'a plate adds mass');
+  assert.ok(withPlate.align > d.align, 'and a heavier ship aligns slower');
+});

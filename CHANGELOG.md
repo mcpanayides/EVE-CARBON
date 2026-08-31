@@ -30,6 +30,80 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [3.7.0] - 2026-08-31
+
+Two numbers this release were wrong in a way you could not see from inside the
+app: the early-warning system measured every hostile's distance from a position
+that stopped updating the moment you started watching, and a Nyx reported
+551,507 less armour than the game gives it. Both were found by checking against
+EVE itself rather than against another part of EVE Carbon, and both now
+reconcile exactly.
+
+### Fixed
+- **The early-warning system measured from where you used to be.** Every jump
+  count, ETA and alert is derived from the monitored character's position, and
+  that position came from the stored ESI location — refreshed on a 30-minute
+  stale gate, from the Dashboard, for the selected character only. Worse, the
+  origins were resolved once when you ticked the box and never again, so once
+  watching began the position was frozen for the whole session however long it
+  ran. Jump a supercarrier to its ratting system and the tool went on warning
+  you about the staging system you had left, with nothing on screen admitting
+  it. Position now comes from EVE's own Local chat log — the client writes
+  `Channel changed to Local : <system>` the instant you arrive — so it updates
+  about a second after the gate flash, needs no scope, and covers alts that were
+  never authenticated. Verified against 79 real logs rather than assumed.
+- **Armour hitpoint rigs were stacking-penalised.** EVE does not penalise them.
+  Three Capital Trimark Armor Pump IIs are 1.2 × 1.2 × 1.2 = 1.728, not the
+  1.569 a penalised chain gives. Measured against a real Nyx — 3× CONCORD
+  25000mm Steel Plates, full High-grade Amulet set, all skills V — the game
+  reports 6,006,292 armour and EVE Carbon now reports 6,006,292.4. With both
+  Armor Command Bursts running the game reports 6,997,330 and EVE Carbon
+  reports 6,997,330.6. A unit test had been asserting the penalty, and passed
+  for as long as the engine agreed with it.
+- **The Defense panel described two different ships at once.** The resistance
+  row was drawn from the command-burst-boosted numbers while the hitpoints and
+  EHP beside it were the base ones, so under bursts the stated EHP did not
+  follow from the stated hitpoints and resists. Resists now show the base value
+  with the boost as a green delta, matching every other figure in the panel.
+- **Locally saved fits came back with an empty cargo hold.** Cargo was written
+  into the saved fit and then left out of the call that restored it.
+- **The monitored-characters dropdown was see-through.** It painted with the
+  modal background token, which is tuned for a dialog that always has a dimming
+  backdrop behind it; this one floats directly over the contact list, so under
+  the glass theme it rendered at 55% opacity with no blur at all. The fitting
+  pickers and the bay panels had the same problem over the ship render.
+- **The implants panel showed nine of its ten sockets.**
+
+### Added
+- **Clones.** A named implant set you put on and take off, the way a jump clone
+  works in game. Fits have always stored their implants, which is right for
+  reopening one fit and wrong for comparing two — loading the shield version
+  wiped the implants the armour version was saved with. A clone is stored
+  separately from any fit and outranks a fit's own implants while worn, so you
+  can swap hulls around a fixed set of implants. **Your real clones come along
+  free**: the app already syncs your active implants and every jump clone with
+  its contents, so they can be worn or saved directly, with no extra ESI call.
+- **One picker for implants, cargo and fighter squadrons**, on the same dialog
+  as Import from Game. Each bay used to carry its own inline search whose
+  results dropped on top of the list they were being added to — searching
+  "high" for an implant covered all ten sockets. Every row now states what will
+  happen before you click it: which slot an implant takes and what it replaces,
+  how many more of an item the hold has room for, which tube a squadron loads
+  into and how much of it fits. A row that cannot be used is disabled and names
+  the limit stopping it.
+- **The fighter bay has a way in.** Its chip was inert — the only route to a
+  squadron was dragging one onto a tube wedge.
+- **Where a character's position came from is shown**, and how fresh it is:
+  `LIVE` when it is read from the game log as you jump, `ESI 24m` when it is a
+  fallback, `logged off` when the client is not running.
+
+### Changed
+- **The monitored-characters list updates while you watch.** A jump is pushed to
+  the page rather than polled, and says what moved where.
+- **`fit-search` returns volume, category, implant slot and squadron size** with
+  each result, so a picker can describe a row without a second round-trip per
+  result.
+
 ## [3.6.0] - 2026-08-22
 
 The fitting simulator was wrong, and in places badly wrong — a bastioned

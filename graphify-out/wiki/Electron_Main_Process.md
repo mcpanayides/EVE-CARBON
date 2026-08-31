@@ -40,10 +40,10 @@
 - [PI IPC](PI_IPC.md) (3 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
+- [Fleet After-Action Report](Fleet_After-Action_Report.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
-- [Theme IPC](Theme_IPC.md) (2 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (2 shared connections)
+- [Theme Vars](Theme_Vars.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
 
 ## Source Files

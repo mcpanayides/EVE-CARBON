@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (4 shared connections)
+- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (4 shared connections)
 
 ## Source Files
 

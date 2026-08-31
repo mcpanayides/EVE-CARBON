@@ -39,7 +39,7 @@
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (2 shared connections)
 - [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (1 shared connections)
 
 ## Source Files
 

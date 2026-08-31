@@ -41,7 +41,7 @@
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 - [Alert Rules](Alert_Rules.md) (1 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)

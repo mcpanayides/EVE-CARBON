@@ -1,10 +1,10 @@
 # Fitting Simulator Tests
 
-> 51 nodes · cohesion 0.07
+> 53 nodes · cohesion 0.07
 
 ## Key Concepts
 
-- **fitting_sim.test.js** (36 connections) — `test/fitting_sim.test.js`
+- **fitting_sim.test.js** (38 connections) — `test/fitting_sim.test.js`
 - **facts()** (20 connections) — `test/fitting_sim.test.js`
 - **salvage.js** (13 connections) — `src/func/salvage.js`
 - **rig()** (10 connections) — `test/fitting_sim.test.js`
@@ -16,6 +16,7 @@
 - **_fetchRigPrices()** (3 connections) — `src/func/salvage.js`
 - **_updateMatPriceDisplay()** (3 connections) — `src/func/salvage.js`
 - **_sortSalvage()** (3 connections) — `src/func/salvage.js`
+- **HULL()** (3 connections) — `test/fitting_sim.test.js`
 - **LASER()** (3 connections) — `test/fitting_sim.test.js`
 - **AMMO()** (3 connections) — `test/fitting_sim.test.js`
 - **BASTION()** (3 connections) — `test/fitting_sim.test.js`
@@ -24,12 +25,11 @@
 - **MWD()** (3 connections) — `test/fitting_sim.test.js`
 - **_populateSalvageMatDropdown()** (2 connections) — `src/func/salvage.js`
 - **_setSalvageMode()** (2 connections) — `src/func/salvage.js`
-- **HULL()** (2 connections) — `test/fitting_sim.test.js`
 - **PLATE()** (2 connections) — `test/fitting_sim.test.js`
 - **EXPANDER()** (2 connections) — `test/fitting_sim.test.js`
 - **SPARE()** (2 connections) — `test/fitting_sim.test.js`
 - **DEPOT()** (2 connections) — `test/fitting_sim.test.js`
-- *... and 26 more nodes in this community*
+- *... and 28 more nodes in this community*
 
 ## Relationships
 
@@ -42,7 +42,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 176 (97%)
+- EXTRACTED: 182 (97%)
 - INFERRED: 6 (3%)
 - AMBIGUOUS: 0 (0%)
 

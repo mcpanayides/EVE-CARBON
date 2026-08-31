@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
 
 ## Source Files
 

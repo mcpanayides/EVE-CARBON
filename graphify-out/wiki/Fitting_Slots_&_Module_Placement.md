@@ -34,7 +34,7 @@
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (23 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (15 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (13 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 

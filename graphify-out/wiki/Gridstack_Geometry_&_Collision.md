@@ -1,12 +1,11 @@
 # Gridstack Geometry & Collision
 
-> 48 nodes · cohesion 0.10
+> 45 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **s** (59 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.moveNode()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.find()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.copyPos()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._fixCollisions()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._notify()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
@@ -18,7 +17,6 @@
 - **.sortNodes()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.moveNodeCheck()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.isIntercepted()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.sort()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.defaults()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.batchUpdate()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.collide()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
@@ -29,16 +27,18 @@
 - **.willItFit()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.compact()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.saveInitial()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 23 more nodes in this community*
+- **.beginUpdate()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.save()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 20 more nodes in this community*
 
 ## Relationships
 
 - [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (30 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (19 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (4 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
-- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (1 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (15 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (2 shared connections)
+- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -46,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 285 (100%)
+- EXTRACTED: 267 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

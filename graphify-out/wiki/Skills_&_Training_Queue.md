@@ -35,7 +35,7 @@
 
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (3 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
 
 ## Source Files
 

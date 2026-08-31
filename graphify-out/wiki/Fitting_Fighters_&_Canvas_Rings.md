@@ -28,7 +28,7 @@
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (10 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (5 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (4 shared connections)
-- [Jabber Disco Test](Jabber_Disco_Test.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 
 ## Source Files
 

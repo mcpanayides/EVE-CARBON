@@ -4064,6 +4064,7 @@ async function _fitLoadGameFit(fit) {
   // saved layout — including heat-management gaps — survives the round-trip.
   const flagBase = { high: 27, med: 19, low: 11, rig: 92, subsystem: 125 };
   const charges = [];
+  const cargo   = [];
   // Pass 1: subsystems — they create the slot layout everything else lands in.
   for (const it of fit.items) {
     const f = facts[it.typeId];
@@ -4077,20 +4078,37 @@ async function _fitLoadGameFit(fit) {
   for (const it of fit.items) {
     const f = facts[it.typeId];
     if (!f || f.slot === 'subsystem') continue;
-    if (f.categoryId === 18 || f.categoryId === 87) { _fitAddDrone(f, it.quantity || 1); continue; }   // drone/fighter bay
-    if (f.categoryId === 8) { charges.push({ it, f }); continue; }
-    const slot = _fitFlagToSlot(it.flag) || f.slot;
-    if (!slot) continue;
-    const atIdx = _fitFlagToSlot(it.flag) ? it.flag - flagBase[slot] : null;
     const qty = it.quantity || 1;
+    if (f.categoryId === 18 || f.categoryId === 87) { _fitAddDrone(f, qty); continue; }   // drone/fighter bay
+
+    // THE FLAG DECIDES, and only the flag. This used to fall back to `f.slot`
+    // when the flag was not a slot — which meant everything in the CARGO HOLD
+    // (flag 5) was fitted, because a spare Capacitor Power Relay II still
+    // reports slot 'low'. A hold full of refit modules then overflowed the
+    // racks and displaced the modules that were genuinely fitted: a Nyx came
+    // back wearing five cap relays and a cloak, with its plates and hardeners
+    // nowhere, and every stat computed off that wrong ship.
+    const slot = _fitFlagToSlot(it.flag);
+    if (!slot) { cargo.push({ f, qty }); continue; }        // spares, refits, spare ammo
+
+    if (f.categoryId === 8) { charges.push({ it, f }); continue; }   // loaded ammo
+    const atIdx = it.flag - flagBase[slot];
     for (let n = 0; n < qty; n++) _fitPlace(slot, _fitMod(f), n === 0 ? atIdx : null);
   }
   for (const { it, f } of charges) {
-    const slot = _fitFlagToSlot(it.flag);
+    const slot = _fitFlagToSlot(it.flag);          // non-null: cargo went above
     const rack = _fitState.modules[slot] || [];
-    const exact = _fitFlagToSlot(it.flag) ? rack[it.flag - flagBase[slot]] : null;
+    const exact = rack[it.flag - flagBase[slot]];
     const target = (exact && !exact.charge) ? exact : rack.find(m => m && !m.charge);
     if (target) target.charge = { id: f.id, name: f.name, dmg: f.dmg, f };
+  }
+  // Filled directly rather than through _fitAddCargo: that flashes a toast and
+  // re-renders per item, which for a hold of forty stacks is forty of each.
+  // _fitLoadHull has already emptied the hold.
+  for (const { f, qty } of cargo) {
+    const ex = _fitState.cargo.find(c => c.id === f.id);
+    if (ex) ex.qty += qty;
+    else _fitState.cargo.push({ id: f.id, name: f.name, f, qty });
   }
   _fitState.fitName = fit.name || 'Imported Fit';
   _fitRenderAll();

@@ -1030,3 +1030,69 @@ test('the module count counts fitted slots, not item stacks', () => {
   assert.strictEqual(sb._fitPickModuleCount({ items: [] }), 0);
   assert.strictEqual(sb._fitPickModuleCount({}), 0, 'a fit with no items must not throw');
 });
+
+// ── Importing a game fit: the flag decides, not the item's slot type ─────────
+// Reported against a real Nyx: the import came back wearing five Capacitor
+// Power Relay IIs, two Sensor Boosters and a cloak, while its three CONCORD
+// 25000mm plates and its A-Type membranes were missing entirely. Every one of
+// the wrong modules was in the CARGO HOLD. The loader fell back to the item's
+// own slot type when the flag was not a slot, and a spare cap relay still
+// reports slot 'low' — so the hold was fitted, overflowed the racks, and
+// displaced the real modules. Every stat was then computed off the wrong ship.
+const CARGO_FLAG = 5;   // ESI: Cargo. Slot flags are 11-34, 92-94, 125-132.
+
+async function loadGameFit(sb, items) {
+  const facts = {};
+  for (const it of items) facts[it.f.id] = it.f;
+  sb.window.eveAPI.fitGetHull  = async () => HULL();
+  sb.window.eveAPI.fitGetItems = async () => facts;
+  await sb._fitLoadGameFit({
+    name: 'Pegasus', shipTypeId: HULL().id,
+    items: items.map(it => ({ typeId: it.f.id, flag: it.flag, quantity: it.qty || 1 })),
+  });
+}
+
+// Joined to a string on purpose: these arrays are built inside the vm realm, so
+// deepStrictEqual fails on the prototype even when the contents match.
+const fitted = (sb, slot) =>
+  (sb._fitState.modules[slot] || []).filter(Boolean).map(m => m.f.name).join(' | ');
+
+test('a module in the cargo hold is NOT fitted', async () => {
+  const sb = loadSim();
+  const relay = facts({ id: 2032, name: 'Capacitor Power Relay II', slot: 'low', volume: 5 });
+  await loadGameFit(sb, [{ f: relay, flag: CARGO_FLAG, qty: 5 }]);
+
+  assert.strictEqual(fitted(sb, 'low'), '', 'the hold must not reach the racks');
+  assert.strictEqual(sb._fitState.cargo.length, 1, 'it belongs in the cargo hold');
+  assert.strictEqual(sb._fitState.cargo[0].name, 'Capacitor Power Relay II');
+  assert.strictEqual(sb._fitState.cargo[0].qty, 5, 'and keeps the quantity the pilot stowed');
+});
+
+test('cargo does not displace what is genuinely fitted', async () => {
+  const sb = loadSim();
+  const plate = facts({ id: 41456, name: 'CONCORD 25000mm Steel Plates', slot: 'low',
+    groupId: 329, attrs: { 1159: 82500 } });
+  const relay = facts({ id: 2032, name: 'Capacitor Power Relay II', slot: 'low', volume: 5 });
+
+  // The shape that broke it: far more low-slot modules in the hold than the
+  // hull has low slots, listed BEFORE the fitted ones.
+  await loadGameFit(sb, [
+    { f: relay, flag: CARGO_FLAG, qty: 9 },
+    { f: plate, flag: 11 },
+    { f: plate, flag: 12 },
+    { f: plate, flag: 13 },
+  ]);
+
+  assert.strictEqual(fitted(sb, 'low'),
+    'CONCORD 25000mm Steel Plates | CONCORD 25000mm Steel Plates | CONCORD 25000mm Steel Plates',
+    'all three plates survive a hold that would have overflowed the rack');
+  assert.strictEqual(sb._fitState.cargo.length, 1);
+});
+
+test('a fitted module still lands at its exact in-game slot index', async () => {
+  const sb = loadSim();
+  const sb2 = facts({ id: 1234, name: 'Sensor Booster II', slot: 'med' });
+  await loadGameFit(sb, [{ f: sb2, flag: 21 }]);   // MedSlot2
+  assert.strictEqual(sb._fitState.modules.med[2]?.f.name, 'Sensor Booster II',
+    'flag 21 is MedSlot2, and the saved layout must survive the round-trip');
+});

@@ -1,39 +1,33 @@
 # ESI IPC
 
-> 14 nodes · cohesion 0.18
+> 8 nodes · cohesion 0.32
 
 ## Key Concepts
 
 - **esi_ipc.js** (13 connections) — `src/ipc/esi_ipc.js`
-- **fuzzwork_api.test.js** (5 connections) — `test/fuzzwork_api.test.js`
 - **fetchFuzzworkBlueprint()** (4 connections) — `src/ipc/esi_ipc.js`
-- **registerEsiHandlers()** (4 connections) — `src/ipc/esi_ipc.js`
 - **FUZZWORK_BLUEPRINT_URL()** (2 connections) — `src/ipc/esi_ipc.js`
 - **_fuzzworkMaterials()** (2 connections) — `src/ipc/esi_ipc.js`
 - **{ APP_USER_AGENT, ESI_BASE }** (1 connections) — `src/ipc/esi_ipc.js`
 - **demoMode** (1 connections) — `src/ipc/esi_ipc.js`
 - **{ ipcMain }** (1 connections) — `src/ipc/esi_ipc.js`
 - **TICKER_TYPE_IDS** (1 connections) — `src/ipc/esi_ipc.js`
-- **test** (1 connections) — `test/fuzzwork_api.test.js`
-- **assert** (1 connections) — `test/fuzzwork_api.test.js`
-- **{ _fuzzwork }** (1 connections) — `test/fuzzwork_api.test.js`
-- **REAL** (1 connections) — `test/fuzzwork_api.test.js`
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
+- [Demo Mode](Demo_Mode.md) (3 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
-- [Demo Mode](Demo_Mode.md) (2 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [Fuzzwork API Test](Fuzzwork_API_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/ipc/esi_ipc.js`
-- `test/fuzzwork_api.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 32 (84%)
-- INFERRED: 6 (16%)
+- EXTRACTED: 20 (80%)
+- INFERRED: 5 (20%)
 - AMBIGUOUS: 0 (0%)
 
 ---

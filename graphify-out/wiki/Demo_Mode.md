@@ -1,6 +1,6 @@
 # Demo Mode
 
-> 15 nodes · cohesion 0.25
+> 16 nodes · cohesion 0.23
 
 ## Key Concepts
 
@@ -9,6 +9,7 @@
 - **_argv()** (4 connections) — `src/demo_mode.js`
 - **_realConfigPath()** (4 connections) — `src/demo_mode.js`
 - **windowOptions()** (4 connections) — `src/demo_mode.js`
+- **registerEsiHandlers()** (4 connections) — `src/ipc/esi_ipc.js`
 - **realUserDataPath()** (3 connections) — `src/demo_mode.js`
 - **_configSaysDemo()** (3 connections) — `src/demo_mode.js`
 - **shouldKeep()** (3 connections) — `src/demo_mode.js`
@@ -22,20 +23,21 @@
 
 ## Relationships
 
-- [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [ESI IPC](ESI_IPC.md) (3 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (1 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 
 ## Source Files
 
 - `src/demo_mode.js`
+- `src/ipc/esi_ipc.js`
 
 ## Audit Trail
 
-- EXTRACTED: 41 (71%)
-- INFERRED: 17 (29%)
+- EXTRACTED: 44 (71%)
+- INFERRED: 18 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

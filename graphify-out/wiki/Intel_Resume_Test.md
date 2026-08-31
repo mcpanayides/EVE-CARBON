@@ -1,10 +1,11 @@
 # Intel Resume Test
 
-> 14 nodes · cohesion 0.16
+> 15 nodes · cohesion 0.16
 
 ## Key Concepts
 
 - **intel_resume.test.js** (21 connections) — `test/intel_resume.test.js`
+- **createChatlogReader()** (6 connections) — `src/intel/chatlog_reader.js`
 - **writeLog()** (3 connections) — `test/intel_resume.test.js`
 - **readerOver()** (3 connections) — `test/intel_resume.test.js`
 - **serviceOver()** (3 connections) — `test/intel_resume.test.js`
@@ -21,20 +22,21 @@
 
 ## Relationships
 
-- [Chatlog Reader](Chatlog_Reader.md) (3 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (4 shared connections)
 - [Intel Test](Intel_Test.md) (3 shared connections)
+- [Intel Service](Intel_Service.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Intel Local Position Test](Intel_Local_Position_Test.md) (1 shared connections)
-- [Intel Service](Intel_Service.md) (1 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 
 ## Source Files
 
+- `src/intel/chatlog_reader.js`
 - `test/intel_resume.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 40 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 44 (96%)
+- INFERRED: 2 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

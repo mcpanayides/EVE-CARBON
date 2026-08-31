@@ -1,60 +1,55 @@
 # Gridstack Touch & Drag-Drop
 
-> 56 nodes · cohesion 0.06
+> 34 nodes · cohesion 0.07
 
 ## Key Concepts
 
-- **_** (36 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **c()** (21 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **g()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **m()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **w** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **l()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **f** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **_getDDElements()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **p()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **u()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **fc_intel_rules.js** (5 connections) — `src/func/fc_intel_rules.js`
+- **i** (37 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.cloneDeep()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.createDiv()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getValuesFromTransformedElement()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.simulateMouseEvent()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **h()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **droppable()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._init()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.destroy()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._mouseUp()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.on()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.enable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.disable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.enable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.disable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **resizable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **draggable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **_intelOpenRules()** (3 connections) — `src/func/fc_intel_rules.js`
-- *... and 31 more nodes in this community*
+- **.init()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.addGrid()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.createWidgetDivs()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.removePositioningStyles()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getScrollElement()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._createHelper()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.save()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getElement()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.lazyLoad()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.sanitizeMinMax()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.removeInternalForSave()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.updateScrollResize()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.cloneNode()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.appendTo()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.addElStyles()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._setupHelper()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.initAll()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getGridElement()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getGridElements()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getElements()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 9 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (13 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (6 shared connections)
-- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (6 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (6 shared connections)
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (6 shared connections)
-- [Jabber Chat Client](Jabber_Chat_Client.md) (4 shared connections)
-- [Assets Table & Virtualisation](Assets_Table_%26_Virtualisation.md) (3 shared connections)
-- [Galaxy Map State](Galaxy_Map_State.md) (3 shared connections)
-- [Skills & Training Queue](Skills_%26_Training_Queue.md) (2 shared connections)
-- [Notifications](Notifications.md) (2 shared connections)
-- [Dashboard Widgets](Dashboard_Widgets.md) (2 shared connections)
-- [Intel Test](Intel_Test.md) (2 shared connections)
+- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (38 shared connections)
+- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (15 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (8 shared connections)
+- [Gridstack Vendor Library (on)](Gridstack_Vendor_Library_%28on%29.md) (2 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Intel Patterns Test](Intel_Patterns_Test.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (1 shared connections)
 
 ## Source Files
 
-- `src/func/fc_intel_rules.js`
 - `src/vendor/gridstack/gridstack-all.js`
 
 ## Audit Trail
 
-- EXTRACTED: 174 (70%)
-- INFERRED: 74 (30%)
+- EXTRACTED: 149 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

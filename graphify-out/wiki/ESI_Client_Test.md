@@ -35,7 +35,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (3 shared connections)
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (2 shared connections)
+- [Package Manifest](Package_Manifest.md) (2 shared connections)
 - [SDE Fetch & Build](SDE_Fetch_%26_Build.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)

@@ -1630,8 +1630,11 @@ function _fitTraitRes(layer, res) {
 // 10 slots (implantness attr 331). Bonuses are carried as plain % attributes and
 // scoped by the implant's effect names ("…RequiringGunnery" → turrets,
 // "missileSkill…" → launchers, drone tuners → drones). Implant bonuses are never
-// stacking-penalized. Pirate SET multipliers are not applied (each implant's own
-// bonus is), and rep/boost-amount implants aren't simulated.
+// stacking-penalized. Pirate SET multipliers ARE applied — see the two-pass
+// _FIT_SET_ATTRS product below; this comment used to claim they were not, which
+// was left behind when the set mechanic was implemented and sent at least one
+// investigation of a missing armour bonus down the wrong path. Rep/boost-amount
+// implants are still not simulated.
 const _FIT_MSL_FRAG = {   // per-missile-type damage implants: effect suffix → charge group fragment
   heavyassault: 'heavy assault', heavy: 'heavy missile', cruise: 'cruise',
   torpedo: 'torpedo', light: 'light missile', rocket: 'rocket', defender: 'defender',
@@ -3118,13 +3121,16 @@ function _fitRenderStats() {
       <div class="fit-stats-title"><span class="material-symbols-outlined fit-sec-ico">shield</span> DEFENSE <span class="fit-note">incl. modules, heat &amp; reps</span></div>
       <div class="fit-big">${_fitNum(D.ehp)}${gvTail(D.ehp, DB.ehp)} <span class="fit-big-unit">ehp</span></div>
       <div class="fit-res-head"><span></span>${['EM', 'Th', 'Kin', 'Exp'].map(x => `<span>${x}</span>`).join('')}</div>
-      ${_fitLayerRow('Shield', D.shieldHp, DB.shieldRes, gvTail(D.shieldHp, DB.shieldHp),
+      ${_fitLayerRow('Shield', D.shieldHp, D.shieldRes, gvTail(D.shieldHp, DB.shieldHp),
         [DB.rep.boost ? `boost ${_fitNum(DB.rep.boost)} hp/s${gd(D.rep.boost, DB.rep.boost)}` : '',
-         `regen ${_fitNum(DB.rep.passive)} hp/s peak${gd(D.rep.passive, DB.rep.passive)}`].filter(Boolean).join(' · '))}
-      ${_fitLayerRow('Armor', D.armorHp, DB.armorRes, gvTail(D.armorHp, DB.armorHp),
-        DB.rep.armor ? `rep ${_fitNum(DB.rep.armor)} hp/s${gd(D.rep.armor, DB.rep.armor)}` : '')}
-      ${_fitLayerRow('Structure', D.structHp, DB.hullRes, gvTail(D.structHp, DB.structHp),
-        DB.rep.hull ? `rep ${_fitNum(DB.rep.hull)} hp/s` : '')}
+         `regen ${_fitNum(DB.rep.passive)} hp/s peak${gd(D.rep.passive, DB.rep.passive)}`].filter(Boolean).join(' · '),
+        boosted ? DB.shieldRes : null)}
+      ${_fitLayerRow('Armor', D.armorHp, D.armorRes, gvTail(D.armorHp, DB.armorHp),
+        DB.rep.armor ? `rep ${_fitNum(DB.rep.armor)} hp/s${gd(D.rep.armor, DB.rep.armor)}` : '',
+        boosted ? DB.armorRes : null)}
+      ${_fitLayerRow('Structure', D.structHp, D.hullRes, gvTail(D.structHp, DB.structHp),
+        DB.rep.hull ? `rep ${_fitNum(DB.rep.hull)} hp/s` : '',
+        boosted ? DB.hullRes : null)}
       ${boosted ? FIT_BOOST_LEGEND : ''}
     </div>
 
@@ -3302,20 +3308,32 @@ function _fitNiceStep(range, targetTicks) {
 function _fitResistPct(resonance) { return (resonance == null) ? null : Math.round((1 - resonance) * 100); }
 // Resist cell = a mini bar filling 0→100% (EVE style): 0% resist shows an empty
 // track, not a solid coloured block.
-function _fitResistCells(res) {
+//
+// BASE first, boost as a delta — the same contract as every other number in the
+// panel. This row used to be handed the BOOSTED resonances while the hp and ehp
+// beside it showed the base, so a fit under command bursts reported base hp,
+// base ehp and boosted resists on one line. Three of those numbers could not be
+// true at once: the stated ehp did not follow from the stated hp and resists,
+// and comparing the row against the game's own (unboosted) defence window
+// silently compared two different ships.
+function _fitResistCells(res, resUp = null) {
   return [['em', 'EM'], ['th', 'Th'], ['kin', 'Kin'], ['exp', 'Exp']].map(([k]) => {
     const pct = _fitResistPct(res[k]);
     if (pct == null) return `<span class="fit-res-cell"><span class="fit-res-val">–</span></span>`;
-    return `<span class="fit-res-cell" title="${pct}%">
-        <span class="fit-res-fill fit-res-${k}" style="width:${Math.max(0, Math.min(100, pct))}%"></span>
-        <span class="fit-res-val">${pct}%</span>
+    const up = resUp ? _fitResistPct(resUp[k]) : null;
+    const gain = (up != null && up > pct) ? up - pct : 0;
+    const w = (v) => Math.max(0, Math.min(100, v));
+    return `<span class="fit-res-cell" title="${pct}%${gain ? ` base, ${up}% with command bursts` : ''}">
+        ${gain ? `<span class="fit-res-fill fit-res-boost fit-res-${k}" style="width:${w(up)}%"></span>` : ''}
+        <span class="fit-res-fill fit-res-${k}" style="width:${w(pct)}%"></span>
+        <span class="fit-res-val">${pct}%${gain ? `<span class="fit-res-up">+${gain}</span>` : ''}</span>
       </span>`;
   }).join('');
 }
-function _fitLayerRow(label, hp, res, delta = '', sub = '') {
+function _fitLayerRow(label, hp, res, delta = '', sub = '', resUp = null) {
   return `<div class="fit-layer">
       <span class="fit-layer-name">${label}<span class="fit-layer-hp">${_fitNum(hp)}${delta}</span></span>
-      ${_fitResistCells(res)}
+      ${_fitResistCells(res, resUp)}
     </div>${sub ? `<div class="fit-rep-line">${sub}</div>` : ''}`;
 }
 function _fitLayerEHP(hp, res) {

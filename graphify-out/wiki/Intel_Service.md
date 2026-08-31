@@ -28,10 +28,10 @@
 - [Intel Test](Intel_Test.md) (8 shared connections)
 - [Alert Rules](Alert_Rules.md) (5 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (3 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (2 shared connections)
+- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 

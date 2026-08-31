@@ -39,7 +39,7 @@
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (23 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (23 shared connections)
 - [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (12 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
 
 ## Source Files
 

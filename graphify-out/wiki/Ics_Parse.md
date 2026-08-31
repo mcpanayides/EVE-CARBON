@@ -18,7 +18,7 @@
 
 ## Relationships
 
-- [Intel Local Position Test](Intel_Local_Position_Test.md) (1 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 

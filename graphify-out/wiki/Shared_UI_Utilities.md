@@ -21,7 +21,7 @@
 
 ## Relationships
 
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 
 ## Source Files
 

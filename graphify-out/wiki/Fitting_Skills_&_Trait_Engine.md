@@ -36,7 +36,7 @@
 - [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (14 shared connections)
 - [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (6 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (1 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (1 shared connections)
 
 ## Source Files

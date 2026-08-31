@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (1 shared connections)
 
 ## Source Files
 

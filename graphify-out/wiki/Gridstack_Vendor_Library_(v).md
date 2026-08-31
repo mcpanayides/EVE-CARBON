@@ -37,7 +37,7 @@
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (15 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (7 shared connections)
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (1 shared connections)
 
 ## Source Files

@@ -4,15 +4,16 @@
 
 ## Key Concepts
 
+- **replaceAssetNames()** (4 connections) — `src/character_info_db.js`
 - **_ensureDb()** (3 connections) — `src/character_info_db.js`
 - **ensureCharacterTables()** (3 connections) — `src/character_info_db.js`
-- **replaceAssetNames()** (3 connections) — `src/character_info_db.js`
 - **initCharacterDb()** (2 connections) — `src/character_info_db.js`
 
 ## Relationships
 
 - [Character Database](Character_Database.md) (4 shared connections)
 - [Character DB Write Transactions](Character_DB_Write_Transactions.md) (1 shared connections)
+- [Character Database (upsertCharacterInfo)](Character_Database_%28upsertCharacterInfo%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -20,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 8 (73%)
-- INFERRED: 3 (27%)
+- EXTRACTED: 9 (75%)
+- INFERRED: 3 (25%)
 - AMBIGUOUS: 0 (0%)
 
 ---

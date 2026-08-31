@@ -38,7 +38,7 @@
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (6 shared connections)
 - [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (5 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (3 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files

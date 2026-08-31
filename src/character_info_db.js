@@ -426,7 +426,7 @@ async function upsertCharacterInfo(characterId, info) {
     info.corporation_id || null,
     info.alliance_id    || null,
     info.birthday       || null,
-    info.description    || null,
+    decodeEsiText(info.description) || null,
     info.gender         || null,
     info.race_id        || null,
     info.bloodline_id   || null,
@@ -523,8 +523,8 @@ async function replaceJumpClones(characterId, clones) {
       [
         c.jump_clone_id  || null,
         c.location_id    || null,
-        c.location_name  || null,
-        c.name           || null,
+        decodeEsiText(c.location_name)  || null,
+        decodeEsiText(c.name)           || null,
         JSON.stringify(c.implants || []),
         now,
       ]
@@ -622,7 +622,7 @@ async function replaceAssetNames(characterId, rows) {
       if (!r || !r.item_id || !r.name) continue;
       await db.run(
         `INSERT OR REPLACE INTO ${p}_asset_names (item_id, name) VALUES (?, ?)`,
-        [r.item_id, String(r.name).slice(0, 200)]
+        [r.item_id, String(decodeEsiText(r.name)).slice(0, 200)]
       );
     }
   });
@@ -1544,7 +1544,7 @@ async function upsertUpwellStructures(rows) {
            region_name       = COALESCE(excluded.region_name,       region_name),
            security_status   = COALESCE(excluded.security_status,   security_status),
            synced_at         = excluded.synced_at`,
-        [r.id, r.name,
+        [r.id, decodeEsiText(r.name),
          r.solar_system_id   || null, r.solar_system_name || null,
          r.region_id         || null, r.region_name       || null,
          r.security_status   != null ? r.security_status : null,

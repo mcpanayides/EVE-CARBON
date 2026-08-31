@@ -5,7 +5,7 @@
 ## Key Concepts
 
 - **build** (11 connections) — `package.json`
-- **linux** (4 connections) — `package.json`
+- **mac** (4 connections) — `package.json`
 - **win** (3 connections) — `package.json`
 - **directories** (2 connections) — `package.json`
 - **appId** (1 connections) — `package.json`
@@ -17,13 +17,13 @@
 - **icon** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
-- **category** (1 connections) — `package.json`
+- **identity** (1 connections) — `package.json`
 
 ## Relationships
 
 - [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
 - [Package Manifest (files)](Package_Manifest_%28files%29.md) (1 shared connections)
-- [Package Manifest (mac)](Package_Manifest_%28mac%29.md) (1 shared connections)
+- [Package Manifest (linux)](Package_Manifest_%28linux%29.md) (1 shared connections)
 - [Package Manifest (nsis)](Package_Manifest_%28nsis%29.md) (1 shared connections)
 
 ## Source Files

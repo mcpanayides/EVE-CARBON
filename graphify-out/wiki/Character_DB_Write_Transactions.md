@@ -1,6 +1,6 @@
 # Character DB Write Transactions
 
-> 13 nodes · cohesion 0.15
+> 12 nodes · cohesion 0.17
 
 ## Key Concepts
 
@@ -15,13 +15,13 @@
 - **replaceStandings()** (2 connections) — `src/character_info_db.js`
 - **replaceSkills()** (2 connections) — `src/character_info_db.js`
 - **upsertNpcStations()** (2 connections) — `src/character_info_db.js`
-- **upsertUpwellStructures()** (2 connections) — `src/character_info_db.js`
 - **putCachedNames()** (2 connections) — `src/character_info_db.js`
 
 ## Relationships
 
-- [Character Database](Character_Database.md) (13 shared connections)
+- [Character Database](Character_Database.md) (12 shared connections)
 - [Character Database (initCharacterDb)](Character_Database_%28initCharacterDb%29.md) (1 shared connections)
+- [Character Database (upsertCharacterInfo)](Character_Database_%28upsertCharacterInfo%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -29,8 +29,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (68%)
-- INFERRED: 12 (32%)
+- EXTRACTED: 25 (69%)
+- INFERRED: 11 (31%)
 - AMBIGUOUS: 0 (0%)
 
 ---

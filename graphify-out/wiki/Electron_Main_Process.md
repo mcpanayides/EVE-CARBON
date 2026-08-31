@@ -42,7 +42,7 @@
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Fleet After-Action Report](Fleet_After-Action_Report.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
-- [Theme Vars](Theme_Vars.md) (2 shared connections)
+- [Theme IPC](Theme_IPC.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
 

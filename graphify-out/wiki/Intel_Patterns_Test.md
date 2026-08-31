@@ -36,7 +36,8 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (6 shared connections)
+- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (2 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)

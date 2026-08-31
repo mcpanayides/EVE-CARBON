@@ -1,13 +1,13 @@
-# Package Manifest (mac)
+# Package Manifest (linux)
 
 > 4 nodes · cohesion 0.50
 
 ## Key Concepts
 
-- **mac** (4 connections) — `package.json`
+- **linux** (4 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
-- **identity** (1 connections) — `package.json`
+- **category** (1 connections) — `package.json`
 
 ## Relationships
 

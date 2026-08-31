@@ -25,7 +25,7 @@
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (5 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (4 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Jabber Disco Test](Jabber_Disco_Test.md) (1 shared connections)
 
 ## Source Files
 

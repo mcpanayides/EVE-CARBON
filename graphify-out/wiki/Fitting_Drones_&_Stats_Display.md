@@ -38,7 +38,7 @@
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (6 shared connections)
 - [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (4 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 

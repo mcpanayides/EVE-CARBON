@@ -104,7 +104,8 @@ body.glass-on .settings-panel-block {
 /* ── MODALS — settings drawer, donate, bug report, attributions, updates,
       wallet journal, materials … everything on .modal / .bug-modal ────────── */
 body.glass-on .modal,
-body.glass-on .bug-modal {
+body.glass-on .bug-modal,
+body.glass-on .fit-pick-modal {
   background: var(--bg-modal);
   backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
   -webkit-backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
@@ -115,6 +116,33 @@ body.glass-on .bug-modal {
     0 24px 80px rgba(0, 0, 0, 0.6),
     inset 0 1px 0 var(--glass-specular);
 }
+/* The bay panels are a HUD floating on the fitting canvas, directly over the
+   ship render — so --bg-card's 0.45 with no blur put a lit hull behind the
+   implant sockets and the cargo manifest. They are the only panels in the app
+   that sit on top of an image, so they carry their own frost. */
+body.glass-on .fw-dronebay {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.30));
+  backdrop-filter: blur(calc(20px * var(--glass-blur-scale, 1))) saturate(140%);
+  -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale, 1))) saturate(140%);
+}
+
+/* The fitting pickers go FURTHER than the shared modal rung. They are dense
+   scanning surfaces — the whole reason they exist is to read a row's slot,
+   volume or squadron size at a glance — and they open over the fitting canvas,
+   whose ship render is a big soft bright shape that a 28px blur does nothing to
+   dim. At the shared 0.55 alpha the render was plainly legible through the rows.
+   Given the toast rung, the ladder's "always readable" tier. */
+body.glass-on .fit-pick-modal {
+  background: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.34));
+}
+/* And blur the canvas behind it harder than a normal modal backdrop, for the
+   same reason: the thing behind this one is a light source, not text. */
+body.glass-on .fit-pick-backdrop {
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(calc(10px * var(--glass-blur-scale, 1)));
+  -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale, 1)));
+}
+
 /* Opaque inner headers follow the shell's rounded top corners (the shells keep
    their own overflow behaviour — the bug modal scrolls, so no clipping here) */
 body.glass-on .modal-header,

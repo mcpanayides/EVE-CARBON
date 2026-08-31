@@ -1,12 +1,13 @@
 # Package Manifest (package json)
 
-> 12 nodes · cohesion 0.17
+> 13 nodes · cohesion 0.15
 
 ## Key Concepts
 
 - **package.json** (13 connections) — `package.json`
 - **allowScripts** (3 connections) — `package.json`
 - **overrides** (3 connections) — `package.json`
+- **version** (2 connections) — `package.json`
 - **name** (1 connections) — `package.json`
 - **productName** (1 connections) — `package.json`
 - **author** (1 connections) — `package.json`
@@ -31,7 +32,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 28 (100%)
+- EXTRACTED: 30 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

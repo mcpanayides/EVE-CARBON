@@ -1124,6 +1124,7 @@ const FIT_SLOT_EFFECT = { 12: 'high', 13: 'med', 11: 'low', 2663: 'rig', 3772: '
 // Depot lives. No other kind reaches category 22.
 const FIT_CATS = {
   ship: [6], module: [7, 32], charge: [8, 18, 87], drone: [18], subsystem: [32], implant: [20],
+  fighter: [87],
   any: [4, 7, 8, 18, 20, 22, 32, 87],
 };
 
@@ -1240,20 +1241,41 @@ async function _fitItemFacts(typeId) {
 }
 
 // Search the SDE by name within a fitting "kind" (ship/module/charge/drone).
-ipcMain.handle('fit-search', async (_, query, kind, limit = 60) => {
-  if (!sdeDb || !query || String(query).trim().length < 2) return [];
+// `browse` lists the whole kind when the query is short. Only worth it for a
+// small category — the fighter picker opens on ~50 published hulls, and an empty
+// list on open is a picker that makes you guess what it contains. Callers over a
+// big category (modules, "any") leave it off and get the type-to-search state.
+ipcMain.handle('fit-search', async (_, query, kind, limit = 60, browse = false) => {
+  const q = String(query == null ? '' : query).trim();
+  if (!sdeDb) return [];
+  if (q.length < 2 && !browse) return [];
   const cats = FIT_CATS[kind] || FIT_CATS.module;
   const ph = cats.map(() => '?').join(',');
   try {
+    // volume, category and the two attributes a picker has to show BEFORE the
+    // click — an implant's slot (331) and a fighter squadron's size (2215).
+    // Fetched in the same statement rather than by calling fit-get-items on the
+    // results: that runs three queries PER ROW, so a 60-hit search would be ~180
+    // round-trips on every keystroke to render one number per line.
     const rows = await sdeDb.all(
-      `SELECT t.typeID, t.typeName, t.groupID, g.groupName
-         FROM invTypes t JOIN invGroups g ON g.groupID = t.groupID
+      `SELECT t.typeID, t.typeName, t.groupID, t.volume, g.groupName, g.categoryID,
+              COALESCE(imp.valueInt, imp.valueFloat) AS implantSlot,
+              COALESCE(sq.valueInt,  sq.valueFloat)  AS squadron
+         FROM invTypes t
+         JOIN invGroups g ON g.groupID = t.groupID
+         LEFT JOIN dgmTypeAttributes imp ON imp.typeID = t.typeID AND imp.attributeID = 331
+         LEFT JOIN dgmTypeAttributes sq  ON sq.typeID  = t.typeID AND sq.attributeID  = 2215
         WHERE t.published = 1 AND g.categoryID IN (${ph}) AND LOWER(t.typeName) LIKE ?
         ORDER BY (LOWER(t.typeName) = ?) DESC, length(t.typeName), t.typeName
         LIMIT ?`,
-      [...cats, `%${String(query).toLowerCase()}%`, String(query).toLowerCase(), limit]
+      [...cats, `%${q.toLowerCase()}%`, q.toLowerCase(), limit]
     );
-    return rows.map(r => ({ id: r.typeID, name: r.typeName, groupName: r.groupName }));
+    return rows.map(r => ({
+      id: r.typeID, name: r.typeName, groupName: r.groupName,
+      groupId: r.groupID, categoryId: r.categoryID, volume: r.volume || 0,
+      implantSlot: r.implantSlot != null ? Number(r.implantSlot) : null,
+      squadron:    r.squadron    != null ? Number(r.squadron)    : null,
+    }));
   } catch (e) { console.warn('[fit-search]', e.message); return []; }
 });
 

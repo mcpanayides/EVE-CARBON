@@ -2277,11 +2277,10 @@ function _fitCargoHtml() {
   return `
     <div class="fw-dronebay" id="fwCargo">
       <div class="fw-db-head ${over ? 'over' : ''}">CARGO HOLD<span>${_fitNum(used)} / ${_fitNum(cap)} m³${over ? ' · OVER' : ''}</span></div>
-      <div class="fw-imp-search">
-        <input id="fwCargoSearch" class="field-input" value="${_fitEsc(_fitState._cargoQ || '')}" placeholder="Search anything to load — e.g. Damage Control II, Nanite Repair Paste…" autocomplete="off"/>
-        <div id="fwCargoResults" class="fw-imp-results"></div>
-      </div>
-      ${rows || `<div class="fw-db-empty">Nothing loaded. Search above, or drag any item here from the browser.</div>`}
+      <button id="fwCargoAdd" class="fw-add-btn" type="button">
+        <span class="material-symbols-outlined">add</span>Load an item…
+      </button>
+      ${rows || `<div class="fw-db-empty">Nothing loaded. Use the button above, or drag any item here from the browser.</div>`}
       <div class="fw-db-hint">Refits and spares ride here — cargo is weight only and never counts toward DPS or tank. ${_fitState.cargo.length ? '<button id="fwCargoClear" class="fw-imp-clear">Empty hold</button>' : ''}</div>
     </div>`;
 }
@@ -2298,32 +2297,35 @@ function _fitImplantPanelHtml() {
         <div class="fw-db-main"><div class="fw-db-name">${_fitEsc(imp.name)}</div></div>
         <button class="fw-db-x" data-imprm="${i}" title="Remove implant">✕</button>
       </div>` : `
-      <div class="fw-db-row fw-imp-empty">
+      <button class="fw-db-row fw-imp-empty" type="button" data-impslot="${i + 1}"
+              title="Socket an implant in slot ${i + 1}">
         <span class="fw-imp-slotn">${i + 1}</span>
         <div class="fw-db-main"><div class="fw-db-name">— empty —</div></div>
-      </div>`).join('');
+        <span class="fw-imp-plus material-symbols-outlined">add</span>
+      </button>`).join('');
   return `
     <div class="fw-dronebay" id="fwImplants">
       <div class="fw-db-head">IMPLANTS<span>${_fitImplantCount()}/10</span></div>
-      <div class="fw-imp-search">
-        <input id="fwImpSearch" class="field-input" value="${_fitEsc(_fitState._impQ || '')}" placeholder="Search implants — e.g. Deadeye, Snake, Genolution…" autocomplete="off"/>
-        <div id="fwImpResults" class="fw-imp-results"></div>
-      </div>
+      <button id="fwImpAdd" class="fw-add-btn" type="button">
+        <span class="material-symbols-outlined">add</span>Socket an implant…
+      </button>
       ${rows}
       <div class="fw-db-hint">Bonuses apply to DPS, tank, reps, cap, speed, fitting &amp; targeting — pirate SETS (Nirvana, Amulet, Snake, Crystal, Asklepian…) amplify each other, Omega included. ${_fitImplantCount() ? '<button id="fwImpClear" class="fw-imp-clear">Remove all</button>' : ''}</div>
     </div>`;
 }
 
+// Returns the slot it went into, or 0. The picker reports the outcome in its own
+// footer, so this has to say whether it worked rather than only flashing.
 async function _fitAddImplant(typeId) {
   const facts = (await window.eveAPI.fitGetItems([typeId]).catch(() => ({})))[typeId];
-  if (!facts) return;
+  if (!facts) return 0;
   const slotN = facts.attrs?.[331];
-  if (!slotN || slotN < 1 || slotN > 10) { _fitFlash('That item has no implant slot.'); return; }
+  if (!slotN || slotN < 1 || slotN > 10) { _fitFlash('That item has no implant slot.'); return 0; }
   const prev = _fitState.implants[slotN - 1];
   _fitState.implants[slotN - 1] = { id: facts.id, name: facts.name, f: facts };
   _fitRenderAll();
-  document.getElementById('fwImpSearch')?.focus();   // keep socketing from the same search
   _fitFlash(prev ? `Slot ${slotN}: ${prev.name} → ${facts.name}.` : `${facts.name} → slot ${slotN}.`);
+  return slotN;
 }
 
 // Bay chips + panel live in the bottom-left corner of the CANVAS (not the wheel),
@@ -2357,7 +2359,8 @@ function _fitRenderBays(hull) {
           <span class="material-symbols-outlined">smart_toy</span>${_fitNum(_fitDroneUsedM3())} / ${_fitNum(effD.bay)} m³
         </div>` : ''}
       ${(hull.fighter?.tubes || 0) > 0 ? `
-        <div class="fw-bay" title="Fighter bay — squadrons load into the launch-tube wedges below the wheel.">
+        <div class="fw-bay fw-bay-drone" data-fighterchip="1"
+             title="Fighter bay — click to load a squadron into a launch tube.">
           <span class="material-symbols-outlined">flight</span>${_fitNum(_fitFighterUsedM3())} / ${_fitNum(hull.fighter.bay)} m³
         </div>` : ''}
       <div class="fw-bay fw-bay-drone ${_fitState.implantsOpen ? 'open' : ''}" data-impchip="1"
@@ -2366,14 +2369,19 @@ function _fitRenderBays(hull) {
       </div>
     </div>`;
 
-  // Implants chip + panel events. The search only touches its own results box —
-  // never a full re-render — so typing keeps focus.
+  // Implants chip + panel. Adding happens in the shared modal picker, so the
+  // panel itself only ever shows what is SOCKETED — the two views never cover
+  // each other the way the old inline results box covered all ten slots.
   bays.querySelector('[data-impchip]')?.addEventListener('click', () => {
     _fitState.implantsOpen = !_fitState.implantsOpen;
     if (_fitState.implantsOpen) { _fitState.droneBayOpen = false; _fitState.fighterBayOpen = false; _fitState.cargoOpen = false; }   // one corner panel at a time
     _fitRenderCanvas();
-    if (_fitState.implantsOpen) document.getElementById('fwImpSearch')?.focus();
   });
+
+  // The fighter chip has no panel of its own: the tubes are already drawn on the
+  // wheel, so a list under it would say the same thing twice. It opens the
+  // picker directly.
+  bays.querySelector('[data-fighterchip]')?.addEventListener('click', _fitOpenFighterPicker);
 
   // Cargo chip + panel. Same shape as implants: the search box repaints only its
   // own results so typing never loses focus, and a drop anywhere on the panel
@@ -2384,7 +2392,6 @@ function _fitRenderBays(hull) {
       _fitState.cargoOpen = !_fitState.cargoOpen;
       if (_fitState.cargoOpen) { _fitState.droneBayOpen = false; _fitState.implantsOpen = false; _fitState.fighterBayOpen = false; }
       _fitRenderCanvas();
-      if (_fitState.cargoOpen) document.getElementById('fwCargoSearch')?.focus();
     });
     cargoChip.addEventListener('dragover', (e) => { e.preventDefault(); cargoChip.classList.add('fw-drop'); });
     cargoChip.addEventListener('dragleave', () => cargoChip.classList.remove('fw-drop'));
@@ -2412,32 +2419,7 @@ function _fitRenderBays(hull) {
       e.preventDefault();
       _fitHandleDrop(e.dataTransfer.getData('text/plain'), 'cargo', null, e.shiftKey);
     });
-    const cIn = cargoPanel.querySelector('#fwCargoSearch');
-    const cRes = cargoPanel.querySelector('#fwCargoResults');
-    let cTimer = null;
-    cIn.addEventListener('input', () => {
-      _fitState._cargoQ = cIn.value;
-      clearTimeout(cTimer);
-      cTimer = setTimeout(async () => {
-        const q = cIn.value.trim();
-        if (q.length < 2) { cRes.innerHTML = ''; return; }
-        // 'any' — a hold takes modules, charges and drones alike.
-        const hits = await window.eveAPI.fitSearch(q, 'any', 30).catch(() => []);
-        if (cIn.value.trim() !== q) return;                       // stale response
-        cRes.innerHTML = hits.length ? hits.map(h => `
-            <div class="fit-result" data-cargoadd="${h.id}" title="Click to load (shift-click for ×10)">
-              <img src="https://images.evetech.net/types/${h.id}/icon?size=32" alt="" loading="lazy"/>
-              <span class="fit-result-name">${_fitEsc(h.name)}</span>
-            </div>`).join('')
-          : `<div class="fit-hint" style="padding:6px;">Nothing matches.</div>`;
-        cRes.querySelectorAll('[data-cargoadd]').forEach(r => r.addEventListener('click', async (ev) => {
-          const id = Number(r.dataset.cargoadd);
-          const f = (await window.eveAPI.fitGetItems([id]).catch(() => ({})))[id];
-          if (f) _fitAddCargo(f, ev.shiftKey ? 10 : 1);
-        }));
-      }, 220);
-    });
-    if ((cIn.value || '').trim().length >= 2) cIn.dispatchEvent(new Event('input'));
+    cargoPanel.querySelector('#fwCargoAdd')?.addEventListener('click', _fitOpenCargoPicker);
   }
   const impPanel = bays.querySelector('#fwImplants');
   if (impPanel) {
@@ -2449,28 +2431,9 @@ function _fitRenderBays(hull) {
       _fitState.implants = new Array(10).fill(null);
       _fitRenderAll();
     });
-    const inp = impPanel.querySelector('#fwImpSearch');
-    const res = impPanel.querySelector('#fwImpResults');
-    let impTimer = null;
-    inp.addEventListener('input', () => {
-      _fitState._impQ = inp.value;
-      clearTimeout(impTimer);
-      impTimer = setTimeout(async () => {
-        const q = inp.value.trim();
-        if (q.length < 2) { res.innerHTML = ''; return; }
-        const hits = await window.eveAPI.fitSearch(q, 'implant', 30).catch(() => []);
-        if (inp.value.trim() !== q) return;                      // stale response
-        res.innerHTML = hits.length ? hits.map(h => `
-            <div class="fit-result" data-impadd="${h.id}" title="Click to socket">
-              <img src="https://images.evetech.net/types/${h.id}/icon?size=32" alt="" loading="lazy"/>
-              <span class="fit-result-name">${_fitEsc(h.name)}</span>
-            </div>`).join('')
-          : `<div class="fit-hint" style="padding:6px;">No implants match.</div>`;
-        res.querySelectorAll('[data-impadd]').forEach(r => r.addEventListener('click', () => _fitAddImplant(Number(r.dataset.impadd))));
-      }, 220);
-    });
-    // Panel re-renders wipe the results box — restore the last search silently.
-    if ((inp.value || '').trim().length >= 2) inp.dispatchEvent(new Event('input'));
+    impPanel.querySelector('#fwImpAdd')?.addEventListener('click', () => _fitOpenImplantPicker());
+    impPanel.querySelectorAll('[data-impslot]').forEach(b => b.addEventListener('click', () =>
+      _fitOpenImplantPicker(Number(b.dataset.impslot))));
   }
 
   bays.querySelectorAll('[data-baychip]').forEach(chipEl => {
@@ -4131,7 +4094,11 @@ async function _fitImportFromGame() {
   if (!charId) { _fitFlash('Pick a character first.'); return; }
 
   const charName = sel.options[sel.selectedIndex]?.text || '';
-  const host = _fitPickOpen(charName);
+  const host = _fitPickOpen({
+    title: 'Import from game',
+    subtitle: charName ? `Saved fittings for ${charName}` : 'Saved fittings',
+    loading: 'Loading saved fits…',
+  });
 
   const res = await window.eveAPI.fitGetFittings(charId).catch(() => ({ ok: false }));
   if (!document.body.contains(host.backdrop)) return;    // closed while loading
@@ -4172,21 +4139,27 @@ async function _fitImportFromGame() {
 }
 
 /** Build the shell and show it immediately, so loading has somewhere to land. */
-function _fitPickOpen(charName) {
+function _fitPickOpen(opts) {
+  // Back-compat: the import picker called this with a character name.
+  const o = (typeof opts === 'string' || opts == null)
+    ? { title: 'Import from game',
+        subtitle: opts ? `Saved fittings for ${opts}` : 'Saved fittings',
+        loading: 'Loading saved fits…' }
+    : opts;
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop fit-pick-backdrop';
   backdrop.innerHTML = `
     <div class="fit-pick-modal" role="dialog" aria-modal="true" aria-labelledby="fitPickTitle">
       <header class="fit-pick-head">
         <div class="fit-pick-head-text">
-          <h2 class="fit-pick-title" id="fitPickTitle">Import from game</h2>
-          <p class="fit-pick-sub">${charName ? `Saved fittings for ${_fitEsc(charName)}` : 'Saved fittings'}</p>
+          <h2 class="fit-pick-title" id="fitPickTitle">${_fitEsc(o.title || 'Choose')}</h2>
+          <p class="fit-pick-sub">${_fitEsc(o.subtitle || '')}</p>
         </div>
         <button class="fit-pick-close" type="button" aria-label="Close">
           <span class="material-symbols-outlined">close</span>
         </button>
       </header>
-      <div class="fit-pick-body"><div class="fit-pick-state">Loading saved fits…</div></div>
+      <div class="fit-pick-body"><div class="fit-pick-state">${_fitEsc(o.loading || 'Loading…')}</div></div>
     </div>`;
   document.body.appendChild(backdrop);
 
@@ -4301,6 +4274,411 @@ function _fitPickList(host, rows) {
 
   paint();
   searchEl.focus();
+}
+
+// ─── Shared item picker ───────────────────────────────────────────────────────
+//
+// One dialog for implants, cargo and fighter squadrons, on the same shell as
+// "Import from game".
+//
+// WHAT WAS WRONG WITH THE OLD PANELS
+//
+// Each bay carried its own inline search whose results dropped into an
+// absolutely positioned box ON TOP of the very list they were being added to.
+// Searching "high" for an implant covered all ten sockets, so the one thing you
+// needed to see — which slot the implant would land in, and what was already
+// there — was hidden behind the results the moment you started looking. Clicking
+// a result socketed it silently: the panel behind was covered, so nothing
+// visibly changed, and it read as "it isn't plugging it in".
+//
+// WHAT THIS DOES INSTEAD
+//
+//  • It is a MODAL, so it never covers the thing it edits — the panel behind is
+//    a different view, not a competing one.
+//  • Every row states its CONSEQUENCE before the click: an implant row says
+//    which slot it takes and what it would replace; a cargo row says its volume
+//    and how many more the hold has room for; a fighter row says which tube it
+//    would load and how much of the squadron fits.
+//  • A row that cannot be used is disabled AND SAYS WHY, instead of accepting
+//    the click and flashing an error somewhere else on the page.
+//  • It STAYS OPEN after a pick, because nobody sockets one implant or loads one
+//    squadron. The footer keeps a running total and names what was just added,
+//    which is the acknowledgement the inline search never gave.
+//
+// @param {object} cfg
+//   kind, title, subtitle, placeholder, limit, browse, initialFilter
+//   filterLabel, filterOf(r)  — the dropdown is built from the results themselves
+//   factOf(r)      — the right-hand figure: the number that decides the choice
+//   noteOf(r)      — the consequence line under the name
+//   blockOf(r)     — a reason string when the row is unusable, else null
+//   onPick(r, qty) — { ok, message }, or a Promise of one
+//   statusOf()     — the running total, re-read after every pick
+//   quantities     — optional [1, 10, 100] segmented control
+function _fitItemPicker(cfg) {
+  const host = _fitPickOpen({
+    title: cfg.title, subtitle: cfg.subtitle,
+    loading: cfg.browse ? 'Loading…' : 'Type to search.',
+  });
+  const body = host.modal.querySelector('.fit-pick-body');
+  const qtys = cfg.quantities || null;
+
+  body.innerHTML = `
+    <div class="fit-pick-controls">
+      <label class="fit-pick-search">
+        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+        <input type="search" id="fitIpSearch" placeholder="${_fitEsc(cfg.placeholder || 'Search…')}"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <select id="fitIpFilter" class="fit-pick-class" aria-label="${_fitEsc(cfg.filterLabel || 'Filter')}"></select>
+      ${qtys ? `<div class="fit-ip-qty" role="group" aria-label="Quantity">
+        ${qtys.map((q, i) => `<button type="button" class="fit-ip-qbtn${i === 0 ? ' on' : ''}" data-qty="${q}">×${q}</button>`).join('')}
+      </div>` : ''}
+      <span class="fit-pick-count" id="fitIpCount"></span>
+    </div>
+    <div class="fit-pick-list" id="fitIpList" role="listbox" tabindex="-1"></div>
+    <footer class="fit-ip-foot">
+      <span class="fit-ip-status" id="fitIpStatus"></span>
+      <span class="fit-ip-log" id="fitIpLog" role="status" aria-live="polite"></span>
+      <button class="fit-ip-done" type="button">Done</button>
+    </footer>`;
+
+  const searchEl = body.querySelector('#fitIpSearch');
+  const filterEl = body.querySelector('#fitIpFilter');
+  const listEl   = body.querySelector('#fitIpList');
+  const countEl  = body.querySelector('#fitIpCount');
+  const statusEl = body.querySelector('#fitIpStatus');
+  const logEl    = body.querySelector('#fitIpLog');
+
+  let rows   = [];    // last search results
+  let shown  = [];
+  let cursor = 0;
+  let qty    = qtys ? qtys[0] : 1;
+  let timer  = null;
+  let seq    = 0;     // stale-response guard
+  // Applied once, the first time the results actually contain it. Opening from
+  // an empty socket should land you in that slot, but the filter options do not
+  // exist until a search has returned.
+  let wantFilter = cfg.initialFilter != null ? String(cfg.initialFilter) : null;
+
+  const paintStatus = () => { statusEl.textContent = cfg.statusOf ? cfg.statusOf() : ''; };
+
+  const paintFilter = () => {
+    if (!cfg.filterOf) { filterEl.style.display = 'none'; return; }
+    const keys = [...new Set(rows.map(cfg.filterOf).filter(v => v != null))]
+      .sort((a, b) => (typeof a === 'number' && typeof b === 'number')
+        ? a - b : String(a).localeCompare(String(b)));
+    const keep = filterEl.value;
+    filterEl.innerHTML = `<option value="">${_fitEsc(cfg.filterAll || 'All')}</option>` +
+      keys.map(k => `<option value="${_fitEsc(k)}">${_fitEsc(cfg.filterText ? cfg.filterText(k) : k)}</option>`).join('');
+    const strKeys = keys.map(String);
+    if (wantFilter && strKeys.includes(wantFilter)) {
+      filterEl.value = wantFilter;
+      wantFilter = null;
+    // Hold the filter across searches — narrowing to "slot 6" and then typing a
+    // new name should keep you in slot 6, not silently reopen the whole list.
+    } else if (keep && strKeys.includes(String(keep))) {
+      filterEl.value = keep;
+    }
+    filterEl.style.display = keys.length > 1 ? '' : 'none';
+  };
+
+  const paint = () => {
+    const f = filterEl.value;
+    shown = rows.filter(r => !f || String(cfg.filterOf ? cfg.filterOf(r) : '') === String(f));
+    cursor = Math.min(cursor, Math.max(0, shown.length - 1));
+
+    countEl.textContent = !rows.length ? ''
+      : shown.length === rows.length ? `${rows.length} result${rows.length === 1 ? '' : 's'}`
+      : `${shown.length} of ${rows.length}`;
+
+    if (!rows.length) {
+      listEl.innerHTML = `<div class="fit-pick-state"><p>${
+        searchEl.value.trim().length >= 2 ? 'Nothing matches that search.'
+                                          : 'Type at least two letters to search.'}</p></div>`;
+      return;
+    }
+    if (!shown.length) {
+      listEl.innerHTML = '<div class="fit-pick-state"><p>No result in that filter.</p></div>';
+      return;
+    }
+
+    listEl.innerHTML = shown.map((r, n) => {
+      const block = cfg.blockOf ? cfg.blockOf(r) : null;
+      const note  = block || (cfg.noteOf ? cfg.noteOf(r) : '');
+      return `
+      <button class="fit-pick-row fit-ip-row${n === cursor ? ' is-cursor' : ''}${block ? ' is-blocked' : ''}"
+              role="option" aria-selected="${n === cursor}" data-n="${n}" ${block ? 'disabled' : ''}
+              ${block ? `title="${_fitEsc(block)}"` : ''}>
+        <img class="fit-pick-render" loading="lazy" alt=""
+             src="https://images.evetech.net/types/${r.id}/icon?size=64"
+             onerror="this.onerror=null;this.style.visibility='hidden'">
+        <span class="fit-pick-text">
+          <span class="fit-pick-fitname">${_fitEsc(r.name)}</span>
+          <span class="fit-pick-note${block ? ' is-blocked' : ''}">${_fitEsc(note)}</span>
+        </span>
+        <span class="fit-ip-fact">${_fitEsc(cfg.factOf ? cfg.factOf(r) : '')}</span>
+      </button>`;
+    }).join('');
+
+    listEl.querySelectorAll('.fit-ip-row').forEach(b =>
+      b.addEventListener('click', () => choose(Number(b.dataset.n))));
+  };
+
+  const settle = (res, n) => {
+    const r = res || {};
+    if (r.message) {
+      logEl.textContent = r.message;
+      logEl.className = `fit-ip-log ${r.ok === false ? 'is-bad' : 'is-good'}`;
+    }
+    paintStatus();
+    // Re-paint so the consequence lines are re-derived: socketing slot 6 changes
+    // what every OTHER slot-6 implant in the list would now replace.
+    paint();
+    const el = listEl.querySelector(`[data-n="${n}"]`);
+    if (el && r.ok !== false) {
+      el.classList.add('is-added');
+      setTimeout(() => el.classList.remove('is-added'), 900);
+    }
+  };
+
+  const choose = (n) => {
+    const r = shown[n];
+    if (!r) return;
+    if (cfg.blockOf && cfg.blockOf(r)) return;
+    const out = cfg.onPick(r, qty);
+    if (out && typeof out.then === 'function') out.then(res => settle(res, n)).catch(() => {});
+    else settle(out, n);
+    searchEl.focus();
+  };
+
+  const run = () => {
+    const q = searchEl.value.trim();
+    const mine = ++seq;
+    if (q.length < 2 && !cfg.browse) { rows = []; paintFilter(); paint(); return; }
+    window.eveAPI.fitSearch(q, cfg.kind, cfg.limit || 60, !!cfg.browse)
+      .then((hits) => {
+        if (mine !== seq) return;                  // a later keystroke already won
+        rows = hits || [];
+        cursor = 0;
+        paintFilter();
+        paint();
+      })
+      .catch(() => { if (mine === seq) { rows = []; paint(); } });
+  };
+
+  const move = (d) => {
+    if (!shown.length) return;
+    cursor = (cursor + d + shown.length) % shown.length;
+    paint();
+    listEl.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' });
+  };
+
+  searchEl.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(run, 220); });
+  filterEl.addEventListener('change', () => { cursor = 0; paint(); });
+  body.querySelectorAll('.fit-ip-qbtn').forEach(b => b.addEventListener('click', () => {
+    qty = Number(b.dataset.qty);
+    body.querySelectorAll('.fit-ip-qbtn').forEach(x => x.classList.toggle('on', x === b));
+    searchEl.focus();
+  }));
+  body.querySelector('.fit-ip-done').addEventListener('click', host.close);
+  body.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown')    { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter')   { e.preventDefault(); choose(cursor); }
+  });
+
+  paintFilter();
+  paintStatus();
+  paint();
+  if (cfg.browse) run();
+  searchEl.focus();
+  return host;
+}
+
+/** A slot number the game actually has. Exactly one published implant fails it. */
+function _fitImplantSlotOf(r) {
+  const n = Number(r && r.implantSlot);
+  return (Number.isFinite(n) && n >= 1 && n <= 10) ? n : null;
+}
+
+// ── Implants ──────────────────────────────────────────────────────────────────
+// The slot is the whole decision, so it is on every row. Attribute 331
+// (implantness) rides along with the search, which is what lets a row say
+// "SLOT 4 · replaces High-grade Halo Delta" BEFORE the click — precisely what
+// the old inline results box covered up.
+//
+// The row's own words are separate, named functions rather than closures inside
+// the picker config, so the suite can assert them. A picker that says a socket
+// is empty when it is not is worse than the overlay it replaced: the overlay was
+// merely in the way, this would be lying.
+
+/**
+ * Why this row is unusable, or null.
+ *
+ * CCP ships exactly one published implant whose implantness is not 1–10:
+ * Genolution 'Auroral' AU-79, which carries 79. It has never been socketable
+ * here — _fitAddImplant refuses it — but it used to accept the click and flash
+ * an error somewhere else on the page. Now the row says so before you press it.
+ */
+function _fitImplantRowBlock(r) {
+  return _fitImplantSlotOf(r) ? null
+    : `The SDE gives this no implant slot (implantness ${r && r.implantSlot != null ? r.implantSlot : 'missing'}), so it cannot be socketed.`;
+}
+
+/** What picking this row would do to the socket it targets. */
+function _fitImplantRowNote(r) {
+  const n = _fitImplantSlotOf(r);
+  if (!n) return '';
+  const cur = _fitState.implants[n - 1];
+  if (!cur) return `slot ${n} is empty`;
+  if (cur.id === r.id) return 'already socketed';
+  return `replaces ${cur.name}`;
+}
+
+function _fitOpenImplantPicker(slotHint = null) {
+  return _fitItemPicker({
+    kind: 'implant',
+    title: 'Socket an implant',
+    subtitle: 'Bonuses feed the simulation — pirate sets amplify each other',
+    placeholder: 'Search implants — e.g. Halo, Snake, Deadeye, Genolution…',
+    initialFilter: slotHint,
+    filterLabel: 'Filter by slot',
+    filterAll: 'All slots',
+    filterOf: _fitImplantSlotOf,
+    filterText: (k) => `Slot ${k}`,
+    factOf: (r) => { const n = _fitImplantSlotOf(r); return n ? `SLOT ${n}` : '—'; },
+    blockOf: _fitImplantRowBlock,
+    noteOf:  _fitImplantRowNote,
+    statusOf: () => `${_fitImplantCount()}/10 sockets filled`,
+    onPick: async (r) => {
+      const n = _fitImplantSlotOf(r);
+      const cur = _fitState.implants[n - 1];
+      if (cur && cur.id === r.id) return { ok: false, message: `${r.name} is already in slot ${n}.` };
+      const ok = await _fitAddImplant(r.id);
+      if (!ok) return { ok: false, message: `Could not socket ${r.name}.` };
+      return { ok: true, message: cur ? `Slot ${n}: ${cur.name} → ${r.name}` : `${r.name} → slot ${n}` };
+    },
+  });
+}
+
+// ── Cargo hold ────────────────────────────────────────────────────────────────
+// Volume is the decision here, so every row carries its own and the footer
+// carries the hold. Over-capacity is still allowed — the panel has always
+// allowed it, since you may be planning a fit you have not trimmed yet — but the
+// row says so first rather than letting the header quietly turn red afterwards.
+const FIT_CARGO_CATS = {
+  4: 'Material', 7: 'Module', 8: 'Charge', 18: 'Drone',
+  20: 'Implant', 22: 'Deployable', 32: 'Subsystem', 87: 'Fighter',
+};
+
+/** How many more of this item the hold has room for, and what is already in it. */
+function _fitCargoRowNote(r) {
+  const held = _fitState.cargo.find(c => c.id === r.id);
+  const have = held ? ` · ${held.qty} loaded` : '';
+  if (!r.volume) return `no volume in the SDE${have}`;
+  const fits = Math.floor((_fitEffCargo() - _fitCargoUsedM3()) / r.volume);
+  return fits > 0 ? `${_fitNum(fits)} more fit in the hold${have}`
+                  : `hold is full — this would overfill it${have}`;
+}
+
+function _fitOpenCargoPicker() {
+  return _fitItemPicker({
+    kind: 'any',
+    title: 'Load the cargo hold',
+    subtitle: 'Refits and spares — cargo is weight only and never counts toward DPS or tank',
+    placeholder: 'Search anything — e.g. Nanite Repair Paste, Damage Control II…',
+    filterLabel: 'Filter by type',
+    filterAll: 'All types',
+    filterOf: (r) => FIT_CARGO_CATS[r.categoryId] || 'Other',
+    quantities: [1, 10, 100],
+    factOf: (r) => `${_fitVol(r.volume)} m³`,
+    noteOf: _fitCargoRowNote,
+    statusOf: () => `${_fitNum(_fitCargoUsedM3())} / ${_fitNum(_fitEffCargo())} m³`,
+    onPick: async (r, qty) => {
+      const f = (await window.eveAPI.fitGetItems([r.id]).catch(() => ({})))[r.id];
+      if (!f) return { ok: false, message: `Could not load ${r.name}.` };
+      _fitAddCargo(f, qty);
+      return { ok: true, message: `${qty}× ${r.name} → hold` };
+    },
+  });
+}
+
+// ── Fighter bay ───────────────────────────────────────────────────────────────
+// Loading a squadron is constrained three ways at once — total tubes, per-type
+// squadron slots, and bay volume — and the old flow surfaced none of them until
+// after the click, because there was no picker at all: the only way in was to
+// drag a fighter onto a tube wedge. Every row here is pre-checked against all
+// three, so an unusable fighter is visibly unusable and names the limit stopping
+// it.
+//
+// Published fighters are a small category, so this OPENS with the whole list
+// rather than an empty box waiting to be guessed at.
+/**
+ * Why this squadron cannot be loaded, or null.
+ *
+ * Three limits bind at once — total tubes, per-type squadron slots, and bay
+ * volume — and the order matters: report the one the operator would hit first,
+ * so "all tubes loaded" never masquerades as "bay full".
+ */
+function _fitFighterRowBlock(r) {
+  const hull = _fitState.hull;
+  const caps = _fitFighterTubeCaps();
+  const t    = _fitFighterType({ groupId: r.groupId });
+  const who  = hull ? hull.name : 'This hull';
+  if (!t) return 'Not a fighter squadron.';
+  if (!caps.tubes) return `${who} has no fighter launch tubes.`;
+  if (!_fitState.fighters.some(x => !x)) return `All ${caps.tubes} launch tubes are loaded.`;
+  if (_fitFighterTypeCount(t) >= (caps[t] || 0)) {
+    return `No free ${t} squadron slots (${_fitFighterTypeCount(t)}/${caps[t] || 0} on ${who}).`;
+  }
+  if (((hull && hull.fighter && hull.fighter.bay) || 0) - _fitFighterUsedM3() < (r.volume || 0)) {
+    return `Fighter bay full (${_fitNum(_fitFighterUsedM3())} / ${_fitNum((hull && hull.fighter && hull.fighter.bay) || 0)} m³).`;
+  }
+  return null;
+}
+
+/** Which tube it would take, and how much of the squadron the bay can hold. */
+function _fitFighterRowNote(r) {
+  const hull = _fitState.hull;
+  const free = ((hull && hull.fighter && hull.fighter.bay) || 0) - _fitFighterUsedM3();
+  const tube = _fitState.fighters.findIndex(x => !x);
+  const sq   = r.squadron || 1;
+  const units = Math.min(sq, r.volume ? Math.floor(free / r.volume) : sq);
+  return `${_fitFighterType({ groupId: r.groupId })} · tube ${tube + 1}` +
+         (units < sq ? ` · only ${units} of ${sq} units fit` : ` · full ${sq}-unit squadron`);
+}
+
+function _fitOpenFighterPicker() {
+  const hull = _fitState.hull;
+  const caps = _fitFighterTubeCaps();
+  const typeOf = (r) => _fitFighterType({ groupId: r.groupId });
+
+  return _fitItemPicker({
+    kind: 'fighter',
+    browse: true,
+    limit: 200,
+    title: 'Load a fighter squadron',
+    subtitle: `${hull ? hull.name : 'Hull'} — ${caps.tubes} tube${caps.tubes === 1 ? '' : 's'}` +
+      ` · ${caps.light} light · ${caps.support} support · ${caps.heavy} heavy`,
+    placeholder: 'Search fighters — e.g. Templar, Einherji, Dragonfly…',
+    filterLabel: 'Filter by role',
+    filterAll: 'All roles',
+    filterOf: typeOf,
+    filterText: (k) => k.charAt(0).toUpperCase() + k.slice(1),
+    factOf: (r) => (r.squadron ? `×${r.squadron}` : '—'),
+    blockOf: _fitFighterRowBlock,
+    noteOf:  _fitFighterRowNote,
+    statusOf: () => `${_fitState.fighters.filter(Boolean).length}/${caps.tubes} tubes · ` +
+                    `${_fitNum(_fitFighterUsedM3())} / ${_fitNum(hull?.fighter?.bay || 0)} m³`,
+    onPick: async (r) => {
+      const f = (await window.eveAPI.fitGetItems([r.id]).catch(() => ({})))[r.id];
+      if (!f) return { ok: false, message: `Could not load ${r.name}.` };
+      const units = _fitAddFighter(f);
+      return units
+        ? { ok: true, message: `${units}× ${r.name} → launch tube` }
+        : { ok: false, message: `${r.name} could not be loaded.` };
+    },
+  });
 }
 
 // ESI reports a fitting item's position as the enum NAME, not the inventory
@@ -4560,6 +4938,19 @@ function _fitNum(n) {
   n = Number(n) || 0;
   return n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 1 }) : (Math.round(n * 10) / 10).toString();
 }
+/**
+ * A volume, at a precision that survives small charges.
+ *
+ * _fitNum rounds to one decimal, which turns Nanite Repair Paste (0.01 m³) into
+ * "0 m³" — on a cargo row, where the volume is the entire reason the row shows a
+ * number at all. Anything under 1 m³ keeps two significant figures instead.
+ */
+function _fitVol(m3) {
+  const v = Number(m3) || 0;
+  if (v >= 1 || v === 0) return _fitNum(v);
+  return String(Number(v.toPrecision(2)));
+}
+
 function _fitKm(m) {
   const km = (Number(m) || 0) / 1000;
   return km >= 100 ? `${Math.round(km)} km` : `${(Math.round(km * 10) / 10)} km`;

@@ -319,7 +319,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   fleetOpSaveReport: (payload)      => ipcRenderer.invoke('fleet-op-save-report', payload),
 
   // Fitting tool
-  fitSearch:        (query, kind, limit) => ipcRenderer.invoke('fit-search', query, kind, limit),
+  fitSearch:        (query, kind, limit, browse) => ipcRenderer.invoke('fit-search', query, kind, limit, browse),
   fitBrowseTree:    (kind)               => ipcRenderer.invoke('fit-browse-tree', kind),
   fitAmmoFor:       (typeId)             => ipcRenderer.invoke('fit-ammo-for', typeId),
   fitGetHull:       (typeId)             => ipcRenderer.invoke('fit-get-hull', typeId),

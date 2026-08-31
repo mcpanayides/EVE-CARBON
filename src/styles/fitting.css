@@ -220,6 +220,11 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   box-shadow: 0 8px 26px rgba(0,0,0,0.6); overflow: hidden;
   max-height: 330px; overflow-y: auto;
 }
+/* Implants are the one bay with a FIXED, known size: ten sockets, always. The
+   shared 330px showed nine of them, so slot 10 was behind a scroll on a panel
+   whose entire job is to show the set at a glance. Bounded by the viewport too,
+   since it hangs off the bottom of the canvas. */
+#fwImplants { max-height: min(430px, 62vh); }
 /* Fighter launch-tube wedges — hang below the bottom of the ring, styled like
    slot wedges. Launched = green glow (state-active), held = dim (state-offline). */
 .fw-tube-units {
@@ -239,10 +244,38 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   font-family: var(--mono); font-size: 10px; color: var(--text-3);
 }
 .fw-imp-empty .fw-db-name { color: var(--text-3); font-style: italic; }
-.fw-imp-search { padding: 6px 8px; border-bottom: 1px solid var(--border); }
-.fw-imp-search .field-input { width: 100%; font-size: 11px; }
-.fw-imp-results { max-height: 150px; overflow-y: auto; margin-top: 4px; }
-.fw-imp-results .fit-result { padding: 3px 4px; font-size: 11px; }
+
+/* An empty socket is a BUTTON: it is the most natural place to start, and
+   clicking it opens the picker already narrowed to that slot. */
+.fw-imp-empty {
+  width: 100%; background: none; border: 0;
+  border-bottom: 1px solid var(--border);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: background 0.12s;
+}
+.fw-imp-empty:hover { background: var(--accent-05); }
+.fw-imp-empty:hover .fw-db-name { color: var(--text-2); font-style: normal; }
+.fw-imp-empty:hover .fw-imp-plus { opacity: 1; }
+.fw-imp-empty:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.fw-imp-plus {
+  font-size: 15px; color: var(--accent); opacity: 0; flex-shrink: 0;
+  transition: opacity 0.12s;
+}
+
+/* The way in, in both bay panels. Deliberately a full-width bar rather than a
+   small icon: adding is the primary verb of these panels, and the search box it
+   replaces was the widest thing in them. */
+.fw-add-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 7px 10px; background: var(--accent-05);
+  border: 0; border-bottom: 1px solid var(--border);
+  color: var(--text-2); font-family: inherit; font-size: 11px; cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.fw-add-btn:hover { background: var(--accent-12); color: var(--text-1); }
+.fw-add-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.fw-add-btn .material-symbols-outlined { font-size: 15px; color: var(--accent); }
+
 .fw-imp-clear {
   background: none; border: none; color: var(--pal-red); cursor: pointer;
   font-size: 10px; padding: 0 2px; text-decoration: underline;
@@ -626,6 +659,12 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-pick-close .material-symbols-outlined { font-size: 18px; }
 
 /* ── Controls ── */
+/* The modal is a flex column; so is this, or the list grows unbounded and takes
+   the footer past the modal's clipped edge. */
+.fit-pick-body {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+}
+
 .fit-pick-controls {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -696,6 +735,71 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   flex-shrink: 0; display: flex; align-items: baseline; gap: 3px;
 }
 .fit-pick-mods-unit { font-size: 9px; letter-spacing: 0.1em; color: var(--text-3); }
+
+/* ── Shared item picker (implants, cargo, fighters) ──────────────────────────
+   The import picker lists fits, where the decisive number is the module count.
+   These list ITEMS, where the decisive fact differs per bay — an implant's slot,
+   a stack's volume, a squadron's size — so the right-hand figure is generic and
+   a second line carries the CONSEQUENCE of picking the row. */
+.fit-pick-note {
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fit-ip-fact {
+  font-family: var(--mono); font-size: 12px; color: var(--text-1);
+  flex-shrink: 0; padding: 2px 8px; border-radius: 4px;
+  background: var(--accent-08); border: 1px solid var(--accent-25);
+  letter-spacing: 0.04em; white-space: nowrap;
+}
+
+/* A row that cannot be used stays VISIBLE and says why, rather than being hidden
+   or silently accepting the click. Half the value of the picker is learning that
+   a hull has no heavy tubes left before you go hunting for the reason. */
+.fit-ip-row.is-blocked { cursor: not-allowed; opacity: 0.5; }
+.fit-ip-row.is-blocked:hover { background: transparent; }
+.fit-ip-row .fit-pick-note.is-blocked { color: var(--pal-gold); }
+.fit-ip-row.is-blocked .fit-ip-fact {
+  background: transparent; border-color: var(--border); color: var(--text-3);
+}
+
+/* The acknowledgement the old inline search never gave: the row you just picked
+   flashes, and the footer names it. */
+.fit-ip-row.is-added { background: color-mix(in srgb, var(--pal-green) 18%, transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .fit-ip-row { transition: background 0.12s; }
+}
+
+.fit-ip-qty { display: flex; flex-shrink: 0; }
+.fit-ip-qbtn {
+  height: 34px; min-width: 40px; padding: 0 9px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-right: 0;
+  color: var(--text-3); font-family: var(--mono); font-size: 12px; cursor: pointer;
+}
+.fit-ip-qbtn:first-child { border-radius: 6px 0 0 6px; }
+.fit-ip-qbtn:last-child  { border-radius: 0 6px 6px 0; border-right: 1px solid var(--border); }
+.fit-ip-qbtn:hover { color: var(--text-1); }
+.fit-ip-qbtn.on { background: var(--accent-15); border-color: var(--accent-25); color: var(--text-1); }
+
+.fit-ip-foot {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  padding: 12px 24px; border-top: 1px solid var(--border); background: var(--bg-panel);
+}
+.fit-ip-status {
+  font-family: var(--mono); font-size: 12px; color: var(--text-1);
+  white-space: nowrap; flex-shrink: 0;
+}
+.fit-ip-log {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fit-ip-log.is-good { color: var(--pal-green); }
+.fit-ip-log.is-bad  { color: var(--pal-gold); }
+.fit-ip-done {
+  flex-shrink: 0; height: 30px; padding: 0 16px;
+  background: var(--accent-12); border: 1px solid var(--accent-25); border-radius: 6px;
+  color: var(--text-1); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.fit-ip-done:hover { background: var(--accent-25); }
 
 /* ── Loading / empty / error ── */
 .fit-pick-state { padding: 40px 24px; text-align: center; color: var(--text-2); font-size: 13px; }

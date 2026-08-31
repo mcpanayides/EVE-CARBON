@@ -10,11 +10,12 @@
 - [_fitRenderAll()](_fitRenderAll%28%29.md) `EXTRACTED`
 - _fitEsc() `EXTRACTED`
 - _fitWeaponSim() `EXTRACTED`
-- _fitShipDerived() `EXTRACTED`
 - _fitNum() `EXTRACTED`
+- _fitShipDerived() `EXTRACTED`
 - _fitDroneSim() `EXTRACTED`
 - _fitDrawRangeChart() `EXTRACTED`
 - _fitEffOutputs() `EXTRACTED`
+- _fitFighterUsedM3() `EXTRACTED`
 - _fitOwnBursts() `EXTRACTED`
 - _fitCapChart() `EXTRACTED`
 - _fitIsFighter() `EXTRACTED`
@@ -25,8 +26,7 @@
 - _fitDroneActiveBw() `EXTRACTED`
 - _fitDroneActiveN() `EXTRACTED`
 - _fitDroneCtrlRange() `EXTRACTED`
-- _fitFighterUsedM3() `EXTRACTED`
-- _fitDroneCap() `EXTRACTED`
+- _fitFighterTypeCount() `EXTRACTED`
 
 ### contains
 - fitting.js `EXTRACTED`

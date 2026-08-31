@@ -1,11 +1,10 @@
 # Fitting Drones & Stats Display
 
-> 25 nodes · cohesion 0.17
+> 23 nodes · cohesion 0.17
 
 ## Key Concepts
 
 - **_fitRenderStats()** (35 connections) — `src/func/fitting.js`
-- **_fitNum()** (16 connections) — `src/func/fitting.js`
 - **d()** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **_fitDroneBayHtml()** (13 connections) — `src/func/fitting.js`
 - **_fitDrawRangeChart()** (10 connections) — `src/func/fitting.js`
@@ -17,7 +16,6 @@
 - **_fitDroneActiveBw()** (6 connections) — `src/func/fitting.js`
 - **_fitDroneActiveN()** (6 connections) — `src/func/fitting.js`
 - **_fitDroneCap()** (5 connections) — `src/func/fitting.js`
-- **_fitShowTip()** (5 connections) — `src/func/fitting.js`
 - **_fitDrawRangeChartBase()** (5 connections) — `src/func/fitting.js`
 - **_fitKm()** (5 connections) — `src/func/fitting.js`
 - **_fitActiveBuffs()** (3 connections) — `src/func/fitting.js`
@@ -32,16 +30,16 @@
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (26 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (23 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (14 shared connections)
-- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (12 shared connections)
-- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (9 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (8 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (5 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (12 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (7 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (6 shared connections)
+- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (4 shared connections)
+- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (4 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
-- [Fitting Simulator (_fitPersist)](Fitting_Simulator_%28_fitPersist%29.md) (2 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
 
 ## Source Files
 
@@ -50,8 +48,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 162 (90%)
-- INFERRED: 19 (10%)
+- EXTRACTED: 141 (88%)
+- INFERRED: 19 (12%)
 - AMBIGUOUS: 0 (0%)
 
 ---

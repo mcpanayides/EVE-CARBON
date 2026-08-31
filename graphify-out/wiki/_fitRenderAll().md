@@ -14,8 +14,8 @@
 - _fitHandleDrop() `EXTRACTED`
 - _fitRenderBrowser() `EXTRACTED`
 - _fitAddDrone() `EXTRACTED`
-- _fitLoadGameFit() `EXTRACTED`
 - _fitAddFighter() `EXTRACTED`
+- _fitLoadGameFit() `EXTRACTED`
 - _fitImportEFT() `EXTRACTED`
 - _fitShowSlotMenu() `EXTRACTED`
 - _fitDroneSetActive() `EXTRACTED`

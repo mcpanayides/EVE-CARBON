@@ -9,9 +9,9 @@
 ### calls
 - [_fitRenderCanvas()](_fitRenderCanvas%28%29.md) `EXTRACTED`
 - _fitHandleDrop() `EXTRACTED`
+- _fitAddFighter() `EXTRACTED`
 - _fitAddDrone() `EXTRACTED`
 - _fitLoadGameFit() `EXTRACTED`
-- _fitAddFighter() `EXTRACTED`
 - _fitImportEFT() `EXTRACTED`
 - _fitDroneSetActive() `EXTRACTED`
 - _fitAddCargo() `EXTRACTED`

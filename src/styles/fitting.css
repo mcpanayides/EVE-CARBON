@@ -296,6 +296,11 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fw-mini-bar span { font-family: var(--mono); font-size: 9px; color: var(--text-3); width: 26px; }
 .fw-mini-track { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-deep); overflow: hidden; }
 .fw-mini-fill { height: 100%; background: var(--accent); }
+/* Same three tones on the wheel gauges as on the FITTING card, so the two
+   readouts of the same number look like the same number. */
+.fw-mini-fill--cpu { background: var(--pal-blue); }
+.fw-mini-fill--pg  { background: var(--pal-green); }
+.fw-mini-fill--cal { background: var(--pal-gold); }
 .fw-mini-fill.over { background: var(--pal-red); }
 
 /* Wheel slot cells — rotated wedge slices following the ring. The cell rotates
@@ -475,6 +480,15 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-stat-row.over .fit-stat-top { color: var(--pal-red); }
 .fit-bar { height: 6px; border-radius: 3px; background: var(--bg-deep); overflow: hidden; }
 .fit-bar-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; }
+/* One hue per fitting budget, so CPU / powergrid / calibration read apart at a
+   glance instead of being three identical accent bars. Palette tokens, never
+   literals: a user theme restyles these with everything else.
+   An over-budget bar stays red: `.fit-bar-fill.over` is two classes to the
+   tone's one, so it wins on specificity rather than on source order. The
+   warning has to beat the identity colour wherever these rules end up. */
+.fit-bar-fill--cpu { background: var(--pal-blue); }
+.fit-bar-fill--pg  { background: var(--pal-green); }
+.fit-bar-fill--cal { background: var(--pal-gold); }
 .fit-bar-fill.over { background: var(--pal-red); }
 
 .fit-mini-grid { margin-top: 6px; }

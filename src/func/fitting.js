@@ -2621,9 +2621,9 @@ function _fitRenderCanvas() {
     </div>
     ${_fitRingSvg()}
     <div class="fw-center-bars">
-      <div class="fw-mini-bar" title="CPU"><span>CPU</span><div class="fw-mini-track"><div class="fw-mini-fill ${use.cpu > eff.cpu ? 'over' : ''}" style="width:${pct(use.cpu, eff.cpu)}%"></div></div></div>
-      <div class="fw-mini-bar" title="Powergrid"><span>PWR</span><div class="fw-mini-track"><div class="fw-mini-fill ${use.pg > eff.pg ? 'over' : ''}" style="width:${pct(use.pg, eff.pg)}%"></div></div></div>
-      ${(hull.slots.rig || 0) > 0 ? `<div class="fw-mini-bar" title="Calibration (rigs): ${_fitNum(calUsed)} / ${_fitNum(calTotal)}"><span>CAL</span><div class="fw-mini-track"><div class="fw-mini-fill ${calUsed > calTotal ? 'over' : ''}" style="width:${pct(calUsed, calTotal)}%"></div></div></div>` : ''}
+      <div class="fw-mini-bar" title="CPU"><span>CPU</span><div class="fw-mini-track"><div class="fw-mini-fill fw-mini-fill--cpu ${use.cpu > eff.cpu ? 'over' : ''}" style="width:${pct(use.cpu, eff.cpu)}%"></div></div></div>
+      <div class="fw-mini-bar" title="Powergrid"><span>PWR</span><div class="fw-mini-track"><div class="fw-mini-fill fw-mini-fill--pg ${use.pg > eff.pg ? 'over' : ''}" style="width:${pct(use.pg, eff.pg)}%"></div></div></div>
+      ${(hull.slots.rig || 0) > 0 ? `<div class="fw-mini-bar" title="Calibration (rigs): ${_fitNum(calUsed)} / ${_fitNum(calTotal)}"><span>CAL</span><div class="fw-mini-track"><div class="fw-mini-fill fw-mini-fill--cal ${calUsed > calTotal ? 'over' : ''}" style="width:${pct(calUsed, calTotal)}%"></div></div></div>` : ''}
     </div>
     ${effSlots.turret > 0 || use.turret > 0 ? `
       <div class="fw-hp fw-hp-left" title="Turret hardpoints used / total">
@@ -2942,12 +2942,15 @@ function _fitRenderStats() {
     `${fmt(base)}${unit ? ` ${unit}` : ''}${gvTail(base, up, fmt)}`;
   const sim  = _fitSimCache || _fitWeaponSim().concat(_fitDroneSim());
 
-  const bar = (label, used, total, unit) => {
+  // `tone` names the resource so the three fitting budgets read apart at a
+  // glance instead of being three identical accent bars. Class + token only —
+  // the hue comes from the palette, so a user theme restyles it.
+  const bar = (label, used, total, unit, tone = '') => {
     const over = used > total + 1e-6;
     const pctW  = total ? Math.min(100, (used / total) * 100) : 0;
     return `<div class="fit-stat-row ${over ? 'over' : ''}">
         <div class="fit-stat-top"><span>${label}</span><span>${_fitNum(used)} / ${_fitNum(total)} ${unit}</span></div>
-        <div class="fit-bar"><div class="fit-bar-fill ${over ? 'over' : ''}" style="width:${pctW}%;"></div></div>
+        <div class="fit-bar"><div class="fit-bar-fill${tone ? ` fit-bar-fill--${tone}` : ''} ${over ? 'over' : ''}" style="width:${pctW}%;"></div></div>
       </div>`;
   };
   const line = (label, val) => `<div class="fit-mini"><span>${label}</span><span>${val}</span></div>`;
@@ -2986,9 +2989,9 @@ function _fitRenderStats() {
     <!-- Fitting resources (rig/module-modified output) -->
     <div class="fit-stats-card">
       <div class="fit-stats-title">FITTING <span class="fit-note">incl. rigs &amp; mods</span></div>
-      ${bar('CPU', u.cpu, eff.cpu, 'tf')}
-      ${bar('Powergrid', u.pg, eff.pg, 'MW')}
-      ${(hull.slots.rig || 0) > 0 ? bar('Calibration', _fitCalUsed(), hull.output.calibration || 0, '') : ''}
+      ${bar('CPU', u.cpu, eff.cpu, 'tf', 'cpu')}
+      ${bar('Powergrid', u.pg, eff.pg, 'MW', 'pg')}
+      ${(hull.slots.rig || 0) > 0 ? bar('Calibration', _fitCalUsed(), hull.output.calibration || 0, '', 'cal') : ''}
       <div class="fit-mini-grid">
         ${line('Turrets', `<span class="${u.turret > effT.turret ? 'fit-over' : ''}">${u.turret}/${effT.turret}</span>`)}
         ${line('Launchers', `<span class="${u.launcher > effT.launcher ? 'fit-over' : ''}">${u.launcher}/${effT.launcher}</span>`)}

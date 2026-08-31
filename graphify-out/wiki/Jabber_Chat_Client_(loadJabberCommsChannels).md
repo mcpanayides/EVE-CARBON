@@ -21,10 +21,11 @@
 ## Relationships
 
 - [Jabber Chat Client](Jabber_Chat_Client.md) (17 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
-- [Jabber Chat Client (jabberResolvePortraits)](Jabber_Chat_Client_%28jabberResolvePortraits%29.md) (2 shared connections)
-- [Jabber Chat Client (jabberNormSig)](Jabber_Chat_Client_%28jabberNormSig%29.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
+- [Jabber Chat Client (gatherJabberSettings)](Jabber_Chat_Client_%28gatherJabberSettings%29.md) (1 shared connections)
+- [Jabber Chat Client (jabberStripInvisible)](Jabber_Chat_Client_%28jabberStripInvisible%29.md) (1 shared connections)
 - [Jabber Chat Client (jabberGetColVisibility)](Jabber_Chat_Client_%28jabberGetColVisibility%29.md) (1 shared connections)
+- [Jabber Chat Client (jabberGetColWidths)](Jabber_Chat_Client_%28jabberGetColWidths%29.md) (1 shared connections)
 
 ## Source Files
 

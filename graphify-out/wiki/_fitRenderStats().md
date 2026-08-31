@@ -1,6 +1,6 @@
 # _fitRenderStats()
 
-> God node · 34 connections · `src/func/fitting.js`
+> God node · 35 connections · `src/func/fitting.js`
 
 **Community:** [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md)
 

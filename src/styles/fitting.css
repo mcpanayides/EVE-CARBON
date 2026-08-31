@@ -768,4 +768,10 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fit-capc-sched-lbl { color: var(--text-3); font-size: 9px; letter-spacing: 0.1em; }
 .fit-capc-time { color: var(--pal-blue); }
+/* The cadence is the actionable number — how often the button comes round —
+   so it leads the line rather than trailing a list of absolute times. */
+.fit-capc-every {
+  color: var(--pal-blue); font-weight: 700;
+  padding: 1px 6px; border: 1px solid var(--pal-blue); border-radius: 3px;
+}
 .fit-capc-more { color: var(--text-3); }

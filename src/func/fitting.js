@@ -3100,10 +3100,17 @@ function _fitRenderStats() {
           <div class="fit-cap-gj">${_fitNum(D.capCap)} GJ</div>
           <div class="fit-cap-sub">${_fitNum(D.rechargeSec)} s recharge · peak +${_fitNum(D.peakRegen)} GJ/s</div>
           <div class="fit-cap-sub">use −${_fitNum(cap.drain)} GJ/s${cap.inject ? ` · inject +${_fitNum(cap.inject)} GJ/s` : ''}</div>
+          ${/* "Stable at 100%" is what _fitCapSim reports once a Cap Booster is
+                averaged into `inject` — true of the fit, and read by everyone as
+                "this ship never runs out", which is false the moment the
+                magazine does. Say which kind of stable it is. */''}
           <div class="fit-cap-stab ${cap.stable ? 'ok' : 'warn'}">${
             cap.drain === 0 ? 'No active cap use'
-            : cap.stable ? `Stable at ${cap.stableAt}%`
-            : `Lasts ${_fitDur(cap.lastsSec)}`}</div>
+            : cap.stable
+              ? (_fitCapStablePct(cap.drain - (cap.injectCont || 0), (D.rechargeSec || 1) / 5, D.capCap) !== null
+                  ? `Stable at ${cap.stableAt}%`
+                  : 'Stable while injecting')
+              : `Lasts ${_fitDur(cap.lastsSec)}`}</div>
         </div>
       </div>
       ${_fitCapChart(D, cap)}
@@ -3841,21 +3848,32 @@ function _fitCapChart(D, cap) {
   const barePct = _fitCapStablePct(netCont, tau, capMax);
   const fires = withInj ? withInj.fires : [];
 
+  // The CADENCE, not the calendar. A ship with charges to spare injects
+  // indefinitely, so a list of absolute times is a list of arbitrary length
+  // that answers the wrong question: what a pilot needs is how often the
+  // button comes round. Median rather than mean — the first gap is a different
+  // animal (falling from full) and would drag an average off the rhythm.
+  const gaps = fires.slice(1).map((f, i) => f.t - fires[i].t).sort((a, b) => a - b);
+  const everySec = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+  const firstAt = fires.length ? fires[0].t : null;
+
   let verdict, tone;
   if (bareHolds && barePct !== null) {
     verdict = `Holds at ${barePct}% — the capacitor regenerates as fast as the fit drains it.`;
     tone = 'ok';
   } else if (withInj && !withInj.emptyAt) {
-    const first = fires.length ? dur(fires[0].t) : null;
-    const mag = booster.charges
-      ? ` The launcher carries ${booster.charges}, so ${fires.length && booster.charges < fires.length ? 'it runs dry first' : `that is ${dur(booster.charges * (fires.length > 1 ? (fires[fires.length - 1].t - fires[0].t) / (fires.length - 1) : booster.cycleSec))} of holding`}.`
-      : '';
-    verdict = first
-      ? `Injecting holds it — start at ${first}, ${fires.length} shot${fires.length === 1 ? '' : 's'} over ${dur(horizon)}.${mag}`
+    const cadence = everySec ? `, then about every ${dur(everySec)}` : '';
+    // Charges are the real limit once the cadence is known, so express the
+    // magazine in TIME: "14 charges" means nothing, "≈ 9m 34s" means everything.
+    const mag = (booster.charges && everySec)
+      ? ` ${booster.charges} charges ≈ ${dur(booster.charges * everySec)} of holding.`
+      : (booster.charges ? ` The launcher carries ${booster.charges}.` : '');
+    verdict = firstAt !== null
+      ? `Injecting holds it — first at ${dur(firstAt)}${cadence}.${mag}`
       : `Injecting holds it.${mag}`;
     tone = 'ok';
   } else if (withInj && withInj.emptyAt > (base.emptyAt || 0)) {
-    const first = fires.length ? ` First shot at ${dur(fires[0].t)}.` : '';
+    const first = firstAt !== null ? ` First shot at ${dur(firstAt)}.` : '';
     verdict = `Injecting buys ${dur(withInj.emptyAt - base.emptyAt)}, then it is dry at ${dur(withInj.emptyAt)}.${first}`;
     tone = 'warn';
   } else {
@@ -3903,9 +3921,10 @@ function _fitCapChart(D, cap) {
       </div>
       <div class="fit-capc-verdict ${tone}">${_fitEsc(verdict)}</div>
       ${fires.length ? `<div class="fit-capc-sched">
-        <span class="fit-capc-sched-lbl">inject at</span>
-        ${fires.slice(0, 6).map(f => `<span class="fit-capc-time">${_fitEsc(dur(f.t))}</span>`).join('')}
-        ${fires.length > 6 ? `<span class="fit-capc-more">+${fires.length - 6} more</span>` : ''}
+        ${everySec ? `<span class="fit-capc-every">every ~${_fitEsc(dur(everySec))}</span>` : ''}
+        <span class="fit-capc-sched-lbl">first at</span>
+        <span class="fit-capc-time">${_fitEsc(dur(firstAt))}</span>
+        ${(booster.charges && everySec) ? `<span class="fit-capc-more">· ${booster.charges} charges ≈ ${_fitEsc(dur(booster.charges * everySec))}</span>` : ''}
       </div>` : ''}
       ${withInj ? `<div class="fit-capc-key">
         <span class="fit-capc-key-item"><i class="fit-capc-sw ${bareHolds ? 'is-ok' : 'is-warn'}"></i>no injection</span>

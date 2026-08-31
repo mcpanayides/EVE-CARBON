@@ -1302,3 +1302,44 @@ test('no booster means no schedule and no stamps', () => {
   assert.ok(!/fit-capc-sched/.test(html));
   assert.ok(/Empty in/.test(html), 'it just says when it dies');
 });
+
+test('the chart reports an injection CADENCE, not a roll-call of times', () => {
+  const sb = loadSim();
+  // A ship with charges to spare injects indefinitely, so a list of absolute
+  // times is a list of arbitrary length answering the wrong question. What a
+  // pilot needs is how often the button comes round.
+  const D = { capCap: 101250, rechargeSec: 3795, peakRegen: 66.7 };
+  const html = sb._fitCapChart(D, {
+    drain: 141.3, inject: 266.7, injectCont: 0, stable: true, stableAt: 100,
+    boosters: [{ name: 'Navy Cap Booster 3200', amount: 3200, cycleSec: 12, charges: 14 }],
+  });
+  assert.ok(/every ~/.test(html), 'the interval leads');
+  assert.ok(/first at/.test(html), 'with the start time beside it');
+  assert.ok(/charges ≈/.test(html), 'and the magazine expressed in TIME, not a count');
+  assert.ok(!/inject at/.test(html), 'the old timestamp roll-call is gone');
+  assert.ok(/about every/.test(html), 'the verdict names the cadence too');
+});
+
+test('a single injection reports no cadence rather than a fake one', () => {
+  const sb = loadSim();
+  // One shot gives no interval to measure. Inventing one from the launcher's
+  // cycle time would be a number the pilot cannot act on.
+  const D = { capCap: 6250, rechargeSec: 1562.5, peakRegen: 20 };
+  const html = sb._fitCapChart(D, {
+    drain: 30, inject: 0, injectCont: 0, stable: false, lastsSec: 200,
+    boosters: [{ name: 'Cap Booster 400', amount: 400, cycleSec: 15, charges: 1 }],
+  });
+  assert.ok(/first at|First shot at/.test(html), 'it still says when to start');
+  assert.ok(!/about every/.test(html), 'but claims no rhythm from a single shot');
+});
+
+test('"stable" distinguishes self-sustaining from injector-dependent', () => {
+  const sb = loadSim();
+  const tau = 3795 / 5, capMax = 101250;
+  // Drain the capacitor cannot answer alone: only "stable" once a booster is
+  // averaged in, which is the reading that used to print "Stable at 100%".
+  assert.strictEqual(sb._fitCapStablePct(141.3, tau, capMax), null,
+    'this fit does not hold without injecting');
+  // A load it can answer.
+  assert.ok(sb._fitCapStablePct(20, tau, capMax) > 0, 'this one holds on its own');
+});

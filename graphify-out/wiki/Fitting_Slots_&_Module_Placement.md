@@ -1,6 +1,6 @@
 # Fitting Slots & Module Placement
 
-> 33 nodes · cohesion 0.16
+> 31 nodes · cohesion 0.18
 
 ## Key Concepts
 
@@ -29,7 +29,7 @@
 - **_fitLoadLocalFit()** (5 connections) — `src/func/fitting.js`
 - **_fitEmptyRacks()** (4 connections) — `src/func/fitting.js`
 - **_fitDupMod()** (4 connections) — `src/func/fitting.js`
-- *... and 8 more nodes in this community*
+- *... and 6 more nodes in this community*
 
 ## Relationships
 
@@ -38,7 +38,7 @@
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (15 shared connections)
 - [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (13 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (9 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -46,8 +46,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 257 (97%)
-- INFERRED: 7 (3%)
+- EXTRACTED: 252 (98%)
+- INFERRED: 6 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

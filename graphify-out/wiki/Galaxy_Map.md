@@ -34,8 +34,7 @@
 ## Relationships
 
 - [Galaxy Map State](Galaxy_Map_State.md) (29 shared connections)
-- [Galaxy Map (_fetchAllianceIdents)](Galaxy_Map_%28_fetchAllianceIdents%29.md) (3 shared connections)
-- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (2 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)

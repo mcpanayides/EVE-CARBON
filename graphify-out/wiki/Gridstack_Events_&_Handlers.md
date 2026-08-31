@@ -43,7 +43,7 @@
 - [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (3 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 - [Market Trading](Market_Trading.md) (1 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
 
 ## Source Files
 

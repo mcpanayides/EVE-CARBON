@@ -3419,8 +3419,17 @@ function _fitShipDerived(buffs = null) {
     // HP rigs carry a PERCENT bonus on their own attributes (335 Trimark Armor
     // Pump, 337 Core Defense Field Extender) rather than the multiplier form
     // above — unread, they contributed nothing at all to EHP.
-    if (a[335]) add('armorMult',  a[335] / 100);
-    if (a[337]) add('shieldMult', a[337] / 100);
+    //
+    // AND THEY DO NOT STACK-PENALISE. Three Capital Trimark Armor Pump IIs are
+    // 1.20 × 1.20 × 1.20 = 1.728, not the 1.569 a penalised chain gives. Measured
+    // against a real Nyx: penalised produced 5,454,785 armour where the game
+    // showed 6,006,292, and unpenalised produces 6,006,176 — 0.002% out, which is
+    // display rounding. The SDE build shipped here has no dgmAttributeTypes
+    // table, so there is no `stackable` flag to read; attribute 335 is carried by
+    // exactly the eight Trimark Armor Pump types and nothing else, which is what
+    // makes it safe to exempt by attribute id.
+    if (a[335]) add('armorMultNp',  a[335] / 100);
+    if (a[337]) add('shieldMultNp', a[337] / 100);
     // Cargo the same way: 149 is the module multiplier (Expanded Cargohold),
     // 614 the rig percent (Cargohold Optimization). 306 is the expander's
     // velocity cost, which has to ride along or the hold looks free.
@@ -3471,6 +3480,10 @@ function _fitShipDerived(buffs = null) {
   }
 
   const mult = (key) => _fitStackChain(chains[key] || []);
+  // The same product WITHOUT the stacking penalty, for the chains that do not
+  // take one. Kept separate rather than flagged per entry so the penalised path
+  // stays exactly as it was.
+  const multNp = (key) => (chains[key] || []).reduce((prod, v) => prod * (1 + v), 1);
   // Resonance after resist bonuses: base × Π(1 − b·penalty).
   const resOf = (layer, baseRes) => {
     const out = {};
@@ -3490,9 +3503,11 @@ function _fitShipDerived(buffs = null) {
   // Skills (Shield Management / Hull Upgrades / Mechanics +5%/lvl), hull-trait
   // HP bonuses ("15% bonus to armor hitpoints" per level) and HP implants.
   const I = _fitImplantBonuses();
-  const shieldHp = (b.shieldHp + flat.shield) * mult('shieldMult') * _fitSkMult('shieldMgmt', 5)
+  const shieldHp = (b.shieldHp + flat.shield) * mult('shieldMult') * multNp('shieldMultNp')
+                   * _fitSkMult('shieldMgmt', 5)
                    * _fitTraitLayerMult('hp', 'shield') * I.shieldHp * (1 + bf(12));
-  const armorHp  = (b.armorHp + flat.armor) * mult('armorMult')    * _fitSkMult('hullUp', 5)
+  const armorHp  = (b.armorHp + flat.armor) * mult('armorMult')    * multNp('armorMultNp')
+                   * _fitSkMult('hullUp', 5)
                    * _fitTraitLayerMult('hp', 'armor') * I.armorHp * (1 + bf(15));
   const structHp = b.structureHp * mult('structMult')              * _fitSkMult('mechanics', 5)
                    * _fitTraitLayerMult('hp', 'struct') * I.hullHp;

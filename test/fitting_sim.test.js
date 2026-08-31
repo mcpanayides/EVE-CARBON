@@ -917,12 +917,32 @@ test('armor HP rigs actually add armor', () => {
   rig(sb, { trimarks: 1 });
   const one = sb._fitShipDerived().armorHp;
   assert.ok(Math.abs(one / none - 1.20) < 0.001, `one Trimark is +20%, got ${(one / none).toFixed(4)}x`);
+});
+
+test('armor HP rigs do NOT stack-penalize', () => {
+  // This assertion used to say the opposite, and was wrong.
+  //
+  // It asserted 1.4085 for two rigs — 1.2 × (1 + 0.2·e^−(1/2.67)²) — which is
+  // what a penalized chain gives, and the test passed happily for as long as the
+  // engine agreed with it. Measured against a real Nyx (3× Capital Trimark Armor
+  // Pump II, 3× CONCORD 25000mm Steel Plates, full High-grade Amulet set plus
+  // 'Noble' Hull Upgrades HG-1006, all skills V) the game reports 6,006,292
+  // armour. The penalized chain produces 5,454,785; the unpenalized one produces
+  // 6,006,292.4. Not close — exact.
+  //
+  // A test can only ever pin what someone believed. This one pinned a belief,
+  // and it took a second source to find out.
+  const sb = loadSim();
+  rig(sb, { trimarks: 0 });
+  const none = sb._fitShipDerived().armorHp;
   rig(sb, { trimarks: 2 });
   const two = sb._fitShipDerived().armorHp;
-  // 1.2 × (1 + 0.2·e^−(1/2.67)²) = 1.4085 — not the 1.44 two unpenalized rigs
-  // would give.
-  assert.ok(Math.abs(two / none - 1.4085) < 0.001,
-    `a second rig is stacking-penalized, got ${(two / none).toFixed(4)}x`);
+  assert.ok(Math.abs(two / none - 1.44) < 1e-6,
+    `two rigs are 1.2², got ${(two / none).toFixed(4)}x`);
+  rig(sb, { trimarks: 3 });
+  const three = sb._fitShipDerived().armorHp;
+  assert.ok(Math.abs(three / none - 1.728) < 1e-6,
+    `three rigs are 1.2³ = 1.728, the figure that reconciles the Nyx exactly — got ${(three / none).toFixed(4)}x`);
 });
 
 // ── Agility and align time ───────────────────────────────────────────────────

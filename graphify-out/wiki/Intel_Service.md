@@ -1,12 +1,18 @@
 # Intel Service
 
-> 16 nodes · cohesion 0.13
+> 22 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **intel_service.js** (33 connections) — `src/intel/intel_service.js`
-- **system_index.js** (6 connections) — `src/intel/system_index.js`
-- **buildSystemIndex()** (3 connections) — `src/intel/system_index.js`
+- **proximity.js** (14 connections) — `src/intel/proximity.js`
+- **buildAdjacency()** (5 connections) — `src/intel/proximity.js`
+- **createProximityTracker()** (5 connections) — `src/intel/proximity.js`
+- **groupContacts()** (5 connections) — `src/intel/proximity.js`
+- **gangBand()** (3 connections) — `src/intel/proximity.js`
+- **mergeGang()** (3 connections) — `src/intel/proximity.js`
+- **shouldAlert()** (3 connections) — `src/intel/proximity.js`
+- **jumpDistances()** (2 connections) — `src/intel/proximity.js`
 - **{ buildSystemIndex }** (1 connections) — `src/intel/intel_service.js`
 - **{ createChannelParser }** (1 connections) — `src/intel/intel_service.js`
 - **{ createChatlogReader }** (1 connections) — `src/intel/intel_service.js`
@@ -19,29 +25,30 @@
 - **{ createPatternStore }** (1 connections) — `src/intel/intel_service.js`
 - **{ createZkillStream }** (1 connections) — `src/intel/intel_service.js`
 - **DEFAULTS** (1 connections) — `src/intel/intel_service.js`
-- **STOPWORDS** (1 connections) — `src/intel/system_index.js`
-- **SHIP_ROLE_GROUPS** (1 connections) — `src/intel/system_index.js`
-- **ROLE_WORDS** (1 connections) — `src/intel/system_index.js`
+- **GANG_BANDS** (1 connections) — `src/intel/proximity.js`
+- **pilotKey()** (1 connections) — `src/intel/proximity.js`
+- **systemKey()** (1 connections) — `src/intel/proximity.js`
 
 ## Relationships
 
-- [Intel Test](Intel_Test.md) (8 shared connections)
+- [Intel Test](Intel_Test.md) (11 shared connections)
+- [Intel Patterns Test](Intel_Patterns_Test.md) (6 shared connections)
 - [Alert Rules](Alert_Rules.md) (5 shared connections)
-- [Intel Patterns Test](Intel_Patterns_Test.md) (3 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
+- [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 
 ## Source Files
 
 - `src/intel/intel_service.js`
-- `src/intel/system_index.js`
+- `src/intel/proximity.js`
 
 ## Audit Trail
 
-- EXTRACTED: 52 (95%)
-- INFERRED: 3 (5%)
+- EXTRACTED: 69 (80%)
+- INFERRED: 17 (20%)
 - AMBIGUOUS: 0 (0%)
 
 ---

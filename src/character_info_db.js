@@ -11,6 +11,7 @@ const fs      = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { open } = require('sqlite');
 const { resolveAssetLocationChain } = require('./asset-location-walk');
+const { decodeEsiText } = require('./shared/esi_text');
 
 let charDb   = null;   // shared db handle, opened once
 let _dataDir = null;   // remembered so a failed init can be retried later
@@ -480,12 +481,18 @@ async function upsertLocation(characterId, loc, stationName) {
 async function upsertShip(characterId, ship, typeName) {
   const db  = charDb;
   const now = Date.now();
+  // ESI hands back a Python repr for a ship name containing anything non-ASCII:
+  // "♦ Pegasus" arrives as the literal characters u'♦ Pegasus'. Decoded
+  // here rather than at each caller because all three sync paths — full, core
+  // and status — funnel through this one write, so a fourth added later cannot
+  // quietly skip it. See src/shared/esi_text.js for why it is conservative.
+  const name = decodeEsiText(ship.ship_name);
   await db.run(
     `INSERT INTO char_${characterId}_ship
        (ship_item_id, ship_type_id, ship_name, ship_type_name, synced_at)
      VALUES (?,?,?,?,?)`,
     [ship.ship_item_id || null, ship.ship_type_id || null,
-     ship.ship_name   || null, typeName || null, now]
+     name || null, typeName || null, now]
   );
 }
 
@@ -724,6 +731,10 @@ async function getCharacterData(characterId) {
     const wallet     = await charDb.get(`SELECT * FROM ${p}_wallet ORDER BY id DESC LIMIT 1`);
     const location   = await charDb.get(`SELECT * FROM ${p}_location ORDER BY id DESC LIMIT 1`);
     const ship       = await charDb.get(`SELECT * FROM ${p}_ship ORDER BY id DESC LIMIT 1`);
+    // Also on READ, so rows written before the decode existed heal on display
+    // instead of waiting for a sync that only touches the selected character.
+    // decodeEsiText is idempotent, so a name already fixed on write is untouched.
+    if (ship && ship.ship_name) ship.ship_name = decodeEsiText(ship.ship_name);
     const implants   = await charDb.all(`SELECT * FROM ${p}_implants ORDER BY slot ASC`);
     const jumpClones = await charDb.all(`SELECT * FROM ${p}_jump_clones ORDER BY id ASC`);
     const piColonies = await charDb.all(`SELECT * FROM ${p}_pi_colonies ORDER BY id ASC`);

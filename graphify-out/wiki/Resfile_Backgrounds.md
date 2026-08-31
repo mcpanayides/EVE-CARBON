@@ -30,9 +30,8 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
 
 ## Source Files
 

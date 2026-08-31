@@ -24,7 +24,7 @@
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
 - [Notifications](Notifications.md) (1 shared connections)
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 

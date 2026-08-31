@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Ping Alert](Ping_Alert.md) (1 shared connections)
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 

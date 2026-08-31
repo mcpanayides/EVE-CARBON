@@ -27,7 +27,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (13 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 - [Auto Updater](Auto_Updater.md) (1 shared connections)

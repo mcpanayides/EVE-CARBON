@@ -39,9 +39,8 @@
 - [Dashboard Widgets (_getMarketWatch)](Dashboard_Widgets_%28_getMarketWatch%29.md) (9 shared connections)
 - [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) (7 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
 - [Ping Alert](Ping_Alert.md) (1 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 

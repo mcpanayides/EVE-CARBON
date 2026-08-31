@@ -801,6 +801,82 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fit-ip-done:hover { background: var(--accent-25); }
 
+/* ── Clones ──────────────────────────────────────────────────────────────────
+   A named implant set, worn like a jump clone. The bar sits at the top of the
+   implants panel and always states what is on, because the whole feature is
+   that the set SURVIVES loading a fit — and a thing that silently persists
+   across an action must say so, or the next fit's missing implants read as a
+   bug rather than as the clone doing its job. */
+.fw-clone-bar {
+  width: 100%; display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; background: transparent;
+  border: 0; border-bottom: 1px solid var(--border);
+  color: var(--text-2); font-family: inherit; font-size: 11px;
+  text-align: left; cursor: pointer; transition: background 0.12s;
+}
+.fw-clone-bar:hover { background: var(--bg-hover); }
+.fw-clone-bar:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.fw-clone-bar .material-symbols-outlined { font-size: 15px; color: var(--pal-blue); }
+.fw-clone-name   { color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-clone-none   { color: var(--text-3); font-style: italic; }
+/* The set has diverged from the clone it was loaded from. Said, not hidden:
+   saving over it is destructive and you should know before you do. */
+.fw-clone-edited {
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--pal-gold); border: 1px solid color-mix(in srgb, var(--pal-gold) 40%, transparent);
+  border-radius: 3px; padding: 0 4px; flex-shrink: 0;
+}
+.fw-clone-go { margin-left: auto; color: var(--accent); flex-shrink: 0; }
+
+.fit-clone-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 24px 18px; }
+.fit-clone-sec  { padding-top: 14px; }
+.fit-clone-h {
+  margin: 0 0 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-3); font-weight: 400;
+}
+.fit-clone-save { display: flex; gap: 8px; }
+.fit-clone-input {
+  flex: 1; min-width: 0; height: 34px; padding: 0 10px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-1); font-family: inherit; font-size: 13px;
+}
+.fit-clone-input:focus { outline: none; border-color: var(--accent); }
+.fit-clone-hint { margin: 8px 0 0; font-size: 11.5px; color: var(--text-3); }
+
+.fit-clone-row {
+  display: flex; align-items: center; gap: 12px; padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.fit-clone-row:last-child { border-bottom: 0; }
+.fit-clone-row.is-worn { background: var(--accent-05); margin: 0 -10px; padding: 9px 10px; border-radius: 6px; }
+.fit-clone-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.fit-clone-name { font-size: 13.5px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fit-clone-sub  {
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fit-clone-wear {
+  flex-shrink: 0; height: 28px; padding: 0 14px;
+  background: var(--accent-08); border: 1px solid var(--accent-25); border-radius: 6px;
+  color: var(--text-1); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.fit-clone-wear:hover { background: var(--accent-25); }
+.fit-clone-row.is-worn .fit-clone-wear { background: transparent; color: var(--text-3); cursor: default; }
+.fit-clone-x {
+  flex-shrink: 0; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  color: var(--text-3); cursor: pointer;
+}
+.fit-clone-x:hover { color: var(--text-1); border-color: var(--border); }
+.fit-clone-x .material-symbols-outlined { font-size: 16px; }
+.fit-clone-off {
+  flex-shrink: 0; height: 30px; padding: 0 14px;
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-2); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.fit-clone-off:hover { color: var(--text-1); border-color: var(--pal-gold); }
+.fit-ip-done[disabled] { opacity: 0.4; cursor: not-allowed; }
+
 /* ── Loading / empty / error ── */
 .fit-pick-state { padding: 40px 24px; text-align: center; color: var(--text-2); font-size: 13px; }
 .fit-pick-state p { margin: 6px 0 0; }

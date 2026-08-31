@@ -1,6 +1,6 @@
 # Map Colours & Modern Drawing
 
-> 24 nodes · cohesion 0.19
+> 25 nodes · cohesion 0.19
 
 ## Key Concepts
 
@@ -10,6 +10,7 @@
 - **_systemColor()** (11 connections) — `src/func/map.js`
 - **_renderRegion()** (10 connections) — `src/func/map.js`
 - **_mono()** (9 connections) — `src/func/map.js`
+- **_drawInfluenceField()** (8 connections) — `src/func/map.js`
 - **_infActive()** (7 connections) — `src/func/map.js`
 - **_drawInfluenceTitles()** (7 connections) — `src/func/map.js`
 - **_drawModernRouteExtras()** (6 connections) — `src/func/map.js`
@@ -32,10 +33,10 @@
 ## Relationships
 
 - [Galaxy Map State](Galaxy_Map_State.md) (27 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (7 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (4 shared connections)
+- [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (4 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
-- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
 
 ## Source Files
 
@@ -43,7 +44,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 142 (99%)
+- EXTRACTED: 150 (99%)
 - INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 

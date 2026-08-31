@@ -25,7 +25,7 @@
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 
 ## Source Files

@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 
 ## Source Files
 

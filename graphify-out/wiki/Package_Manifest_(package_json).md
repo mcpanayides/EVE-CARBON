@@ -20,10 +20,9 @@
 
 ## Relationships
 
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
 - [Electron Builder Config](Electron_Builder_Config.md) (1 shared connections)
-- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
-- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 - [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files

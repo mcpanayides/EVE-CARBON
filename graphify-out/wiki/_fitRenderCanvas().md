@@ -2,7 +2,7 @@
 
 > God node · 25 connections · `src/func/fitting.js`
 
-**Community:** [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md)
+**Community:** [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md)
 
 ## Connections by Relation
 

@@ -37,7 +37,7 @@
 - [Dashboard Auto-Sync & Live Widgets](Dashboard_Auto-Sync_%26_Live_Widgets.md) (4 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (1 shared connections)
 - [Dashboard Widgets (_activeJobsShared)](Dashboard_Widgets_%28_activeJobsShared%29.md) (1 shared connections)
-- [Fleet Mining](Fleet_Mining.md) (1 shared connections)
+- [Notifications](Notifications.md) (1 shared connections)
 
 ## Source Files
 

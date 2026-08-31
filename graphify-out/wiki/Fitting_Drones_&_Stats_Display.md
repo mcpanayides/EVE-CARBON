@@ -35,11 +35,10 @@
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (12 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (7 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (6 shared connections)
-- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (4 shared connections)
-- [Gridstack Vendor Library (u)](Gridstack_Vendor_Library_%28u%29.md) (4 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (6 shared connections)
+- [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (4 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 
 ## Source Files
 

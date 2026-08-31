@@ -35,7 +35,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Planetary Interaction](Planetary_Interaction.md) (1 shared connections)
-- [Fleet Mining](Fleet_Mining.md) (1 shared connections)
+- [Notifications](Notifications.md) (1 shared connections)
 - [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
 
 ## Source Files

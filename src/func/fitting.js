@@ -127,6 +127,11 @@ const _fitState = {
   fighterBayNote: [],
   implants: new Array(10).fill(null),          // slot 1-10 → { id, name, f } (character-level, survives hull swaps)
   implantsOpen: false,                         // implants panel visible
+  // The clone currently worn, or null. Character-level like the implants
+  // themselves: it survives hull swaps AND loading a fit, which is the entire
+  // point — comparing two fits on one clone must not mean re-socketing ten
+  // implants between them.
+  activeClone: null,                           // { id, name, implants }
   links: localStorage.getItem('fitLinks') || 'off',   // incoming command-burst preset
   target: null,                                // { id, name, base } — applied-damage reference hull
   // Skill profile: 'none' (all 0) | 'all5' | 'char' (a synced character's skills)
@@ -430,7 +435,12 @@ function _fitPersist() {
     const fighters = (_fitState.fighters || []).map(t => t ? { id: t.id, units: t.units, active: t.active ? 1 : 0 } : null);
     const implants = _fitState.implants.map(i => i ? { id: i.id, name: i.name } : null);
     const cargo = _fitState.cargo.map(c => ({ id: c.id, qty: c.qty }));
-    localStorage.setItem('fitSaved', JSON.stringify({ hullId: _fitState.hull.id, fitName: _fitState.fitName, racks, drones, fighters, implants, cargo }));
+    localStorage.setItem('fitSaved', JSON.stringify({
+      hullId: _fitState.hull.id, fitName: _fitState.fitName, racks, drones, fighters, implants, cargo,
+      // Which clone is on, so a restart resumes wearing it rather than quietly
+      // letting the next fit load overwrite the set.
+      activeClone: _fitState.activeClone,
+    }));
   } catch (_) {}
 }
 
@@ -444,6 +454,9 @@ async function _fitRestore() {
 // in the _fitPersist shape — shared by the Ctrl+R restore and locally saved fits.
 async function _fitApplySnapshot(data) {
   if (!data?.hullId) return false;
+  // Restoring the session re-wears its clone. Loading a FIT does not carry one,
+  // so `data.activeClone` is absent there and whatever is worn stays worn.
+  if (data.activeClone) _fitState.activeClone = data.activeClone;
   const hull = await window.eveAPI.fitGetHull(data.hullId).catch(() => null);
   if (!hull) return false;
   const ids = new Set();
@@ -486,7 +499,17 @@ async function _fitApplySnapshot(data) {
       left -= units;
     }
   }
-  if (data.implants) {
+  // A WORN CLONE OUTRANKS THE FIT'S OWN IMPLANTS.
+  //
+  // Fits have always stored their implants and restored them, which is right for
+  // reopening one fit and wrong for comparing two: loading the shield version
+  // wiped the implants the armour version was saved with, and the ten sockets
+  // had to be filled in again by hand. A clone is a property of the pilot, so
+  // while one is on it stays on and only the ship changes.
+  if (_fitState.activeClone) {
+    await _fitCloneWearImplants(_fitState.activeClone.implants);
+    _fitFlash(`Kept clone "${_fitState.activeClone.name}".`);
+  } else if (data.implants) {
     _fitState.implants = new Array(10).fill(null);
     data.implants.forEach((i, n) => {
       if (i && facts[i.id] && n < 10) _fitState.implants[n] = { id: i.id, name: facts[i.id].name, f: facts[i.id] };
@@ -2306,6 +2329,15 @@ function _fitImplantPanelHtml() {
   return `
     <div class="fw-dronebay" id="fwImplants">
       <div class="fw-db-head">IMPLANTS<span>${_fitImplantCount()}/10</span></div>
+      <button id="fwCloneBtn" class="fw-clone-bar" type="button"
+              title="Save this set as a clone, or put a saved one on">
+        <span class="material-symbols-outlined">groups</span>
+        ${_fitState.activeClone
+          ? `<span class="fw-clone-name">${_fitEsc(_fitState.activeClone.name)}</span>
+             ${_fitCloneIsEdited() ? '<span class="fw-clone-edited">edited</span>' : ''}`
+          : '<span class="fw-clone-none">No clone worn</span>'}
+        <span class="fw-clone-go">Clones…</span>
+      </button>
       <button id="fwImpAdd" class="fw-add-btn" type="button">
         <span class="material-symbols-outlined">add</span>Socket an implant…
       </button>
@@ -2431,6 +2463,7 @@ function _fitRenderBays(hull) {
       _fitState.implants = new Array(10).fill(null);
       _fitRenderAll();
     });
+    impPanel.querySelector('#fwCloneBtn')?.addEventListener('click', _fitOpenClonePicker);
     impPanel.querySelector('#fwImpAdd')?.addEventListener('click', () => _fitOpenImplantPicker());
     impPanel.querySelectorAll('[data-impslot]').forEach(b => b.addEventListener('click', () =>
       _fitOpenImplantPicker(Number(b.dataset.impslot))));
@@ -4793,6 +4826,319 @@ async function _fitLoadGameFit(fit) {
 }
 
 
+// ─── Clones ───────────────────────────────────────────────────────────────────
+//
+// A named implant set you can put on and take off, the way a jump clone works in
+// game.
+//
+// WHY, GIVEN FITS ALREADY STORE IMPLANTS
+//
+// They do — a saved fit carries its ten sockets and restores them. That is
+// exactly the problem when COMPARING fits. Testing an armour fit against a shield
+// fit on the same clone means loading fit B, watching it overwrite the implants
+// fit A was saved with, and socketing all ten again by hand. The implants are the
+// constant in that experiment and the hull is the variable, but the storage had
+// it the other way round.
+//
+// So a clone is stored SEPARATELY from any fit, and while one is worn it survives
+// loading a fit. That is the whole feature: the clone is a property of the pilot,
+// not of the ship.
+//
+// The character's REAL clones come along for free. The app already syncs active
+// implants and every jump clone with its implant list (main.js step 5, via
+// /characters/{id}/clones/), so "import a specific clone set" can mean the actual
+// set sitting in your head or in a station, not just one you typed in here.
+
+/** localStorage 'fitClones': [{ id, name, implants: [{id,name}|null ×10], saved }] */
+function _fitClones() {
+  try { const a = JSON.parse(localStorage.getItem('fitClones') || '[]'); return Array.isArray(a) ? a : []; }
+  catch (_) { return []; }
+}
+function _fitClonesStore(list) {
+  try { localStorage.setItem('fitClones', JSON.stringify(list)); } catch (_) {}
+}
+
+/** The ten sockets as they stand, in the stored shape. */
+function _fitCloneSnapshot() {
+  return _fitState.implants.map(i => (i ? { id: i.id, name: i.name } : null));
+}
+
+/**
+ * Are these two implant sets the same?
+ *
+ * Used to derive "edited" rather than track it. A flag set on every socket
+ * change is one more thing to get out of step with reality; comparing the sets
+ * cannot drift, because it reads the truth each time.
+ */
+function _fitCloneSame(a, b) {
+  const norm = (list) => Array.from({ length: 10 }, (_, i) => {
+    const v = (list || [])[i];
+    return v && v.id != null ? Number(v.id) : 0;
+  }).join(',');
+  return norm(a) === norm(b);
+}
+
+// The greek suffix on a set implant ("Mid-grade Snake Beta"). Stripping it is
+// what lets five implants of one set be described as one set rather than five
+// unrelated names.
+const FIT_CLONE_GREEK = /\s+(alpha|beta|gamma|delta|epsilon|zeta|omega)$/i;
+
+/**
+ * A clone in one line: how many implants, and which set dominates.
+ *
+ * "5 implants · Mid-grade Snake ×5" says in a glance what "Mid-grade Snake
+ * Alpha, Mid-grade Snake Beta, Mid-grade Snake Gamma…" takes a paragraph to.
+ */
+function _fitCloneSummary(implants) {
+  const worn = (implants || []).filter(Boolean);
+  if (!worn.length) return 'empty clone';
+  const byPrefix = new Map();
+  for (const i of worn) {
+    const p = String(i.name || '').replace(FIT_CLONE_GREEK, '').trim();
+    if (p) byPrefix.set(p, (byPrefix.get(p) || 0) + 1);
+  }
+  let best = null;
+  for (const [p, n] of byPrefix) if (n >= 2 && (!best || n > best.n)) best = { p, n };
+  const head = `${worn.length} implant${worn.length === 1 ? '' : 's'}`;
+  if (!best) return `${head} · ${worn.slice(0, 2).map(i => i.name).join(', ')}${worn.length > 2 ? '…' : ''}`;
+  const rest = worn.length - best.n;
+  return `${head} · ${best.p} ×${best.n}${rest ? ` + ${rest} other${rest === 1 ? '' : 's'}` : ''}`;
+}
+
+/**
+ * Put a set of implants on.
+ *
+ * Placed by the implant's OWN slot attribute (331), not by array position. A
+ * saved clone's array is already slot-indexed, but the game's jump clones arrive
+ * as a flat list with no slots at all — so reading the slot off each implant is
+ * the only rule that works for both, and it cannot silently mis-seat a set.
+ *
+ * @returns {number} how many were seated
+ */
+async function _fitCloneWearImplants(list) {
+  const ids = [...new Set((list || []).filter(Boolean).map(i => Number(i.id)).filter(Boolean))];
+  const facts = ids.length ? await window.eveAPI.fitGetItems(ids).catch(() => ({})) : {};
+  const next = new Array(10).fill(null);
+  let seated = 0;
+  for (const entry of (list || [])) {
+    if (!entry) continue;
+    const f = facts[entry.id];
+    if (!f) continue;
+    const slot = f.attrs?.[331];
+    if (!slot || slot < 1 || slot > 10) continue;
+    next[slot - 1] = { id: f.id, name: f.name, f };
+    seated++;
+  }
+  _fitState.implants = next;
+  return seated;
+}
+
+/** Wear a saved clone, and remember that it is on. */
+async function _fitCloneWear(clone) {
+  const seated = await _fitCloneWearImplants(clone.implants);
+  _fitState.activeClone = { id: clone.id, name: clone.name, implants: clone.implants };
+  _fitRenderAll();
+  _fitFlash(`Wearing "${clone.name}" — ${seated} implant${seated === 1 ? '' : 's'}.`);
+  return seated;
+}
+
+/** Take the clone off. The implants STAY — only the pinning stops. */
+function _fitCloneTakeOff() {
+  const was = _fitState.activeClone;
+  _fitState.activeClone = null;
+  _fitRenderAll();
+  if (was) _fitFlash(`Took off "${was.name}" — the implants stay until you change them.`);
+}
+
+/** Save the current sockets under a name, overwriting a clone of that name. */
+function _fitCloneSaveCurrent(name) {
+  const clean = String(name || '').trim();
+  if (!clean) return null;
+  const list = _fitClones();
+  const entry = {
+    id: String(Date.now()), name: clean,
+    implants: _fitCloneSnapshot(), saved: new Date().toISOString(),
+  };
+  const i = list.findIndex(c => c.name.toLowerCase() === clean.toLowerCase());
+  if (i >= 0) { entry.id = list[i].id; list[i] = entry; } else { list.push(entry); }
+  _fitClonesStore(list);
+  _fitState.activeClone = { id: entry.id, name: entry.name, implants: entry.implants };
+  return entry;
+}
+
+/** Is the worn clone still what is actually in the sockets? */
+function _fitCloneIsEdited() {
+  const a = _fitState.activeClone;
+  return !!a && !_fitCloneSame(a.implants, _fitCloneSnapshot());
+}
+
+/**
+ * The selected character's real clones, from the local character DB.
+ *
+ * Read, never fetched: main.js already pulls /characters/{id}/clones/ on the
+ * character sync and stores both the active implants and every jump clone. This
+ * costs no ESI call and works offline.
+ */
+async function _fitGameClones() {
+  const charId = document.getElementById('fitCharSelect')?.value || '';
+  if (!charId) return [];
+  let data = null;
+  try { data = await window.eveAPI.getCharacterData(Number(charId)); } catch (_) { return []; }
+  if (!data) return [];
+  const out = [];
+
+  const active = (data.implants || [])
+    .map(r => ({ id: Number(r.implant_id), name: r.type_name || `Type ${r.implant_id}` }))
+    .filter(i => Number.isFinite(i.id));
+  if (active.length) {
+    out.push({ id: 'game:active', name: 'Current clone', where: 'the implants in your head right now', implants: active });
+  }
+
+  for (const row of (data.jumpClones || [])) {
+    let implants = [];
+    try { implants = JSON.parse(row.implants_json || '[]'); } catch (_) {}
+    const mapped = (implants || [])
+      .map(i => ({ id: Number(i.type_id), name: i.type_name || `Type ${i.type_id}` }))
+      .filter(i => Number.isFinite(i.id));
+    out.push({
+      id: `game:${row.jump_clone_id}`,
+      name: row.clone_name || `Jump clone ${row.jump_clone_id}`,
+      where: row.location_name || 'unknown station',
+      implants: mapped,
+    });
+  }
+  return out;
+}
+
+// ── The clone dialog ─────────────────────────────────────────────────────────
+// Same shell as the item pickers. Three sections, in the order you use them:
+// save what is on now, wear something saved, or pull one out of the game.
+async function _fitOpenClonePicker() {
+  const host = _fitPickOpen({
+    title: 'Clones',
+    subtitle: 'A named implant set — put it on once and it survives loading a fit',
+    loading: 'Reading clones…',
+  });
+  const body = host.modal.querySelector('.fit-pick-body');
+  const game = await _fitGameClones();
+
+  const paint = () => {
+    const saved = _fitClones();
+    const active = _fitState.activeClone;
+    const edited = _fitCloneIsEdited();
+    const worn = _fitCloneSnapshot().filter(Boolean).length;
+
+    const cloneRow = (c, kind) => `
+      <div class="fit-clone-row${active && active.id === c.id ? ' is-worn' : ''}">
+        <span class="fit-clone-text">
+          <span class="fit-clone-name">${_fitEsc(c.name)}</span>
+          <span class="fit-clone-sub">${_fitEsc(kind === 'game' ? `${c.where} · ${_fitCloneSummary(c.implants)}`
+                                                                 : _fitCloneSummary(c.implants))}</span>
+        </span>
+        <button class="fit-clone-wear" type="button" data-wear="${kind}:${_fitEsc(c.id)}">
+          ${active && active.id === c.id ? 'Worn' : 'Wear'}
+        </button>
+        ${kind === 'game'
+          ? `<button class="fit-clone-x" type="button" data-copy="${_fitEsc(c.id)}" title="Save a copy in EVE Carbon">
+               <span class="material-symbols-outlined">bookmark_add</span></button>`
+          : `<button class="fit-clone-x" type="button" data-del="${_fitEsc(c.id)}" title="Delete this clone">
+               <span class="material-symbols-outlined">close</span></button>`}
+      </div>`;
+
+    body.innerHTML = `
+      <div class="fit-clone-body">
+        <section class="fit-clone-sec">
+          <h3 class="fit-clone-h">Save what is socketed now</h3>
+          <div class="fit-clone-save">
+            <input id="fitCloneName" class="fit-clone-input" placeholder="Clone name — e.g. Mid-grade Snake, Slave set"
+                   autocomplete="off" value="${_fitEsc(active ? active.name : '')}">
+            <button id="fitCloneSave" class="fit-ip-done" type="button" ${worn ? '' : 'disabled'}>Save</button>
+          </div>
+          <p class="fit-clone-hint">${worn
+            ? `${_fitEsc(_fitCloneSummary(_fitCloneSnapshot()))}${edited ? ' · edited since you put it on' : ''}`
+            : 'No implants socketed — there is nothing to save yet.'}</p>
+        </section>
+
+        <section class="fit-clone-sec">
+          <h3 class="fit-clone-h">Saved in EVE Carbon</h3>
+          ${saved.length ? saved.map(c => cloneRow(c, 'saved')).join('')
+            : '<p class="fit-clone-hint">None yet. Socket a set and save it above.</p>'}
+        </section>
+
+        <section class="fit-clone-sec">
+          <h3 class="fit-clone-h">From the game</h3>
+          ${game.length ? game.map(c => cloneRow(c, 'game')).join('')
+            : `<p class="fit-clone-hint">No clones on record. Sync this character to read their
+               implants and jump clones — nothing here needs an extra ESI call.</p>`}
+        </section>
+      </div>
+      <footer class="fit-ip-foot">
+        <span class="fit-ip-status">${active
+          ? `Wearing ${_fitEsc(active.name)}${edited ? ' (edited)' : ''}`
+          : `${worn}/10 socketed · no clone worn`}</span>
+        <span class="fit-ip-log"></span>
+        ${active ? '<button id="fitCloneOff" class="fit-clone-off" type="button">Take off</button>' : ''}
+        <button class="fit-ip-done" id="fitCloneDone" type="button">Done</button>
+      </footer>`;
+
+    const find = (kind, id) => (kind === 'game' ? game : _fitClones()).find(c => String(c.id) === String(id));
+
+    body.querySelectorAll('[data-wear]').forEach(b => b.addEventListener('click', async () => {
+      const [kind, ...rest] = b.dataset.wear.split(':');
+      const c = find(kind, rest.join(':'));
+      if (c) { await _fitCloneWear(c); paint(); }
+    }));
+    body.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
+      const c = find('game', b.dataset.copy);
+      if (!c) return;
+      // Save a game clone WITHOUT wearing it: seat it, snapshot, then restore.
+      // Copying is a filing action, not a decision about what the pilot has on.
+      const before = _fitCloneSnapshot();
+      const beforeActive = _fitState.activeClone;
+      await _fitCloneWearImplants(c.implants);
+      _fitCloneSaveCurrent(c.name);
+      await _fitCloneWearImplants(before);
+      _fitState.activeClone = beforeActive;
+      _fitRenderAll();
+      paint();
+      _fitFlash(`Saved "${c.name}" as a clone.`);
+    }));
+    body.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.del;
+      _fitClonesStore(_fitClones().filter(c => String(c.id) !== String(id)));
+      if (_fitState.activeClone && String(_fitState.activeClone.id) === String(id)) _fitState.activeClone = null;
+      paint();
+    }));
+
+    const nameEl = body.querySelector('#fitCloneName');
+    const saveEl = body.querySelector('#fitCloneSave');
+    const paintSaveLabel = () => {
+      if (!saveEl) return;
+      const n = String(nameEl.value || '').trim().toLowerCase();
+      const hit = n && _fitClones().some(c => c.name.toLowerCase() === n);
+      saveEl.textContent = hit ? 'Update' : 'Save';
+      saveEl.title = hit ? `Overwrite the clone named "${nameEl.value.trim()}"` : 'Save these implants as a new clone';
+    };
+    const doSave = () => {
+      const e = _fitCloneSaveCurrent(nameEl.value);
+      if (!e) { nameEl.focus(); return; }
+      _fitRenderAll();
+      paint();
+      _fitFlash(`Saved clone "${e.name}".`);
+    };
+    saveEl?.addEventListener('click', doSave);
+    nameEl?.addEventListener('input', paintSaveLabel);
+    nameEl?.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') doSave(); });
+    paintSaveLabel();
+    body.querySelector('#fitCloneOff')?.addEventListener('click', () => { _fitCloneTakeOff(); paint(); });
+    body.querySelector('#fitCloneDone')?.addEventListener('click', host.close);
+  };
+
+  paint();
+  body.querySelector('#fitCloneName')?.focus();
+  return host;
+}
+
 // ─── Local fits — saved inside EVE Carbon, no ESI involved ────────────────────
 // localStorage 'fitLocalFits': [{ id, name, hullId, hullName, racks, drones, saved }].
 // racks/drones use the _fitPersist snapshot shape, so _fitApplySnapshot rebuilds
@@ -4856,7 +5202,14 @@ function _fitSaveLocal() {
 async function _fitLoadLocalFit(id) {
   const f = _fitLocalFits().find(x => String(x.id) === String(id));
   if (!f) return;
-  const ok = await _fitApplySnapshot({ hullId: f.hullId, fitName: f.name, racks: f.racks, drones: f.drones, fighters: f.fighters, implants: f.implants });
+  // cargo was in the saved entry but NOT in this call, so every locally saved
+  // fit came back with an empty hold — despite the save path's own comment that
+  // "a saved fit whose field refit vanished on reload would be worse than not
+  // saving it". It vanished.
+  const ok = await _fitApplySnapshot({
+    hullId: f.hullId, fitName: f.name, racks: f.racks, drones: f.drones,
+    fighters: f.fighters, implants: f.implants, cargo: f.cargo,
+  });
   _fitFlash(ok ? `Loaded "${f.name}".` : 'Could not rebuild this fit — hull missing from the SDE?');
 }
 

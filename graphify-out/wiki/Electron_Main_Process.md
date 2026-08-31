@@ -37,6 +37,7 @@
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (10 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (6 shared connections)
 - [Presence](Presence.md) (4 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (3 shared connections)
 - [PI IPC](PI_IPC.md) (3 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
@@ -44,7 +45,6 @@
 - [Map IPC](Map_IPC.md) (2 shared connections)
 - [Theme Vars](Theme_Vars.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
 
 ## Source Files
 

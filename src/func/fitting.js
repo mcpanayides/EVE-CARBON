@@ -121,6 +121,10 @@ const _fitState = {
   cargoOpen: false,                            // cargo hold panel visible on the wheel
   fighters: [],                                // LAUNCH TUBES: per tube null | { id, name, f, units, active }
   fighterBayOpen: false,                       // fighter tube panel visible
+  // What an imported fit's fighter BAY held: [{ name, qty }]. EVE saves
+  // fighters to the bay without a tube assignment, so this is reported rather
+  // than loaded — see _fitLoadGameFit.
+  fighterBayNote: [],
   implants: new Array(10).fill(null),          // slot 1-10 → { id, name, f } (character-level, survives hull swaps)
   implantsOpen: false,                         // implants panel visible
   links: localStorage.getItem('fitLinks') || 'off',   // incoming command-burst preset
@@ -949,6 +953,7 @@ async function _fitLoadHull(typeId) {
   _fitState.drones = [];
   _fitState.fighters = [];
   _fitState.cargo = [];
+  _fitState.fighterBayNote = [];
   _fitState.selected = null;
   _fitRenderAll();
 }
@@ -3070,6 +3075,14 @@ function _fitRenderStats() {
         ${droneBay ? line('In space', `${_fitDroneActiveN()} / ${_fitDroneCap()}`) : ''}
       </div>
       ${fighterRows}${droneRows}
+      ${/* What an imported fit's fighter bay held. EVE saves fighters to the
+            bay with no tube assignment, so we cannot know the layout and will
+            not invent one — but the pilot should still see what the fit
+            carried, rather than the bay silently coming back empty. */''}
+      ${fighterBay && (_fitState.fighterBayNote || []).length ? `<div class="fit-note-line">
+        Saved fit carried ${_fitState.fighterBayNote.map(x => `${x.qty}× ${_fitEsc(x.name)}`).join(', ')}
+        in the fighter bay. EVE does not record which tube each squadron sat in,
+        so the tubes are left empty — load them to count toward DPS.</div>` : ''}
       ${!fighterRows && !droneRows ? `<div class="fit-note-line">${fighterBay
         ? 'Load fighters into launch tubes (Charges &amp; Drones tab → drag onto the tubes chip, bottom-left of the wheel). Launched squadrons count toward DPS.'
         : 'Add drones from the Charges &amp; Drones tab — set them active in the bay (bottom-left of the wheel) to count toward DPS and the range chart.'}</div>` : ''}
@@ -4090,8 +4103,9 @@ async function _fitLoadGameFit(fit) {
   const facts = await window.eveAPI.fitGetItems(ids).catch(() => ({}));
   // Place modules at their EXACT in-game slot position (flag − rack base) so the
   // saved layout — including heat-management gaps — survives the round-trip.
-  const charges = [];
-  const cargo   = [];
+  const charges    = [];
+  const cargo      = [];
+  const fighterBay = [];
   // Pass 1: subsystems — they create the slot layout everything else lands in.
   for (const it of fit.items) {
     const f = facts[it.typeId];
@@ -4109,7 +4123,17 @@ async function _fitLoadGameFit(fit) {
     const f = facts[it.typeId];
     if (!f || f.slot === 'subsystem') continue;
     const qty = it.quantity || 1;
-    if (f.categoryId === 18 || f.categoryId === 87) { _fitAddDrone(f, qty); continue; }   // drone/fighter bay
+    // Drones DO live in the bay, and that is exactly what the fitting records,
+    // so they import faithfully.
+    if (f.categoryId === 18) { _fitAddDrone(f, qty); continue; }
+    // Fighters do not. EVE's fitting window saves them to the FIGHTER BAY with
+    // no tube assignment — the flag is just "FighterBay" — so which squadron
+    // sat in which tube is information the saved fit does not contain. Filling
+    // tubes from a flat count invented a loadout: a bay holding 9 Ametat came
+    // back as a full flight of 6 plus a stray flight of 3, which reads as the
+    // pilot's own layout and is not. Record what the bay held and leave the
+    // tubes empty; an empty tube is honest, a wrong one is not.
+    if (f.categoryId === 87) { fighterBay.push({ name: f.name, qty }); continue; }
 
     // THE FLAG DECIDES, and only the flag. This used to fall back to `f.slot`
     // when the flag was not a slot — which meant everything in the CARGO HOLD
@@ -4138,6 +4162,7 @@ async function _fitLoadGameFit(fit) {
     if (ex) ex.qty += qty;
     else _fitState.cargo.push({ id: f.id, name: f.name, f, qty });
   }
+  _fitState.fighterBayNote = fighterBay;
   _fitState.fitName = fit.name || 'Imported Fit';
   _fitRenderAll();
   _fitFlash(`Loaded "${fit.name}".`);

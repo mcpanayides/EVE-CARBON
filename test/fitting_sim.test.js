@@ -1122,3 +1122,42 @@ test('slot flags are parsed from the ESI enum name, and numbers still work', () 
   assert.deepEqual(at(94), { slot: 'rig', index: 2 });
   assert.strictEqual(at(5), null, 'numeric cargo');
 });
+
+test('imported fighters are reported, not loaded into invented tubes', async () => {
+  const sb = loadSim();
+  const carrier = HULL();
+  carrier.fighter = { bay: 110000, tubes: 5, light: 3, support: 1, heavy: 4 };
+  const ametat = facts({ id: 40348, name: 'Ametat II', categoryId: 87, volume: 1108,
+    attrs: { 2215: 6 } });
+  const relay  = facts({ id: 2032, name: 'Capacitor Power Relay II', slot: 'low' });
+
+  sb.window.eveAPI.fitGetHull  = async () => carrier;
+  sb.window.eveAPI.fitGetItems = async () => ({ 40348: ametat, 2032: relay });
+  await sb._fitLoadGameFit({
+    name: 'Pegasus', shipTypeId: carrier.id,
+    items: [
+      { typeId: 40348, flag: 'FighterBay', quantity: 9 },
+      { typeId: 2032,  flag: 'LoSlot0',    quantity: 1 },
+    ],
+  });
+
+  // EVE saves fighters to the BAY with no tube assignment, so 9 Ametat used to
+  // come back as a full flight of 6 plus a stray flight of 3 — a layout the
+  // pilot never chose, presented as though they had.
+  assert.strictEqual((sb._fitState.fighters || []).filter(Boolean).length, 0,
+    'no tube may be filled from a bay count');
+  assert.strictEqual(sb._fitState.fighterBayNote.length, 1, 'but the bay contents are recorded');
+  assert.strictEqual(sb._fitState.fighterBayNote[0].name, 'Ametat II');
+  assert.strictEqual(sb._fitState.fighterBayNote[0].qty, 9);
+  // And the rest of the fit still imports normally.
+  assert.strictEqual(sb._fitState.modules.low[0]?.f.name, 'Capacitor Power Relay II');
+});
+
+test('a hull swap clears the imported fighter-bay note', async () => {
+  const sb = loadSim();
+  sb._fitState.fighterBayNote = [{ name: 'Ametat II', qty: 9 }];
+  sb.window.eveAPI.fitGetHull = async () => HULL();
+  await sb._fitLoadHull(HULL().id);
+  assert.strictEqual(sb._fitState.fighterBayNote.length, 0,
+    'a note about another fit must not survive onto this one');
+});

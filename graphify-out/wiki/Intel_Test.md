@@ -38,7 +38,7 @@
 - [Intel Resume Test](Intel_Resume_Test.md) (3 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [Ics Parse](Ics_Parse.md) (1 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 

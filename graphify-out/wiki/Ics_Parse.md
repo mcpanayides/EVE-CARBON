@@ -1,6 +1,6 @@
 # Ics Parse
 
-> 12 nodes · cohesion 0.29
+> 11 nodes · cohesion 0.33
 
 ## Key Concepts
 
@@ -14,22 +14,20 @@
 - **parseTimezones()** (2 connections) — `src/func/ics-parse.js`
 - **parseRrule()** (2 connections) — `src/func/ics-parse.js`
 - **occurrence()** (2 connections) — `src/func/ics-parse.js`
-- **line()** (2 connections) — `test/intel.test.js`
 - **RFC-5545** (1 connections) — `src/func/ics-parse.js`
 
 ## Relationships
 
-- [Intel Test](Intel_Test.md) (1 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/ics-parse.js`
-- `test/intel.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 37 (95%)
-- INFERRED: 2 (5%)
+- EXTRACTED: 36 (97%)
+- INFERRED: 1 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -318,12 +318,23 @@
    toggling who's watched happens mid-op and must not cover the contact list. */
 .intel-dd-wrap  { position: relative; }
 .intel-dd-active { background: var(--accent-dim, var(--bg-hover)); }
+/* OPAQUE, unlike a modal. --bg-modal is tuned for a dialog that always has a
+   dimming .modal-backdrop behind it; this popover has none, so the same token
+   left the contact list reading straight through the character names — at 0.62
+   alpha with no blur under the glass theme, which is what it actually shipped
+   at. Two stacked layers give it a floor: the theme's opaque body colour, with
+   the theme's own modal tint painted over the top, so it stays on-theme without
+   a new token. Glass re-frosts it in glass.css. */
 .intel-dd-menu  { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60;
-                  min-width: 300px; max-height: 340px; overflow-y: auto;
-                  background: var(--bg-modal); border: 1px solid var(--border);
-                  border-radius: 6px; padding: 6px; }
+                  min-width: 320px; max-height: 340px; overflow-y: auto;
+                  background-color: var(--bg-body, #0a0d14);
+                  background-image: linear-gradient(0deg, var(--bg-modal), var(--bg-modal));
+                  border: 1px solid var(--border);
+                  border-radius: 6px; padding: 6px;
+                  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.45); }
 .intel-dd-head  { font-size: 10px; letter-spacing: 0.06em; color: var(--text-3); padding: 4px 8px 6px; }
 .intel-dd-foot  { font-size: 10px; color: var(--text-3); padding: 6px 8px 2px; border-top: 1px solid var(--border); }
+.intel-dd-foot b { color: var(--pal-green); font-weight: 600; }
 .intel-dd-empty { font-size: 11px; color: var(--text-3); padding: 10px; }
 .intel-dd-row   { display: grid; grid-template-columns: 20px 10px minmax(0, 1fr) auto;
                   gap: 8px; align-items: center; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
@@ -332,7 +343,19 @@
 .intel-dd-dot    { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: 0.4; }
 .intel-dd-online { background: var(--pal-green); opacity: 1; }
 .intel-dd-name   { font-size: 12px; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; }
-.intel-dd-loc    { font-size: 10px; color: var(--text-3); }
+.intel-dd-loc    { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.intel-dd-sys    { font-size: 11px; color: var(--text-2); font-family: var(--mono, monospace); }
+
+/* Where the position came from, and therefore how much it is worth. A LIVE
+   position is read from EVE's Local log as the character jumps; an ESI one can
+   be half an hour old. Same system name, very different claim — so they must
+   not look alike. */
+.intel-dd-src       { font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+                      padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+                      color: var(--text-3); border: 1px solid var(--border); }
+.intel-dd-src-live  { color: var(--pal-green); border-color: color-mix(in srgb, var(--pal-green) 45%, transparent);
+                      background: color-mix(in srgb, var(--pal-green) 12%, transparent); font-weight: 600; }
+.intel-dd-src-stale { color: var(--pal-gold); border-color: color-mix(in srgb, var(--pal-gold) 40%, transparent); }
 
 /* Killmail-sourced feed rows read differently from chat: objective, not chatter. */
 .intel-feed-kill .intel-feed-sys  { color: var(--pal-red); }

@@ -1,26 +1,14 @@
 # Intel Resume Test
 
-> 27 nodes · cohesion 0.10
+> 15 nodes · cohesion 0.16
 
 ## Key Concepts
 
 - **intel_resume.test.js** (21 connections) — `test/intel_resume.test.js`
-- **chatlog_reader.js** (14 connections) — `src/intel/chatlog_reader.js`
 - **createChatlogReader()** (6 connections) — `src/intel/chatlog_reader.js`
-- **findChatlogDir()** (4 connections) — `src/intel/chatlog_reader.js`
-- **channelOf()** (3 connections) — `src/intel/chatlog_reader.js`
-- **discoverChannels()** (3 connections) — `src/intel/chatlog_reader.js`
 - **writeLog()** (3 connections) — `test/intel_resume.test.js`
 - **readerOver()** (3 connections) — `test/intel_resume.test.js`
 - **serviceOver()** (3 connections) — `test/intel_resume.test.js`
-- **newestPerChannel()** (2 connections) — `src/intel/chatlog_reader.js`
-- **lineTimestamp()** (2 connections) — `src/intel/chatlog_reader.js`
-- **detectOnlineCharacters()** (2 connections) — `src/intel/chatlog_reader.js`
-- **fs** (1 connections) — `src/intel/chatlog_reader.js`
-- **os** (1 connections) — `src/intel/chatlog_reader.js`
-- **path** (1 connections) — `src/intel/chatlog_reader.js`
-- **CANDIDATE_DIRS** (1 connections) — `src/intel/chatlog_reader.js`
-- **readHeader()** (1 connections) — `src/intel/chatlog_reader.js`
 - **test** (1 connections) — `test/intel_resume.test.js`
 - **assert** (1 connections) — `test/intel_resume.test.js`
 - **fs** (1 connections) — `test/intel_resume.test.js`
@@ -29,12 +17,14 @@
 - **{ createChatlogReader, lineTimestamp }** (1 connections) — `test/intel_resume.test.js`
 - **{ createProximityTracker, buildAdjacency }** (1 connections) — `test/intel_resume.test.js`
 - **{ createIntelService }** (1 connections) — `test/intel_resume.test.js`
-- *... and 2 more nodes in this community*
+- **stamp()** (1 connections) — `test/intel_resume.test.js`
+- **SDE** (1 connections) — `test/intel_resume.test.js`
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (4 shared connections)
 - [Intel Test](Intel_Test.md) (3 shared connections)
+- [Intel Service](Intel_Service.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 
@@ -45,8 +35,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 66 (81%)
-- INFERRED: 15 (19%)
+- EXTRACTED: 44 (96%)
+- INFERRED: 2 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

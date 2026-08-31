@@ -38,7 +38,7 @@
 - [Stress Index](Stress_Index.md) (1 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
-- [Notifications](Notifications.md) (1 shared connections)
+- [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files

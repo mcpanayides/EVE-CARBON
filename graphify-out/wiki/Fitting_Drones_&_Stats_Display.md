@@ -37,11 +37,11 @@
 - [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (12 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (9 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (8 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (4 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (5 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
 - [Fitting Simulator (_fitPersist)](Fitting_Simulator_%28_fitPersist%29.md) (2 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
-- [Theme Vars](Theme_Vars.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 

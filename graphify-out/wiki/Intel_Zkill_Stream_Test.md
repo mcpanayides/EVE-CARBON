@@ -7,7 +7,7 @@
 - **intel_zkill_stream.test.js** (19 connections) — `test/intel_zkill_stream.test.js`
 - **kill_watch.js** (7 connections) — `src/intel/kill_watch.js`
 - **createKillWatch()** (5 connections) — `src/intel/kill_watch.js`
-- **tick()** (4 connections) — `test/intel_zkill_stream.test.js`
+- **tick()** (5 connections) — `test/intel_zkill_stream.test.js`
 - **normalisePackage()** (2 connections) — `src/intel/kill_watch.js`
 - **countUp()** (2 connections) — `src/utils.js`
 - **advance()** (2 connections) — `test/intel_zkill_stream.test.js`
@@ -33,8 +33,9 @@
 - [Intel Test](Intel_Test.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
-- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
+- [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 
@@ -44,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 52 (88%)
-- INFERRED: 7 (12%)
+- EXTRACTED: 52 (87%)
+- INFERRED: 8 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

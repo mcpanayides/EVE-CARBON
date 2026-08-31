@@ -129,6 +129,25 @@ body.glass-on #walletJournalModal {
   border: 1px solid var(--glass-edge) !important;
   border-radius: 18px !important;
 }
+/* ── FLOATING POPOVERS — no backdrop, so they must carry their own separation.
+      The monitored-characters dropdown sits directly on the contact list with
+      nothing dimming it, and inherited --bg-modal (0.45 + 0.10 = 0.55 alpha)
+      with no blur at all. Names and system chips from the list behind read
+      straight through it. Given the TOAST rung — the ladder's "always
+      readable" tier — plus the modal's own 28px frost, so it still looks like
+      glass instead of being flattened to a solid slab. ───────────────────── */
+body.glass-on .intel-dd-menu {
+  background-color: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) + 0.34));
+  background-image: none;
+  backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 var(--glass-specular);
+}
+
 /* Blur the world behind a modal rather than blacking it out — the modal's own
    28px blur does the separating, so the dim can stay light and the glass reads */
 body.glass-on .modal-backdrop {

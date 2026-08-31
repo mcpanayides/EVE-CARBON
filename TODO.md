@@ -382,12 +382,13 @@ most of the items (the shape that hurts, not just the row count).
 
 ### What is running today
 
-18 `setInterval` timers. **Six of the fastest make no network request at all**,
+19 `setInterval` timers. **Seven of the fastest make no network request at all**,
 which is worth knowing before anyone "fixes" them:
 
 | timer | cadence | what it actually does |
 |---|---|---|
 | `src/intel/chatlog_reader.js:291` | 1 s | reads local EVE chat-log files off disk |
+| `src/intel/local_position.js` | 1 s | reads each character's Local log for their current system — measured at 3 ms/tick against 79 real logs |
 | `src/func/dashboard.js:3345` | 1 s | DOM countdown on industry-job cards |
 | `src/func/fc_intel.js:203` | 2 s | `intelContacts()` — IPC to main, in-memory |
 | `src/func/dashboard.js:1124` | 3 s | same, IPC only |

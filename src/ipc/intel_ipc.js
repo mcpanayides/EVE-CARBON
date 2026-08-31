@@ -136,6 +136,121 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     };
   });
 
+  // ── Live position, from EVE's own Local log ────────────────────────────────
+  // Every distance this feature reports is measured FROM the monitored
+  // character, so a stale origin poisons the whole answer. The stored ESI
+  // location is refreshed on a 30-minute stale gate from the dashboard and only
+  // for the selected character — jump a super to a ratting system and nothing
+  // re-read it at all. EVE writes "Channel changed to Local : <system>" the
+  // moment you arrive, so that is the source of truth here and ESI is the
+  // fallback for a character whose client has never run on this machine.
+  let localPos = null;
+
+  function ensureLocalWatcher() {
+    if (localPos) return localPos;
+    const { createLocalPositionWatcher } = require('../intel/local_position');
+    localPos = createLocalPositionWatcher({
+      dir: cfg().logDir,
+      onChange: (changes) => { onPositionsChanged(changes).catch(() => {}); },
+    });
+    localPos.start();
+    return localPos;
+  }
+
+  /**
+   * A monitored character jumped.
+   *
+   * Origins are re-derived only when a system actually CHANGED, never on a
+   * timer: setOrigins runs a BFS per origin and clears the alert suppressions,
+   * so calling it every tick would burn the horizon rebuild and re-fire alerts
+   * that were deliberately quietened. The renderer is told regardless, so the
+   * dropdown stops showing where the character used to be.
+   */
+  async function onPositionsChanged(changes) {
+    for (const c of changes) {
+      console.log(`[intel] ${c.characterId} moved ${c.previous || '?'} -> ${c.systemName}`);
+    }
+    const monitored = new Set((cfg().monitor || []).map(Number));
+    const moved = changes.filter(c => monitored.has(Number(c.characterId)));
+    if (moved.length && ready && service) {
+      const origins = await resolveOrigins([...monitored]);
+      const reach = service.setOrigins(origins);
+      broadcast('intel-origins', { origins, reach, moved });
+    }
+    broadcast('intel-characters', await monitorableCharacters());
+  }
+
+  // System name -> id, straight off the SDE and memoised. Deliberately NOT the
+  // intel service's index: that needs the full build (5 000 systems, every
+  // published hull), and the character dropdown must not pay for it just to
+  // print where somebody is standing.
+  const _sysIdCache = new Map();
+  async function systemIdByName(name) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    if (_sysIdCache.has(key)) return _sysIdCache.get(key);
+    let id = null;
+    try {
+      const db = getSdeDb && getSdeDb();
+      if (db) {
+        const rows = await db.all(
+          'SELECT solarSystemID id FROM mapSolarSystems WHERE LOWER(solarSystemName) = ? LIMIT 1', key);
+        if (rows && rows.length) id = Number(rows[0].id);
+      }
+    } catch (_) { /* SDE missing — the ESI position still works */ }
+    _sysIdCache.set(key, id);
+    return id;
+  }
+
+  /**
+   * Where a character is, best source first.
+   *
+   * `source` is returned rather than hidden because the two differ in kind: the
+   * log is seconds old and needs no scope, the ESI row can be half an hour old.
+   * The UI says which, so nobody has to guess whether the number is live.
+   */
+  async function characterPosition(characterId) {
+    const id = Number(characterId);
+
+    let log = null;
+    const live = ensureLocalWatcher().positionFor(id);
+    if (live && live.systemName) {
+      const sysId = await systemIdByName(live.systemName);
+      if (sysId != null) {
+        log = { systemId: sysId, systemName: live.systemName, at: live.at, source: 'log',
+                // How recently a client VOUCHED for this, which is not the same
+                // as when the character last jumped: someone ratting in one
+                // system for three hours has an old `at` and a live `seenAt`.
+                vouchedAt: Math.max(live.seenAt || 0, live.at || 0) };
+      } else {
+        // A system the SDE doesn't know — a localized client whose wording
+        // slipped past the pattern, or an Abyssal pocket. Say so rather than
+        // silently trusting a name nothing can measure a distance from.
+        console.warn(`[intel] Local log names an unknown system: ${live.systemName}`);
+      }
+    }
+
+    let esi = null;
+    try {
+      const data = charInfoDb ? await charInfoDb.getCharacterData(id) : null;
+      const loc  = data && data.location;
+      if (loc && loc.solar_system_id != null) {
+        esi = {
+          systemId:   Number(loc.solar_system_id),
+          systemName: loc.solar_system_name || null,
+          at:         loc.synced_at || null,
+          source:     'esi',
+          vouchedAt:  loc.synced_at || 0,
+        };
+      }
+    } catch (_) { /* no location on record yet */ }
+
+    // Newest vouch wins, rather than "the log always" — see preferPosition.
+    const { preferPosition } = require('../intel/local_position');
+    return preferPosition(log, esi)
+        || { systemId: null, systemName: null, at: null, source: null };
+  }
+
   // ── Which characters can be monitored ──────────────────────────────────────
   // Every account the app knows, annotated with:
   //   • where it is       — from the local character DB, so no ESI call
@@ -143,7 +258,7 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
   //     writes to a character's log file while that character is running. That
   //     beats /characters/{id}/online/, which needs a scope most people haven't
   //     granted and answers for one character per call.
-  ipcHandle('intel-monitorable-characters', async () => {
+  async function monitorableCharacters() {
     const { detectOnlineCharacters } = require('../intel/chatlog_reader');
     const saved = cfg();
     const online = new Map(detectOnlineCharacters(saved.logDir).map(c => [c.characterId, c]));
@@ -152,21 +267,20 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
 
     const out = [];
     for (const acc of Object.values(db.accounts || {})) {
-      let systemId = null, systemName = null;
-      try {
-        const data = charInfoDb ? await charInfoDb.getCharacterData(acc.characterId) : null;
-        const loc = data && data.location;
-        if (loc) {
-          systemId   = loc.solar_system_id ?? null;
-          systemName = loc.solar_system_name ?? null;
-        }
-      } catch (_) { /* no location on record yet */ }
-
+      const pos  = await characterPosition(acc.characterId);
       const seen = online.get(Number(acc.characterId));
       out.push({
         characterId: acc.characterId,
         name:        acc.characterName || `Character ${acc.characterId}`,
-        systemId, systemName,
+        systemId:    pos.systemId,
+        systemName:  pos.systemName,
+        // How the position was learned and AS OF WHEN it is believed. Shown,
+        // not hidden: "read from the game as you jump" and "from ESI, 24m ago"
+        // are different claims and the operator is entitled to know which one
+        // they are acting on. positionAt is the vouch, not the jump — a ratter
+        // parked for three hours is still being vouched for every second.
+        positionSource: pos.source,
+        positionAt:     pos.vouchedAt || pos.at,
         online:      !!seen,
         lastSeen:    seen ? seen.lastSeen : null,
         monitored:   watching.has(Number(acc.characterId)),
@@ -177,7 +291,9 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     out.sort((a, b) => (b.online - a.online) || ((b.systemId ? 1 : 0) - (a.systemId ? 1 : 0))
                        || String(a.name).localeCompare(String(b.name)));
     return out;
-  });
+  }
+
+  ipcHandle('intel-monitorable-characters', async () => monitorableCharacters());
 
   // Set the monitored set. Characters without a known position are accepted but
   // contribute nothing until one is synced — silently dropping them would make
@@ -188,16 +304,14 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     const origins = [];
     for (const id of ids) {
       const acc = db.accounts[id] || db.accounts[String(id)];
-      let systemId = null;
-      try {
-        const data = charInfoDb ? await charInfoDb.getCharacterData(id) : null;
-        systemId = data?.location?.solar_system_id ?? null;
-      } catch (_) {}
-      if (systemId == null) continue;
+      const pos = await characterPosition(id);
+      if (pos.systemId == null) continue;
       origins.push({
         key: String(id), characterId: id,
         label: (acc && acc.characterName) || `Character ${id}`,
-        systemId: Number(systemId),
+        systemId: Number(pos.systemId),
+        systemName: pos.systemName,
+        source: pos.source,
       });
     }
     return origins;
@@ -299,7 +413,16 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
   ipcHandle('intel-get-config', async () => cfg());
 
   ipcHandle('intel-set-config', async (_e, patch) => {
+    const before = cfg().logDir;
     const next = saveIntelConfig(patch || {});
+    // Point the position watcher at the new directory. Without this it goes on
+    // tailing the old one — silently, and reporting positions that get older
+    // every minute while looking exactly as live as they did before.
+    if (next.logDir !== before && localPos) {
+      localPos.stop();
+      localPos = null;
+      ensureLocalWatcher();
+    }
     if (ready && service) {
       if (patch && patch.options) service.setOptions(patch.options);
       // Channel list changed → restart the reader against the new set.

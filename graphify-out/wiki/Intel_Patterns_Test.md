@@ -1,6 +1,6 @@
 # Intel Patterns Test
 
-> 27 nodes · cohesion 0.13
+> 26 nodes · cohesion 0.13
 
 ## Key Concepts
 
@@ -13,7 +13,6 @@
 - **corridors()** (4 connections) — `src/intel/patterns.js`
 - **entryPoints()** (4 connections) — `src/intel/patterns.js`
 - **bucketPattern()** (3 connections) — `src/intel/patterns.js`
-- **hourBlocks()** (3 connections) — `src/intel/patterns.js`
 - **DEFAULTS** (2 connections) — `src/intel/patterns.js`
 - **WEEKDAY_NAMES** (2 connections) — `src/intel/patterns.js`
 - **at()** (2 connections) — `test/intel_patterns.test.js`
@@ -32,15 +31,16 @@
 - **hop()** (1 connections) — `test/intel_patterns.test.js`
 - **SDE** (1 connections) — `test/intel_patterns.test.js`
 - **evLine()** (1 connections) — `test/intel_patterns.test.js`
-- *... and 2 more nodes in this community*
+- **CHAN** (1 connections) — `test/intel_patterns.test.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
 - [Intel Service](Intel_Service.md) (3 shared connections)
 - [Intel Test](Intel_Test.md) (3 shared connections)
-- [Notifications](Notifications.md) (2 shared connections)
+- [Fleet Mining](Fleet_Mining.md) (2 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -49,8 +49,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 83 (84%)
-- INFERRED: 16 (16%)
+- EXTRACTED: 82 (85%)
+- INFERRED: 14 (15%)
 - AMBIGUOUS: 0 (0%)
 
 ---

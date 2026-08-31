@@ -32,7 +32,7 @@
 - [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (5 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (2 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (2 shared connections)
-- [Theme Vars](Theme_Vars.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (1 shared connections)
 
 ## Source Files

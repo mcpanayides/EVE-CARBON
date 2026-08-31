@@ -1,13 +1,12 @@
 # Gridstack Geometry & Collision
 
-> 65 nodes · cohesion 0.07
+> 63 nodes · cohesion 0.07
 
 ## Key Concepts
 
 - **s** (59 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **i** (37 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.moveNode()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.find()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.copyPos()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._fixCollisions()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._notify()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
@@ -29,14 +28,17 @@
 - **.restoreInitial()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.findEmptyPosition()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.willItFit()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 40 more nodes in this community*
+- **.removePositioningStyles()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 38 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (48 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (10 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (5 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (5 shared connections)
+- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (41 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (10 shared connections)
+- [Gridstack Vendor Library (createDiv)](Gridstack_Vendor_Library_%28createDiv%29.md) (8 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (4 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
+- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (2 shared connections)
 
 ## Source Files
 
@@ -44,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 364 (100%)
+- EXTRACTED: 351 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -24,7 +24,12 @@ let _intelSound    = null; // { enabled, minSize, volume }
 let _intelAudio    = null; // the <audio> element, created lazily
 let _intelLastSound = 0;   // last time a sound played (ms)
 
+let _intelCharTimer = null;   // slow poll, only while the character menu is open
+
 const INTEL_REFRESH_MS = 2000;   // contacts re-render; alerts arrive by push
+// Jumps arrive by push from the Local log; this only catches logging in and out,
+// so it can be lazy — and it runs only while the dropdown is on screen.
+const INTEL_CHAR_POLL_MS = 5000;
 
 function _intelFmtEta(sec) {
   if (sec == null) return '—';
@@ -185,6 +190,32 @@ function _intelWire() {
     _intelPaintFeed();
   }));
   _intelUnsub.push(window.eveAPI.on('intel-status', (s) => { _intelStatus = { ..._intelStatus, reader: s }; _intelPaintStatus(); }));
+  // A monitored character jumped. This arrives within a second of the gate
+  // flash because it comes from EVE's own Local log, not from an ESI poll —
+  // and it MUST be pushed rather than polled, because every jump silently
+  // invalidates every distance on screen until the origin catches up.
+  _intelUnsub.push(window.eveAPI.on('intel-characters', (list) => {
+    if (!Array.isArray(list)) return;
+    _intelChars = list;
+    _intelPaintCharButton();
+    _intelRepaintCharMenu();
+  }));
+  _intelUnsub.push(window.eveAPI.on('intel-origins', ({ origins, reach, moved } = {}) => {
+    _intelStatus = { ..._intelStatus, origins, reach };
+    _intelPaintStatus();
+    // Say it out loud. The contact list is about to renumber itself, and an
+    // operator who doesn't know why will read it as the tool glitching.
+    //
+    // Only an actual MOVE, though. On startup every monitored character is
+    // discovered at once (previous === null) — announcing those as jumps would
+    // greet the operator with a stack of toasts about ships that have not
+    // moved, which is exactly the crying-wolf this feature cannot afford.
+    for (const m of (moved || [])) {
+      if (!m.previous) continue;
+      const who = _intelChars.find(c => Number(c.characterId) === Number(m.characterId));
+      showToast(`${who ? who.name : 'Monitored character'} moved ${m.previous} → ${m.systemName} — distances re-measured.`, 'info');
+    }
+  }));
 }
 
 function _intelStopRefresh() {
@@ -322,16 +353,74 @@ function _intelToggleCharMenu(e) {
   e.stopPropagation();
   const menu = document.getElementById('intelCharsMenu');
   if (!menu) return;
-  if (menu.style.display !== 'none') { menu.style.display = 'none'; return; }
+  if (menu.style.display !== 'none') { _intelCloseCharMenu(); return; }
   _intelRenderCharMenu();
   menu.style.display = '';
+  // Jumps arrive by push, but logging in and out does not — and a stale online
+  // dot is the thing that makes the list look frozen. A slow poll while the
+  // menu is actually open costs nothing and stops only when it closes.
+  _intelLoadCharacters().then(_intelRepaintCharMenu);
+  _intelCharTimer = setInterval(() => {
+    _intelLoadCharacters().then(_intelRepaintCharMenu);
+  }, INTEL_CHAR_POLL_MS);
+}
+
+function _intelCloseCharMenu() {
+  const menu = document.getElementById('intelCharsMenu');
+  if (menu) menu.style.display = 'none';
+  if (_intelCharTimer) { clearInterval(_intelCharTimer); _intelCharTimer = null; }
 }
 
 function _intelMaybeCloseCharMenu(e) {
   const menu = document.getElementById('intelCharsMenu');
   if (!menu || menu.style.display === 'none') return;
   if (e.target.closest && e.target.closest('.intel-dd-wrap')) return;
-  menu.style.display = 'none';
+  _intelCloseCharMenu();
+}
+
+/** Redraw the menu in place, only if it is open — scroll position preserved. */
+function _intelRepaintCharMenu() {
+  const menu = document.getElementById('intelCharsMenu');
+  if (!menu || menu.style.display === 'none') return;
+  const top = menu.scrollTop;
+  _intelRenderCharMenu();
+  menu.scrollTop = top;
+}
+
+/**
+ * How a character's position was learned, in words.
+ *
+ * Worth showing, because the two sources are not the same claim. EVE writes
+ * "Channel changed to Local : <system>" the instant you arrive, so a log
+ * position is seconds old. The ESI row behind it is refreshed on a 30-minute
+ * stale gate, which is how a super could jump to its ratting system and the
+ * tool go on measuring every hostile's distance from the staging system it
+ * left. Saying which one you are looking at is the difference between trusting
+ * the number and guessing at it.
+ */
+function _intelPosTitle(c) {
+  if (c.systemId == null) return 'no known position';
+  if (c.positionSource === 'log') {
+    return c.online ? 'read from the game log — updates as you jump'
+                    : `where this character logged off${c.positionAt ? `, ${_intelAgo(c.positionAt)} ago` : ''}`;
+  }
+  if (c.positionSource === 'esi') {
+    return `from ESI${c.positionAt ? `, ${_intelAgo(c.positionAt)} ago` : ''} — run EVE for a live position`;
+  }
+  return 'position of unknown age';
+}
+
+/** The badge itself: LIVE earns its emphasis, everything else states its age. */
+function _intelPosBadge(c) {
+  if (c.systemId == null) return '';
+  if (c.positionSource === 'log' && c.online) {
+    return '<span class="intel-dd-src intel-dd-src-live">LIVE</span>';
+  }
+  if (c.positionSource === 'log') return '<span class="intel-dd-src">logged off</span>';
+  if (c.positionSource === 'esi') {
+    return `<span class="intel-dd-src intel-dd-src-stale">ESI${c.positionAt ? ` ${_intelAgo(c.positionAt)}` : ''}</span>`;
+  }
+  return '';
 }
 
 function _intelRenderCharMenu() {
@@ -345,15 +434,19 @@ function _intelRenderCharMenu() {
     <div class="intel-dd-head">Watch for hostiles near…</div>
     ${_intelChars.map(c => `
       <label class="intel-dd-row ${c.systemId == null ? 'intel-dd-disabled' : ''}"
-             title="${c.systemId == null ? 'No known position — sync this character first' : ''}">
+             title="${c.systemId == null ? 'No known position — sync this character first'
+                     : `${_intelEsc(c.systemName || `System ${c.systemId}`)} · ${_intelEsc(_intelPosTitle(c))}`}">
         <input type="checkbox" data-char="${c.characterId}"
                ${c.monitored ? 'checked' : ''} ${c.systemId == null ? 'disabled' : ''}>
         <span class="intel-dd-dot ${c.online ? 'intel-dd-online' : ''}"></span>
         <span class="intel-dd-name">${_intelEsc(c.name)}</span>
-        <span class="intel-dd-loc">${c.systemName ? _intelEsc(c.systemName)
-          : (c.systemId != null ? `System ${c.systemId}` : 'position unknown')}</span>
+        <span class="intel-dd-loc">
+          <span class="intel-dd-sys">${c.systemName ? _intelEsc(c.systemName)
+            : (c.systemId != null ? `System ${c.systemId}` : 'position unknown')}</span>
+          ${_intelPosBadge(c)}
+        </span>
       </label>`).join('')}
-    <div class="intel-dd-foot">● = logged in (detected from chat logs)</div>`;
+    <div class="intel-dd-foot">● = logged in · <b>LIVE</b> = position read from the game as you jump</div>`;
 
   for (const box of menu.querySelectorAll('input[data-char]')) {
     box.onchange = async () => {

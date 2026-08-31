@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
+- [Net Log](Net_Log.md) (1 shared connections)
 
 ## Source Files
 

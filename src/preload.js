@@ -20,6 +20,10 @@ const IPC_EVENT_CHANNELS = [
   'intel-reports',
   'intel-alert',
   'intel-status',
+  // A monitored character jumped. Pushed rather than polled: the whole point is
+  // that the origin every distance is measured from has just moved.
+  'intel-characters',
+  'intel-origins',
 ];
 
 // caller fn → channel → [wrapper, …]. Weak so a handler going out of scope in

@@ -3106,6 +3106,7 @@ function _fitRenderStats() {
             : `Lasts ${_fitDur(cap.lastsSec)}`}</div>
         </div>
       </div>
+      ${_fitCapChart(D, cap)}
       ${cap.drain === 0 ? `<div class="fit-note-line">Set modules active (double-click) to simulate cap under load — guns, reps, prop mods and Cap Boosters (load charges) all count.</div>` : ''}
     </div>
 
@@ -3632,6 +3633,12 @@ function _fitShipDerived(buffs = null) {
 // s = (1+√(1−4k))/2 and k = net·τ / 2Cmax), otherwise integrate to empty.
 function _fitCapSim(D) {
   let drain = 0, inject = 0;
+  // `inject` is the continuous-equivalent total the stability maths needs. The
+  // timeline needs the two apart: a nosferatu really is a steady trickle, but a
+  // Cap Booster is a BURST every N seconds from a finite magazine, and drawing
+  // it as a trickle hides both the sawtooth and the moment the charges run out.
+  let injectCont = 0;
+  const boosters = [];
   for (const m of _fitAllMods()) {
     if (m.state !== 'active' && m.state !== 'overheated') continue;
     const f = m.f || {}, a = f.attrs || {};
@@ -3646,7 +3653,17 @@ function _fitCapSim(D) {
     if (a[669]) cyc += a[669];
     // Cap Booster: injects its charge's capacitorBonus every cycle, cap-free.
     if (f.groupId === 76 && m.charge?.f?.attrs?.[67]) {
-      inject += m.charge.f.attrs[67] / (cyc / 1000);
+      const amount = m.charge.f.attrs[67];
+      const cycleSec = cyc / 1000;
+      inject += amount / cycleSec;
+      // How many charges the launcher holds: its own capacity over the charge's
+      // volume. This is what turns "stable with injections" into an honest
+      // "stable for 3m 12s, then the magazine is dry".
+      const holdM3 = a[38] || 0, volM3 = m.charge.f.volume || 0;
+      boosters.push({
+        name: m.charge.f.name, amount, cycleSec,
+        charges: (holdM3 > 0 && volM3 > 0) ? Math.floor(holdM3 / volM3) : 0,
+      });
       continue;
     }
     // Energy Nosferatu: takes cap from the target and hands it to us (attr 90),
@@ -3655,7 +3672,9 @@ function _fitCapSim(D) {
     // fit. Optimistic by nature — it assumes a target in range with cap to
     // take, which is what the game's own readout assumes too.
     if (f.groupId === FIT_NOS_GROUP && a[90]) {
-      inject += a[90] / (cyc / 1000);
+      const v = a[90] / (cyc / 1000);
+      inject += v;
+      injectCont += v;      // a nos really is continuous, unlike a booster
       continue;
     }
     let need = a[6] || 0;
@@ -3674,7 +3693,7 @@ function _fitCapSim(D) {
     if (need) drain += need / (cyc / 1000);
   }
   const net = drain - inject;
-  const out = { drain, inject, net };
+  const out = { drain, inject, net, injectCont, boosters };
   const Cmax = D.capCap, tau = (D.rechargeSec || 1) / 5;
   if (Cmax <= 0 || net <= 0) return { ...out, stable: true, stableAt: 100 };
   const k = (net * tau) / (2 * Cmax);
@@ -3688,6 +3707,164 @@ function _fitCapSim(D) {
     t += 1;
   }
   return { ...out, stable: false, lastsSec: t };
+}
+
+// ─── Capacitor timeline ───────────────────────────────────────────────────────
+// A number ("stable at 31%", "lasts 4m 12s") answers whether a fit holds. It
+// never shows the SHAPE of the answer, and the shape is where the decisions
+// are: how fast it falls, whether it settles or slides, and — for a fit that
+// depends on injecting — whether the injector actually rescues it or merely
+// postpones the same death.
+//
+// The curve is the game's own capacitor differential, integrated:
+//
+//     dx/dt = (2/tau)·(√x − x) − net/Cmax      with x = C/Cmax, tau = recharge/5
+//
+// The (√x − x) term peaks at x = 0.25, which is the single most useful thing
+// about EVE's capacitor and the reason fits settle at a percentage rather than
+// draining smoothly to nothing: a HALF-EMPTY capacitor regenerates faster than
+// a full one. The chart marks that band, so "stable at 31%" stops being a
+// magic number and becomes a place on a curve.
+const FIT_CAP_PEAK_X = 0.25;          // where √x − x is maximised
+// A pilot does not fire a booster at full cap; they fire it when the needle is
+// getting low. Modelling it on cooldown would waste charges into a nearly-full
+// capacitor and make the injector look worse than it is.
+const FIT_CAP_INJECT_AT = 0.35;
+
+/**
+ * Integrate the capacitor forward.
+ * Pure: everything it needs is in the argument, so it is testable without a fit.
+ *
+ * @param {object} o
+ * @param {number} o.capMax      GJ
+ * @param {number} o.tauSec      recharge constant (rechargeSec / 5)
+ * @param {number} o.netGjS      continuous drain minus continuous injection
+ * @param {object|null} o.booster {amount, cycleSec, charges} — fired on demand
+ * @param {number} o.horizonSec  how far to run
+ * @param {number} [o.dt]        step
+ */
+function _fitCapCurve({ capMax, tauSec, netGjS, booster = null, horizonSec, dt = 0.25, samples = 300 }) {
+  const pts = [], fires = [];
+  if (!(capMax > 0) || !(tauSec > 0) || !(horizonSec > 0)) return { pts, fires, emptyAt: null, endX: 1 };
+  let x = 1, t = 0, left = booster ? (booster.charges || Infinity) : 0, cool = 0;
+  const steps = Math.ceil(horizonSec / dt);
+  // Integrate finely, PLOT sparsely. Accuracy wants a small step; the path is
+  // 300px wide and every extra point is dead weight in the DOM — at dt=0.25
+  // over a 13-minute horizon that was a 67 KB path for a thumbnail.
+  const every = Math.max(1, Math.floor(steps / Math.max(1, samples)));
+  for (let i = 0; i <= steps; i++) {
+    if (i % every === 0) pts.push({ t, x });
+    if (x <= 0) { pts.push({ t, x: 0 }); return { pts, fires, emptyAt: t, endX: 0 }; }
+    // Fire when the capacitor is low, a charge is left, and the launcher is off
+    // cooldown — and only if it would not spill, which is what a pilot does.
+    if (booster && x < FIT_CAP_INJECT_AT && left > 0 && cool <= 0) {
+      x = Math.min(1, x + booster.amount / capMax);
+      fires.push({ t, x });
+      left -= 1;
+      cool = booster.cycleSec;
+    }
+    const dx = (2 / tauSec) * (Math.sqrt(Math.max(0, x)) - x) - netGjS / capMax;
+    x = Math.max(0, Math.min(1, x + dx * dt));
+    cool -= dt;
+    t += dt;
+  }
+  if (pts.length && pts[pts.length - 1].t < t - dt) pts.push({ t: t - dt, x });
+  return { pts, fires, emptyAt: null, endX: x };
+}
+
+/** How long a chart should cover to show the interesting part and no more. */
+function _fitCapHorizon(cap, D) {
+  const tau = (D.rechargeSec || 1) / 5;
+  if (!cap.stable && cap.lastsSec) return Math.min(Math.max(cap.lastsSec * 1.15, 30), 900);
+  return Math.min(Math.max(tau * 2.5, 60), 900);
+}
+
+
+/**
+ * The capacitor timeline, as inline SVG.
+ *
+ * SVG rather than canvas deliberately: canvas silently drops `var()` in
+ * fillStyle/strokeStyle (it took a release to find that in the map), so a
+ * canvas chart cannot be themed without resolving every colour by hand. SVG
+ * takes CSS classes, so these curves restyle with the user's palette for free.
+ */
+function _fitCapChart(D, cap) {
+  const capMax = D.capCap || 0;
+  const tau = (D.rechargeSec || 1) / 5;
+  if (!(capMax > 0) || !(cap.drain > 0)) return '';
+
+  const horizon = _fitCapHorizon(cap, D);
+  const netCont = cap.drain - (cap.injectCont || 0);   // boosters handled discretely
+  const base = _fitCapCurve({ capMax, tauSec: tau, netGjS: netCont, horizonSec: horizon });
+
+  const booster = (cap.boosters || [])[0] || null;
+  const withInj = booster
+    ? _fitCapCurve({ capMax, tauSec: tau, netGjS: netCont, booster, horizonSec: horizon })
+    : null;
+
+  // Geometry. A wide, short band: this is a shape to read at a glance, not a
+  // chart to measure off.
+  const W = 300, H = 88, PAD_L = 4, PAD_R = 4, PAD_T = 6, PAD_B = 12;
+  const px = (t) => PAD_L + (t / horizon) * (W - PAD_L - PAD_R);
+  const py = (x) => PAD_T + (1 - x) * (H - PAD_T - PAD_B);
+  const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${px(p.t).toFixed(1)},${py(p.x).toFixed(1)}`).join('');
+  const area = (pts) => pts.length
+    ? `${path(pts)}L${px(pts[pts.length - 1].t).toFixed(1)},${py(0).toFixed(1)}L${px(pts[0].t).toFixed(1)},${py(0).toFixed(1)}Z`
+    : '';
+
+  const peakY = py(FIT_CAP_PEAK_X);
+  const dur = (s) => _fitDur(Math.round(s));
+  const endPct = Math.round((withInj || base).endX * 100);
+
+  // The verdict line under the chart — the one sentence a pilot actually wants.
+  let verdict, tone;
+  if (cap.stable) {
+    verdict = `Holds at ${cap.stableAt}% — the capacitor regenerates as fast as the fit drains it.`;
+    tone = 'ok';
+  } else if (withInj && !withInj.emptyAt) {
+    const shots = withInj.fires.length;
+    verdict = booster.charges
+      ? `Injecting holds it — ${shots} shot${shots === 1 ? '' : 's'} over ${dur(horizon)}, and the launcher carries ${booster.charges}.`
+      : `Injecting holds it — ${shots} shot${shots === 1 ? '' : 's'} over ${dur(horizon)}.`;
+    tone = 'ok';
+  } else if (withInj && withInj.emptyAt > (base.emptyAt || 0)) {
+    verdict = `Injecting buys ${dur(withInj.emptyAt - base.emptyAt)}, then it is dry at ${dur(withInj.emptyAt)}.`;
+    tone = 'warn';
+  } else {
+    verdict = `Empty in ${dur(base.emptyAt || horizon)} — nothing on this fit replaces the drain.`;
+    tone = 'warn';
+  }
+
+  return `
+    <div class="fit-cap-chart">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+           aria-label="Capacitor over ${dur(horizon)}. ${_fitEsc(verdict)}">
+        ${/* The band around peak regeneration. Everything about EVE's capacitor
+              that surprises people lives here: it recharges FASTEST near 25%. */''}
+        <rect class="fit-capc-peak" x="${PAD_L}" y="${py(0.35).toFixed(1)}"
+              width="${(W - PAD_L - PAD_R).toFixed(1)}" height="${(py(0.15) - py(0.35)).toFixed(1)}"></rect>
+        <line class="fit-capc-peak-line" x1="${PAD_L}" y1="${peakY.toFixed(1)}" x2="${W - PAD_R}" y2="${peakY.toFixed(1)}"></line>
+        ${/* With an injector fitted, the blue curve is what actually happens and
+              the bare curve is the counterfactual — so it recedes to a
+              reference line rather than competing for the eye. */''}
+        <path class="fit-capc-area ${cap.stable ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${area(base.pts)}"></path>
+        <path class="fit-capc-line ${cap.stable ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${path(base.pts)}"></path>
+        ${withInj ? `<path class="fit-capc-line is-inject" d="${path(withInj.pts)}"></path>` : ''}
+        ${withInj ? withInj.fires.map(f =>
+          `<circle class="fit-capc-shot" cx="${px(f.t).toFixed(1)}" cy="${py(f.x).toFixed(1)}" r="2"></circle>`).join('') : ''}
+        <line class="fit-capc-floor" x1="${PAD_L}" y1="${py(0).toFixed(1)}" x2="${W - PAD_R}" y2="${py(0).toFixed(1)}"></line>
+      </svg>
+      <div class="fit-capc-axis">
+        <span>0s</span>
+        <span class="fit-capc-peak-tag">peak regen ~25%</span>
+        <span>${dur(horizon)}</span>
+      </div>
+      <div class="fit-capc-verdict ${tone}">${_fitEsc(verdict)}</div>
+      ${withInj ? `<div class="fit-capc-key">
+        <span class="fit-capc-key-item"><i class="fit-capc-sw ${cap.stable ? 'is-ok' : 'is-warn'}"></i>no injection</span>
+        <span class="fit-capc-key-item"><i class="fit-capc-sw is-inject"></i>${_fitEsc(booster.name)} every ${_fitNum(booster.cycleSec)}s</span>
+      </div>` : ''}
+    </div>`;
 }
 
 // Offense now comes from the sim (damage mods, heat, stacking, drones included).

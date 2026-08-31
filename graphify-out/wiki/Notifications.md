@@ -33,12 +33,11 @@
 
 ## Relationships
 
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Fleet After-Action Report](Fleet_After-Action_Report.md) (1 shared connections)
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
 
 ## Source Files
 

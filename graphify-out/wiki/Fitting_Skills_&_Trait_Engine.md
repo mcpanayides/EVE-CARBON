@@ -34,9 +34,11 @@
 ## Relationships
 
 - [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (15 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (6 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (12 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
+- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (1 shared connections)
 
 ## Source Files
 

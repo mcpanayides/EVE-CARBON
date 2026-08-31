@@ -12,8 +12,8 @@
 - _fitEsc() `EXTRACTED`
 - _fitWeaponSim() `EXTRACTED`
 - _fitRenderBays() `EXTRACTED`
-- _fitDroneSim() `EXTRACTED`
 - _fitNum() `EXTRACTED`
+- _fitDroneSim() `EXTRACTED`
 - _fitHandleDrop() `EXTRACTED`
 - _fitAddFighter() `EXTRACTED`
 - _fitShowSlotMenu() `EXTRACTED`

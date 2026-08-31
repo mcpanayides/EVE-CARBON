@@ -325,12 +325,36 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
   transition: background 0.15s;
 }
 .fw-icon { width: 50px; height: 50px; border-radius: 4px; pointer-events: none; position: relative; z-index: 1; }
-/* Empty (available) slots — open dark wedges. */
+/* Empty (available) vs locked (not granted by this hull) used to be two dark
+   fills 2% apart, separated only by a 22%-alpha hairline — indistinguishable
+   side by side. They now differ on three axes at once, so the answer to "can I
+   put something here?" is readable at a glance and without hovering:
+   RIM, FILL and TEXTURE. */
+
+/* Available and empty: a lit rim around an open bay. */
 .fw-slot.empty { cursor: default; }
-.fw-slot.empty .fw-wedge { background: rgba(15,17,22,0.85); box-shadow: inset 0 0 10px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(105,118,138,0.22); }
-/* Locked positions — the wedge exists but the hull/subsystems don't grant it. */
-.fw-slot.locked { cursor: default; pointer-events: none; }
-.fw-slot.locked .fw-wedge { background: rgba(17,19,24,0.55); box-shadow: inset 0 0 12px rgba(0,0,0,0.5); }
+.fw-slot.empty .fw-wedge {
+  background: rgba(22,27,37,0.92);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.5),
+              inset 0 0 0 1px rgba(130,150,180,0.55);
+}
+/* The bay answers when you reach for it. */
+.fw-slot.empty:hover .fw-wedge {
+  background: rgba(30,38,52,0.95);
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.45),
+              inset 0 0 0 1px rgba(160,185,220,0.85);
+}
+
+/* Locked: no rim at all, a deeper fill, and a faint hatch. The hatch is what
+   makes it unmistakable — an unlit rim alone still reads as "empty but dim",
+   whereas a hatched cell reads as "not a slot" without needing a legend. */
+.fw-slot.locked { cursor: default; pointer-events: none; opacity: 0.6; }
+.fw-slot.locked .fw-wedge {
+  background-color: rgba(9,10,14,0.9);
+  background-image: repeating-linear-gradient(135deg,
+    rgba(150,165,190,0.05) 0 3px, transparent 3px 8px);
+  box-shadow: inset 0 0 14px rgba(0,0,0,0.75);
+}
 /* State hues (match the game): BLUE glow = online (passives), GREEN glow =
    actively running, dim = offline, BRIGHT RED pulsing glow = overheated.
    Selection is CYAN so it can never be mistaken for heat. Glows are drop-shadow
@@ -679,3 +703,54 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-pick-state-title {
   font-family: var(--mono); font-size: 13px; color: var(--text-1); letter-spacing: 0.04em;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   Capacitor timeline
+   "Stable at 31%" says whether a fit holds; it never shows the SHAPE
+   of the answer, and the shape is where the decisions are. Palette
+   tokens throughout — SVG takes CSS, which is why this is not canvas
+   (canvas silently drops var() in strokeStyle).
+   ══════════════════════════════════════════════════════════════════ */
+.fit-cap-chart { margin-top: 10px; }
+.fit-cap-chart svg {
+  display: block; width: 100%; height: 88px;
+  background: var(--bg-deep); border-radius: 6px;
+}
+
+/* The band where the capacitor regenerates fastest. Drawn UNDER the curves and
+   kept faint: it is context for why a fit settles where it does, not data. */
+.fit-capc-peak      { fill: var(--pal-teal); opacity: 0.07; }
+.fit-capc-peak-line { stroke: var(--pal-teal); stroke-width: 1; opacity: 0.35; stroke-dasharray: 3 4; }
+.fit-capc-floor     { stroke: var(--border); stroke-width: 1; }
+
+.fit-capc-area          { fill: var(--pal-green); opacity: 0.10; }
+.fit-capc-area.is-warn  { fill: var(--pal-red); }
+.fit-capc-line {
+  fill: none; stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round;
+  stroke: var(--pal-green);
+}
+.fit-capc-line.is-warn   { stroke: var(--pal-red); }
+.fit-capc-line.is-inject { stroke: var(--pal-blue); stroke-dasharray: 4 3; }
+/* The counterfactual, when an injector is fitted: still legible, no longer
+   competing with the curve that describes what actually happens. */
+.fit-capc-line.is-muted { stroke-width: 1.25; opacity: 0.45; }
+.fit-capc-area.is-muted { opacity: 0.05; }
+.fit-capc-shot           { fill: var(--pal-blue); }
+
+.fit-capc-axis {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--mono); font-size: 9px; color: var(--text-3);
+  letter-spacing: 0.06em; margin-top: 4px;
+}
+.fit-capc-peak-tag { color: var(--pal-teal); opacity: 0.75; }
+.fit-capc-verdict { font-size: 12px; margin-top: 6px; line-height: 1.4; }
+.fit-capc-verdict.ok   { color: var(--pal-green); }
+.fit-capc-verdict.warn { color: var(--pal-gold); }
+.fit-capc-key {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px;
+  font-family: var(--mono); font-size: 9px; color: var(--text-3); letter-spacing: 0.05em;
+}
+.fit-capc-key-item { display: inline-flex; align-items: center; gap: 5px; }
+.fit-capc-sw { width: 10px; height: 2px; background: var(--pal-green); }
+.fit-capc-sw.is-warn   { background: var(--pal-red); }
+.fit-capc-sw.is-inject { background: var(--pal-blue); }

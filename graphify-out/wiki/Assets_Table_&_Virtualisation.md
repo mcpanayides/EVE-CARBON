@@ -1,6 +1,6 @@
 # Assets Table & Virtualisation
 
-> 67 nodes · cohesion 0.06
+> 68 nodes · cohesion 0.06
 
 ## Key Concepts
 
@@ -27,13 +27,13 @@
 - **_repairSetStatus()** (3 connections) — `src/func/assets.js`
 - **repairAssetLocations()** (3 connections) — `src/func/assets.js`
 - **_assetScroller()** (3 connections) — `src/func/assets.js`
+- **_assetBuildModel()** (3 connections) — `src/func/assets.js`
 - **_assetCharHeaderRow()** (3 connections) — `src/func/assets.js`
-- **_assetItemRow()** (3 connections) — `src/func/assets.js`
-- *... and 42 more nodes in this community*
+- *... and 43 more nodes in this community*
 
 ## Relationships
 
-- [Reaction Chains](Reaction_Chains.md) (4 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (3 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 266 (99%)
-- INFERRED: 4 (1%)
+- EXTRACTED: 268 (98%)
+- INFERRED: 5 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

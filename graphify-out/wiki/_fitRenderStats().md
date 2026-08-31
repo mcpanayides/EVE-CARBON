@@ -1,6 +1,6 @@
 # _fitRenderStats()
 
-> God node · 33 connections · `src/func/fitting.js`
+> God node · 34 connections · `src/func/fitting.js`
 
 **Community:** [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md)
 
@@ -11,13 +11,14 @@
 - _fitEsc() `EXTRACTED`
 - _fitWeaponSim() `EXTRACTED`
 - _fitShipDerived() `EXTRACTED`
-- _fitDroneSim() `EXTRACTED`
 - _fitNum() `EXTRACTED`
+- _fitDroneSim() `EXTRACTED`
 - _fitDrawRangeChart() `EXTRACTED`
 - _fitEffOutputs() `EXTRACTED`
 - _fitOwnBursts() `EXTRACTED`
 - _fitIsFighter() `EXTRACTED`
 - _fitDroneUsedM3() `EXTRACTED`
+- _fitCapChart() `EXTRACTED`
 - _fitCapSim() `EXTRACTED`
 - _fitEffSlots() `EXTRACTED`
 - _fitEffDrone() `EXTRACTED`
@@ -26,7 +27,6 @@
 - _fitDroneCtrlRange() `EXTRACTED`
 - _fitFighterUsedM3() `EXTRACTED`
 - _fitDroneCap() `EXTRACTED`
-- _fitComputeUsage() `EXTRACTED`
 
 ### contains
 - fitting.js `EXTRACTED`

@@ -34,8 +34,7 @@
 ## Relationships
 
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (3 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 
 ## Source Files
 

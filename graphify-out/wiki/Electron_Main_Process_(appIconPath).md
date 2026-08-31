@@ -26,13 +26,12 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (13 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 - [Auto Updater](Auto_Updater.md) (1 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 

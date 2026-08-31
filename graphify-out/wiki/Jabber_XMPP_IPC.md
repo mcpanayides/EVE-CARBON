@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (1 shared connections)

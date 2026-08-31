@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 

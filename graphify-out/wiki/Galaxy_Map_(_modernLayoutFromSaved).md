@@ -17,7 +17,7 @@
 
 - [Galaxy Map State](Galaxy_Map_State.md) (9 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (4 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
 

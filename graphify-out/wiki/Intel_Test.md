@@ -36,9 +36,8 @@
 - [Intel Service](Intel_Service.md) (8 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (3 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 - [Ics Parse](Ics_Parse.md) (1 shared connections)
 
 ## Source Files

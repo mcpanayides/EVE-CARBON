@@ -1,6 +1,6 @@
 # Fitting Slots & Module Placement
 
-> 23 nodes · cohesion 0.25
+> 21 nodes · cohesion 0.28
 
 ## Key Concepts
 
@@ -19,9 +19,7 @@
 - **_fitLoadChargeAll()** (7 connections) — `src/func/fitting.js`
 - **_fitPickResult()** (6 connections) — `src/func/fitting.js`
 - **_fitEffSlots()** (6 connections) — `src/func/fitting.js`
-- **_fitTubeUnits()** (6 connections) — `src/func/fitting.js`
 - **_fitLoadCharge()** (6 connections) — `src/func/fitting.js`
-- **_fitShowTubeMenu()** (6 connections) — `src/func/fitting.js`
 - **_fitSyncRacks()** (5 connections) — `src/func/fitting.js`
 - **_fitPlace()** (5 connections) — `src/func/fitting.js`
 - **_fitDupMod()** (4 connections) — `src/func/fitting.js`
@@ -30,11 +28,12 @@
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (27 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (25 shared connections)
 - [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (23 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (16 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (14 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (11 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (10 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (7 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 
@@ -42,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 204 (100%)
-- INFERRED: 1 (0%)
+- EXTRACTED: 192 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

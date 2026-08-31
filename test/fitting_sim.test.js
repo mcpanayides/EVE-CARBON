@@ -1161,3 +1161,80 @@ test('a hull swap clears the imported fighter-bay note', async () => {
   assert.strictEqual(sb._fitState.fighterBayNote.length, 0,
     'a note about another fit must not survive onto this one');
 });
+
+// ── Capacitor timeline ───────────────────────────────────────────────────────
+// The chart integrates EVE's own capacitor differential:
+//     dx/dt = (2/tau)(sqrt(x) - x) - net/Cmax
+// The (sqrt(x) - x) term is why a fit settles at a percentage instead of
+// sliding to zero, and why an almost-empty capacitor recovers fastest. These
+// pin the behaviour the picture claims.
+const CAPRIG = { capMax: 6250, tauSec: 312.5, horizonSec: 300 };
+
+test('regeneration peaks at a quarter full, which is what the band marks', () => {
+  const sb = loadSim();
+  const regen = (x) => Math.sqrt(x) - x;
+  const peak = sb.FIT_CAP_PEAK_X ?? 0.25;
+  for (const x of [0.05, 0.1, 0.15, 0.4, 0.6, 0.8, 1.0]) {
+    assert.ok(regen(peak) > regen(x), `regen at ${peak} must beat ${x}`);
+  }
+});
+
+test('no drain means the capacitor never falls', () => {
+  const sb = loadSim();
+  const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 0 });
+  assert.strictEqual(r.emptyAt, null);
+  assert.ok(r.endX > 0.999, 'a full capacitor with no load stays full');
+});
+
+test('a drain it cannot answer empties the capacitor, and says when', () => {
+  const sb = loadSim();
+  const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 200, horizonSec: 600 });
+  assert.ok(r.emptyAt > 0 && r.emptyAt < 600, `emptied at ${r.emptyAt}`);
+  assert.strictEqual(r.endX, 0);
+  assert.strictEqual(r.pts[r.pts.length - 1].x, 0, 'the curve reaches the floor it claims');
+});
+
+test('a light drain settles instead of emptying', () => {
+  const sb = loadSim();
+  const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 6, horizonSec: 900 });
+  assert.strictEqual(r.emptyAt, null, 'must not empty');
+  assert.ok(r.endX > 0.2 && r.endX < 1, `settles somewhere sensible, got ${r.endX}`);
+});
+
+test('the injector fires only when low, and only while charges last', () => {
+  const sb = loadSim();
+  const booster = { amount: 800, cycleSec: 12, charges: 3 };
+  const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 200, booster, horizonSec: 600 });
+  assert.ok(r.fires.length > 0, 'it should fire at all');
+  assert.ok(r.fires.length <= 3, `never more shots than charges, got ${r.fires.length}`);
+  // Not fired into a nearly-full capacitor — that would waste the magazine.
+  for (const f of r.fires) assert.ok(f.x <= 1.0001, 'never overfills');
+  assert.ok(r.fires[0].t > 0, 'the first shot is not at t=0 with a full capacitor');
+});
+
+test('injecting postpones the drain it cannot beat', () => {
+  const sb = loadSim();
+  const bare = sb._fitCapCurve({ ...CAPRIG, netGjS: 200, horizonSec: 900 });
+  const inj  = sb._fitCapCurve({ ...CAPRIG, netGjS: 200, horizonSec: 900,
+    booster: { amount: 800, cycleSec: 12, charges: 4 } });
+  assert.ok(bare.emptyAt !== null, 'the bare fit dies');
+  assert.ok(inj.emptyAt === null || inj.emptyAt > bare.emptyAt,
+    'injection must buy time, not lose it');
+});
+
+test('the path is downsampled — a 300px chart is not 3,000 points', () => {
+  const sb = loadSim();
+  const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 6, horizonSec: 900, dt: 0.25 });
+  assert.ok(r.pts.length <= 320, `expected ~300 samples, got ${r.pts.length}`);
+  assert.ok(r.pts.length > 100, 'but still enough to draw a smooth curve');
+  const last = r.pts[r.pts.length - 1];
+  assert.ok(last.t > 880, `the curve must reach the end of its window, got ${last.t}`);
+});
+
+test('nonsense input yields an empty curve rather than throwing', () => {
+  const sb = loadSim();
+  for (const bad of [{ capMax: 0 }, { tauSec: 0 }, { horizonSec: 0 }]) {
+    const r = sb._fitCapCurve({ ...CAPRIG, netGjS: 5, ...bad });
+    assert.deepEqual(r.pts.length, 0);
+  }
+});

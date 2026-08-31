@@ -35,7 +35,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
 - [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_%28v%29.md) (2 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (2 shared connections)
+- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (1 shared connections)

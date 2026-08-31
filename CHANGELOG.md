@@ -30,7 +30,7 @@ See `test/updater_critical.test.js`.
 
 ---
 
-## [3.7.0] - 2026-08-31
+## [3.7.0] - 2026-09-01
 
 Two numbers this release were wrong in a way you could not see from inside the
 app: the early-warning system measured every hostile's distance from a position

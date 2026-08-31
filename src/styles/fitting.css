@@ -713,7 +713,9 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
    ══════════════════════════════════════════════════════════════════ */
 .fit-cap-chart { margin-top: 10px; }
 .fit-cap-chart svg {
-  display: block; width: 100%; height: 88px;
+  /* Scales proportionally: the viewBox carries text, and a stretched
+     aspect ratio would squash the injection timestamps. */
+  display: block; width: 100%; height: auto;
   background: var(--bg-deep); border-radius: 6px;
 }
 
@@ -754,3 +756,16 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-capc-sw { width: 10px; height: 2px; background: var(--pal-green); }
 .fit-capc-sw.is-warn   { background: var(--pal-red); }
 .fit-capc-sw.is-inject { background: var(--pal-blue); }
+
+/* Injection timestamps. Every shot gets a stem+dot; only shots with room since
+   the last label get the time, so a fit firing every few seconds does not turn
+   its own schedule into mush. */
+.fit-capc-stem  { stroke: var(--pal-blue); stroke-width: 1; opacity: 0.30; }
+.fit-capc-stamp { fill: var(--pal-blue); font-family: var(--mono); font-size: 9px; opacity: 0.9; }
+.fit-capc-sched {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin-top: 6px;
+  font-family: var(--mono); font-size: 10px;
+}
+.fit-capc-sched-lbl { color: var(--text-3); font-size: 9px; letter-spacing: 0.1em; }
+.fit-capc-time { color: var(--pal-blue); }
+.fit-capc-more { color: var(--text-3); }

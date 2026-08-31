@@ -33,7 +33,7 @@
 - [Intel Test](Intel_Test.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
-- [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)
+- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
 
 ## Source Files

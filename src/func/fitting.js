@@ -3772,6 +3772,25 @@ function _fitCapCurve({ capMax, tauSec, netGjS, booster = null, horizonSec, dt =
   return { pts, fires, emptyAt: null, endX: x };
 }
 
+/**
+ * Where a load settles, as a percentage — or null if it cannot hold at all.
+ *
+ * The same closed form _fitCapSim uses, pulled out so the CHART can ask the
+ * question about its own curve. It has to: _fitCapSim averages a Cap Booster
+ * into `inject`, so a fit that only survives by injecting reports "stable at
+ * 100%" — which is true of the fit and false of the line being drawn, and read
+ * as "the capacitor regenerates as fast as the fit drains it" directly under a
+ * curve falling to a quarter.
+ */
+function _fitCapStablePct(netGjS, tauSec, capMax) {
+  if (!(capMax > 0) || !(tauSec > 0)) return null;
+  if (netGjS <= 0) return 100;
+  const k = (netGjS * tauSec) / (2 * capMax);
+  if (k > 0.25) return null;                       // no equilibrium: it empties
+  const s = (1 + Math.sqrt(1 - 4 * k)) / 2;
+  return Math.round(s * s * 100);
+}
+
 /** How long a chart should cover to show the interesting part and no more. */
 function _fitCapHorizon(cap, D) {
   const tau = (D.rechargeSec || 1) / 5;
@@ -3804,7 +3823,7 @@ function _fitCapChart(D, cap) {
 
   // Geometry. A wide, short band: this is a shape to read at a glance, not a
   // chart to measure off.
-  const W = 300, H = 88, PAD_L = 4, PAD_R = 4, PAD_T = 6, PAD_B = 12;
+  const W = 300, H = 100, PAD_L = 4, PAD_R = 4, PAD_T = 6, PAD_B = 22;
   const px = (t) => PAD_L + (t / horizon) * (W - PAD_L - PAD_R);
   const py = (x) => PAD_T + (1 - x) * (H - PAD_T - PAD_B);
   const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${px(p.t).toFixed(1)},${py(p.x).toFixed(1)}`).join('');
@@ -3814,30 +3833,51 @@ function _fitCapChart(D, cap) {
 
   const peakY = py(FIT_CAP_PEAK_X);
   const dur = (s) => _fitDur(Math.round(s));
-  const endPct = Math.round((withInj || base).endX * 100);
 
-  // The verdict line under the chart — the one sentence a pilot actually wants.
+  // Read the verdict off the CURVE THAT IS DRAWN, not off cap.stable — which
+  // averages the booster in and would claim "holds at 100%" under a line
+  // falling to a quarter.
+  const bareHolds = base.emptyAt === null;
+  const barePct = _fitCapStablePct(netCont, tau, capMax);
+  const fires = withInj ? withInj.fires : [];
+
   let verdict, tone;
-  if (cap.stable) {
-    verdict = `Holds at ${cap.stableAt}% — the capacitor regenerates as fast as the fit drains it.`;
+  if (bareHolds && barePct !== null) {
+    verdict = `Holds at ${barePct}% — the capacitor regenerates as fast as the fit drains it.`;
     tone = 'ok';
   } else if (withInj && !withInj.emptyAt) {
-    const shots = withInj.fires.length;
-    verdict = booster.charges
-      ? `Injecting holds it — ${shots} shot${shots === 1 ? '' : 's'} over ${dur(horizon)}, and the launcher carries ${booster.charges}.`
-      : `Injecting holds it — ${shots} shot${shots === 1 ? '' : 's'} over ${dur(horizon)}.`;
+    const first = fires.length ? dur(fires[0].t) : null;
+    const mag = booster.charges
+      ? ` The launcher carries ${booster.charges}, so ${fires.length && booster.charges < fires.length ? 'it runs dry first' : `that is ${dur(booster.charges * (fires.length > 1 ? (fires[fires.length - 1].t - fires[0].t) / (fires.length - 1) : booster.cycleSec))} of holding`}.`
+      : '';
+    verdict = first
+      ? `Injecting holds it — start at ${first}, ${fires.length} shot${fires.length === 1 ? '' : 's'} over ${dur(horizon)}.${mag}`
+      : `Injecting holds it.${mag}`;
     tone = 'ok';
   } else if (withInj && withInj.emptyAt > (base.emptyAt || 0)) {
-    verdict = `Injecting buys ${dur(withInj.emptyAt - base.emptyAt)}, then it is dry at ${dur(withInj.emptyAt)}.`;
+    const first = fires.length ? ` First shot at ${dur(fires[0].t)}.` : '';
+    verdict = `Injecting buys ${dur(withInj.emptyAt - base.emptyAt)}, then it is dry at ${dur(withInj.emptyAt)}.${first}`;
     tone = 'warn';
   } else {
     verdict = `Empty in ${dur(base.emptyAt || horizon)} — nothing on this fit replaces the drain.`;
     tone = 'warn';
   }
 
+  // Stamp the injection times on the chart. Every dot gets a tick; a dot only
+  // gets a LABEL when there is room since the last one, because a late-game fit
+  // fires every few seconds and the labels would overlap into mush.
+  const LABEL_GAP = 42;
+  let lastLabelX = -Infinity;
+  const stamps = fires.map((f) => {
+    const x = px(f.t);
+    const show = x - lastLabelX >= LABEL_GAP && x < W - PAD_R - 14;
+    if (show) lastLabelX = x;
+    return { x, y: py(f.x), t: f.t, show };
+  });
+
   return `
     <div class="fit-cap-chart">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+      <svg viewBox="0 0 ${W} ${H}" role="img"
            aria-label="Capacitor over ${dur(horizon)}. ${_fitEsc(verdict)}">
         ${/* The band around peak regeneration. Everything about EVE's capacitor
               that surprises people lives here: it recharges FASTEST near 25%. */''}
@@ -3847,11 +3887,13 @@ function _fitCapChart(D, cap) {
         ${/* With an injector fitted, the blue curve is what actually happens and
               the bare curve is the counterfactual — so it recedes to a
               reference line rather than competing for the eye. */''}
-        <path class="fit-capc-area ${cap.stable ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${area(base.pts)}"></path>
-        <path class="fit-capc-line ${cap.stable ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${path(base.pts)}"></path>
+        <path class="fit-capc-area ${bareHolds ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${area(base.pts)}"></path>
+        <path class="fit-capc-line ${bareHolds ? 'is-ok' : 'is-warn'}${withInj ? ' is-muted' : ''}" d="${path(base.pts)}"></path>
         ${withInj ? `<path class="fit-capc-line is-inject" d="${path(withInj.pts)}"></path>` : ''}
-        ${withInj ? withInj.fires.map(f =>
-          `<circle class="fit-capc-shot" cx="${px(f.t).toFixed(1)}" cy="${py(f.x).toFixed(1)}" r="2"></circle>`).join('') : ''}
+        ${stamps.map(sd => `
+          <line class="fit-capc-stem" x1="${sd.x.toFixed(1)}" y1="${sd.y.toFixed(1)}" x2="${sd.x.toFixed(1)}" y2="${(py(0) + 3).toFixed(1)}"></line>
+          <circle class="fit-capc-shot" cx="${sd.x.toFixed(1)}" cy="${sd.y.toFixed(1)}" r="2.2"></circle>
+          ${sd.show ? `<text class="fit-capc-stamp" x="${sd.x.toFixed(1)}" y="${(py(0) + 13).toFixed(1)}" text-anchor="middle">${_fitEsc(dur(sd.t))}</text>` : ''}`).join('')}
         <line class="fit-capc-floor" x1="${PAD_L}" y1="${py(0).toFixed(1)}" x2="${W - PAD_R}" y2="${py(0).toFixed(1)}"></line>
       </svg>
       <div class="fit-capc-axis">
@@ -3860,8 +3902,13 @@ function _fitCapChart(D, cap) {
         <span>${dur(horizon)}</span>
       </div>
       <div class="fit-capc-verdict ${tone}">${_fitEsc(verdict)}</div>
+      ${fires.length ? `<div class="fit-capc-sched">
+        <span class="fit-capc-sched-lbl">inject at</span>
+        ${fires.slice(0, 6).map(f => `<span class="fit-capc-time">${_fitEsc(dur(f.t))}</span>`).join('')}
+        ${fires.length > 6 ? `<span class="fit-capc-more">+${fires.length - 6} more</span>` : ''}
+      </div>` : ''}
       ${withInj ? `<div class="fit-capc-key">
-        <span class="fit-capc-key-item"><i class="fit-capc-sw ${cap.stable ? 'is-ok' : 'is-warn'}"></i>no injection</span>
+        <span class="fit-capc-key-item"><i class="fit-capc-sw ${bareHolds ? 'is-ok' : 'is-warn'}"></i>no injection</span>
         <span class="fit-capc-key-item"><i class="fit-capc-sw is-inject"></i>${_fitEsc(booster.name)} every ${_fitNum(booster.cycleSec)}s</span>
       </div>` : ''}
     </div>`;

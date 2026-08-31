@@ -16,9 +16,9 @@
 - _fitDrawRangeChart() `EXTRACTED`
 - _fitEffOutputs() `EXTRACTED`
 - _fitOwnBursts() `EXTRACTED`
+- _fitCapChart() `EXTRACTED`
 - _fitIsFighter() `EXTRACTED`
 - _fitDroneUsedM3() `EXTRACTED`
-- _fitCapChart() `EXTRACTED`
 - _fitCapSim() `EXTRACTED`
 - _fitEffSlots() `EXTRACTED`
 - _fitEffDrone() `EXTRACTED`

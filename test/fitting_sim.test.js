@@ -1238,3 +1238,67 @@ test('nonsense input yields an empty curve rather than throwing', () => {
     assert.deepEqual(r.pts.length, 0);
   }
 });
+
+test('the analytic stable point agrees with the integrated curve', () => {
+  const sb = loadSim();
+  // The bug this guards: the verdict, the curve colour and the legend were read
+  // off cap.stable — which averages a Cap Booster in — while the CURVE is drawn
+  // without it. The chart then said "holds at 100%, the capacitor regenerates
+  // as fast as the fit drains it" underneath a line falling to a quarter.
+  const capMax = 6250, tauSec = 312.5;
+  for (const net of [0, 2, 6, 12, 20, 40, 90, 200]) {
+    const pct = sb._fitCapStablePct(net, tauSec, capMax);
+    const curve = sb._fitCapCurve({ capMax, tauSec, netGjS: net, horizonSec: 1800 });
+    if (pct === null) {
+      assert.ok(curve.emptyAt !== null, `net ${net}: no equilibrium, so the curve must empty`);
+    } else {
+      assert.strictEqual(curve.emptyAt, null, `net ${net}: holds at ${pct}%, so it must not empty`);
+      assert.ok(Math.abs(curve.endX * 100 - pct) < 6,
+        `net ${net}: curve settles at ${Math.round(curve.endX * 100)}%, maths says ${pct}%`);
+    }
+  }
+});
+
+test('a fit that only survives by injecting is not called self-sustaining', () => {
+  const sb = loadSim();
+  const D = { capCap: 6250, rechargeSec: 1562.5, peakRegen: 20 };
+  // cap.stable/stableAt as _fitCapSim reports them once the booster is averaged
+  // in: "stable at 100%". The chart must not repeat that over a falling curve.
+  const html = sb._fitCapChart(D, {
+    drain: 26, inject: 26, injectCont: 0, stable: true, stableAt: 100,
+    boosters: [{ name: 'Navy Cap Booster 3200', amount: 3200, cycleSec: 12, charges: 14 }],
+  });
+  assert.ok(html, 'a chart should be produced');
+  assert.ok(!/regenerates as fast as the fit drains it/.test(html),
+    'must not claim self-sustaining when it survives only by injecting');
+  assert.ok(/Injecting holds it/.test(html), 'it should say what actually holds it');
+  assert.ok(/is-warn/.test(html), 'and the un-injected curve is drawn as failing');
+});
+
+test('the chart stamps injection times, on the curve and as a schedule', () => {
+  const sb = loadSim();
+  const D = { capCap: 6250, rechargeSec: 1562.5, peakRegen: 20 };
+  const html = sb._fitCapChart(D, {
+    drain: 26, inject: 0, injectCont: 0, stable: false, lastsSec: 400,
+    boosters: [{ name: 'Navy Cap Booster 3200', amount: 3200, cycleSec: 12, charges: 14 }],
+  });
+  assert.ok(/fit-capc-stamp/.test(html), 'times are stamped on the curve');
+  assert.ok(/fit-capc-sched/.test(html), 'and listed as a schedule below it');
+  assert.ok(/fit-capc-stem/.test(html), 'each shot has a stem down to the axis');
+  // Labels are thinned, stems are not: every shot is marked, not every one named.
+  const stems  = (html.match(/fit-capc-stem/g)  || []).length;
+  const stamps = (html.match(/fit-capc-stamp/g) || []).length;
+  assert.ok(stems >= stamps, `every shot gets a stem (${stems}) — only some get a label (${stamps})`);
+  assert.ok(stamps > 0, 'but at least one time is named on the chart');
+});
+
+test('no booster means no schedule and no stamps', () => {
+  const sb = loadSim();
+  const D = { capCap: 6250, rechargeSec: 1562.5, peakRegen: 20 };
+  const html = sb._fitCapChart(D, {
+    drain: 26, inject: 0, injectCont: 0, stable: false, lastsSec: 400, boosters: [],
+  });
+  assert.ok(!/fit-capc-stamp/.test(html));
+  assert.ok(!/fit-capc-sched/.test(html));
+  assert.ok(/Empty in/.test(html), 'it just says when it dies');
+});

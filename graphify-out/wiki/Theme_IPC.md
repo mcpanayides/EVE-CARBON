@@ -13,7 +13,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Theme Vars](Theme_Vars.md) (1 shared connections)
 
 ## Source Files
 

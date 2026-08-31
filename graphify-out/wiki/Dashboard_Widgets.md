@@ -40,7 +40,7 @@
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (5 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
-- [Intel Widget](Intel_Widget.md) (1 shared connections)
+- [FC Intel](FC_Intel.md) (1 shared connections)
 
 ## Source Files
 

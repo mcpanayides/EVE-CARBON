@@ -1,6 +1,6 @@
 # Fitting Skills & Trait Engine
 
-> 35 nodes · cohesion 0.14
+> 36 nodes · cohesion 0.13
 
 ## Key Concepts
 
@@ -29,16 +29,16 @@
 - **_fitDamageBonuses()** (5 connections) — `src/func/fitting.js`
 - **_fitTraitLayerMult()** (4 connections) — `src/func/fitting.js`
 - **_fitTraitRes()** (4 connections) — `src/func/fitting.js`
-- *... and 10 more nodes in this community*
+- *... and 11 more nodes in this community*
 
 ## Relationships
 
 - [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (12 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
-- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (3 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (14 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (4 shared connections)
+- [Fitting Simulator (_fitPersist)](Fitting_Simulator_%28_fitPersist%29.md) (2 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
-- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (1 shared connections)
+- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -46,8 +46,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 226 (99%)
-- INFERRED: 3 (1%)
+- EXTRACTED: 229 (99%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

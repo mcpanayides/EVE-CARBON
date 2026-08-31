@@ -458,13 +458,9 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 }
 .fit-import-title { font-family: var(--mono); font-size: 11px; color: var(--text-2); margin-bottom: 8px; }
 .fit-import-actions { display: flex; gap: 6px; margin-top: 8px; }
-.fit-gamefit-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
-.fit-gamefit {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-panel);
-  border: 1px solid var(--border); border-radius: 4px; color: var(--text-1); cursor: pointer; font-size: 12px;
-}
-.fit-gamefit:hover { border-color: var(--accent); }
-.fit-gamefit img { width: 24px; height: 24px; }
+/* .fit-gamefit* removed with the inline game-fit strip — the picker is now a
+   modal (see "Import-from-game fit picker" at the foot of this file). The
+   .fit-import-* rules above stay: the EFT-paste and Save flows still use them. */
 
 /* ── Right: stats ── */
 .fit-stats { border-left: 1px solid var(--border); background: var(--bg-panel); padding: 14px; overflow-y: auto; }
@@ -530,3 +526,142 @@ details.ft-grp > summary::-webkit-details-marker { display: none; }
 .fit-res-th  { background: #b23b36; }
 .fit-res-kin { background: #5d6b78; }
 .fit-res-exp { background: #c08a2e; }
+
+/* ══════════════════════════════════════════════════════════════════
+   Import-from-game fit picker
+   A saved fit is two facts — the hull and the pilot's label — and the
+   old strip showed one of them against a 24px icon. Rows are flat with
+   hairline separators rather than bordered cards: sixty of them have to
+   scan, and a box around each one adds an edge per fit and no meaning.
+   The render carries itself, so it gets no plate.
+   ══════════════════════════════════════════════════════════════════ */
+.fit-pick-backdrop {
+  position: fixed; inset: 0; display: flex;
+  align-items: center; justify-content: center;
+}
+.fit-pick-modal {
+  width: min(760px, 94vw);
+  max-height: min(86vh, 760px);
+  display: flex; flex-direction: column;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--accent-25);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px var(--shadow-darker), 0 0 0 1px var(--accent-05);
+  overflow: hidden;
+  /* The one authored moment: the panel settles rather than snapping. */
+  animation: fitPickIn 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes fitPickIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fit-pick-modal { animation: none; }
+}
+
+/* ── Header ── */
+.fit-pick-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+/* Matches .bug-modal-title: one modal voice across the app. */
+.fit-pick-title {
+  margin: 0; font-family: var(--mono); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.14em; color: var(--text-1);
+}
+/* text-2 rather than the sibling modal's text-3: this line names WHICH
+   character's fits are listed, so it has to stay comfortably legible. */
+.fit-pick-sub {
+  margin: 3px 0 0; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.08em; color: var(--text-2);
+}
+.fit-pick-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text-3); cursor: pointer; transition: color 0.15s, border-color 0.15s;
+}
+.fit-pick-close:hover { color: var(--text-1); border-color: var(--border); }
+.fit-pick-close .material-symbols-outlined { font-size: 18px; }
+
+/* ── Controls ── */
+.fit-pick-controls {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.fit-pick-search {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 0 10px; height: 34px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+  transition: border-color 0.15s;
+}
+.fit-pick-search:focus-within { border-color: var(--accent); }
+.fit-pick-search .material-symbols-outlined { font-size: 18px; color: var(--text-3); }
+.fit-pick-search input {
+  flex: 1; min-width: 0; height: 100%;
+  background: transparent; border: 0; outline: none;
+  color: var(--text-1); font-size: 13px; font-family: inherit;
+}
+.fit-pick-search input::placeholder { color: var(--text-3); }
+.fit-pick-search input::-webkit-search-cancel-button { filter: grayscale(1) opacity(0.5); }
+.fit-pick-class {
+  height: 34px; padding: 0 10px;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-1); font-size: 12px; font-family: var(--mono); cursor: pointer;
+}
+.fit-pick-class:focus { outline: none; border-color: var(--accent); }
+.fit-pick-count {
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* ── List ── */
+.fit-pick-list { overflow-y: auto; padding: 6px 0; min-height: 0; }
+.fit-pick-list::-webkit-scrollbar       { width: 4px; }
+.fit-pick-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.fit-pick-row {
+  width: 100%; display: flex; align-items: center; gap: 14px;
+  padding: 10px 24px; background: transparent; border: 0;
+  border-bottom: 1px solid var(--border-faint, var(--border));
+  color: var(--text-1); text-align: left; cursor: pointer;
+  transition: background 0.12s;
+}
+.fit-pick-row:last-child { border-bottom: 0; }
+.fit-pick-row:hover     { background: var(--bg-panel); }
+.fit-pick-row.is-cursor { background: var(--accent-05); }
+.fit-pick-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+/* No plate or border added here: CCP's type icons ship with their own backdrop.
+   The 3px radius only matches how every other list in the app seats them
+   (.fit-result img, .ft-grp-icon) so the square edge does not read as raw. */
+.fit-pick-render {
+  width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; border-radius: 3px;
+}
+.fit-pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.fit-pick-fitname {
+  font-size: 14px; color: var(--text-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fit-pick-hull {
+  font-family: var(--mono); font-size: 11px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The cursor row is marked by its background tint alone. Tinting this line
+   accent as well put two reds on one row and made the hull — the thing the
+   picker exists to surface — harder to read, not easier. */
+.fit-pick-mods {
+  font-family: var(--mono); font-size: 13px; color: var(--text-2);
+  flex-shrink: 0; display: flex; align-items: baseline; gap: 3px;
+}
+.fit-pick-mods-unit { font-size: 9px; letter-spacing: 0.1em; color: var(--text-3); }
+
+/* ── Loading / empty / error ── */
+.fit-pick-state { padding: 40px 24px; text-align: center; color: var(--text-2); font-size: 13px; }
+.fit-pick-state p { margin: 6px 0 0; }
+.fit-pick-state-title {
+  font-family: var(--mono); font-size: 13px; color: var(--text-1); letter-spacing: 0.04em;
+}

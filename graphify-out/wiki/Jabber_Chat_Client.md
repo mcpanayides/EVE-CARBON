@@ -1,41 +1,43 @@
 # Jabber Chat Client
 
-> 66 nodes · cohesion 0.06
+> 27 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **jabber.js** (66 connections) — `src/func/jabber.js`
-- **renderJabberTable()** (17 connections) — `src/func/jabber.js`
-- **bindJabberEvents()** (16 connections) — `src/func/jabber.js`
-- **openPackEditor()** (7 connections) — `src/func/jabber.js`
-- **savePackFromEditor()** (7 connections) — `src/func/jabber.js`
 - **_populatePingSounds()** (6 connections) — `src/func/jabber.js`
-- **jabberBadgeFromYaml()** (5 connections) — `src/func/jabber.js`
-- **initJabberColsToggle()** (5 connections) — `src/func/jabber.js`
 - **initJabberColResize()** (5 connections) — `src/func/jabber.js`
-- **populatePackDropdown()** (5 connections) — `src/func/jabber.js`
-- **loadJabberSigsMap()** (4 connections) — `src/func/jabber.js`
-- **jabberCommsCell()** (4 connections) — `src/func/jabber.js`
-- **jabberBuildColsDropdown()** (4 connections) — `src/func/jabber.js`
-- **initJabberFeedFilter()** (4 connections) — `src/func/jabber.js`
-- **loadJabberHistory()** (4 connections) — `src/func/jabber.js`
 - **_savePingSound()** (4 connections) — `src/func/jabber.js`
-- **updatePackInfo()** (4 connections) — `src/func/jabber.js`
 - **initJabberZoom()** (4 connections) — `src/func/jabber.js`
-- **jabberNormSig()** (3 connections) — `src/func/jabber.js`
 - **jabberParseMessage()** (3 connections) — `src/func/jabber.js`
 - **jabberLiveToRow()** (3 connections) — `src/func/jabber.js`
-- **jabberLinkify()** (3 connections) — `src/func/jabber.js`
-- **jabberTargetBadge()** (3 connections) — `src/func/jabber.js`
-- **jabberSigBadge()** (3 connections) — `src/func/jabber.js`
-- **jabberGetColVisibility()** (3 connections) — `src/func/jabber.js`
-- *... and 41 more nodes in this community*
+- **_gatherPingSound()** (3 connections) — `src/func/jabber.js`
+- **_uploadPingSound()** (3 connections) — `src/func/jabber.js`
+- **jabberStripInvisible()** (2 connections) — `src/func/jabber.js`
+- **jabberGetColWidths()** (2 connections) — `src/func/jabber.js`
+- **jabberSaveColWidths()** (2 connections) — `src/func/jabber.js`
+- **jabberApplyColWidths()** (2 connections) — `src/func/jabber.js`
+- **gatherJabberSettings()** (2 connections) — `src/func/jabber.js`
+- **_pingSoundDefaultId()** (2 connections) — `src/func/jabber.js`
+- **_testPingSound()** (2 connections) — `src/func/jabber.js`
+- **jabberGetZoomIdx()** (2 connections) — `src/func/jabber.js`
+- **jabberApplyZoom()** (2 connections) — `src/func/jabber.js`
+- **jabberPortraitCache** (1 connections) — `src/func/jabber.js`
+- **jabberSigsMap** (1 connections) — `src/func/jabber.js`
+- **jabberCommsChannels** (1 connections) — `src/func/jabber.js`
+- **JABBER_COL_NAMES** (1 connections) — `src/func/jabber.js`
+- **JABBER_DEFAULT_WIDTHS** (1 connections) — `src/func/jabber.js`
+- **_pingSounds** (1 connections) — `src/func/jabber.js`
+- **_cachedPacks** (1 connections) — `src/func/jabber.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (3 shared connections)
-- [Ping Alert](Ping_Alert.md) (1 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [Jabber Chat Client (loadJabberCommsChannels)](Jabber_Chat_Client_%28loadJabberCommsChannels%29.md) (17 shared connections)
+- [Jabber Chat Client (jabberResolvePortraits)](Jabber_Chat_Client_%28jabberResolvePortraits%29.md) (15 shared connections)
+- [Jabber Chat Client (jabberNormSig)](Jabber_Chat_Client_%28jabberNormSig%29.md) (6 shared connections)
+- [Jabber Chat Client (jabberGetColVisibility)](Jabber_Chat_Client_%28jabberGetColVisibility%29.md) (5 shared connections)
+- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
 
 ## Source Files
 
@@ -43,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 266 (97%)
-- INFERRED: 9 (3%)
+- EXTRACTED: 123 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

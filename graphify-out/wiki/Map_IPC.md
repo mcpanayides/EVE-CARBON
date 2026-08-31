@@ -33,8 +33,8 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
-- [Character IPC](Character_IPC.md) (1 shared connections)
+- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
 
 ## Source Files
 

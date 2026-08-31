@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Character IPC](Character_IPC.md) (1 shared connections)
+- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
 
 ## Source Files
 

@@ -39,9 +39,9 @@
 - [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) (7 shared connections)
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (5 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
-- [Ping Alert](Ping_Alert.md) (1 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [FC Intel](FC_Intel.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 

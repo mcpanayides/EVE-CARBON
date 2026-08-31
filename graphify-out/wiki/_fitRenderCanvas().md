@@ -9,9 +9,9 @@
 ### calls
 - [_fitRenderAll()](_fitRenderAll%28%29.md) `EXTRACTED`
 - [_fitFlash()](_fitFlash%28%29.md) `EXTRACTED`
+- _fitEsc() `EXTRACTED`
 - _fitWeaponSim() `EXTRACTED`
 - _fitRenderBays() `EXTRACTED`
-- _fitEsc() `EXTRACTED`
 - _fitDroneSim() `EXTRACTED`
 - _fitNum() `EXTRACTED`
 - _fitHandleDrop() `EXTRACTED`

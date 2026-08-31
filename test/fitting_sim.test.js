@@ -984,3 +984,49 @@ test('align time is ln(4) x agility x mass, and plate mass slows it', () => {
   assert.ok(withPlate.mass > d.mass, 'a plate adds mass');
   assert.ok(withPlate.align > d.align, 'and a heavier ship aligns slower');
 });
+
+// ── Import-from-game picker: search and filter ───────────────────────────────
+// The old picker listed a fit's NAME against a 24px icon in a 200px strip, so
+// two Nyx fits were indistinguishable and a pilot with sixty of them scrolled a
+// four-row viewport. These pin the two things that replaced it.
+const PICK_ROWS = [
+  { i: 0, name: 'Beehive Refit',  ship: 'Nyx',      klass: 'Supercarrier' },
+  { i: 1, name: 'Home Defence',   ship: 'Nyx',      klass: 'Supercarrier' },
+  { i: 2, name: 'Beehive Refit',  ship: 'Paladin',  klass: 'Marauder' },
+  { i: 3, name: 'Gate Camp',      ship: 'Sabre',    klass: 'Interdictor' },
+];
+const pick = (sb, q, k = '') => PICK_ROWS.filter(r => sb._fitPickMatches(r, q, k)).map(r => r.i);
+
+test('the picker searches hull, class AND the pilot\'s own label', () => {
+  const sb = loadSim();
+  // The hull — unfindable before, because only the name was ever shown.
+  assert.deepStrictEqual(pick(sb, 'nyx'), [0, 1]);
+  // The label the pilot gave it, which spans two different hulls.
+  assert.deepStrictEqual(pick(sb, 'beehive'), [0, 2]);
+  // The class.
+  assert.deepStrictEqual(pick(sb, 'marauder'), [2]);
+  assert.deepStrictEqual(pick(sb, ''), [0, 1, 2, 3], 'empty query shows everything');
+});
+
+test('search is case-insensitive and ignores surrounding whitespace', () => {
+  const sb = loadSim();
+  assert.deepStrictEqual(pick(sb, '  NYX  '), [0, 1]);
+});
+
+test('the class filter narrows, and composes with the search', () => {
+  const sb = loadSim();
+  assert.deepStrictEqual(pick(sb, '', 'Supercarrier'), [0, 1]);
+  // Both together: "beehive" alone spans two hulls, the class picks one.
+  assert.deepStrictEqual(pick(sb, 'beehive', 'Marauder'), [2]);
+  assert.deepStrictEqual(pick(sb, 'sabre', 'Supercarrier'), [], 'contradictory filters match nothing');
+});
+
+test('the module count counts fitted slots, not item stacks', () => {
+  const sb = loadSim();
+  // flags: 27 high, 19 med, 11 low, 92 rig — and 5 = cargo, which is a charge
+  // or spare, not a fitted module. Counting stacks would report 5 modules.
+  const fit = { items: [{ flag: 27 }, { flag: 19 }, { flag: 11 }, { flag: 92 }, { flag: 5 }] };
+  assert.strictEqual(sb._fitPickModuleCount(fit), 4);
+  assert.strictEqual(sb._fitPickModuleCount({ items: [] }), 0);
+  assert.strictEqual(sb._fitPickModuleCount({}), 0, 'a fit with no items must not throw');
+});

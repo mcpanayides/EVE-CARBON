@@ -24,7 +24,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library (l)](Gridstack_Vendor_Library_%28l%29.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 

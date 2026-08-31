@@ -8,8 +8,8 @@
 
 ### calls
 - [_fitRenderAll()](_fitRenderAll%28%29.md) `EXTRACTED`
-- _fitWeaponSim() `EXTRACTED`
 - _fitEsc() `EXTRACTED`
+- _fitWeaponSim() `EXTRACTED`
 - _fitShipDerived() `EXTRACTED`
 - _fitDroneSim() `EXTRACTED`
 - _fitNum() `EXTRACTED`

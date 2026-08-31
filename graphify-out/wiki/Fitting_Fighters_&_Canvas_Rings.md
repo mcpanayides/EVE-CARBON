@@ -1,6 +1,6 @@
 # Fitting Fighters & Canvas Rings
 
-> 17 nodes · cohesion 0.14
+> 16 nodes · cohesion 0.15
 
 ## Key Concepts
 
@@ -9,7 +9,6 @@
 - **_fitTubeUnits()** (6 connections) — `src/func/fitting.js`
 - **_fitShowTubeMenu()** (6 connections) — `src/func/fitting.js`
 - **_fitFighterUsedM3()** (5 connections) — `src/func/fitting.js`
-- **_fitComputeUsage()** (5 connections) — `src/func/fitting.js`
 - **_fitFighterType()** (4 connections) — `src/func/fitting.js`
 - **_fitFighterTypeCount()** (4 connections) — `src/func/fitting.js`
 - **_fitFighterTubeDps()** (4 connections) — `src/func/fitting.js`
@@ -24,13 +23,12 @@
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (17 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (16 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (13 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (9 shared connections)
-- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (5 shared connections)
-- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (5 shared connections)
-- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (2 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (10 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (5 shared connections)
+- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (4 shared connections)
+- [Jabber Disco Test](Jabber_Disco_Test.md) (1 shared connections)
 
 ## Source Files
 
@@ -38,7 +36,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 89 (99%)
+- EXTRACTED: 84 (99%)
 - INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,6 +1,6 @@
 # Intel Patterns Test
 
-> 28 nodes · cohesion 0.12
+> 27 nodes · cohesion 0.13
 
 ## Key Concepts
 
@@ -9,7 +9,6 @@
 - **dayIndex()** (5 connections) — `src/intel/patterns.js`
 - **countOccasions()** (5 connections) — `src/intel/patterns.js`
 - **createPatternStore()** (5 connections) — `src/intel/patterns.js`
-- **h()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **routeStats()** (4 connections) — `src/intel/patterns.js`
 - **corridors()** (4 connections) — `src/intel/patterns.js`
 - **entryPoints()** (4 connections) — `src/intel/patterns.js`
@@ -32,7 +31,8 @@
 - **sysSighting()** (1 connections) — `test/intel_patterns.test.js`
 - **hop()** (1 connections) — `test/intel_patterns.test.js`
 - **SDE** (1 connections) — `test/intel_patterns.test.js`
-- *... and 3 more nodes in this community*
+- **evLine()** (1 connections) — `test/intel_patterns.test.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
@@ -40,21 +40,17 @@
 - [Intel Test](Intel_Test.md) (3 shared connections)
 - [Notifications](Notifications.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/patterns.js`
-- `src/vendor/gridstack/gridstack-all.js`
 - `test/intel_patterns.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 87 (84%)
-- INFERRED: 17 (16%)
+- EXTRACTED: 83 (84%)
+- INFERRED: 16 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

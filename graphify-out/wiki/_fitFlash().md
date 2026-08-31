@@ -16,6 +16,7 @@
 - _fitDroneSetActive() `EXTRACTED`
 - _fitAddCargo() `EXTRACTED`
 - _fitAddModule() `EXTRACTED`
+- _fitImportFromGame() `EXTRACTED`
 - _fitSaveLocal() `EXTRACTED`
 - _fitRenderFilters() `EXTRACTED`
 - _fitLoadHull() `EXTRACTED`
@@ -26,7 +27,6 @@
 - _fitPickResult() `EXTRACTED`
 - _fitTubeUnits() `EXTRACTED`
 - _fitLoadCharge() `EXTRACTED`
-- _fitRestoreHiddenGameFits() `EXTRACTED`
 
 ### contains
 - fitting.js `EXTRACTED`

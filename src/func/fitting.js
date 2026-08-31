@@ -3833,32 +3833,215 @@ async function _fitPopulateChars() {
   });
 }
 
+// ─── Import from game — the fit picker ───────────────────────────────────────
+// A saved fit's identity is the HULL first and the pilot's label second: "Nyx —
+// Beehive Refit" is two facts, and the old picker showed one of them. It listed
+// the name against a 24px icon in a 200px-tall strip wedged under the fitting
+// wheel, so telling two Nyx fits apart meant loading one to find out, and a
+// pilot with sixty fits scrolled a viewport four rows high.
+//
+// This is a modal because the choice deserves protected focus — it replaces
+// everything on the canvas — and because the list needs room to be scannable.
+// The EFT-paste and Save flows keep the inline panel: those are one field and
+// one button, and interrupting for them would be theatre.
+const FIT_PICK_SLOT_FLAGS = (flag) => _fitFlagToSlot(flag) !== null;
+
+/** Modules actually in slots — not item stacks, which counts charges too. */
+function _fitPickModuleCount(fit) {
+  return (fit.items || []).filter(i => FIT_PICK_SLOT_FLAGS(i.flag)).length;
+}
+
+/**
+ * Does a row survive the search box and the class filter?
+ *
+ * One haystack across all three fields on purpose: a pilot typing "nyx" means
+ * the hull, typing "beehive" means the label they gave it, and typing
+ * "supercarrier" means the class. Searching only the name — which is what the
+ * old list did by having no search at all — makes the hull unfindable.
+ */
+function _fitPickMatches(row, query, klass) {
+  if (klass && row.klass !== klass) return false;
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  return `${row.name} ${row.ship} ${row.klass}`.toLowerCase().includes(q);
+}
+
 async function _fitImportFromGame() {
   const sel = document.getElementById('fitCharSelect');
   const charId = sel ? sel.value : '';
   if (!charId) { _fitFlash('Pick a character first.'); return; }
-  const panel = document.getElementById('fitImportPanel');
-  panel.style.display = 'block';
-  panel.innerHTML = `<div class="fit-hint">Loading saved fits…</div>`;
+
+  const charName = sel.options[sel.selectedIndex]?.text || '';
+  const host = _fitPickOpen(charName);
+
   const res = await window.eveAPI.fitGetFittings(charId).catch(() => ({ ok: false }));
-  if (res.needsReauth) { panel.innerHTML = `<div class="fit-hint">Re-authenticate this character to grant fittings access.</div>`; return; }
-  if (!res.ok || !res.fittings.length) { panel.innerHTML = `<div class="fit-hint">${res.ok ? 'No saved fits.' : (res.error || 'Failed to load fits.')}</div>`; return; }
+  if (!document.body.contains(host.backdrop)) return;    // closed while loading
+
+  if (res.needsReauth) {
+    return _fitPickMessage(host, 'Fittings access not granted',
+      'Re-authenticate this character on the Characters page to grant the fittings scope.');
+  }
+  if (!res.ok) {
+    return _fitPickMessage(host, 'Could not load fits', res.error || 'ESI did not answer.');
+  }
+  if (!res.fittings.length) {
+    return _fitPickMessage(host, 'No saved fits',
+      `${_fitEsc(charName) || 'This character'} has no fittings saved in the game client.`);
+  }
+
   _fitState.gameFits = res.fittings;
-  panel.innerHTML = `
-    <div class="fit-import-title">Your saved fits — click one to load</div>
-    <div class="fit-gamefit-list">
-      ${res.fittings.map((f, i) => `
-        <button class="fit-gamefit" data-fitidx="${i}">
-          <img src="https://images.evetech.net/types/${f.shipTypeId}/icon?size=32" alt=""/>
-          <span>${_fitEsc(f.name)}</span>
-        </button>`).join('')}
+
+  // Resolve hull names in ONE call for every distinct ship. Without this the
+  // picker can only show a typeId, which is the whole problem it exists to fix.
+  const shipIds = [...new Set(res.fittings.map(f => f.shipTypeId))];
+  const facts = await window.eveAPI.fitGetItems(shipIds).catch(() => ({})) || {};
+  if (!document.body.contains(host.backdrop)) return;
+
+  const rows = res.fittings.map((f, i) => {
+    const sf = facts[f.shipTypeId] || {};
+    return {
+      i,
+      name: f.name || '(unnamed)',
+      ship: sf.name || `Type ${f.shipTypeId}`,
+      klass: sf.groupName || '',
+      shipTypeId: f.shipTypeId,
+      modules: _fitPickModuleCount(f),
+      description: f.description || '',
+    };
+  });
+  _fitPickList(host, rows);
+}
+
+/** Build the shell and show it immediately, so loading has somewhere to land. */
+function _fitPickOpen(charName) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop fit-pick-backdrop';
+  backdrop.innerHTML = `
+    <div class="fit-pick-modal" role="dialog" aria-modal="true" aria-labelledby="fitPickTitle">
+      <header class="fit-pick-head">
+        <div class="fit-pick-head-text">
+          <h2 class="fit-pick-title" id="fitPickTitle">Import from game</h2>
+          <p class="fit-pick-sub">${charName ? `Saved fittings for ${_fitEsc(charName)}` : 'Saved fittings'}</p>
+        </div>
+        <button class="fit-pick-close" type="button" aria-label="Close">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </header>
+      <div class="fit-pick-body"><div class="fit-pick-state">Loading saved fits…</div></div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const host = { backdrop, modal: backdrop.querySelector('.fit-pick-modal') };
+  host.close = () => {
+    document.removeEventListener('keydown', host.onKey, true);
+    backdrop.remove();
+  };
+  host.onKey = (e) => {
+    if (e.key === 'Escape') { e.stopPropagation(); host.close(); }
+  };
+  document.addEventListener('keydown', host.onKey, true);
+  backdrop.querySelector('.fit-pick-close').addEventListener('click', host.close);
+  // Click-outside closes; a click that started inside and dragged out must not.
+  backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) host.close(); });
+  return host;
+}
+
+function _fitPickMessage(host, title, body) {
+  host.modal.querySelector('.fit-pick-body').innerHTML =
+    `<div class="fit-pick-state">
+       <div class="fit-pick-state-title">${_fitEsc(title)}</div>
+       <p>${_fitEsc(body)}</p>
+     </div>`;
+}
+
+function _fitPickList(host, rows) {
+  const classes = [...new Set(rows.map(r => r.klass).filter(Boolean))].sort();
+  const body = host.modal.querySelector('.fit-pick-body');
+  body.innerHTML = `
+    <div class="fit-pick-controls">
+      <label class="fit-pick-search">
+        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+        <input type="search" id="fitPickSearch" placeholder="Search fit, hull or class…"
+               autocomplete="off" spellcheck="false">
+      </label>
+      <select id="fitPickClass" class="fit-pick-class" aria-label="Filter by ship class">
+        <option value="">All classes</option>
+        ${classes.map(c => `<option value="${_fitEsc(c)}">${_fitEsc(c)}</option>`).join('')}
+      </select>
+      <span class="fit-pick-count" id="fitPickCount"></span>
     </div>
-    <div class="fit-import-actions"><button id="fitGameCancel" class="fit-btn">Close</button></div>`;
-  panel.querySelector('#fitGameCancel').addEventListener('click', () => { panel.style.display = 'none'; });
-  panel.querySelectorAll('.fit-gamefit').forEach(b => b.addEventListener('click', () => {
-    _fitLoadGameFit(_fitState.gameFits[Number(b.dataset.fitidx)]);
-    panel.style.display = 'none';
-  }));
+    <div class="fit-pick-list" id="fitPickList" role="listbox" tabindex="-1"></div>`;
+
+  const listEl   = body.querySelector('#fitPickList');
+  const searchEl = body.querySelector('#fitPickSearch');
+  const classEl  = body.querySelector('#fitPickClass');
+  const countEl  = body.querySelector('#fitPickCount');
+  let shown = [];
+  let cursor = 0;
+
+  const paint = () => {
+    shown = rows.filter(r => _fitPickMatches(r, searchEl.value, classEl.value));
+    cursor = Math.min(cursor, Math.max(0, shown.length - 1));
+
+    countEl.textContent = shown.length === rows.length
+      ? `${rows.length} fit${rows.length === 1 ? '' : 's'}`
+      : `${shown.length} of ${rows.length}`;
+
+    if (!shown.length) {
+      listEl.innerHTML = `<div class="fit-pick-state"><p>No fit matches that search.</p></div>`;
+      return;
+    }
+    listEl.innerHTML = shown.map((r, n) => `
+      <button class="fit-pick-row${n === cursor ? ' is-cursor' : ''}" role="option"
+              aria-selected="${n === cursor}" data-n="${n}"
+              ${r.description ? `title="${_fitEsc(r.description)}"` : ''}>
+        ${/* icon, not render: renders ship with their own nebula backdrop, so a
+              list of them is a row of mismatched coloured boxes. Icons are
+              transparent and consistent, and are what every other list in the
+              app already uses (.fit-result, .ft-grp-icon). */''}
+        <img class="fit-pick-render" loading="lazy" alt=""
+             src="https://images.evetech.net/types/${r.shipTypeId}/icon?size=64"
+             onerror="this.onerror=null;this.style.visibility='hidden'">
+        <span class="fit-pick-text">
+          <span class="fit-pick-fitname">${_fitEsc(r.name)}</span>
+          <span class="fit-pick-hull">${_fitEsc(r.ship)}${r.klass ? ` · ${_fitEsc(r.klass)}` : ''}</span>
+        </span>
+        <span class="fit-pick-mods">${r.modules}<span class="fit-pick-mods-unit">mod</span></span>
+      </button>`).join('');
+    listEl.querySelectorAll('.fit-pick-row').forEach(b =>
+      b.addEventListener('click', () => choose(Number(b.dataset.n))));
+  };
+
+  // One-shot. A row is a <button>, so Enter on a focused row fires BOTH the
+  // button's click and the Enter handler below — which would load the fit twice.
+  let taken = false;
+  const choose = (n) => {
+    const r = shown[n];
+    if (!r || taken) return;
+    taken = true;
+    host.close();
+    _fitLoadGameFit(_fitState.gameFits[r.i]);
+  };
+
+  const move = (d) => {
+    if (!shown.length) return;
+    cursor = (cursor + d + shown.length) % shown.length;
+    paint();
+    listEl.querySelector('.is-cursor')?.scrollIntoView({ block: 'nearest' });
+  };
+
+  // Arrows and Enter work from the search field, so the whole flow is: type,
+  // arrow, Enter — without ever leaving the keyboard or losing the query.
+  searchEl.addEventListener('input', () => { cursor = 0; paint(); });
+  classEl.addEventListener('change', () => { cursor = 0; paint(); });
+  body.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown')      { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter')     { e.preventDefault(); choose(cursor); }
+  });
+
+  paint();
+  searchEl.focus();
 }
 
 // flag → slot: HiSlot 27-34, MedSlot 19-26, LoSlot 11-18, RigSlot 92-94, SubSystem 125-132

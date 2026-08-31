@@ -107,10 +107,19 @@ async function seedCharacterDb(dataDir) {
 
   // Mining ledger — drives the Mining Ledger tool. Veldspar (1230) 10k+5k = 15k,
   // Scordite (1228) 8k, across two days in Jita (30000142).
+  //
+  // DATES ARE RELATIVE TO TODAY, and must stay that way. The ledger view filters
+  // to the last 30 days (_mlRange in src/func/mining.js), so the fixed
+  // '2026-07-24' / '2026-07-25' these used to carry aged out of the window and
+  // both mining specs began failing — not on any code change, just on the
+  // calendar. They passed in CI on 2026-08-22 with the 24th 29 days back, and
+  // were failing by 2026-08-31. A fixture pegged to an absolute date in a
+  // windowed view is a time bomb with a release gate attached to it.
+  const dayAgo = (n) => new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10);
   await charInfoDb.upsertMiningLedger(FAKE_CHAR_ID, [
-    { date: '2026-07-24', solar_system_id: 30000142, type_id: 1230, quantity: 10000 },
-    { date: '2026-07-25', solar_system_id: 30000142, type_id: 1230, quantity: 5000  },
-    { date: '2026-07-25', solar_system_id: 30000142, type_id: 1228, quantity: 8000  },
+    { date: dayAgo(3), solar_system_id: 30000142, type_id: 1230, quantity: 10000 },
+    { date: dayAgo(2), solar_system_id: 30000142, type_id: 1230, quantity: 5000  },
+    { date: dayAgo(2), solar_system_id: 30000142, type_id: 1228, quantity: 8000  },
   ]);
 
   await charInfoDb.replaceAssets(FAKE_CHAR_ID, [

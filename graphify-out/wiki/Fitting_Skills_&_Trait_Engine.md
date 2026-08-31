@@ -1,6 +1,6 @@
 # Fitting Skills & Trait Engine
 
-> 34 nodes · cohesion 0.15
+> 35 nodes · cohesion 0.14
 
 ## Key Concepts
 
@@ -29,15 +29,14 @@
 - **_fitDamageBonuses()** (5 connections) — `src/func/fitting.js`
 - **_fitTraitLayerMult()** (4 connections) — `src/func/fitting.js`
 - **_fitTraitRes()** (4 connections) — `src/func/fitting.js`
-- *... and 9 more nodes in this community*
+- *... and 10 more nodes in this community*
 
 ## Relationships
 
 - [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (15 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (4 shared connections)
-- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (2 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (6 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -45,7 +44,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 224 (99%)
+- EXTRACTED: 226 (99%)
 - INFERRED: 3 (1%)
 - AMBIGUOUS: 0 (0%)
 

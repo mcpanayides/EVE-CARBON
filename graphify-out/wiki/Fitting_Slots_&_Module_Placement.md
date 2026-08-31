@@ -17,24 +17,24 @@
 - **_fitPlaceSubsystem()** (7 connections) — `src/func/fitting.js`
 - **_fitCloneSlot()** (7 connections) — `src/func/fitting.js`
 - **_fitLoadChargeAll()** (7 connections) — `src/func/fitting.js`
-- **_fitApplySnapshot()** (6 connections) — `src/func/fitting.js`
 - **_fitPickResult()** (6 connections) — `src/func/fitting.js`
 - **_fitEffSlots()** (6 connections) — `src/func/fitting.js`
+- **_fitTubeUnits()** (6 connections) — `src/func/fitting.js`
 - **_fitLoadCharge()** (6 connections) — `src/func/fitting.js`
+- **_fitShowTubeMenu()** (6 connections) — `src/func/fitting.js`
 - **_fitSyncRacks()** (5 connections) — `src/func/fitting.js`
 - **_fitPlace()** (5 connections) — `src/func/fitting.js`
-- **_fitLoadLocalFit()** (5 connections) — `src/func/fitting.js`
-- **_fitEmptyRacks()** (4 connections) — `src/func/fitting.js`
 - **_fitDupMod()** (4 connections) — `src/func/fitting.js`
 - **_fitAddImplant()** (4 connections) — `src/func/fitting.js`
+- **_fitChargeAccepts()** (2 connections) — `src/func/fitting.js`
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (28 shared connections)
-- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (23 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (15 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (13 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (27 shared connections)
+- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (23 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (16 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (14 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 
@@ -42,7 +42,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 205 (100%)
+- EXTRACTED: 204 (100%)
 - INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 

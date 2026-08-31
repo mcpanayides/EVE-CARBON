@@ -1,6 +1,6 @@
-# Fitting Simulator (renderFitting)
+# Fitting Browser & Persistence
 
-> 34 nodes · cohesion 0.11
+> 35 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -14,32 +14,31 @@
 - **_fitDoSearch()** (7 connections) — `src/func/fitting.js`
 - **_fitFillTypes()** (7 connections) — `src/func/fitting.js`
 - **_fitRenderFilters()** (7 connections) — `src/func/fitting.js`
-- **_fitPassesFilters()** (7 connections) — `src/func/fitting.js`
 - **_fitHideGameFit()** (7 connections) — `src/func/fitting.js`
+- **_fitApplySnapshot()** (6 connections) — `src/func/fitting.js`
 - **_fitPickList()** (6 connections) — `src/func/fitting.js`
 - **_fitLocalFits()** (6 connections) — `src/func/fitting.js`
 - **_fitRestoreHiddenGameFits()** (6 connections) — `src/func/fitting.js`
 - **_fitDeleteLocalFit()** (6 connections) — `src/func/fitting.js`
 - **_fitEnsureGameFits()** (5 connections) — `src/func/fitting.js`
-- **_fitComputeUsage()** (5 connections) — `src/func/fitting.js`
+- **_fitLoadLocalFit()** (5 connections) — `src/func/fitting.js`
 - **_fitTypeRowHtml()** (4 connections) — `src/func/fitting.js`
+- **_fitEmptyRacks()** (4 connections) — `src/func/fitting.js`
 - **_fitPopulateChars()** (4 connections) — `src/func/fitting.js`
 - **_fitHiddenGameFits()** (4 connections) — `src/func/fitting.js`
 - **_fitPersist()** (3 connections) — `src/func/fitting.js`
 - **_fitRestore()** (3 connections) — `src/func/fitting.js`
 - **_fitRenderKindTabs()** (3 connections) — `src/func/fitting.js`
-- **_fitEnsureSkills()** (3 connections) — `src/func/fitting.js`
-- *... and 9 more nodes in this community*
+- *... and 10 more nodes in this community*
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (37 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (38 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (23 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (10 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (8 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (5 shared connections)
-- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (2 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 
@@ -47,8 +46,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 191 (93%)
-- INFERRED: 14 (7%)
+- EXTRACTED: 196 (94%)
+- INFERRED: 12 (6%)
 - AMBIGUOUS: 0 (0%)
 
 ---

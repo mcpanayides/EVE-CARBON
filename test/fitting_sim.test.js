@@ -1039,7 +1039,12 @@ test('the module count counts fitted slots, not item stacks', () => {
 // own slot type when the flag was not a slot, and a spare cap relay still
 // reports slot 'low' — so the hold was fitted, overflowed the racks, and
 // displaced the real modules. Every stat was then computed off the wrong ship.
-const CARGO_FLAG = 5;   // ESI: Cargo. Slot flags are 11-34, 92-94, 125-132.
+// ESI sends the enum NAME, verified against /meta/openapi.json: the fitting
+// item's `flag` is type string with enum Cargo | DroneBay | FighterBay |
+// HiSlot0-7 | LoSlot0-7 | MedSlot0-7 | RigSlot0-2 | SubSystemSlot0-3 | ...
+// The loader tested numeric ranges, which are always false for a string, so the
+// flag was never read at all.
+const CARGO_FLAG = 'Cargo';
 
 async function loadGameFit(sb, items) {
   const facts = {};
@@ -1078,9 +1083,9 @@ test('cargo does not displace what is genuinely fitted', async () => {
   // hull has low slots, listed BEFORE the fitted ones.
   await loadGameFit(sb, [
     { f: relay, flag: CARGO_FLAG, qty: 9 },
-    { f: plate, flag: 11 },
-    { f: plate, flag: 12 },
-    { f: plate, flag: 13 },
+    { f: plate, flag: 'LoSlot0' },
+    { f: plate, flag: 'LoSlot1' },
+    { f: plate, flag: 'LoSlot2' },
   ]);
 
   assert.strictEqual(fitted(sb, 'low'),
@@ -1092,7 +1097,28 @@ test('cargo does not displace what is genuinely fitted', async () => {
 test('a fitted module still lands at its exact in-game slot index', async () => {
   const sb = loadSim();
   const sb2 = facts({ id: 1234, name: 'Sensor Booster II', slot: 'med' });
-  await loadGameFit(sb, [{ f: sb2, flag: 21 }]);   // MedSlot2
+  await loadGameFit(sb, [{ f: sb2, flag: 'MedSlot2' }]);
   assert.strictEqual(sb._fitState.modules.med[2]?.f.name, 'Sensor Booster II',
-    'flag 21 is MedSlot2, and the saved layout must survive the round-trip');
+    'MedSlot2 must land at index 2 — the saved layout survives the round-trip');
+});
+
+test('slot flags are parsed from the ESI enum name, and numbers still work', () => {
+  const sb = loadSim();
+  const at = (f) => sb._fitFlagSlot(f);
+  // What ESI actually sends.
+  assert.deepEqual(at('LoSlot0'), { slot: 'low', index: 0 });
+  assert.deepEqual(at('LoSlot7'), { slot: 'low', index: 7 });
+  assert.deepEqual(at('HiSlot3'), { slot: 'high', index: 3 });
+  assert.deepEqual(at('MedSlot2'), { slot: 'med', index: 2 });
+  assert.deepEqual(at('RigSlot2'), { slot: 'rig', index: 2 });
+  assert.deepEqual(at('SubSystemSlot1'), { slot: 'subsystem', index: 1 });
+  // Everything that is not a slot.
+  for (const f of ['Cargo', 'DroneBay', 'FighterBay', 'Invalid', 'ServiceSlot0', '', null, undefined]) {
+    assert.strictEqual(at(f), null, String(f));
+  }
+  // Legacy numeric flags still resolve — the SDE and local snapshots use them.
+  assert.deepEqual(at(11), { slot: 'low', index: 0 });
+  assert.deepEqual(at(27), { slot: 'high', index: 0 });
+  assert.deepEqual(at(94), { slot: 'rig', index: 2 });
+  assert.strictEqual(at(5), null, 'numeric cargo');
 });

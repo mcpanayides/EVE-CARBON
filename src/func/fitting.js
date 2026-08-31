@@ -4044,14 +4044,42 @@ function _fitPickList(host, rows) {
   searchEl.focus();
 }
 
-// flag → slot: HiSlot 27-34, MedSlot 19-26, LoSlot 11-18, RigSlot 92-94, SubSystem 125-132
-function _fitFlagToSlot(flag) {
-  if (flag >= 27 && flag <= 34) return 'high';
-  if (flag >= 19 && flag <= 26) return 'med';
-  if (flag >= 11 && flag <= 18) return 'low';
-  if (flag >= 92 && flag <= 94) return 'rig';
-  if (flag >= 125 && flag <= 132) return 'subsystem';
+// ESI reports a fitting item's position as the enum NAME, not the inventory
+// number: "LoSlot0", "HiSlot3", "RigSlot1", "SubSystemSlot0", "Cargo",
+// "DroneBay", "FighterBay" (verified against /meta/openapi.json — the schema
+// declares `flag` as type string with exactly that enum).
+//
+// This used to test numeric ranges only, which are ALWAYS false for a string,
+// so the flag was never actually read. Nothing failed loudly: placement fell
+// through to the item's own slot type, which fitted whatever was in the cargo
+// hold and pushed the real modules out of the racks.
+//
+// Numbers are still accepted. They are what the SDE and the local-fit snapshots
+// use, and an ESI version could reasonably go back to them.
+const FIT_ESI_FLAG_RE   = /^(HiSlot|MedSlot|LoSlot|RigSlot|SubSystemSlot)(\d+)$/;
+const FIT_ESI_FLAG_SLOT = {
+  HiSlot: 'high', MedSlot: 'med', LoSlot: 'low', RigSlot: 'rig', SubSystemSlot: 'subsystem',
+};
+const FIT_NUM_FLAG_RANGES = [
+  ['high', 27, 34], ['med', 19, 26], ['low', 11, 18], ['rig', 92, 94], ['subsystem', 125, 132],
+];
+
+/** @returns {{slot: string, index: number}|null} — null means it is not in a slot. */
+function _fitFlagSlot(flag) {
+  if (typeof flag === 'string') {
+    const m = FIT_ESI_FLAG_RE.exec(flag.trim());
+    return m ? { slot: FIT_ESI_FLAG_SLOT[m[1]], index: Number(m[2]) } : null;
+  }
+  const n = Number(flag);
+  if (!Number.isFinite(n)) return null;
+  for (const [slot, lo, hi] of FIT_NUM_FLAG_RANGES) {
+    if (n >= lo && n <= hi) return { slot, index: n - lo };
+  }
   return null;
+}
+
+function _fitFlagToSlot(flag) {
+  return _fitFlagSlot(flag)?.slot ?? null;
 }
 
 async function _fitLoadGameFit(fit) {
@@ -4062,7 +4090,6 @@ async function _fitLoadGameFit(fit) {
   const facts = await window.eveAPI.fitGetItems(ids).catch(() => ({}));
   // Place modules at their EXACT in-game slot position (flag − rack base) so the
   // saved layout — including heat-management gaps — survives the round-trip.
-  const flagBase = { high: 27, med: 19, low: 11, rig: 92, subsystem: 125 };
   const charges = [];
   const cargo   = [];
   // Pass 1: subsystems — they create the slot layout everything else lands in.
@@ -4070,7 +4097,10 @@ async function _fitLoadGameFit(fit) {
     const f = facts[it.typeId];
     if (f && f.slot === 'subsystem') {
       const rack = _fitState.modules.subsystem;
-      if (rack.length) rack[Math.max(0, Math.min(rack.length - 1, (f.attrs?.[1366] || 125) - 125))] = _fitMod(f);
+      // The flag's own index when ESI gives one; the SDE's subSystemSlot
+      // attribute is the fallback for a fit that arrived without it.
+      const idx = _fitFlagSlot(it.flag)?.index ?? ((f.attrs?.[1366] || 125) - 125);
+      if (rack.length) rack[Math.max(0, Math.min(rack.length - 1, idx))] = _fitMod(f);
     }
   }
   _fitSyncRacks();
@@ -4088,17 +4118,15 @@ async function _fitLoadGameFit(fit) {
     // racks and displaced the modules that were genuinely fitted: a Nyx came
     // back wearing five cap relays and a cloak, with its plates and hardeners
     // nowhere, and every stat computed off that wrong ship.
-    const slot = _fitFlagToSlot(it.flag);
-    if (!slot) { cargo.push({ f, qty }); continue; }        // spares, refits, spare ammo
+    const at = _fitFlagSlot(it.flag);
+    if (!at) { cargo.push({ f, qty }); continue; }          // spares, refits, spare ammo
 
-    if (f.categoryId === 8) { charges.push({ it, f }); continue; }   // loaded ammo
-    const atIdx = it.flag - flagBase[slot];
-    for (let n = 0; n < qty; n++) _fitPlace(slot, _fitMod(f), n === 0 ? atIdx : null);
+    if (f.categoryId === 8) { charges.push({ it, f, at }); continue; }   // loaded ammo
+    for (let n = 0; n < qty; n++) _fitPlace(at.slot, _fitMod(f), n === 0 ? at.index : null);
   }
-  for (const { it, f } of charges) {
-    const slot = _fitFlagToSlot(it.flag);          // non-null: cargo went above
-    const rack = _fitState.modules[slot] || [];
-    const exact = rack[it.flag - flagBase[slot]];
+  for (const { f, at } of charges) {
+    const rack = _fitState.modules[at.slot] || [];
+    const exact = rack[at.index];
     const target = (exact && !exact.charge) ? exact : rack.find(m => m && !m.charge);
     if (target) target.charge = { id: f.id, name: f.name, dmg: f.dmg, f };
   }

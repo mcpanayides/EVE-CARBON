@@ -1,6 +1,6 @@
 # Fitting Drones & Stats Display
 
-> 29 nodes · cohesion 0.15
+> 28 nodes · cohesion 0.16
 
 ## Key Concepts
 
@@ -20,7 +20,6 @@
 - **_fitCargoHtml()** (6 connections) — `src/func/fitting.js`
 - **_fitEffCargo()** (5 connections) — `src/func/fitting.js`
 - **_fitDroneCap()** (5 connections) — `src/func/fitting.js`
-- **_fitShowTip()** (5 connections) — `src/func/fitting.js`
 - **_fitDrawRangeChartBase()** (5 connections) — `src/func/fitting.js`
 - **_fitKm()** (5 connections) — `src/func/fitting.js`
 - **_fitCargoUsedM3()** (4 connections) — `src/func/fitting.js`
@@ -29,21 +28,22 @@
 - **_fitImplantCount()** (3 connections) — `src/func/fitting.js`
 - **_fitActiveBuffs()** (3 connections) — `src/func/fitting.js`
 - **_fitAppliedAt()** (3 connections) — `src/func/fitting.js`
-- *... and 4 more nodes in this community*
+- **_fitSetTarget()** (3 connections) — `src/func/fitting.js`
+- *... and 3 more nodes in this community*
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (30 shared connections)
-- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (15 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (29 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (16 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (15 shared connections)
-- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (10 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (10 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (11 shared connections)
+- [Fitting Browser & Persistence](Fitting_Browser_%26_Persistence.md) (8 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (3 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 - [Auto Updater](Auto_Updater.md) (1 shared connections)
-- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 
@@ -52,7 +52,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 195 (91%)
+- EXTRACTED: 190 (91%)
 - INFERRED: 19 (9%)
 - AMBIGUOUS: 0 (0%)
 

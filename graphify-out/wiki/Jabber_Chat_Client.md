@@ -33,9 +33,9 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (3 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (3 shared connections)
 - [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 

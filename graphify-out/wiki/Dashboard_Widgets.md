@@ -40,8 +40,8 @@
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (5 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
 - [Intel Widget](Intel_Widget.md) (1 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (1 shared connections)
 
 ## Source Files
 

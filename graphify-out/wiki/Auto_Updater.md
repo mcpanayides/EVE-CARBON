@@ -26,14 +26,13 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
-- [Gridstack Vendor Library (_assetBuildModel)](Gridstack_Vendor_Library_%28_assetBuildModel%29.md) (2 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (2 shared connections)
+- [Reaction Chains](Reaction_Chains.md) (2 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 - [Appraisal](Appraisal.md) (1 shared connections)
 - [EVE Mail](EVE_Mail.md) (1 shared connections)
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) (1 shared connections)
 - [Notifications](Notifications.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (1 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
 
 ## Source Files

@@ -102,7 +102,7 @@
   "dependencies": {
     "@xmpp/client": "^0.14.0",
     "dotenv": "^17.4.2",
-    "js-yaml": "^5.2.2",
+    "js-yaml": "^5.4.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1",
     "unbzip2-stream": "^1.4.3",

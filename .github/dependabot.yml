@@ -1,0 +1,51 @@
+# Dependabot version updates.
+#
+# Added after fifteen security alerts accumulated with zero pull requests: the
+# repository had alert scanning on but no update config, so Dependabot could
+# report vulnerabilities and never offer to fix them. Nothing was going to clear
+# them without someone running `npm audit` by hand — which is exactly what
+# happened, months late.
+#
+# Grouping is the point here. Every one of those fifteen alerts was a transitive
+# devDependency of electron-builder or Playwright, and ungrouped that is fifteen
+# near-identical pull requests. Minor and patch updates are batched into one PR
+# per dependency type; majors deliberately stay ungrouped so a breaking bump to
+# Electron or sqlite3 — both of which carry native modules and packaging risk —
+# arrives on its own and gets read on its own.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Build and test tooling. This is where the vulnerabilities actually live
+      # — none of it ships inside the app — so a single batched PR is the right
+      # amount of ceremony.
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+      # Runtime dependencies ship to users, so they are batched separately from
+      # the build tooling rather than mixed into one PR with it.
+      runtime:
+        dependency-type: production
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+      prefix-development: deps-dev
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      # Five actions across three workflows; one PR for the lot.
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

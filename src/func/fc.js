@@ -115,7 +115,10 @@ function initFcPage() {
     // (so Ctrl+R lands back on e.g. the Fitting Simulator, not Composition).
     let last = null;
     try { last = localStorage.getItem('fcLastTab'); } catch (_) {}
-    navigateFcTab(last === 'fitting' ? 'fitting' : last === 'fleetfight' ? 'fleetfight' : 'composition');
+    // Returned, so navigateToPage can hold the header spinner until the tab has
+    // actually rendered. Re-entering an already-built page returns nothing, which
+    // is correct: there is no load to report.
+    return navigateFcTab(last === 'fitting' ? 'fitting' : last === 'fleetfight' ? 'fleetfight' : 'composition');
   }
 }
 

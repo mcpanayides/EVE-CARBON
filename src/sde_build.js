@@ -114,6 +114,13 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE TABLE industryActivity (typeID INTEGER, activityID INTEGER, time INTEGER);
     CREATE TABLE industryActivityMaterials (typeID INTEGER, activityID INTEGER, materialTypeID INTEGER, quantity INTEGER);
     CREATE TABLE industryActivityProducts (typeID INTEGER, activityID INTEGER, productTypeID INTEGER, quantity INTEGER);
+    /* Planetary Interaction schematics — the P0→P1→P2→P3→P4 recipe graph.
+       Deliberately kept as two tables mirroring the classic SDE shape
+       (planetSchematics + planetSchematicsTypeMap) rather than folded into
+       industryActivity*: PI is not an industry activity, it has no blueprint,
+       and a schematic's inputs and output live on the same row set. */
+    CREATE TABLE planetSchematics (schematicID INTEGER, schematicName TEXT, cycleTime INTEGER);
+    CREATE TABLE planetSchematicsTypeMap (schematicID INTEGER, typeID INTEGER, quantity INTEGER, isInput BOOLEAN);
   `);
 
   // ── Pass 1: small/medium lookup tables + in-memory maps other tables need ──
@@ -203,6 +210,17 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     rowsFrom(async push => forEachLine(f('typeDogma.jsonl'), o => {
       for (const e of (o.dogmaEffects || [])) push([o._key, e.effectID, b01(e.isDefault)]);
     })));
+
+  report('Populating planetSchematics...');
+  {
+    const heads = [], types = [];
+    await forEachLine(f('planetSchematics.jsonl'), o => {
+      heads.push([o._key, en(o.name), o.cycleTime ?? null]);
+      for (const t of (o.types || [])) types.push([o._key, t._key, t.quantity ?? 0, b01(t.isInput)]);
+    });
+    await bulkInsert('planetSchematics', ['schematicID', 'schematicName', 'cycleTime'], rowsFrom(async p => heads.forEach(p)));
+    await bulkInsert('planetSchematicsTypeMap', ['schematicID', 'typeID', 'quantity', 'isInput'], rowsFrom(async p => types.forEach(p)));
+  }
 
   report('Populating dgmEffects...');
   await bulkInsert('dgmEffects', ['effectID', 'effectName', 'effectCategory'],

@@ -19,14 +19,13 @@ test('welcome banner shows the fixture character name', async ({ window }) => {
   await expect(window.locator('.dashboard-welcome-name')).toContainText(FAKE_CHAR_NAME, { timeout: 15_000 });
 });
 
-// The refresh button is declared in the page markup but _injectPageSpinners()
-// moves it into the header's action group at boot — assert where it ends up, not
-// where it was written, since a broken move leaves the header with three
-// space-between children and the button adrift.
+// The refresh button is injected into the header's action group at boot by
+// _injectPageHeaderActions — assert where it ends up, since a broken injection
+// leaves the header with three space-between children and the button adrift.
 test('refresh button sits in the header action group beside the ✕', async ({ window }) => {
   const actions = window.locator('#page-dashboard .page-header .page-header-actions');
   await expect(actions).toHaveCount(1);
-  await expect(actions.locator('#dashboardRefreshBtn')).toBeVisible();
+  await expect(actions.locator('.page-refresh-btn')).toBeVisible();
   await expect(actions.locator('.page-spinner')).toBeAttached();
   await expect(actions.locator('.close-page-btn')).toBeVisible();
   // Nothing else may sit loose in the header — the title block and the group only.
@@ -38,13 +37,13 @@ test('refresh re-renders the dashboard without errors', async ({ window }) => {
   await expect(grid.locator('.grid-stack-item')).not.toHaveCount(0);
   const before = await grid.locator('.grid-stack-item').count();
 
-  await window.locator('#dashboardRefreshBtn').click();
+  await window.locator('#page-dashboard .page-refresh-btn').click();
   // Re-entrancy guard: a second click while busy must not start another pass.
-  await window.locator('#dashboardRefreshBtn').click({ force: true });
+  await window.locator('#page-dashboard .page-refresh-btn').click({ force: true });
 
   // The button re-enables when the pass finishes, and the widgets survive it —
   // initDashboardGrid() must not rebuild the grid and lose the layout.
-  await expect(window.locator('#dashboardRefreshBtn')).toBeEnabled({ timeout: 30_000 });
+  await expect(window.locator('#page-dashboard .page-refresh-btn')).toBeEnabled({ timeout: 30_000 });
   await expect(grid.locator('.grid-stack-item')).toHaveCount(before);
 });
 
@@ -55,6 +54,15 @@ test('refresh re-renders the dashboard without errors', async ({ window }) => {
 for (const { menuText, base, heading, option } of [
   { menuText: 'TOP KILLS',       base: 'killTicker', heading: /whose kills/i,     option: FAKE_CHAR_NAME },
   { menuText: 'CHARACTER WALLET', base: 'charWallet', heading: /which character/i, option: FAKE_CHAR_NAME },
+  // The Faction Warfare tiles pick from fixed lists — the four leaderboards and
+  // the two warzones — so unlike the two above they need no character, no token
+  // and no live ESI to offer their options.
+  // The killfeed's list is your characters; its corporation search is exercised
+  // separately below, since that one talks to ESI.
+  { menuText: 'KILLFEED',              base: 'killFeed',  heading: /whose killmails/i,   option: FAKE_CHAR_NAME },
+  { menuText: 'FW - TOP PILOTS',       base: 'fwBoard',   heading: /which leaderboard/i, option: 'Victory points · Yesterday' },
+  { menuText: 'FW - CAPTURE PRESSURE', base: 'fwSystems', heading: /which warzone/i,     option: 'Both warzones' },
+  { menuText: 'FW - WARZONES',         base: 'fwTug',     heading: /which warzone/i,     option: 'Amarr–Minmatar Warzone' },
 ]) {
   test(`${base} asks what to show before it is added`, async ({ window }) => {
     await window.locator('.dashboard-add-widget-btn').click();
@@ -73,6 +81,27 @@ for (const { menuText, base, heading, option } of [
     await expect(panel.locator('select')).toHaveCount(0);
   });
 }
+
+// A `multi` widget that can show different things has to say which one it is
+// showing, or two of them side by side are indistinguishable. This is the whole
+// job of the registry's `titleOf`.
+test('two Faction Warfare tiles of the same kind title themselves apart', async ({ window }) => {
+  const addTug = async (option) => {
+    await window.locator('.dashboard-add-widget-btn').click();
+    const menu = window.locator('#dashboardAddWidgetMenu');
+    await menu.locator('.dashboard-add-item', { hasText: 'FW - WARZONES' }).click();
+    await menu.locator('.dashboard-add-item', { hasText: option }).click();
+  };
+  await addTug('Caldari–Gallente Warzone');
+  await addTug('Amarr–Minmatar Warzone');
+
+  const titles = window.locator('#dashboardGrid [data-widget-base="fwTug"] .dashboard-widget-title-text');
+  await expect(titles).toHaveCount(2);
+  const [a, b] = await titles.allTextContents();
+  expect(a).not.toBe(b);
+  expect([a, b].join('|')).toMatch(/CALDARI/i);
+  expect([a, b].join('|')).toMatch(/AMARR/i);
+});
 
 // Job Watch's list is live jobs, which this fixture has none of — the picker must
 // say so rather than adding a widget with nothing to watch.

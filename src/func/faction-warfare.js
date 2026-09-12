@@ -15,11 +15,19 @@
 
 // The four militias, grouped into their two warzones. Colours are ours (no ESI
 // colour exists) and echo each faction's identity.
+//
+// `cls` is the same colour again, reachable from CSS: the dashboard widgets set
+// `class="fw-f-caldari"` and let --fw-caldari in dashboard.css do the painting,
+// because inline-styling a colour from JS puts it beyond the reach of themes.
+// (This page predates that rule and still writes `color` inline; the two are
+// kept in step here, in one object, rather than in two lists that can drift.)
+// These are identity colours, not data-palette hues — a theme may not repaint
+// Caldari green — so they are deliberately NOT --pal-* tokens.
 const FW_FACTIONS = {
-  500001: { name: 'Caldari State',       short: 'Caldari',  color: '#4a8fd6', enemy: 500004 },
-  500004: { name: 'Gallente Federation', short: 'Gallente', color: '#48b58a', enemy: 500001 },
-  500003: { name: 'Amarr Empire',        short: 'Amarr',    color: '#d6b24a', enemy: 500002 },
-  500002: { name: 'Minmatar Republic',   short: 'Minmatar', color: '#d66a4a', enemy: 500003 },
+  500001: { name: 'Caldari State',       short: 'Caldari',  cls: 'caldari',  color: '#4a8fd6', enemy: 500004 },
+  500004: { name: 'Gallente Federation', short: 'Gallente', cls: 'gallente', color: '#48b58a', enemy: 500001 },
+  500003: { name: 'Amarr Empire',        short: 'Amarr',    cls: 'amarr',    color: '#d6b24a', enemy: 500002 },
+  500002: { name: 'Minmatar Republic',   short: 'Minmatar', cls: 'minmatar', color: '#d66a4a', enemy: 500003 },
 };
 const FW_WARZONES = [
   { key: 'cal-gal', name: 'Caldari–Gallente Warzone', factions: [500001, 500004] },
@@ -54,6 +62,11 @@ const FW_CONTESTED = {
   captured:    { label: 'Captured',   cls: 'fw-c-cap' },
 };
 
+// How urgent each contested state is — lowest sorts first. Shared so the page's
+// systems table and the dashboard widget rank the same systems the same way; two
+// copies of this would eventually disagree about which system is "the hottest".
+const FW_URGENCY = { vulnerable: 0, contested: 1, captured: 2, uncontested: 3 };
+
 let _fwTab      = 'overview';
 let _fwStats    = null;   // [{ faction_id, kills, pilots, systems_controlled, victory_points }]
 let _fwSystems  = null;   // [{ solar_system_id, owner_faction_id, occupier_faction_id, contested, victory_points, victory_points_threshold }]
@@ -72,8 +85,11 @@ function initFactionWarfarePage() {
   document.querySelectorAll('.fw-sub-btn').forEach(btn => {
     btn.onclick = () => { const t = btn.dataset.fwTab; if (t) navigateFwTab(t); };
   });
-  navigateFwTab(_fwTab || 'overview');
+  // The tab render is returned so navigateToPage can show the header spinner
+  // until the ESI pull behind it settles; the auto-refresh timer is fire-and-forget.
+  const p = navigateFwTab(_fwTab || 'overview');
   _fwStartAutoRefresh();
+  return p;
 }
 
 function navigateFwTab(tab) {
@@ -116,42 +132,32 @@ async function _fwEnsurePublic(force) {
   _fwLbChars = lbC || _fwLbChars;
   _fwLbCorps = lbP || _fwLbCorps;
   _fwFetchedAt = Date.now();
+}
 
-  // Resolve names for systems + leaderboard ids in one batch.
-  const ids = new Set();
-  (_fwSystems || []).forEach(s => ids.add(s.solar_system_id));
-  for (const lb of [_fwLbChars, _fwLbCorps]) {
-    if (!lb) continue;
-    ['kills', 'victory_points'].forEach(m => ['yesterday', 'active_total', 'last_week'].forEach(w => {
-      (lb[m] && lb[m][w] || []).forEach(e => ids.add(e.character_id || e.corporation_id));
-    }));
-  }
-  const list = [...ids].filter(Boolean);
-  if (list.length) {
-    try {
-      const arr = await window.eveAPI.getNames(list);
-      if (Array.isArray(arr)) arr.forEach(n => { if (n && n.id) _fwNames[n.id] = n.name; });
-    } catch (_) {}
-  }
+// Resolve ids → names, asking only for the ones we don't already hold.
+//
+// This used to run inside _fwEnsurePublic and resolve EVERYTHING the page might
+// ever show: 160 systems plus both leaderboards × two metrics × three windows,
+// which is up to ~1,200 ids for a view that displays 25 rows. That was tolerable
+// while only the FW page could trigger it. The dashboard widgets can, and they
+// re-render on every navigation, so each caller now names the handful of ids it
+// is about to paint and the cache absorbs the overlap.
+async function _fwResolveNames(ids) {
+  const want = [...new Set(ids)].filter(id => id && !_fwNames[id]);
+  if (!want.length) return;
+  try {
+    const arr = await window.eveAPI.getNames(want);
+    if (Array.isArray(arr)) arr.forEach(n => { if (n && n.id) _fwNames[n.id] = n.name; });
+  } catch (_) { /* leave them as #id; the next render retries */ }
 }
 
 function _fwName(id) { return _fwNames[id] || `#${id}`; }
 function _fwLoading(host, label) { host.innerHTML = `<div class="fin-empty">${escHtml(label || 'Loading Faction Warfare data…')}</div>`; }
 
-// Per-warzone control numbers derived from /fw/stats systems_controlled.
-function _fwWarzoneControl(wz) {
-  const s = {};
-  (_fwStats || []).forEach(x => { s[x.faction_id] = x; });
-  const [a, b] = wz.factions;
-  const ca = (s[a] && s[a].systems_controlled) || 0;
-  const cb = (s[b] && s[b].systems_controlled) || 0;
-  const total = ca + cb || 1;
-  return {
-    total, a, b, statA: s[a] || {}, statB: s[b] || {},
-    ctrlA: ca, ctrlB: cb, pctA: ca / total, pctB: cb / total,
-    tierA: _fwTier(ca / total), tierB: _fwTier(cb / total),
-  };
-}
+// Per-warzone control numbers now come from fwTugOfWar() at the bottom of this
+// file — one function describing a warzone, read by this page AND the dashboard
+// tile. There used to be two, which is how the tile ended up with a dead-even
+// tick and a 24-hour push indicator that the page never got.
 
 // ── View 1: Warzone Control (faction overview) ──────────────────────────────────
 async function _fwRenderOverview(host) {
@@ -160,19 +166,27 @@ async function _fwRenderOverview(host) {
   if (_fwTab !== 'overview') return;   // user switched tabs during the fetch — don't clobber
   if (!_fwStats) { host.innerHTML = '<div class="fin-empty">Couldn’t reach ESI for Faction Warfare stats. It refreshes automatically.</div>'; return; }
 
+  // The rope, the knot and the running chevrons are the SAME markup and CSS the
+  // dashboard's Warzone tile uses (.fwx-* in styles/dashboard.css, which the main
+  // window loads alongside this page). Sharing it is the point: this page used to
+  // draw its own flat two-tone bar from its own copy of the control maths, so the
+  // tile grew a 24-hour push indicator and a dead-even tick and the page — the
+  // place you actually go to read the warzone — never got either.
   const blocks = FW_WARZONES.map(wz => {
-    const c = _fwWarzoneControl(wz);
-    const fa = FW_FACTIONS[c.a], fb = FW_FACTIONS[c.b];
-    const card = (fid, stat, ctrl, pct, tier) => {
+    const t = fwTugOfWar(_fwStats, wz);
+    if (!t.ok) return `<div class="fw-wz"><div class="fw-wz-title">${escHtml(wz.name)}</div>
+      <div class="fin-empty">ESI returned no stats for this warzone.</div></div>`;
+
+    const card = (fid, stat, hold, pct, tier) => {
       const f = FW_FACTIONS[fid];
       return `
-        <div class="fw-fac-card" style="border-top:3px solid ${f.color};">
-          <div class="fw-fac-head"><img class="fw-fac-logo" src="https://images.evetech.net/corporations/${fid}/logo?size=64" alt="" onerror="this.style.visibility='hidden'"><div>
-            <div class="fw-fac-name" style="color:${f.color};">${escHtml(f.name)}</div>
+        <div class="fw-fac-card fw-f-${f.cls}">
+          <div class="fw-fac-head"><img class="fw-fac-logo" src="https://images.evetech.net/corporations/${fid}/logo?size=64" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div>
+            <div class="fw-fac-name">${escHtml(f.name)}</div>
             <div class="fw-fac-sub">Tier ${tier} · ×${FW_LP_MULT[tier].toFixed(1)} LP</div>
           </div></div>
           <div class="fw-fac-grid">
-            <div><span class="fw-k">Systems held</span><span class="fw-v">${ctrl} <span class="lp-dim">(${(pct * 100).toFixed(0)}%)</span></span></div>
+            <div><span class="fw-k">Systems held</span><span class="fw-v">${hold} <span class="lp-dim">(${(pct * 100).toFixed(0)}%)</span></span></div>
             <div><span class="fw-k">Pilots</span><span class="fw-v">${formatNumber(stat.pilots || 0)}</span></div>
             <div><span class="fw-k">Kills (24h)</span><span class="fw-v">${formatNumber((stat.kills || {}).yesterday || 0)}</span></div>
             <div><span class="fw-k">Kills (total)</span><span class="fw-v">${formatNumber((stat.kills || {}).total || 0)}</span></div>
@@ -181,14 +195,45 @@ async function _fwRenderOverview(host) {
           </div>
         </div>`;
     };
+
+    // Chevrons run AWAY from the militia that is gaining: the left faction's
+    // segment is measured from the left edge, so it winning drives the knot
+    // rightwards, into the enemy's half. (Pointing them at the winner is the
+    // intuitive answer and it is backwards — see dashboard-fw.js.)
+    const pushCls = t.pushing == null ? '' : (t.pushing === t.a ? ' is-right' : ' is-left');
+    const flow = t.pushing == null ? ''
+      : `<span class="fwx-flow${pushCls}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>`;
+    const push = t.pushing == null
+      ? `<div class="fwx-push is-even">
+           <span class="material-symbols-outlined fwx-push-ico">drag_handle</span>
+           <span class="fwx-push-txt">Evenly matched over the last 24 hours</span>
+           <span class="fwx-push-num">${(t.shareA * 100).toFixed(1)}% / ${((1 - t.shareA) * 100).toFixed(1)}%</span>
+         </div>`
+      : `<div class="fwx-push fw-f-${FW_FACTIONS[t.pushing].cls}${pushCls}">
+           <span class="material-symbols-outlined fwx-push-ico">double_arrow</span>
+           <span class="fwx-push-txt"><b>${escHtml(FW_FACTIONS[t.pushing].short)}</b> pushing</span>
+           <span class="fwx-push-num">${(Math.max(t.shareA, 1 - t.shareA) * 100).toFixed(1)}% of the last 24h victory points</span>
+         </div>`;
+
     return `
       <div class="fw-wz">
         <div class="fw-wz-title">${escHtml(wz.name)}</div>
-        <div class="fw-ctrl-bar" title="${fa.short} ${(c.pctA * 100).toFixed(0)}% · ${fb.short} ${(c.pctB * 100).toFixed(0)}%">
-          <div class="fw-ctrl-seg" style="width:${(c.pctA * 100).toFixed(1)}%;background:${fa.color};">${(c.pctA * 100).toFixed(0)}%</div>
-          <div class="fw-ctrl-seg" style="width:${(c.pctB * 100).toFixed(1)}%;background:${fb.color};">${(c.pctB * 100).toFixed(0)}%</div>
+        <div class="fw-tug" style="--fwx-a:${(t.pctA * 100).toFixed(2)}%; --fwx-push:${t.intensity.toFixed(2)};">
+          <div class="fwx-rope fw-rope-lg" title="${t.holdA} of ${t.held} systems held by the ${escHtml(FW_FACTIONS[t.a].short)} militia">
+            <span class="fwx-rope-a fw-f-${FW_FACTIONS[t.a].cls}"></span>
+            <span class="fwx-rope-b fw-f-${FW_FACTIONS[t.b].cls}"></span>
+            <span class="fwx-rope-even" aria-hidden="true"></span>
+            <span class="fwx-knot"></span>
+            ${flow}
+          </div>
+          <div class="fwx-rope-pcts">
+            <span class="fw-f-${FW_FACTIONS[t.a].cls}">${(t.pctA * 100).toFixed(0)}% · ${t.holdA} systems</span>
+            <span class="fwx-rope-even-lbl">even</span>
+            <span class="fw-f-${FW_FACTIONS[t.b].cls}">${t.holdB} systems · ${(t.pctB * 100).toFixed(0)}%</span>
+          </div>
+          ${push}
         </div>
-        <div class="fw-fac-row">${card(c.a, c.statA, c.ctrlA, c.pctA, c.tierA)}${card(c.b, c.statB, c.ctrlB, c.pctB, c.tierB)}</div>
+        <div class="fw-fac-row">${card(t.a, t.statA, t.holdA, t.pctA, t.tierA)}${card(t.b, t.statB, t.holdB, t.pctB, t.tierB)}</div>
       </div>`;
   }).join('');
 
@@ -196,6 +241,9 @@ async function _fwRenderOverview(host) {
     <div class="fin-tab-fill fw-scroll">
       ${blocks}
       <div class="lp-note">Systems held, pilots, kills and victory points are live from ESI (<code>/fw/stats/</code>).
+        The rope is systems held — the standing, won over months. The arrows are each militia’s share of the
+        <em>last 24 hours’</em> victory points: who out-plexed whom yesterday, not a forecast that systems are
+        about to flip. Inside four points of even it shows no direction at all.
         The control tier and its LP multiplier follow the standard FW control scale — see LP &amp; Tiers.</div>
     </div>`;
 }
@@ -215,9 +263,12 @@ async function _fwRenderSystems(host) {
   };
   let rows = systems.filter(inWz).filter(s => !_fwSysContestedOnly || (s.contested && s.contested !== 'uncontested'));
   // Most-contested first, then by VP progress.
-  const rank = { vulnerable: 0, contested: 1, captured: 2, uncontested: 3 };
-  rows.sort((a, b) => (rank[a.contested] ?? 4) - (rank[b.contested] ?? 4)
+  rows.sort((a, b) => (FW_URGENCY[a.contested] ?? 4) - (FW_URGENCY[b.contested] ?? 4)
     || ((b.victory_points || 0) / (b.victory_points_threshold || 1)) - ((a.victory_points || 0) / (a.victory_points_threshold || 1)));
+
+  // Names for the rows about to be drawn (see _fwResolveNames).
+  await _fwResolveNames(rows.map(s => s.solar_system_id));
+  if (_fwTab !== 'systems') return;
 
   const wzOpts = [`<option value="all"${_fwSysWarzone === 'all' ? ' selected' : ''}>All warzones</option>`]
     .concat(FW_WARZONES.map(w => `<option value="${w.key}"${_fwSysWarzone === w.key ? ' selected' : ''}>${escHtml(w.name)}</option>`)).join('');
@@ -228,10 +279,14 @@ async function _fwRenderSystems(host) {
     const vp = s.victory_points || 0, vpt = s.victory_points_threshold || 0;
     const pct = vpt > 0 ? Math.min(100, (vp / vpt) * 100) : 0;
     const flipped = occ && owner && s.owner_faction_id !== s.occupier_faction_id;
-    return `<tr>
+    // Same two states the dashboard's Capture Pressure tile uses, so a system
+    // reads identically in both places.
+    const vuln = s.contested === 'vulnerable' || s.contested === 'captured';
+    const rowCls = `fw-vprow${vuln ? ' is-vuln' : ''}${pct >= 75 ? ' is-hot' : ''}`;
+    return `<tr class="${rowCls}">
       <td>${escHtml(_fwName(s.solar_system_id))}</td>
-      <td style="color:${owner ? owner.color : 'var(--text-3)'};">${owner ? escHtml(owner.short) : '—'}</td>
-      <td style="color:${occ ? occ.color : 'var(--text-3)'};">${occ ? escHtml(occ.short) : '—'}${flipped ? ' <span class="fw-flip" title="Occupied by the attacker">⚑</span>' : ''}</td>
+      <td class="${owner ? `fw-f-${owner.cls}` : ''}"><span class="fw-owner-txt">${owner ? escHtml(owner.short) : '—'}</span></td>
+      <td class="${occ ? `fw-f-${occ.cls}` : ''}"><span class="fw-owner-txt">${occ ? escHtml(occ.short) : '—'}</span>${flipped ? ' <span class="fw-flip" title="Occupied by the attacker">⚑</span>' : ''}</td>
       <td><span class="fw-pill ${cst.cls}">${cst.label}</span></td>
       <td class="fw-vpcell">${vpt > 0 ? `<span class="fw-vpbar"><span class="fw-vpfill" style="width:${pct.toFixed(0)}%"></span></span><span class="lp-dim">${pct.toFixed(0)}%</span>` : '<span class="lp-dim">—</span>'}</td>
     </tr>`;
@@ -264,6 +319,14 @@ async function _fwRenderLeaderboards(host) {
   _fwLoading(host);
   await _fwEnsurePublic();
   if (_fwTab !== 'leaderboards') return;   // tab changed mid-fetch
+
+  // Only the 25 rows of the metric/window actually on screen — switching the
+  // toggles resolves the next 25 and the cache keeps the previous ones.
+  await _fwResolveNames([_fwLbChars, _fwLbCorps].flatMap(lb =>
+    ((lb && lb[_fwLbMode] && lb[_fwLbMode][_fwLbWindow]) || [])
+      .slice(0, 25).map(e => e.character_id || e.corporation_id)));
+  if (_fwTab !== 'leaderboards') return;
+
   const board = (lb, kind) => {
     if (!lb || !lb[_fwLbMode]) return `<div class="fin-empty">No ${kind} leaderboard from ESI.</div>`;
     const list = lb[_fwLbMode][_fwLbWindow] || [];
@@ -322,14 +385,14 @@ async function _fwRenderMilitia(host) {
     const s = res.stats, f = FW_FACTIONS[s.faction_id];
     await _fwEnsurePublic();
     const wz = FW_WARZONES.find(w => w.factions.includes(s.faction_id));
-    const c  = wz ? _fwWarzoneControl(wz) : null;
-    const myTier = c ? (s.faction_id === c.a ? c.tierA : c.tierB) : 1;
+    const c  = wz ? fwTugOfWar(_fwStats, wz) : null;
+    const myTier = (c && c.ok) ? (s.faction_id === c.a ? c.tierA : c.tierB) : 1;
     const enlisted = s.enlisted_on ? new Date(s.enlisted_on).toLocaleDateString() : '—';
     content = `
-      <div class="fw-me-head" style="border-left:4px solid ${f ? f.color : 'var(--accent)'};">
-        <img class="fw-fac-logo" src="https://images.evetech.net/corporations/${s.faction_id}/logo?size=64" alt="" onerror="this.style.visibility='hidden'">
+      <div class="fw-me-head ${f ? `fw-f-${f.cls}` : ''}">
+        <img class="fw-fac-logo" src="https://images.evetech.net/corporations/${s.faction_id}/logo?size=64" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div>
-          <div class="fw-fac-name" style="color:${f ? f.color : 'var(--accent)'};">${f ? escHtml(f.name) : 'Faction ' + s.faction_id} militia</div>
+          <div class="fw-fac-name">${f ? escHtml(f.name) : 'Faction ' + s.faction_id} militia</div>
           <div class="fw-fac-sub">Enlisted ${escHtml(enlisted)} · current rank ${s.current_rank ?? 0} (peak ${s.highest_rank ?? 0}) · warzone tier ${myTier} ×${FW_LP_MULT[myTier].toFixed(1)} LP</div>
         </div>
       </div>
@@ -410,7 +473,10 @@ async function _fwRenderLp(host) {
   // Enhance with live control data once it arrives (page may have moved on).
   await _fwEnsurePublic();
   if (!_fwStats || !document.getElementById('fwPlexFac')) return;
-  FW_WARZONES.forEach(wz => { const c = _fwWarzoneControl(wz); tierByFaction[c.a] = c.tierA; tierByFaction[c.b] = c.tierB; });
+  FW_WARZONES.forEach(wz => {
+    const c = fwTugOfWar(_fwStats, wz);
+    if (c.ok) { tierByFaction[c.a] = c.tierA; tierByFaction[c.b] = c.tierB; }
+  });
   host.querySelectorAll('[data-fw-tier]').forEach(td => {
     const t = Number(td.dataset.fwTier);
     const holders = Object.keys(tierByFaction).filter(fid => tierByFaction[fid] === t)
@@ -420,4 +486,135 @@ async function _fwRenderLp(host) {
   const sel = document.getElementById('fwPlexFac');
   Object.keys(FW_FACTIONS).forEach((fid, i) => { if (sel.options[i]) sel.options[i].textContent = `${FW_FACTIONS[fid].short} (Tier ${tierByFaction[fid] || 1})`; });
   applyPlex();
+}
+
+// ─── Shared selectors ─────────────────────────────────────────────────────────
+// Pure functions over the ESI payloads, kept beside the data they read so the
+// dashboard widgets (src/func/dashboard-fw.js) cannot drift into a second
+// interpretation of the same numbers. Each takes its data as an argument and
+// touches no module state, which is what makes them testable outside Electron.
+
+/**
+ * The top `n` entries of one leaderboard metric/window.
+ *
+ * ESI returns these already ordered, but ordering is the one thing a leaderboard
+ * cannot get wrong and the sort is free, so it is not taken on trust.
+ *
+ * @param {object} lb      /fw/leaderboards/{characters,corporations} payload
+ * @param {string} metric  'kills' | 'victory_points'
+ * @param {string} window  'yesterday' | 'last_week' | 'active_total'
+ */
+function fwTopEntries(lb, metric, window, n) {
+  const list = (lb && lb[metric] && lb[metric][window]) || [];
+  return list
+    .map(e => ({ id: e.character_id || e.corporation_id || 0, amount: Number(e.amount) || 0 }))
+    .filter(e => e.id)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, n || 5)
+    .map((e, i) => ({ ...e, rank: i + 1 }));
+}
+
+/**
+ * Systems under live capture pressure, most urgent first.
+ *
+ * ESI names an owner and an occupier but never the attacker, so neither does
+ * this: when the two differ the system is flying its attacker's flag already
+ * (`flipped`), and when they match the pressure is simply the enemy militia's.
+ * Inferring a name for the attacker would be a guess printed as a fact.
+ *
+ * @param {Array}  systems     /fw/systems payload
+ * @param {string} warzoneKey  an FW_WARZONES key, or anything else for both
+ */
+function fwHotSystems(systems, warzoneKey, n) {
+  const wz = FW_WARZONES.find(w => w.key === warzoneKey);
+  return (systems || [])
+    .filter(s => s && s.contested && s.contested !== 'uncontested')
+    .filter(s => !wz || wz.factions.includes(s.owner_faction_id) || wz.factions.includes(s.occupier_faction_id))
+    .map(s => {
+      const vpt = Number(s.victory_points_threshold) || 0;
+      const vp  = Number(s.victory_points) || 0;
+      return {
+        id: s.solar_system_id,
+        owner: s.owner_faction_id,
+        occupier: s.occupier_faction_id,
+        contested: s.contested,
+        vp, vpt,
+        pct: vpt > 0 ? Math.min(1, vp / vpt) : 0,
+        flipped: !!(s.owner_faction_id && s.occupier_faction_id && s.owner_faction_id !== s.occupier_faction_id),
+      };
+    })
+    .sort((a, b) => (FW_URGENCY[a.contested] ?? 4) - (FW_URGENCY[b.contested] ?? 4) || b.pct - a.pct)
+    .slice(0, n || 6);
+}
+
+// Below this much of an edge in the day's victory points, the warzone is called
+// even rather than given a direction. Without a deadband the arrow flips sides on
+// noise: Amarr–Minmatar sat at 50.6/49.4 the day this was written, which is a
+// deadlock, not a push.
+const FW_PUSH_DEADBAND = 0.04;
+// The lead at which the push animation is already at full tilt. Real warzones
+// rarely part further than this in a day, so the curve below lifts the small
+// leads that actually occur instead of wasting its range on ones that don't.
+const FW_PUSH_FULL = 0.20;
+
+/**
+ * One warzone as a tug of war.
+ *
+ * Two numbers from two endpoints, because they answer two different questions:
+ *
+ *   where the rope IS      systems_controlled — the standing, won over months
+ *   which way it MOVES     each side's share of YESTERDAY's victory points
+ *
+ * The second is a 24-hour momentum proxy, not a territory forecast. Victory
+ * points are earned by plexing and both militias bank them every single day, so
+ * a majority share means "outplexed them yesterday", not "systems are flipping".
+ * It is the only sub-weekly signal ESI publishes, and the widget labels it as
+ * what it is. `lead` is the raw margin; `intensity` is only ever a display
+ * quantity, driving how fast the arrows run.
+ *
+ * @param {Array}  stats  /fw/stats payload
+ * @param {object} wz     an FW_WARZONES entry
+ */
+function fwTugOfWar(stats, wz) {
+  const by = {};
+  (stats || []).forEach(s => { if (s && s.faction_id) by[s.faction_id] = s; });
+  const [a, b] = wz.factions;
+  const sa = by[a], sb = by[b];
+  if (!sa || !sb) return { ok: false, a, b };
+
+  const holdA = Number(sa.systems_controlled) || 0;
+  const holdB = Number(sb.systems_controlled) || 0;
+  const held  = holdA + holdB;
+  const pctA  = held ? holdA / held : 0.5;
+
+  const vpA = Number((sa.victory_points || {}).yesterday) || 0;
+  const vpB = Number((sb.victory_points || {}).yesterday) || 0;
+  const vpT = vpA + vpB;
+  // No victory points at all yesterday is a quiet warzone, not a 50/50 fight —
+  // but it reads as even, and even is the state with no arrows.
+  const shareA = vpT ? vpA / vpT : 0.5;
+  const lead   = Math.abs(shareA - 0.5) * 2;
+
+  return {
+    ok: true, a, b,
+    // The raw /fw/stats rows, so this is the ONE thing that has to be computed
+    // to describe a warzone. The Warzone Control page and the dashboard tile both
+    // read it; when they each had their own version of this maths, only one of
+    // them got the rope and the other kept a flat two-tone bar.
+    statA: sa, statB: sb,
+    holdA, holdB, held,
+    pctA, pctB: 1 - pctA,
+    tierA: _fwTier(pctA), tierB: _fwTier(1 - pctA),
+    killsA: Number((sa.kills || {}).yesterday) || 0,
+    killsB: Number((sb.kills || {}).yesterday) || 0,
+    pilotsA: Number(sa.pilots) || 0,
+    pilotsB: Number(sb.pilots) || 0,
+    vpA, vpB, shareA, lead,
+    // The faction gaining ground, or null while the two are inside the deadband.
+    pushing: lead < FW_PUSH_DEADBAND ? null : (shareA > 0.5 ? a : b),
+    // 0…1 for the animation only. Square-rooted because the leads that happen in
+    // practice cluster near zero, and a linear map would leave every real
+    // warzone looking motionless.
+    intensity: lead < FW_PUSH_DEADBAND ? 0 : Math.min(1, Math.sqrt(lead / FW_PUSH_FULL)),
+  };
 }

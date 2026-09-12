@@ -61,7 +61,10 @@ async function seedCharacterDb(dataDir) {
   await charInfoDb.ensureCharacterTables(FAKE_CHAR_ID);
 
   await charInfoDb.upsertCharacterInfo(FAKE_CHAR_ID, {
-    character_name: FAKE_CHAR_NAME,
+    // upsertCharacterInfo binds `info.name` (the field ESI's /characters/{id}/
+    // actually returns). Passing character_name here wrote a blank name into
+    // the fixture's info row for every spec that reads it.
+    name: FAKE_CHAR_NAME,
     corporation_id: 98000001,
     alliance_id: 99000001,
     birthday: '2020-01-01T00:00:00Z',
@@ -205,6 +208,18 @@ async function seedCharacterDb(dataDir) {
       storage_json: JSON.stringify([{ pin_id: 1, label: 'Launchpad', capacity_m3: 10000, used_m3: 4200, fill_pct: 42, contents: [] }]),
       pins_json: '[]',
     },
+  ]);
+
+  // Interplanetary Consolidation II => 1 + 2 = 3 planet slots, of which the one
+  // colony above uses one. Without any skill row at all the PI page cannot tell
+  // "trained to nothing" from "never synced" and correctly refuses to guess, so
+  // this is what lets the capacity assertions exercise the known branch.
+  await charInfoDb.replaceSkills(FAKE_CHAR_ID, [
+    { skill_id: 2495, trained_skill_level: 2, skillpoints_in_skill: 8000, active_skill_level: 2 },
+    // Command Center Upgrades II — a Standard command centre, which is the
+    // level at which every planet role becomes physically possible.
+    { skill_id: 2505, trained_skill_level: 2, skillpoints_in_skill: 8000, active_skill_level: 2 },
+    { skill_id: 3380, trained_skill_level: 4, skillpoints_in_skill: 226000, active_skill_level: 4 },
   ]);
 
   return charInfoDb;

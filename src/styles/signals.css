@@ -22,16 +22,56 @@
    these. Adding a --signal-* to a theme file will simply have no effect, which
    is the intended outcome rather than an oversight.
 
-   The values match the palette's own defaults, so nothing looks different
-   out of the box; what changed is that they can no longer drift.
+   These started as copies of the palette's defaults, so the split changed
+   nothing visually on the day it happened. They have since moved on their own —
+   which is the point of them being here.
 
    COLOUR IS NEVER THE ONLY CUE. Red/green is exactly the pair most commonly
    confused, so every signal that uses these also carries a word — RUNNING,
-   HOLDING, STAND DOWN — and the colour reinforces the text rather than
+   HOLDING, STAND DOWN, IDLE — and the colour reinforces the text rather than
    replacing it. Keep it that way when adding new ones.
    ══════════════════════════════════════════════════════════════════════════ */
 :root {
   --signal-go:   #4ada8a;
   --signal-hold: #e3b341;
-  --signal-stop: #e0564b;
+  /* Deliberately hotter and more saturated than --pal-red (#e0564b), which it
+     used to copy. This is the colour that has to say STOP across a room and
+     through a fleet fight; the palette's red is a data hue tuned to sit quietly
+     in a chart next to seven others. Same family, different job. */
+  --signal-stop: #ff3b30;
+}
+
+/* ── The lamp ─────────────────────────────────────────────────────────────────
+   One light, used by the Beehive stand-down indicator, the Planetary Networks
+   status strip and the dashboard's PI tile — so a green dot means the same thing
+   and looks the same wherever it appears. Size is set by the caller through
+   --sig-size; the glow scales with it so a 22px lamp is not a 10px lamp with a
+   halo the wrong size.
+
+   Linked after the theme, like everything else here, so a theme cannot dim it.
+   ─────────────────────────────────────────────────────────────────────────── */
+.sig-light {
+  /* inline-block, not the span default: without it width/height do nothing and
+     the lamp silently vanishes wherever the parent is not a flex container. It
+     rendered fine in a flex row and not at all in the dashboard tile. */
+  display: inline-block;
+  width: var(--sig-size, 10px);
+  height: var(--sig-size, 10px);
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--sig, var(--text-3));
+  box-shadow: 0 0 calc(var(--sig-size, 10px) * 0.85) var(--sig, transparent),
+              0 0 3px var(--sig, transparent);
+}
+.sig-go   { --sig: var(--signal-go);   }
+.sig-hold { --sig: var(--signal-hold); }
+.sig-stop { --sig: var(--signal-stop); }
+
+/* Nothing to report: the lamp is DARK, not lit. A red light burning beside a
+   zero reads as an alarm when the actual news is that everything is fine — and
+   a panel of four lit lamps says nothing at all, because nothing stands out. */
+.sig-light.is-off {
+  background: var(--border-b);
+  box-shadow: none;
+  opacity: 0.45;
 }

@@ -63,7 +63,12 @@ const test = base.test.extend({
     // execution (see project memory: "Electron launch env"), so it must be
     // `delete`d from the child's env, not merely blanked. `env -u` on the CLI
     // does the same thing for a plain terminal launch.
-    const childEnv = { ...process.env, EVE_CARBON_DATA_DIR: dataDir };
+    // EVE_CARBON_E2E makes main pass --automated to the renderer, which switches
+    // OFF the donation nags (donation.js) and nothing else. Every test gets a
+    // fresh profile, so the "first open this month" prompt has nothing telling it
+    // it has already been shown: on the 1st of any month it opened over the suite
+    // and its backdrop intercepted every click.
+    const childEnv = { ...process.env, EVE_CARBON_DATA_DIR: dataDir, EVE_CARBON_E2E: '1' };
     delete childEnv.ELECTRON_RUN_AS_NODE;
 
     const app = await electron.launch({

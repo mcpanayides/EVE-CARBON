@@ -5,6 +5,15 @@
    colour across the app. Nothing outside this file (and the theme files that
    override it) should hardcode one of these hues — reference the token.
 
+   NOT the app's accent. That is --accent (theme-default.css), driven by the
+   `main` swatch, and it is deliberately not a --pal-* token: these nine are
+   DATA hues that a theme may reassign freely, while --accent is the app's own
+   colour. The two were fused until the main/negative split — `accent` and
+   `danger` both pointed at `red`, so ~470 of the app's colour references moved
+   whenever somebody adjusted the colour that means "you lost a ship". Do not
+   re-point --accent at a --pal-* token; test/palette_accent_split.test.js
+   asserts the two stay independent in both directions.
+
    The Settings editor names these for the JOB rather than the hue, because the
    hue is the setting and the job is the stable thing (see SWATCH_SLOTS in
    src/func/palette.js). Both names are given here so the two stay in step:

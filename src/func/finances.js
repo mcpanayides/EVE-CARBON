@@ -9,7 +9,8 @@ function initFinancesPage() {
   document.querySelectorAll('.finances-sub-btn').forEach(btn => {
     btn.onclick = () => { const t = btn.dataset.financesTab; if (t) navigateFinancesTab(t); };
   });
-  navigateFinancesTab(_currentFinancesTab || 'wallets');
+  // Returned, so navigateToPage can show the header spinner until it settles.
+  return navigateFinancesTab(_currentFinancesTab || 'wallets');
 }
 
 function navigateFinancesTab(tab) {
@@ -34,7 +35,10 @@ function navigateFinancesTab(tab) {
           <div class="wallets-grid" id="walletsGrid"></div>
         </div>
       </div>`;
-    if (typeof renderWallets === 'function') renderWallets();
+    // Returned so the caller can await the render — that is what lets the page
+    // header's spinner stay up until the wallets are actually on screen, rather
+    // than clearing the moment the markup above is injected.
+    if (typeof renderWallets === 'function') return renderWallets();
 
   } else if (tab === 'contracts') {
     host.innerHTML = '<div id="contractsTab" class="fin-tab-fill"></div>';

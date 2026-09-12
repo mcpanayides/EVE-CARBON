@@ -29,6 +29,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   buildCategoryBrowse();
   bindEvents();
   bindUISettings();
+  bindRefreshHotkey();
   bindPaletteEvents();
   initTheme();
   initBackground();

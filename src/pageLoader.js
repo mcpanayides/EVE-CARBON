@@ -87,13 +87,6 @@ const PAGE_HTML = {
             Command center — net worth, industry jobs, and character status.
           </div>
         </div>
-        <!-- Re-renders the widgets in place (what Ctrl+R was being used for when a
-             widget paints blank). _injectPageSpinners moves this into the same
-             top-right group as the spinner and the ✕. -->
-        <button id="dashboardRefreshBtn" class="page-header-btn" onclick="refreshDashboardPage()"
-                title="Reload the dashboard widgets">
-          <span class="material-symbols-outlined">refresh</span>
-        </button>
         <button class="close-page-btn" onclick="closePage('dashboard')">&#x2715;</button>
       </div>
       <div class="page-content"
@@ -326,6 +319,12 @@ const PAGE_HTML = {
           <div class="industry-subnav-label">TOOLS</div>
           <button class="pi-sub-btn industry-sub-btn active" data-pi-tab="colonies">
             <span class="industry-sub-icon material-symbols-outlined"></span>Colonies
+          </button>
+          <button class="pi-sub-btn industry-sub-btn" data-pi-tab="planner">
+            <span class="industry-sub-icon material-symbols-outlined">account_tree</span>PI Planner
+          </button>
+          <button class="pi-sub-btn industry-sub-btn" data-pi-tab="capacity">
+            <span class="industry-sub-icon material-symbols-outlined">groups</span>Capacity
           </button>
           <button class="pi-sub-btn industry-sub-btn" data-pi-tab="planet-size">
             <span class="industry-sub-icon material-symbols-outlined"></span>Planet Size Mapper
@@ -761,7 +760,7 @@ window.__pagesReady = new Promise(resolve => {
     // so the 'jabber-status' and 'jabber-message' handlers are in place first.
     if (typeof bindJabberEvents === 'function') bindJabberEvents();
     // Add the per-page loading spinner beside each ✕ now that all pages are in DOM.
-    if (typeof _injectPageSpinners === 'function') _injectPageSpinners();
+    if (typeof _injectPageHeaderActions === 'function') _injectPageHeaderActions();
     // autoConnectJabber() is called by app.js after __pagesReady resolves —
     // do NOT call it here too or it fires twice on every startup.
     resolve();

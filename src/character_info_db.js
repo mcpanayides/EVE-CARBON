@@ -132,10 +132,12 @@ async function initCharacterDb(dataDir) {
     "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%_pi_colonies'"
   );
   for (const { name } of piTables) {
-    try {
-      await charDb.run(`ALTER TABLE ${name} ADD COLUMN pins_json TEXT`);
-      console.log(`[CharDB] Migration applied: ${name}.pins_json`);
-    } catch (_) { /* column already exists — ignore */ }
+    for (const col of ['pins_json', 'routes_json']) {
+      try {
+        await charDb.run(`ALTER TABLE ${name} ADD COLUMN ${col} TEXT`);
+        console.log(`[CharDB] Migration applied: ${name}.${col}`);
+      } catch (_) { /* column already exists — ignore */ }
+    }
   }
 
   console.log(`[CharDB] Opened: ${dbFile}`);
@@ -246,6 +248,7 @@ async function ensureCharacterTables(characterId) {
       extractor_expires_at INTEGER,  -- ms epoch of soonest active extractor head expiry (NULL = idle)
       storage_json         TEXT,     -- JSON: [{pin_id,label,capacity_m3,used_m3,fill_pct,contents[]}]
       pins_json            TEXT,     -- JSON: full ESI pins array for View All panel
+      routes_json          TEXT,     -- JSON: full ESI routes array; which pin feeds which
       synced_at            INTEGER
     );
 
@@ -387,6 +390,7 @@ async function ensureCharacterTables(characterId) {
     [`ALTER TABLE ${p}_pi_colonies ADD COLUMN extractor_expires_at INTEGER`, `${p}_pi_colonies.extractor_expires_at`],
     [`ALTER TABLE ${p}_pi_colonies ADD COLUMN storage_json TEXT`,            `${p}_pi_colonies.storage_json`],
     [`ALTER TABLE ${p}_pi_colonies ADD COLUMN pins_json TEXT`,               `${p}_pi_colonies.pins_json`],
+    [`ALTER TABLE ${p}_pi_colonies ADD COLUMN routes_json TEXT`,             `${p}_pi_colonies.routes_json`],
   ];
   for (const [sql, label] of migrateColumns) {
     try {
@@ -541,8 +545,8 @@ async function replacePiColonies(characterId, colonies) {
     await db.run(
       `INSERT INTO ${p}_pi_colonies
          (planet_id, planet_type, solar_system_id, solar_system_name,
-          upgrade_level, num_pins, last_update, extractor_expires_at, storage_json, pins_json, synced_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          upgrade_level, num_pins, last_update, extractor_expires_at, storage_json, pins_json, routes_json, synced_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         col.planet_id            || null,
         col.planet_type          || null,
@@ -554,6 +558,7 @@ async function replacePiColonies(characterId, colonies) {
         col.extractor_expires_at || null,
         col.storage_json         || null,
         col.pins_json            || null,
+        col.routes_json          || null,
         now,
       ]
     );
@@ -1355,6 +1360,37 @@ async function getSkillLevels(characterId, typeIds) {
   } catch { return {}; }
 }
 
+/**
+ * The levels asked for, plus whether the character has ANY skill row at all.
+ *
+ * `getSkillLevels` with no ids answers both questions at once, but only by
+ * hauling every skill a character has trained -- roughly 300 rows each. That is
+ * fine for one character and ruinous for someone running fifty alts, so this
+ * asks the two questions separately and cheaply: one indexed lookup for the
+ * handful of skills that matter, one COUNT for the "has this ever synced"
+ * signal. Both are O(1) rows over IPC instead of O(300).
+ */
+async function getSkillProfile(characterId, typeIds) {
+  if (!charDb) return { levels: {}, total: 0 };
+  try {
+    const ids = Array.isArray(typeIds) ? typeIds.filter(n => Number.isFinite(Number(n))) : [];
+    const ph  = ids.map(() => '?').join(',');
+    const [rows, count] = await Promise.all([
+      ids.length
+        ? charDb.all(`SELECT skill_id, level FROM char_${characterId}_skills WHERE skill_id IN (${ph})`, ids)
+        : Promise.resolve([]),
+      charDb.all(`SELECT COUNT(*) AS n FROM char_${characterId}_skills`),
+    ]);
+    const levels = {};
+    for (const r of (rows || [])) levels[r.skill_id] = r.level;
+    return { levels, total: Number(count?.[0]?.n) || 0 };
+  } catch {
+    // A character whose tables have not been created yet is not an error; it is
+    // simply one we know nothing about, which is what total: 0 means.
+    return { levels: {}, total: 0 };
+  }
+}
+
 // Returns { fromId: standing } for fast lookup by the renderer.
 async function getStandings(characterId) {
   if (!charDb) return {};
@@ -1385,6 +1421,7 @@ module.exports = {
   getStandings,
   replaceSkills,
   getSkillLevels,
+  getSkillProfile,
   upsertCharacterInfo,
   insertWalletSnapshot,
   getWalletBalanceBefore,

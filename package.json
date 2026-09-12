@@ -12,6 +12,7 @@
     "lint": "node scripts/lint.js",
     "esi:audit": "node scripts/esi-audit.js --list",
     "graphify:sync": "python scripts/graphify-wiki.py",
+    "planets:build": "electron scripts/build-planet-images.js",
     "graphify:lint": "python scripts/graphify-wiki.py --lint",
     "hooks:install": "git config core.hooksPath .githooks",
     "watch:op": "node scripts/watch-fleet-op.js",

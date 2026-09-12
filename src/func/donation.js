@@ -22,6 +22,13 @@ function _showDonate(reason) {
 }
 
 function initDonationPrompts() {
+  // Not under the e2e harness. Both prompts are gated on localStorage keys, and
+  // every test run gets a brand-new profile, so the monthly prompt fires on the
+  // 1st of EVERY month and its modal backdrop then swallows clicks for the rest
+  // of the suite. That is a hard release gate failing one calendar day in thirty,
+  // with a "target closed" timeout that points nowhere near the cause.
+  if (window.eveAPI?.isAutomated) return;
+
   // ── 1) 30-minute usage prompt (max once per calendar day) ──────────────────
   try {
     if (localStorage.getItem('donationUsageShownDay') !== _dayKey()) {

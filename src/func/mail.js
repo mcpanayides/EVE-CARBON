@@ -653,6 +653,16 @@ function _mailPaintNavUnread() {
   const el = document.getElementById('mailNavUnread');
   if (!el) return;
   el.textContent = _mailNavUnread > 0 ? String(_mailNavUnread) : '';
+  // The collapsed rail is 64px wide and the badge floats off the icon's corner,
+  // so a four-digit inbox runs off the edge of it — 2956 measured exactly to the
+  // rail boundary. That rail gets a capped form instead, the way a phone badge
+  // does; the exact figure stays on the expanded rail, in the tooltip, and on
+  // the Mail page itself, so nothing is actually lost.
+  el.dataset.badge = _mailNavUnread > 99 ? '99+'
+                   : _mailNavUnread > 0  ? String(_mailNavUnread) : '';
+  el.title = _mailNavUnread > 0
+    ? `${_mailNavUnread} unread`
+    : '';
   el.className = _mailNavUnread > 0 ? 'nav-status mail-nav-unread' : 'nav-status';
 }
 

@@ -164,7 +164,11 @@ function registerThemeHandlers({ ipcHandle, app, loadConfig, saveConfig, userThe
         name:        payload.name,
         description: payload.description || '',
         author:      payload.author || '',
-        roles:       payload.roles || { accent: 'red', danger: 'red', success: 'green', warning: 'orange', info: 'blue' },
+        // A theme saved from the editor gets the split roles: `main` drives the
+        // accent, `red` means loss. (The YAML migration above deliberately keeps
+        // accent:'red' — a theme written before the split has no `main` swatch,
+        // and must keep looking the way its author left it.)
+        roles:       payload.roles || { accent: 'main', danger: 'red', success: 'green', warning: 'orange', info: 'blue' },
         swatches:    payload.swatches,
       }));
       return { success: true, id: `user:${file}` };

@@ -5,15 +5,18 @@
    look (see styles/glass.css) — these values are the flat-mode fallback and
    the source getComputedStyle reads to build the translucent tint.
    The @-metadata comments below are parsed by theme_ipc.js — keep them.
-   Users recolour by editing the 16 swatches (Settings → Colour Palette); the
-   glass tint (Settings → Background) follows the OS accent by default.
+   Users recolour by editing the swatches (Settings → Colour Palette), of which
+   MAIN is the one that moves the app: it drives every --accent* token, and so
+   every icon, hover, focus ring and highlight. Negative (`red`) is only losses,
+   alerts and offline states. The glass tint (Settings → Background) follows the
+   OS accent by default.
    ═══════════════════════════════════════════════════════════════════════ */
 /* @id: Default */
 /* @name: Default */
-/* @description: Clean, modern sci-fi glass. Cool deep-space surfaces, crisp white-alpha edges and a refined crimson signal over a blue nebula. */
+/* @description: Clean, modern sci-fi glass. Cool deep-space surfaces, crisp white-alpha edges and a soft orchid signal over a blue nebula. */
 /* @author: EVE Carbon */
-/* @roles: {"accent":"red","danger":"red","success":"green","warning":"orange","info":"blue"} */
-/* @swatches: {"red":"#e0483a","teal":"#4ecbb0","purple":"#9b7fd4","pink":"#e47baf","baby_blue":"#67ace4","green":"#4ada8a","yellow":"#e6c84a","orange":"#f58c42","gold":"#ffd24a","indigo":"#8f73d8","cyan":"#45e0e0","blue":"#4a9fd4","background":"#070a12","panel":"#10141f","text":"#ccd1da","border":"#3a4150"} */
+/* @roles: {"accent":"main","danger":"red","success":"green","warning":"orange","info":"blue"} */
+/* @swatches: {"main":"#e6a5e6","red":"#e0483a","teal":"#4ecbb0","purple":"#9b7fd4","pink":"#e47baf","baby_blue":"#67ace4","green":"#4ada8a","yellow":"#e6c84a","orange":"#f58c42","gold":"#ffd24a","indigo":"#8f73d8","cyan":"#45e0e0","blue":"#4a9fd4","background":"#070a12","panel":"#10141f","text":"#ccd1da","border":"#3a4150"} */
 
 :root {
   /* ── BACKGROUNDS — cool deep-space glass ─────────────────────────────────── */
@@ -29,7 +32,7 @@
   --bg-modal:       rgba(14, 18, 28, 0.90);   /* modal dialog background         */
   --bg-code:        #0a0d14;                  /* inline <code> background        */
   --bg-surface:     rgba(10, 13, 20, 0.85);   /* KPI cards, chart wrap, char-bars, jobs table header */
-  --bg-banner-end:  rgba(16, 12, 20, 0.85);   /* banner gradient end (faint accent tint) */
+  --bg-banner-end:  rgba(20, 12, 19, 0.85);   /* banner gradient end (faint accent tint) */
   --toast-bg:       rgba(14, 18, 28, 0.90);   /* toast background                */
   --backdrop:       rgba(5, 8, 14, 0.58);     /* modal backdrop overlay          */
 
@@ -40,25 +43,40 @@
   --border-d:       rgba(255, 255, 255, 0.07); /* .panel outer border             */
   --border-e:       rgba(255, 255, 255, 0.06); /* .panel header divider, card border, code border */
 
-  /* ── ACCENT — refined crimson signal ─────────────────────────────────────── */
-  --accent:         #e0483a;                  /* primary accent: icons, active states, focus rings */
-  --accent-dim:     #7d201a;                  /* panel-count badge bg, add-btn bg */
-  --accent-glow:    rgba(224, 72, 58, 0.18);  /* (reserved for glow effects)     */
+  /* ── ACCENT — the MAIN colour ────────────────────────────────────────────────
+     Driven by the `main` swatch (@roles above), NOT by `red`.
+
+     These two were one slot until now, and that was the single most confusing
+     thing about theming this app: `accent` and `danger` both pointed at `red`,
+     so ~470 of the app's ~635 colour references — every icon, hover, focus ring,
+     nav highlight, KPI figure and banner glow — repainted whenever somebody
+     adjusted the colour that is only supposed to mean "you lost a ship". You
+     could not have a red danger state and a non-red app.
+     Losses, alerts and offline states live on --pal-red / --danger below. ── */
+  --accent:         #e6a5e6;                  /* primary accent: icons, active states, focus rings */
+  --accent-dim:     #782178;                  /* panel-count badge bg, add-btn bg — see note */
+  --accent-glow:    rgba(230, 165, 230, 0.18); /* (reserved for glow effects)    */
+  /* --accent-dim is a BACKGROUND that carries --accent as its text
+     (.panel-count), so it is pinned to L30 — the lightness the old crimson
+     #7d201a happened to sit at — rather than stepped down from --accent by a
+     fixed amount. On a light accent a fixed step lands mid-tone and the text on
+     it stops being readable. theme-vars.js does the same for user themes
+     (dimOf), so hand-written and generated themes agree. */
 
   /* ── ACCENT ALPHA VARIANTS ───────────────────────────────────────────────── */
-  --accent-03:      rgba(224, 72, 58, 0.03);
-  --accent-04:      rgba(224, 72, 58, 0.04);
-  --accent-05:      rgba(224, 72, 58, 0.05);
-  --accent-06:      rgba(224, 72, 58, 0.06);
-  --accent-08:      rgba(224, 72, 58, 0.08);
-  --accent-10:      rgba(224, 72, 58, 0.10);
-  --accent-12:      rgba(224, 72, 58, 0.12);
-  --accent-15:      rgba(224, 72, 58, 0.15);
-  --accent-20:      rgba(224, 72, 58, 0.20);
-  --accent-25:      rgba(224, 72, 58, 0.25);
-  --accent-30:      rgba(224, 72, 58, 0.30);
-  --accent-40:      rgba(224, 72, 58, 0.40);
-  --accent-50:      rgba(224, 72, 58, 0.50);
+  --accent-03:      rgba(230, 165, 230, 0.03);
+  --accent-04:      rgba(230, 165, 230, 0.04);
+  --accent-05:      rgba(230, 165, 230, 0.05);
+  --accent-06:      rgba(230, 165, 230, 0.06);
+  --accent-08:      rgba(230, 165, 230, 0.08);
+  --accent-10:      rgba(230, 165, 230, 0.10);
+  --accent-12:      rgba(230, 165, 230, 0.12);
+  --accent-15:      rgba(230, 165, 230, 0.15);
+  --accent-20:      rgba(230, 165, 230, 0.20);
+  --accent-25:      rgba(230, 165, 230, 0.25);
+  --accent-30:      rgba(230, 165, 230, 0.30);
+  --accent-40:      rgba(230, 165, 230, 0.40);
+  --accent-50:      rgba(230, 165, 230, 0.50);
 
   /* ── TEXT — cool gray ramp ───────────────────────────────────────────────── */
   --text-1:         #ccd1da;                  /* primary body text, toast, settings labels */
@@ -144,14 +162,17 @@
   --dot-color:         rgba(255, 255, 255, 0.04);  /* dot fill: near-invisible on dark */
 
   /* ── GLOW ────────────────────────────────────────────────────────────────── */
-  --glow-color:        rgba(224, 72, 58, 0.22);    /* generic crimson glow (reserved) */
-  --glow-color-2:      rgb(224, 72, 58);           /* solid crimson glow (reserved)   */
+  --glow-color:        rgba(230, 165, 230, 0.22);    /* generic accent glow (reserved) */
+  --glow-color-2:      rgb(230, 165, 230);           /* solid accent glow (reserved)   */
 
   /* ── TEAL / DANGER alpha helpers (used by character sync states) ── */
   --teal-success-bg:     rgba(78, 201, 176, 0.18);
   --teal-success-border: rgba(78, 201, 176, 0.30);
-  --danger-bg:           rgba(224, 72, 58, 0.14);
-  --danger-border:       rgba(224, 72, 58, 0.25);
+  /* Alpha steps of --pal-red (#e0564b). These read as the accent's alphas until
+     now only because accent and danger were the same slot; a failed sync is a
+     failure and must stay red however the main colour is set. */
+  --danger-bg:           rgba(224, 86, 75, 0.14);
+  --danger-border:       rgba(224, 86, 75, 0.25);
 
   /* ── SHADOWS / MISC ──────────────────────────────────────────────────────── */
   --shadow-dark:    rgba(0, 0, 0, 0.35);      /* toast box-shadow                */

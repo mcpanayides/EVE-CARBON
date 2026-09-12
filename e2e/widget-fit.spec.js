@@ -182,11 +182,72 @@ test('measure widget content fit across sizes', async ({ window }) => {
     renderActiveJobsWidget(b.querySelector('#probeJobs'), jobs, [{ characterId: 1, characterName: 'My Pilot Name' }]);
   };
 
+  // A killfeed's rows are a list, so it may scroll vertically — but never lose a
+  // column sideways, and never clip: a row cut in half mid-name is unreadable.
+  const killFeed = (b) => {
+    const now = Date.now();
+    const rows = Array.from({ length: 14 }, (_, i) => ({
+      killmailId: 1000 + i, time: new Date(now - i * 900_000).toISOString(),
+      totalValue: (i + 1) * 1.234e9, isLoss: i % 3 === 0, attackerCount: i + 1,
+      victimShipTypeId: 671, systemId: 30000142,
+      victimCharId: 90000001, finalBlowCharId: 90000002,
+    }));
+    _kfNames = { 671: 'Erebus', 30000142: 'Jita',
+                 90000001: 'Some Very Long Victim Name', 90000002: 'Another Long Pilot Name' };
+    _kfRenderInstance(b, rows);
+  };
+
+  // ── Faction Warfare tiles ───────────────────────────────────────────────────
+  // These read module state in faction-warfare.js, declared with `let` at the top
+  // of a classic script — which puts it in the script scope, NOT on window. The
+  // seeds below are therefore BARE assignments: `window._fwStats = …` would
+  // silently create an unrelated property and the probe would render its empty
+  // state. Seeding _fwNames too keeps _fwResolveNames off the network.
+  const fwBoard = (b) => {
+    const ids = [90000001, 90000002, 90000003, 90000004, 90000005];
+    _fwNames = Object.fromEntries(ids.map((id, i) => [id, `Some Very Long Pilot Name ${i + 1}`]));
+    _fwLbChars = { kills: { active_total: ids.map((id, i) => ({ character_id: id, amount: 14400 - i * 2600 })) } };
+    localStorage.setItem('dashboardFwBoard', JSON.stringify({ 'fwBoard~probe': 'kills:active_total' }));
+    _fwWRenderBoard(b, 'fwBoard~probe');
+  };
+
+  const fwSystems = (b) => {
+    const owners = [500001, 500004, 500003, 500002, 500001, 500004];
+    _fwNames = Object.fromEntries(owners.map((_, i) => [30000100 + i, `Long System Name ${i + 1}`]));
+    _fwSystems = owners.map((o, i) => ({
+      solar_system_id: 30000100 + i, owner_faction_id: o,
+      occupier_faction_id: i === 2 ? FW_FACTIONS[o].enemy : o,
+      contested: i === 0 ? 'vulnerable' : 'contested',
+      victory_points: 75000 - i * 9000, victory_points_threshold: 75000,
+    }));
+    localStorage.setItem('dashboardFwSystems', JSON.stringify({ 'fwSystems~probe': 'all' }));
+    _fwWRenderSystems(b, 'fwSystems~probe');
+  };
+
+  const fwTug = (b) => {
+    const stat = (id, sys, vp, kills, pilots) => ({
+      faction_id: id, systems_controlled: sys, pilots,
+      kills: { yesterday: kills, total: kills * 900 },
+      victory_points: { yesterday: vp, total: vp * 900 },
+    });
+    // Real proportions from a live warzone: Caldari hold more ground while
+    // Gallente out-plexed them yesterday, which is the case the tile exists for.
+    _fwStats = [stat(500001, 53, 138603, 399, 57139), stat(500004, 37, 155073, 552, 45010),
+                stat(500003, 44, 148829, 343, 32848), stat(500002, 26, 145308, 657, 34501)];
+    localStorage.setItem('dashboardFwTug', JSON.stringify({ 'fwTug~probe': 'cal-gal' }));
+    _fwWRenderTug(b, 'fwTug~probe');
+  };
+
   // Card widgets must fit whole; the tables may scroll vertically but never
   // horizontally (that is how the ACTIVITY and PROGRESS columns went missing).
-  const mustNotClip = new Set(['killTicker', 'jobWatch', 'charWallet', 'latestPing']);
+  // The FW tiles are lists (Top Pilots, Capture Pressure) or a card (the tug of
+  // war), and the tug of war is the one that must never lose a piece: a rope
+  // with its push line cut off is a picture of a fight with the result missing.
+  const mustNotClip = new Set(['killTicker', 'jobWatch', 'charWallet', 'latestPing', 'fwTug']);
 
-  for (const [base, fn] of [['killTicker', kills], ['jobWatch', jobwatch], ['charWallet', wallet], ['latestPing', latestPing], ['activeJobs', activeJobs]]) {
+  for (const [base, fn] of [['killTicker', kills], ['jobWatch', jobwatch], ['charWallet', wallet], ['latestPing', latestPing], ['activeJobs', activeJobs],
+                            ['fwBoard', fwBoard], ['fwSystems', fwSystems], ['fwTug', fwTug],
+                            ['killFeed', killFeed]]) {
     const result = await measure(window, base, fn);
     report(result);
 

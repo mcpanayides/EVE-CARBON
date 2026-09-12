@@ -40,9 +40,18 @@
        comment on the script tag below for why. -->
   <link rel="stylesheet" href="./vendor/gridstack/gridstack.min.css"/>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
-          integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"
-          crossorigin="anonymous"></script>
+  <!-- Chart.js 4.4.1, vendored locally for the same reason Gridstack is (see the
+       note on its script tag below). This was the last cdnjs + SRI load left in
+       the app: the identical arrangement that broke twice for Gridstack — a
+       "immutable" versioned file whose content changed under the pinned hash,
+       and any install whose Chromium cache still held the pre-fix copy, which
+       cdnjs serves with a long/immutable Cache-Control and never revalidates.
+       When that fires the SRI check blocks the file outright and every chart in
+       the app silently stops rendering. The vendored copy was verified
+       byte-identical to the hash above before the tag was changed, so nothing
+       about what loads has moved — only where it comes from. It also means the
+       app starts with no network at all. -->
+  <script src="./vendor/chartjs/chart.umd.js"></script>
   <!-- Vendored locally instead of cdnjs + SRI. That combination broke twice in
        practice: once when cdnjs's "immutable" versioned file silently changed
        content out from under the pinned hash, and again for any install whose
@@ -682,6 +691,17 @@
 
             <div class="settings-toggle-row">
               <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Warn me about server instability</div>
+                <div class="settings-toggle-desc">Show a desktop notification when CCP reports Tranquility or Login as degraded or down, so you can dock something expensive before a disconnect. Only the components that affect being undocked can raise it &mdash; a website or CDN problem will not.</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="serverAlertsToggle">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
                 <div class="settings-toggle-label">Write a diagnostic log</div>
                 <div class="settings-toggle-desc">
                   Record what the app does to a file, so a bug report can carry evidence instead of a description.
@@ -938,7 +958,13 @@
             <div style="font-size:10px; letter-spacing:.1em; color:var(--text-4); font-family:var(--mono); text-transform:uppercase; margin-bottom:8px;">Active Theme</div>
             <select id="themeSelect" class="field-input" style="width:100%; cursor:pointer; font-size:13px; padding:9px 12px; margin-bottom:8px;"></select>
             <div id="themeDescription" style="font-size:11px; color:var(--text-3); line-height:1.6; min-height:14px; margin-bottom:12px;"></div>
-            <div style="display:flex; justify-content:flex-end;">
+            <!-- Delete sits with the theme you are LOOKING at, not inside the
+                 editor. Removing a theme is not editing one, and requiring a trip
+                 through CUSTOMISE to get at it meant entering an edit state (and
+                 arming the live preview) purely to throw something away.
+                 Destructive action furthest from the primary one. -->
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+              <button id="themeDeleteBtn" class="calc-btn" style="display:none; font-size:11px; padding:7px 18px; font-family:var(--mono); letter-spacing:.08em; border-color:var(--danger) !important; color:var(--danger) !important;">DELETE THEME</button>
               <button id="themeApplyBtn" class="calc-btn" style="font-size:11px; padding:7px 22px; font-family:var(--mono); letter-spacing:.08em;">APPLY THEME</button>
             </div>
           </div>
@@ -965,9 +991,10 @@
             <div id="paletteNameRow" style="display:flex; gap:8px; align-items:center;">
               <input id="paletteNameInput" class="field-input" placeholder="Palette name…" style="flex:1; font-size:13px; padding:8px 10px;" />
             </div>
+            <!-- Delete used to live here, reachable only in edit mode. It is now
+                 beside the theme picker above, where the thing it deletes is. -->
             <div style="display:flex; gap:8px;">
-              <button id="paletteSaveBtn"   class="calc-btn" style="font-size:11px; padding:6px 16px; font-family:var(--mono); letter-spacing:.05em;">SAVE PALETTE</button>
-              <button id="paletteDeleteBtn" class="calc-btn" style="display:none; font-size:11px; padding:6px 16px; font-family:var(--mono); letter-spacing:.05em; border-color:var(--danger) !important; color:var(--danger) !important;">DELETE</button>
+              <button id="paletteSaveBtn" class="calc-btn" style="font-size:11px; padding:6px 16px; font-family:var(--mono); letter-spacing:.05em;">SAVE PALETTE</button>
             </div>
           </div>
 
@@ -1480,6 +1507,7 @@
 <script src="./func/dashboard.js"></script>
 <script src="./func/bugs.js"></script>
 <script src="./func/planetary-interaction.js"></script>
+<script src="./shared/pi_model.js"></script>  <!-- PI production model; shared by the Colonies page and the PI Planner -->
 <script src="./shared/intel-row.js"></script>
 <script src="./func/fc_intel.js"></script>
 <script src="./func/fc_intel_rules.js"></script>
@@ -1492,6 +1520,8 @@
 <script src="./func/orehold-reprocess.js"></script>
 <script src="./func/mining.js"></script>  <!-- Mining Ledger (Industry) -->
 <script src="./func/faction-warfare.js"></script>  <!-- Faction Warfare tracker -->
+<script src="./func/dashboard-fw.js"></script>  <!-- FW dashboard tiles; reads faction-warfare.js's cache + selectors -->
+<script src="./func/dashboard-killfeed.js"></script>  <!-- Killfeed tile; reads the same cached zKill feed as the Killboard page -->
 <script src="./func/shopping-lists.js"></script>
 <script src="./func/station-checkout.js"></script>  <!-- Station Checkout (Industry) -->
 <script src="./func/appraisal.js"></script>  <!-- Industry → Appraisal (bulk Jita valuation) -->

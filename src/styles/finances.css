@@ -152,14 +152,31 @@ body.lp-resizing, body.lp-resizing * { cursor: col-resize !important; -webkit-us
 
 .fw-wz { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
 .fw-wz-title { padding: 10px 14px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-panel); }
-.fw-ctrl-bar { display: flex; height: 22px; }
-.fw-ctrl-seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.5); min-width: 0; overflow: hidden; transition: width 0.3s ease; }
+/* ── Warzone tug of war ───────────────────────────────────────────────────────
+   The rope itself (.fwx-rope / .fwx-knot / .fwx-flow / .fwx-push) is defined in
+   styles/dashboard.css and shared with the dashboard's Warzone tile — same
+   markup, same CSS, one behaviour. It lives there rather than here because a
+   popped-out widget window loads dashboard.css and not this file.
+   Only the page-scale sizing is below: this is a full page, not a 5-column tile,
+   so the rope is taller and the labels have room to say "53 systems" rather than
+   just a percentage. */
+.fw-tug        { padding: 12px 14px 0; display: flex; flex-direction: column; gap: 8px; }
+.fw-rope-lg    { height: 26px; }   /* radius stays the shared component's 4px */
+.fw-rope-lg .fwx-knot  { width: 4px; margin-left: -2px; }
+.fw-rope-lg .fwx-flow  { gap: 20px; }
+.fw-rope-lg .fwx-flow i { width: 9px; height: 9px; border-width: 2px; }
+.fw-tug .fwx-rope-pcts { font-size: 12px; }
+.fw-tug .fwx-push      { padding: 7px 10px; }
+.fw-tug .fwx-push-txt  { font-size: 13px; }
 
 .fw-fac-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
-.fw-fac-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+/* Militia colour arrives as an fw-f-* class (see FW_FACTIONS.cls) rather than an
+   inline style, so a theme can reach it and the page agrees with the widget. */
+.fw-fac-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px;
+               border-top: 3px solid var(--fw-color, var(--accent)); }
 .fw-fac-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .fw-fac-logo { width: 40px; height: 40px; border-radius: 4px; flex-shrink: 0; }
-.fw-fac-name { font-weight: 700; font-size: 14px; }
+.fw-fac-name { font-weight: 700; font-size: 14px; color: var(--fw-color, var(--text-1)); }
 .fw-fac-sub { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-top: 2px; }
 .fw-fac-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
 .fw-fac-grid > div, .fw-me-stat { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--border); }
@@ -178,13 +195,31 @@ body.lp-resizing, body.lp-resizing * { cursor: col-resize !important; -webkit-us
 
 .fw-vpcell { display: flex; align-items: center; gap: 8px; }
 .fw-vpbar  { display: inline-block; width: 120px; height: 8px; background: var(--bg-card); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-.fw-vpfill { display: block; height: 100%; background: var(--danger); }
-.fw-flip   { color: var(--danger); }
+/* Capture progress is PRESSURE, not a loss. It was var(--danger) — which read
+   correctly only while danger and the app accent were the same colour, and
+   painted a Caldari system in the loss colour as it fell. Gold into red, the
+   same ramp the dashboard's Capture Pressure tile uses. */
+.fw-vpfill { display: block; height: 100%; border-radius: 4px;
+             background: linear-gradient(90deg, var(--pal-gold), var(--pal-orange)); }
+.fw-vprow.is-hot  .fw-vpfill { background: linear-gradient(90deg, var(--pal-orange), var(--pal-red)); }
+/* Only a system that can flip RIGHT NOW breathes. If every contested row pulsed,
+   the one that matters would be the one you could not pick out. */
+.fw-vprow.is-vuln .fw-vpfill { background: var(--pal-red); animation: fwx-vuln 1.7s ease-in-out infinite; }
+.fw-flip   { color: var(--pal-orange); }
+.fw-owner-txt { color: var(--fw-color, var(--text-3)); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The pulse is emphasis; the red is the message. A vulnerable system still
+     reads as vulnerable standing still. (The rope's chevrons are handled beside
+     their own rules in dashboard.css.) */
+  .fw-vprow.is-vuln .fw-vpfill { animation: none; }
+}
 
 .fw-lb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .fw-lb-col { min-width: 0; }
 
-.fw-me-head { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; }
+.fw-me-head { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px;
+              border-left: 4px solid var(--fw-color, var(--accent)); }
 .fw-me-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 16px; }
 
 @media (max-width: 900px) {

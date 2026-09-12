@@ -35,7 +35,9 @@
   cursor: pointer;
 }
 .fc-track-btn:hover { filter: brightness(1.1); }
-.fc-track-btn.active { background: #c0392b; color: #fff; }
+/* An active toggle is an accent state, not an alert — it was a hardcoded crimson
+   only because accent and negative used to be the same colour. */
+.fc-track-btn.active { background: var(--accent); color: var(--text-on-accent); }
 
 /* Secondary action — outlined so it reads differently from Start/Stop. */
 .fc-invite-btn { background: transparent; color: var(--accent); border: 1px solid var(--accent); }

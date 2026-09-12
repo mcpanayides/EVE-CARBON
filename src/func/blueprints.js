@@ -1583,7 +1583,10 @@ function initIndustryPage() {
   // Uses querySelector(:scope > *) so HTML comments don't count as content.
   const content = document.getElementById('industryTabContent');
   if (content && !content.querySelector(':scope > *')) {
-    navigateIndustryTab('blueprints');
+    // Returned, so navigateToPage can hold the header spinner until the tab has
+    // actually rendered. Re-entering an already-built page returns nothing, which
+    // is correct: there is no load to report.
+    return navigateIndustryTab('blueprints');
   }
 }
 

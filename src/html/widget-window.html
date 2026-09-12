@@ -54,6 +54,12 @@
   <div class="pw-titlebar">
     <span class="material-symbols-outlined pw-icon" id="pwIcon" style="display:none;"></span>
     <span class="pw-title" id="pwTitle">WIDGET</span>
+    <!-- Mirrors the widget's own status lamp while collapsed. Empty, and
+         invisible, for widgets that have no lamp to mirror. -->
+    <span class="pw-nano-light" id="pwNanoLight"></span>
+    <button class="pw-btn" id="pwNanoBtn" title="Nano mode — collapse to the title bar">
+      <span class="material-symbols-outlined">unfold_less</span>
+    </button>
     <button class="pw-btn" id="pwPinBtn" title="Keep on top">
       <span class="material-symbols-outlined">keep</span>
     </button>
@@ -75,12 +81,31 @@
     document.getElementById('pwTitle').textContent = title;
     document.title = `EVE Carbon — ${title}`;
 
+    // Collapsed, the bar is all there is — so carry the widget's status lamp up
+    // into it. A nano strip parked over the game that says only "BEEHIVE
+    // STATUS" is a bookmark; the same strip showing the lamp answers the
+    // question you popped the widget out to watch, in the space of a title.
+    // Widgets with no .sig-light simply get nothing, and the slot collapses.
+    function syncNanoLight() {
+      const slot = document.getElementById('pwNanoLight');
+      const lamp = document.querySelector('#pwContent .sig-light');
+      slot.textContent = '';
+      if (!lamp) return;
+      const dot = lamp.cloneNode(true);
+      // Its own classes carry the colour; strip layout ones the bar sets itself.
+      dot.removeAttribute('style');
+      slot.appendChild(dot);
+    }
+
     // Live content pushed from the dashboard (via main process relay)
     window.eveAPI?.onWidgetContent?.((data) => {
       if (!data || data.id !== widgetId) return;
       if (data.title) document.getElementById('pwTitle').textContent = data.title;
       document.getElementById('pwContent').innerHTML =
         data.html || '<div class="pw-empty">Widget is empty.</div>';
+      // Re-cloned on every push, so a lamp that changes colour changes here too
+      // rather than freezing at whatever it was when nano was switched on.
+      syncNanoLight();
     });
 
     // Pin (always-on-top) toggle
@@ -89,6 +114,25 @@
       pinned = !pinned;
       document.getElementById('pwPinBtn').classList.toggle('pinned', pinned);
       window.eveAPI?.widgetPopoutPin?.({ id: widgetId, pinned });
+    });
+
+    // Nano mode — collapse to the title bar to sit over the game
+    let nano = false;
+    const nanoBtn = document.getElementById('pwNanoBtn');
+    nanoBtn.addEventListener('click', () => {
+      nano = !nano;
+      document.body.classList.toggle('nano', nano);
+      nanoBtn.classList.toggle('pinned', nano);
+      nanoBtn.title = nano ? 'Expand' : 'Nano mode — collapse to the title bar';
+      nanoBtn.querySelector('.material-symbols-outlined').textContent =
+        nano ? 'unfold_more' : 'unfold_less';
+      if (nano) syncNanoLight();
+      // Measure AFTER the class lands: the bar tightens its own padding in nano,
+      // so measuring first would reserve a few pixels that are no longer there.
+      const bar = document.querySelector('.pw-titlebar');
+      window.eveAPI?.widgetPopoutNano?.({
+        id: widgetId, nano, barHeight: bar ? bar.getBoundingClientRect().height : 34,
+      });
     });
 
     // Pop back into the dashboard (window close does the same)

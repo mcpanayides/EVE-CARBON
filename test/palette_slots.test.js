@@ -23,9 +23,14 @@ function swatchSlots() {
   const src   = fs.readFileSync(PALETTE_JS, 'utf8');
   const block = src.slice(src.indexOf('const SWATCH_SLOTS = ['), src.indexOf('const SWATCH_GROUPS'));
   const slots = [];
-  const re = /\{\s*key:\s*'([^']+)'\s*,\s*group:\s*'([^']+)'/g;
+  // `drives` is optional and may sit anywhere in the entry, so it is picked out
+  // of the whole entry rather than assumed to follow `group`.
+  const re = /\{\s*key:\s*'([^']+)'\s*,\s*group:\s*'([^']+)'([\s\S]*?)\}/g;
   let m;
-  while ((m = re.exec(block))) slots.push({ key: m[1], group: m[2] });
+  while ((m = re.exec(block))) {
+    const drives = /drives:\s*'([^']+)'/.exec(m[3]);
+    slots.push({ key: m[1], group: m[2], drives: drives ? drives[1] : `--pal-${m[1]}` });
+  }
   return slots;
 }
 
@@ -42,11 +47,14 @@ test('the slot table parses and is not empty', () => {
   assert.ok(slots.some(s => s.group === 'structure'));
 });
 
-test('every colour swatch drives a --pal-* token some stylesheet reads', () => {
+test('every colour swatch drives a token some stylesheet reads', () => {
+  // Most slots feed --pal-<key>. `main` feeds --accent instead, because it is
+  // not a data hue — it is the app's accent, and --accent already is that token.
+  // The slot declares what it drives so this check keeps its teeth either way.
   const css  = allCss();
   const dead = swatchSlots()
     .filter(s => s.group !== 'structure')
-    .filter(s => !css.includes(`--pal-${s.key}`));
+    .filter(s => !css.includes(s.drives));
   assert.deepStrictEqual(dead.map(s => s.key), [],
     `these swatches are offered but nothing reads them: ${dead.map(s => s.key).join(', ')}`);
 });

@@ -242,6 +242,12 @@ async function seedMain(db, now) {
     { skill_id: 3380, trained_skill_level: 5, skillpoints_in_skill: 1_280_000, active_skill_level: 5 },   // Mechanics
     { skill_id: 3402, trained_skill_level: 4, skillpoints_in_skill:   226_000, active_skill_level: 4 },   // Science
     { skill_id: 3426, trained_skill_level: 5, skillpoints_in_skill: 1_280_000, active_skill_level: 5 },   // Power Grid Management
+    // Max planets = 1 + Interplanetary Consolidation, so this is 4 slots with
+    // nothing built on them: the demo's "free capacity" case.
+    { skill_id: 2495, trained_skill_level: 3, skillpoints_in_skill:    45_000, active_skill_level: 3 },   // Interplanetary Consolidation
+    // A Limited command centre: enough for extraction or refining, not enough
+    // for a reactor line. The Capacity tab's middle case.
+    { skill_id: 2505, trained_skill_level: 1, skillpoints_in_skill:     2_500, active_skill_level: 1 },   // Command Center Upgrades
   ]);
 }
 
@@ -304,6 +310,16 @@ async function seedIndy(db, now) {
     colony(40169271, 'Planet (Storm)',     DODIXIE, 5, 13,  7 * HOUR, 72),   // Dodixie V
     colony(40169275, 'Planet (Temperate)', DODIXIE, 3,  8, 44 * HOUR, 12),   // Dodixie VI
     colony(40009082, 'Planet (Gas)',       JITA,    5, 15, 26 * HOUR, 95),   // Jita IV
+  ]);
+
+  // Six colonies is only legal at Interplanetary Consolidation V (1 + level).
+  // Without these rows the page cannot tell "trained to nothing" from "never
+  // synced", so the alt actually running the most PI would read as unknown.
+  await db.replaceSkills(id, [
+    { skill_id: 2495, trained_skill_level: 5, skillpoints_in_skill: 1_280_000, active_skill_level: 5 },   // Interplanetary Consolidation
+    { skill_id: 2505, trained_skill_level: 4, skillpoints_in_skill:   226_000, active_skill_level: 4 },   // Command Center Upgrades
+    { skill_id: 2406, trained_skill_level: 4, skillpoints_in_skill:   226_000, active_skill_level: 4 },   // Planetology
+    { skill_id: 3380, trained_skill_level: 5, skillpoints_in_skill: 1_280_000, active_skill_level: 5 },   // Mechanics
   ]);
 
   // A working blueprint library: BPOs researched to 10/20, plus copies in use.

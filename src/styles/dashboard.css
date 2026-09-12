@@ -691,7 +691,14 @@
                                background-color: var(--bg-panel);
                                background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
                                background-size: 6px 6px; border: 1px solid var(--border); border-radius: 6px; }
-.dash-pi-count-num           { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+/* The lamp sits above the figure, centred, so the tile reads as a small panel of
+   indicator lights rather than three numbers that happen to be coloured. */
+.dash-pi-count .sig-light    { --sig-size: 8px; margin-bottom: 5px; }
+.dash-pi-count-num           { font-family: var(--mono); font-size: 20px; font-weight: 700;
+                               color: var(--value-bright); }
+/* A zero is not news. Dimming the figure as well as its lamp keeps a clean board
+   calm — the colour belongs to the state, not to the label. */
+.dash-pi-count:has(.sig-light.is-off) .dash-pi-count-num { color: var(--text-3); }
 .dash-pi-count-label         { font-family: var(--mono); font-size: 9px; color: var(--text-3);
                                letter-spacing: 0.08em; margin-top: 2px; }
 
@@ -1204,7 +1211,9 @@
 
 /* ── Beehive status widget (GoonFleet) ────────────────────────────────────── */
 .beehive-widget       { display: flex; align-items: center; gap: 14px; padding: 6px 4px 12px; }
-.beehive-light        { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+/* Size only — the lamp itself (colour, glow, dark state) is .sig-light in
+   signals.css, shared with the PI status strip and the dashboard's PI tile. */
+.beehive-light        { --sig-size: 22px; }
 .beehive-info         { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .beehive-label        { font-size: 18px; font-weight: 800; letter-spacing: 0.06em; line-height: 1.1; }
 .beehive-sub          { font-size: 12px; color: var(--text-2); }
@@ -1400,6 +1409,277 @@ body.glass-on .active-jobs-list thead tr {
 .kt-dot      { margin: 0 4px; }
 .kt-by       { color: var(--text-3); }
 
+/* ── Killfeed widget (killFeed) ───────────────────────────────────────────────
+   A tighter cousin of the Killboard page's .kb-row. It is NOT that class: the
+   page row is built for a full-width table with a 64px ship render and a badge
+   column, and a four-column tile has room for none of it. It also has to live in
+   this file rather than killboard.css, because a popped-out widget window loads
+   dashboard.css and not that one.
+
+   Kill and loss are told apart by a 2px edge rather than by colouring the row:
+   a feed is mostly kills, and a wash of green down the whole tile stops carrying
+   information by the third row. */
+.kf-list      { display: flex; flex-direction: column; gap: 2px; }
+.kf-row       { display: flex; align-items: center; gap: 8px; padding: 5px 7px;
+                border-radius: 4px; text-decoration: none; cursor: pointer;
+                border-left: 2px solid transparent;
+                transition: background-color 0.12s ease, border-color 0.12s ease; }
+.kf-row.is-kill { border-left-color: var(--pal-green); }
+.kf-row.is-loss { border-left-color: var(--pal-red); }
+.kf-row:hover   { background: var(--bg-hover); }
+.kf-ship      { width: 26px; height: 26px; flex-shrink: 0; border-radius: 3px; background: var(--bg-deep); }
+.kf-main      { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.kf-ship-name { font-size: 12px; color: var(--value-bright);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kf-sub       { font-size: 10px; color: var(--label-muted);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kf-dim       { color: var(--text-3); }
+.kf-right     { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+                font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.kf-isk       { font-size: 11px; font-weight: 700; color: var(--value-bright); }
+.kf-row.is-loss .kf-isk { color: var(--pal-red); }
+.kf-age       { font-size: 10px; color: var(--text-3); }
+
+/* ── Searchable widget picker ─────────────────────────────────────────────────
+   Some subjects can be listed in advance and some cannot: your characters can,
+   EVE's corporations cannot. A picker that declares a `search` gets this box
+   above its static options (see dashWidgetPickMenu). */
+.dash-pick-search       { padding: 6px 8px 4px; }
+.dash-pick-search input { width: 100%; font-size: 12px; }
+.dash-pick-results:not(:empty) { border-bottom: 1px solid var(--border-e); padding-bottom: 4px; margin-bottom: 2px; }
+/* A search may answer with an explanation rather than a result. It is a row so
+   it lands where the eye already is, but it does not add anything. */
+.dashboard-add-item.is-note { cursor: default; color: var(--text-3); font-style: italic; }
+.dashboard-add-item.is-note:hover { background: none; color: var(--text-3); }
+
+/* ── Faction Warfare widgets (fwBoard / fwSystems / fwTug) ────────────────────
+   Three tiles rendered by src/func/dashboard-fw.js off public ESI. */
+
+:root {
+  /* Militia identity colours, matched to FW_FACTIONS in faction-warfare.js.
+     Deliberately NOT --pal-* tokens: those are the themeable data palette, and a
+     theme is free to recolour "positive" or "series 3" — but Caldari is blue and
+     Minmatar is rust in every theme there will ever be. Identity is not a hue
+     the user gets to reassign, so these sit outside the palette on purpose. */
+  --fw-caldari:  #4a8fd6;
+  --fw-gallente: #48b58a;
+  --fw-amarr:    #d6b24a;
+  --fw-minmatar: #d66a4a;
+}
+
+/* One class per militia, carrying its colour inward as --fw-color. This is why
+   none of the FW widget markup inline-styles a colour: JS picks the class, CSS
+   owns the value. */
+.fw-f-caldari  { --fw-color: var(--fw-caldari);  }
+.fw-f-gallente { --fw-color: var(--fw-gallente); }
+.fw-f-amarr    { --fw-color: var(--fw-amarr);    }
+.fw-f-minmatar { --fw-color: var(--fw-minmatar); }
+
+/* Shared subtitle — what this particular tile is showing, since all three are
+   addable more than once with different subjects. */
+.fwx-sub { font-family: var(--mono); font-size: 10px; color: var(--label-muted);
+           letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+           overflow: hidden; text-overflow: ellipsis;
+           padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+
+/* ── TOP PILOTS ──────────────────────────────────────────────────────────────
+   A leaderboard is a ranking, but it is also a distribution: when the top pilot
+   has 144 kills and the fifth has 30, that gap IS the news. The bar sits behind
+   the row rather than beside it, so the shape costs no width on a tile that may
+   only be two columns across. */
+.fwx-board { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.fwx-rank  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.fwx-row   { position: relative; display: flex; align-items: center; gap: 8px; overflow: hidden;
+             padding: 4px 8px 4px 5px; border-radius: 5px; background: var(--bg-deep); }
+.fwx-bar   { position: absolute; left: 0; top: 0; bottom: 0; z-index: 0;
+             border-left: 2px solid var(--accent-40);
+             background: linear-gradient(90deg, var(--accent-20), var(--accent-06)); }
+.fwx-row > :not(.fwx-bar) { position: relative; z-index: 1; }
+.fwx-row.is-lead .fwx-bar { border-left-color: var(--accent);
+             background: linear-gradient(90deg, var(--accent-40), var(--accent-10)); }
+.fwx-pos   { flex: 0 0 11px; text-align: right; font-family: var(--mono); font-size: 10px;
+             color: var(--text-3); font-variant-numeric: tabular-nums; }
+.fwx-row.is-lead .fwx-pos { color: var(--accent); font-weight: 700; }
+.fwx-portrait { width: 22px; height: 22px; flex-shrink: 0; border-radius: 3px; background: var(--bg-panel); }
+.fwx-name  { flex: 1; min-width: 0; font-size: 12px; color: var(--value-bright);
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fwx-amt   { flex-shrink: 0; font-family: var(--mono); font-size: 12px; font-weight: 700;
+             color: var(--value-bright); font-variant-numeric: tabular-nums; }
+.fwx-row.is-lead .fwx-amt { color: var(--accent); }
+
+/* ── CAPTURE PRESSURE ────────────────────────────────────────────────────────
+   The bar is how far the ATTACKERS have ground the system down, so it is
+   coloured by pressure — gold into red — and never by the owner's militia:
+   filling a Caldari system in Caldari blue as it falls would read as Caldari
+   progress, which is the opposite of what is happening. The owner is a chip. */
+.fwx-sys      { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.fwx-sys-list { display: flex; flex-direction: column; gap: 5px; }
+.fwx-sys-row  { display: grid; grid-template-columns: 30px minmax(0, 1.2fr) 1fr 30px;
+                align-items: center; gap: 8px; }
+.fwx-sys-own  { padding: 1px 0; text-align: center; border-radius: 3px;
+                font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.05em;
+                color: var(--fw-color); border: 1px solid var(--fw-color);
+                background: color-mix(in srgb, var(--fw-color) 12%, transparent); }
+.fwx-sys-name { font-size: 12px; color: var(--value-bright);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fwx-flip     { color: var(--pal-orange); font-size: 10px; }
+.fwx-sys-track{ height: 7px; border-radius: 4px; background: var(--bg-deep); overflow: hidden; }
+.fwx-sys-fill { display: block; height: 100%; border-radius: 4px;
+                background: linear-gradient(90deg, var(--pal-gold), var(--pal-orange)); }
+.fwx-sys-row.is-hot  .fwx-sys-fill { background: linear-gradient(90deg, var(--pal-orange), var(--pal-red)); }
+.fwx-sys-row.is-vuln .fwx-sys-fill { background: var(--pal-red);
+                animation: fwx-vuln 1.7s ease-in-out infinite; }
+.fwx-sys-pct  { text-align: right; font-family: var(--mono); font-size: 11px;
+                color: var(--label-muted); font-variant-numeric: tabular-nums; }
+.fwx-sys-row.is-hot  .fwx-sys-pct { color: var(--pal-orange); }
+.fwx-sys-row.is-vuln .fwx-sys-pct { color: var(--pal-red); font-weight: 700; }
+/* Only the vulnerable ones breathe. A system that can flip right now is the one
+   thing on this tile worth pulling the eye, and if everything pulsed nothing
+   would. */
+@keyframes fwx-vuln { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ── WARZONE TUG OF WAR ──────────────────────────────────────────────────────
+   Where the rope sits (systems held, won over months) and which way it is being
+   pulled today (share of yesterday's victory points). Two endpoints answering
+   two different questions, kept visually apart: the rope is the standing, the
+   chevrons are the last 24 hours. */
+.fwx-tug { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+
+.fwx-tug-heads { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fwx-tug-side  { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.fwx-tug-side.is-right { flex-direction: row-reverse; text-align: right; }
+.fwx-tug-logo  { width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; }
+.fwx-tug-id    { min-width: 0; }
+.fwx-tug-fac   { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+                 color: var(--fw-color); text-transform: uppercase;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fwx-tug-meta  { font-family: var(--mono); font-size: 10px; color: var(--label-muted); white-space: nowrap; }
+
+/* The rope itself. Two militia-coloured pulls meeting at the knot — plus a tick
+   at dead-even, which is the detail that makes this a tug of war rather than a
+   stacked bar. A two-tone bar shows the split; only the tick shows the DISTANCE
+   the warzone has been dragged from level, and that is the thing being fought
+   over. */
+.fwx-rope    { position: relative; height: 18px; border-radius: 4px; overflow: hidden;
+               background: var(--bg-deep); border: 1px solid var(--border); }
+/* Both segments run DIM at their outer edge and BRIGHT at the knot, so the rope
+   is at its most saturated exactly where the two militias meet.
+   That is where the fight is. The far ends are settled ground — 0% and 100% are
+   the parts nobody is contesting — and lighting them brightest, as this did at
+   first, pulled the eye to the two places on the bar with the least happening.
+   Same direction (90deg) for both, with the stop order mirrored: A runs
+   edge → knot, B runs knot → edge. The hard colour break at the knot is kept
+   rather than blended, because it is a boundary and not a gradient between the
+   two factions. */
+.fwx-rope-a  { position: absolute; top: 0; bottom: 0; left: 0; width: var(--fwx-a, 50%);
+               background: linear-gradient(90deg,
+                 color-mix(in srgb, var(--fw-color) 26%, transparent),
+                 color-mix(in srgb, var(--fw-color) 88%, transparent)); }
+.fwx-rope-b  { position: absolute; top: 0; bottom: 0; right: 0; left: var(--fwx-a, 50%);
+               background: linear-gradient(90deg,
+                 color-mix(in srgb, var(--fw-color) 88%, transparent),
+                 color-mix(in srgb, var(--fw-color) 26%, transparent)); }
+.fwx-rope-even { position: absolute; top: 2px; bottom: 2px; left: 50%; width: 1px; opacity: 0.75;
+                 background: repeating-linear-gradient(180deg, var(--text-2) 0 2px, transparent 2px 4px); }
+/* Flush with the rope, not proud of it: the rope clips its overflow, so a knot
+   that overhangs is only ever measured as clipped content (e2e/widget-fit). The
+   dark hairline is what stops it reading as one more chevron. */
+.fwx-knot    { position: absolute; top: 0; bottom: 0; left: var(--fwx-a, 50%); width: 3px;
+               margin-left: -1.5px; border-radius: 2px; background: var(--value-bright);
+               box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.7); }
+
+/* Chevrons showing which way the rope is being dragged — a staggered opacity
+   wave, like a walkway indicator. Opacity only, so it composites cheaply and,
+   when motion is turned off, the arrows simply stand still and still point the
+   right way: the direction is information, the movement is only emphasis.
+
+   They occupy the half of the rope being pushed INTO, starting at the knot,
+   rather than running the full width. That is where the ground is actually
+   changing hands, and it keeps them clear of the knot, which they otherwise ran
+   straight through — five white marks and one white marker in a row, with no way
+   to tell which was which. */
+.fwx-flow    { position: absolute; top: 0; bottom: 0; display: flex; align-items: center;
+               gap: 15px; pointer-events: none; overflow: hidden;
+               --fwx-dur: calc(2.6s - 1.5s * var(--fwx-push, 0.4)); }
+.fwx-flow.is-right { left: var(--fwx-a, 50%); right: 0; justify-content: flex-start; padding-left: 9px; }
+.fwx-flow.is-left  { left: 0; right: calc(100% - var(--fwx-a, 50%)); justify-content: flex-end; padding-right: 9px; }
+/* 7px, not 8: these are rotated 45°, so the box they actually occupy is the
+   diagonal — 7px of chevron needs 9.9px of rope, and 8px needs 11.3px, which is
+   more than the 12px inner height leaves once the strip clips its own overflow.
+   Measured, not guessed: at 8px the tug of war failed e2e/widget-fit at 6x8. */
+.fwx-flow i  { width: 7px; height: 7px; flex: 0 0 auto; opacity: 0.28;
+               border-top: 2px solid var(--value-bright); border-right: 2px solid var(--value-bright);
+               /* Legible over either militia's colour without being tinted by one.
+                  The halo does the work: these sit against the knot, which is now
+                  the BRIGHTEST part of the rope, so a plain white chevron would
+                  wash out on a pale militia (gold especially). */
+               filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)); }
+.fwx-flow.is-right i { transform: rotate(45deg);   animation: fwx-chev var(--fwx-dur) ease-in-out infinite; }
+.fwx-flow.is-left  i { transform: rotate(-135deg); animation: fwx-chev var(--fwx-dur) ease-in-out infinite; }
+/* The stagger is what carries the direction: leading edge first on the side the
+   wave is travelling towards. */
+.fwx-flow.is-right i:nth-child(1) { animation-delay: 0s; }
+.fwx-flow.is-right i:nth-child(2) { animation-delay: calc(var(--fwx-dur) * 0.10); }
+.fwx-flow.is-right i:nth-child(3) { animation-delay: calc(var(--fwx-dur) * 0.20); }
+.fwx-flow.is-right i:nth-child(4) { animation-delay: calc(var(--fwx-dur) * 0.30); }
+.fwx-flow.is-right i:nth-child(5) { animation-delay: calc(var(--fwx-dur) * 0.40); }
+.fwx-flow.is-left  i:nth-child(5) { animation-delay: 0s; }
+.fwx-flow.is-left  i:nth-child(4) { animation-delay: calc(var(--fwx-dur) * 0.10); }
+.fwx-flow.is-left  i:nth-child(3) { animation-delay: calc(var(--fwx-dur) * 0.20); }
+.fwx-flow.is-left  i:nth-child(2) { animation-delay: calc(var(--fwx-dur) * 0.30); }
+.fwx-flow.is-left  i:nth-child(1) { animation-delay: calc(var(--fwx-dur) * 0.40); }
+@keyframes fwx-chev { 0%, 60%, 100% { opacity: 0.20; } 25% { opacity: 1; } }
+
+.fwx-rope-pcts { display: flex; align-items: baseline; justify-content: space-between;
+                 font-family: var(--mono); font-size: 11px; font-weight: 700;
+                 font-variant-numeric: tabular-nums; color: var(--fw-color); }
+.fwx-rope-pcts > span { color: var(--fw-color); }
+.fwx-rope-even-lbl { font-size: 9px; font-weight: 400; letter-spacing: 0.08em;
+                     text-transform: uppercase; color: var(--text-3); }
+
+/* The verdict line: which militia is pulling, and the number behind the claim.
+   The number is there because "pushing" is a 24-hour victory-point share, not a
+   promise that systems are about to flip — so the tile shows its working. */
+.fwx-push     { display: flex; align-items: center; gap: 8px; padding: 6px 9px;
+                border-radius: 5px; background: var(--bg-deep);
+                border-left: 3px solid var(--fw-color); }
+.fwx-push-ico { font-size: 17px; color: var(--fw-color); flex-shrink: 0; }
+.fwx-push.is-left .fwx-push-ico { transform: scaleX(-1); }
+.fwx-push-txt { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fwx-push-txt b { color: var(--fw-color); }
+.fwx-push-num { flex-shrink: 0; font-family: var(--mono); font-size: 10px;
+                color: var(--label-muted); font-variant-numeric: tabular-nums; }
+/* Deadlocked: no side, no arrows, no colour to imply one is winning. */
+.fwx-push.is-even { --fw-color: var(--text-3); border-left-color: var(--border-b); }
+
+.fwx-foot   { display: flex; justify-content: space-between; gap: 10px; margin-top: auto;
+              padding-top: 6px; border-top: 1px solid var(--border);
+              font-family: var(--mono); font-size: 10px; color: var(--value-bright);
+              font-variant-numeric: tabular-nums; }
+.fwx-foot i { font-style: normal; color: var(--label-muted); padding: 0 6px;
+              letter-spacing: 0.05em; text-transform: uppercase; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Both animations are emphasis, never the message: the chevrons still point
+     the way the warzone is going and the vulnerable bar is still red. */
+  .fwx-flow i        { animation: none; opacity: 0.75; }
+  .fwx-sys-row.is-vuln .fwx-sys-fill { animation: none; }
+}
+
+/* Under glass these are recessed wells, not cards — they keep their own small
+   radii (a 7px capture bar at the 12px card radius is a lozenge) and only take
+   the tint and the top highlight. */
+body.glass-on .fwx-row,
+body.glass-on .fwx-rope,
+body.glass-on .fwx-sys-track,
+body.glass-on .fwx-push {
+  background-color: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.55));
+  background-image: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
+
 /* ── Responsive widgets ───────────────────────────────────────────────────────
    A widget can be dragged to any size, so its content has to hold up at any size.
    Everything below is keyed off the widget's OWN width through the
@@ -1455,6 +1735,17 @@ body.glass-on .active-jobs-list thead tr {
   .kt-card                   { width: 210px; padding: 8px 10px; }
   .kt-ship                   { width: 44px; height: 44px; }
   .kt-value                  { font-size: 14px; }
+
+  /* Killfeed: the ship icon is the first thing that can afford to shrink. */
+  .kf-ship                   { width: 22px; height: 22px; }
+  .kf-row                    { gap: 7px; padding: 4px 6px; }
+
+  /* Faction Warfare: media and gaps tighten, every figure stays. */
+  .fwx-portrait              { width: 19px; height: 19px; }
+  .fwx-row                   { gap: 7px; padding: 3px 7px 3px 4px; }
+  .fwx-tug-logo              { width: 24px; height: 24px; }
+  .fwx-tug                   { gap: 7px; }
+  .fwx-flow                  { gap: 11px; }
 }
 
 /* ── 420px: the character column goes ───────────────────────────────────────── */
@@ -1477,6 +1768,14 @@ body.glass-on .active-jobs-list thead tr {
      room; the pop-out never has to make this call because it has a fixed width. */
   .dash-ping-grid            { grid-template-columns: 1fr 1fr; }
   .dash-ping-from-name       { font-size: 12px; }
+
+  /* Faction Warfare. Decoration first: a 19px portrait is recognisable, a 14px
+     one is a smudge, so it goes rather than shrinking again. The militia logos
+     go with it — the tug of war names both sides in text right beside them. */
+  .fwx-portrait              { display: none; }
+  .fwx-tug-logo              { display: none; }
+  .kf-ship                   { display: none; }   /* icon is decoration; the name is not */
+  .fwx-sys-row               { grid-template-columns: 26px minmax(0, 1.2fr) 1fr 28px; gap: 6px; }
 }
 
 /* ── 320px: drop the secondary column and the second-order detail ───────────── */
@@ -1517,6 +1816,14 @@ body.glass-on .active-jobs-list thead tr {
   .kt-ship                   { width: 34px; height: 34px; }
   .kt-value                  { font-size: 13px; }
   .kt-victim                 { display: none; }
+
+  .fwx-sys-row               { grid-template-columns: 24px minmax(0, 1.3fr) 1fr 26px; }
+  .fwx-sys-own               { font-size: 8px; }
+  /* The tug of war keeps the rope and who is pulling it. Yesterday's kills and
+     the pilot counts are context around that fight, not the fight. */
+  .fwx-foot                  { display: none; }
+  .fwx-rope-even-lbl         { display: none; }
+  .fwx-tug-fac               { font-size: 11px; }
 }
 
 /* ── 240px: last stand — one fact per widget, still legible ─────────────────── */
@@ -1547,6 +1854,30 @@ body.glass-on .active-jobs-list thead tr {
   .kt-card                   { width: 130px; padding: 6px 8px; }
   .kt-meta                   { font-size: 9px; }
   .kt-shipname               { font-size: 11px; }
+
+  /* The subtitle is the first line of TEXT that can go: each FW tile titles
+     itself after the board or warzone it was pointed at, so most of what the
+     subtitle says is already in the header two pixels above it. It survives to
+     here, not to 320px, because at the default 3-column width it is the only
+     thing saying the leaderboard covers all four militias — and a tile whose
+     one piece of context is hidden at its own default size may as well not have
+     had it. */
+  .fwx-sub                   { display: none; }
+  /* Top Pilots: the rank NUMBER is the one thing an ordered list can say without
+     printing it — position on the tile already carries it — so it goes before
+     any name is truncated further. */
+  .fwx-pos                   { display: none; }
+  .fwx-name, .fwx-amt        { font-size: 11px; }
+  /* Capture Pressure: the bar and the percentage are the same fact twice, and at
+     this width the percentage is the precise one. The owner chip goes with it —
+     the system name is what identifies the row. */
+  .kf-sub                    { display: none; }   /* who and where; WHAT and WHEN survive */
+  .fwx-sys-track             { display: none; }
+  .fwx-sys-own               { display: none; }
+  .fwx-sys-row               { grid-template-columns: minmax(0, 1fr) 30px; gap: 6px; }
+  /* The rope survives to the very end. It is the widget. */
+  .fwx-push-num              { display: none; }
+  .fwx-tug-meta              { font-size: 9px; }
 }
 
 /* ── Short widgets ────────────────────────────────────────────────────────────
@@ -1560,6 +1891,15 @@ body.glass-on .active-jobs-list thead tr {
   .jw-card, .cw-card         { padding: 8px; }
   .cw-portrait               { width: 34px; height: 34px; }
   .kt-head                   { display: none; }                 /* scope label */
+
+  /* FW: the tug of war's kill and pilot counts are the context around the fight
+     rather than the fight itself. */
+  .fwx-foot                  { display: none; }
+  .fwx-tug                   { gap: 6px; }
+  .kf-row                    { padding: 4px 6px; }
+  .kf-list                   { gap: 1px; }
+  .fwx-row                   { padding: 3px 7px 3px 4px; }
+  .fwx-sys-list              { gap: 4px; }
 }
 @container dashwidget (max-height: 115px) {
   .jw-icon                   { width: 26px; height: 26px; }
@@ -1574,6 +1914,19 @@ body.glass-on .active-jobs-list thead tr {
   .kt-ship                   { width: 34px; height: 34px; }
   .kt-victim                 { display: none; }
   .kt-value                  { font-size: 13px; }
+
+  .fwx-sub                   { display: none; }
+  .kf-ship                   { width: 20px; height: 20px; }
+  .fwx-portrait              { width: 18px; height: 18px; }
+  .fwx-tug-logo              { width: 22px; height: 22px; }
+  .fwx-rope                  { height: 14px; }
+  /* The rope loses 4px, so the chevrons inside it have to lose their diagonal
+     too — see the note on .fwx-flow i. */
+  .fwx-flow i                { width: 6px; height: 6px; }
+  .fwx-flow                  { gap: 12px; }
+  .fwx-push                  { padding: 4px 8px; }
+  .fwx-row                   { padding: 2px 6px 2px 4px; }
+  .fwx-name, .fwx-amt        { font-size: 11px; }
 }
 @container dashwidget (max-height: 70px) {
   /* Nothing but the headline: which job, how far along; which pilot, how much. */
@@ -1587,6 +1940,16 @@ body.glass-on .active-jobs-list thead tr {
   .kt-ship, .kt-rank, .kt-meta { display: none; }
   .kt-card                   { width: 120px; padding: 5px 7px; }
   .kt-shipname               { font-size: 10px; }
+
+  /* Nothing but the headline: who is top of the board; which system is closest
+     to flipping; where the rope is and who is pulling it. */
+  .fwx-portrait              { display: none; }
+  .kf-ship, .kf-sub          { display: none; }
+  .fwx-rank                  { gap: 2px; }
+  .fwx-sys-list              { gap: 3px; }
+  .fwx-tug-heads             { display: none; }   /* the rope is colour-coded and the push line names the side */
+  .fwx-rope-pcts             { display: none; }
+  .fwx-tug                   { gap: 5px; }
 }
 
 /* ── Latest Ping: what a short tile gives up, in order ────────────────────────

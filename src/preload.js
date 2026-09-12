@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Main→renderer push channels the renderer is allowed to listen on.
 const IPC_EVENT_CHANNELS = [
+  'app-refresh',        // Ctrl+R, routed through main so it beats the menu's Reload
   'account-added',
   'auth-error',
   'char-sync-progress',
@@ -51,6 +52,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getCharacterData:    (characterId) => ipcRenderer.invoke('get-character-info-db', characterId),
   getCharacterAssets:  (characterId) => ipcRenderer.invoke('get-character-assets-db', characterId),
   getPIColonies:       (characterId) => ipcRenderer.invoke('get-pi-colonies', { characterId }),
+  // PI production model: the recipe graph, and planet candidates near a system.
+  piSchematics:        ()      => ipcRenderer.invoke('pi-schematics'),
+  piPlanetCandidates:  (opts)  => ipcRenderer.invoke('pi-planet-candidates', opts),
   syncPI:              (characterId) => ipcRenderer.invoke('sync-pi',        { characterId }),
 
   // Wallet journal, transactions and loyalty points (from CharDB, synced every 30 min)
@@ -149,6 +153,21 @@ contextBridge.exposeInMainWorld('eveAPI', {
   repairStructureLocations: () => ipcRenderer.invoke('repair-structure-locations'),
   wipeAssets:    ()       => ipcRenderer.invoke('wipe-assets'),
 
+  // EVE service status (status.eveonline.com) + the instability alert setting
+  getEveStatus:     ()        => ipcRenderer.invoke('get-eve-status'),
+  getServerAlerts:  ()        => ipcRenderer.invoke('get-server-alerts'),
+  setServerAlerts:  (enabled) => ipcRenderer.invoke('set-server-alerts', enabled),
+  onEveStatusChanged: (cb) => {
+    if (typeof cb !== 'function') return;
+    ipcRenderer.on('eve-status-changed', (_e, status) => cb(status));
+  },
+
+  // PI slot capacity for many characters at once -> { charId: {ic, ccu, synced} }
+  piCapacities:    (characterIds) => ipcRenderer.invoke('pi-capacities', characterIds),
+
+  // Planet hero art (assets/planets) -> { temperate: 'file://...', ... }
+  planetArt:       () => ipcRenderer.invoke('planet-art'),
+
   // Background images
   listBackgrounds: () => ipcRenderer.invoke('list-backgrounds'),
   pickBackground:  () => ipcRenderer.invoke('pick-background'),
@@ -169,6 +188,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   widgetPopoutReady:   (id)   => ipcRenderer.invoke('widget-popout-ready', id),
   widgetPopoutContent: (data) => ipcRenderer.invoke('widget-popout-content', data),
   widgetPopoutPin:     (data) => ipcRenderer.invoke('widget-popout-pin', data),
+  widgetPopoutNano:    (data) => ipcRenderer.invoke('widget-popout-nano', data),
   onWidgetContent:     (cb)   => ipcRenderer.on('widget-content',      (_e, data) => cb(data)),
   onWidgetPoppedIn:    (cb)   => ipcRenderer.on('widget-popped-in',    (_e, id)   => cb(id)),
   onWidgetPopoutReady: (cb)   => ipcRenderer.on('widget-popout-ready', (_e, id)   => cb(id)),
@@ -233,6 +253,10 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // getDemoMode() below is the async form; code that must decide before its
   // first await (the dashboard layout) needs this one.
   isDemo:            process.argv.includes('--demo-active'),
+  // True only under the e2e harness (main sets --automated from EVE_CARBON_E2E).
+  // Suppresses nag prompts, nothing else — never branch real behaviour on this,
+  // or the suite stops testing the app the user actually runs.
+  isAutomated:       process.argv.includes('--automated'),
   getDemoMode:       ()        => ipcRenderer.invoke('get-demo-mode'),
   setDemoMode:       (enabled) => ipcRenderer.invoke('set-demo-mode', enabled),
   restartApp:        ()        => ipcRenderer.invoke('restart-app'),

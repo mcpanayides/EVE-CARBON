@@ -437,6 +437,51 @@ input[type="range"] { accent-color: var(--accent); }
   box-shadow: 0 20px 60px var(--shadow-darker), 0 0 0 1px var(--accent-05);
 }
 
+/* Modals arrive instead of appearing.
+   Every one of them is toggled by JS writing display:none/flex on the backdrop,
+   which is a discrete change and therefore not animatable on its own — hence
+   `transition-behavior: allow-discrete`, which holds `display` until the fade
+   has run, and @starting-style, which supplies the "before" frame an element
+   that was display:none has never had. One rule covers every .modal-backdrop in
+   the app (showConfirm's .cf-backdrop has had its own animation for a while).
+   Deliberately short and small: 130ms and 4px. The point is to stop things
+   snapping into place, not to make anyone wait to read a dialog. */
+.modal-backdrop {
+  opacity: 1;
+  transition: opacity 130ms ease, display 130ms allow-discrete;
+}
+.modal-backdrop > .modal {
+  transition: opacity 130ms ease, transform 130ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+@starting-style {
+  .modal-backdrop { opacity: 0; }
+  .modal-backdrop > .modal { opacity: 0; transform: translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal-backdrop > .modal { transition: none; }
+  @starting-style { .modal-backdrop > .modal { transform: none; } }
+}
+
+/* ── Page transitions ─────────────────────────────────────────────────────────
+   navigateToPage() (func/ui.js) wraps its .active class swap in
+   document.startViewTransition, so moving between pages cross-fades rather than
+   cutting. A cross-fade only — no slide, no direction. The nav is a flat list,
+   not a stack, so there is no "forward" for a slide to mean, and a 200ms slide
+   on every click becomes tiring by the tenth one.
+   The outgoing page is not faded out under the incoming one: they overlap, so
+   fading both leaves a visible dip to the background mid-transition. */
+::view-transition-old(root) { animation: none; opacity: 1; }
+::view-transition-new(root) { animation: vt-page-in 160ms ease both; }
+@keyframes vt-page-in { from { opacity: 0; } to { opacity: 1; } }
+/* Reduce-motion never reaches here — ui.js declines the transition outright, so
+   the swap stays synchronous. This is the belt to that braces, for a setting
+   changed mid-transition. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}
+
 /* ══════════════════════════════════════════════════════════════════
    TITLEBAR, SIDEBAR, NAV PANEL & BUTTONS
    ══════════════════════════════════════════════════════════════════ */
@@ -550,17 +595,85 @@ input[type="range"] { accent-color: var(--accent); }
 .eve-status-modal-body webview { flex: 1; width: 100%; height: 100%; }
 .status-online  { background: var(--status-online); }
 .status-offline { background: var(--status-offline); }
+/* The state the light could not previously express. ESI's /status is binary —
+   up, VIP, or unreachable — so "Tranquility is wobbling" had nowhere to show.
+   It comes from CCP's status page instead, whose `minor` indicator is exactly
+   this yellow. Uses the operational signal amber rather than a new colour: it
+   means the same thing here as it does everywhere else in the app. */
+.status-degraded { background: var(--signal-hold); }
+/* Degradation is the one state worth catching the eye — green and red are both
+   steady conditions, this one is a decision to make. */
+.sidebar-nav .status-light.status-degraded { animation: statusPulse 2s ease-in-out infinite; }
+@keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav .status-light.status-degraded { animation: none; }
+}
 
 /* ── COLLAPSED SIDEBAR MODE ── */
 .sidebar-nav.nav-collapsed .nav-label          { display: none; }
-.sidebar-nav.nav-collapsed .nav-status         { display: none; }
-/* Forums puts its status dot directly on the button (not wrapped in .nav-status
-   like Jabber), so hide it too when collapsed — otherwise it offsets the icon
-   to the left of centre. */
-.sidebar-nav.nav-collapsed .nav-btn > .status-light { display: none; }
 .sidebar-nav.nav-collapsed .nav-active-char-name { display: none; } /* hide name, keep portrait */
 .sidebar-nav.nav-collapsed .nav-btn            { justify-content: center; padding: 8px 6px; }
 .sidebar-nav.nav-collapsed .nav-icon           { min-width: auto; }
+
+/* ── Collapsed indicators: iOS-style badges on the icon ──────────────────────
+   Collapsing used to hide .nav-status outright, which silently took the four
+   things worth glancing at with it — unread mail, and whether Forums, Jabber
+   and Tranquility are up. Those are exactly the states you want while the rail
+   is narrow and you are working somewhere else.
+
+   Deliberately CSS-only. Every indicator is already in the DOM with its state on
+   it (.status-online / .status-offline, and mail's own count and class), so
+   moving it rather than re-rendering a copy means a badge cannot drift out of
+   sync with the light it mirrors — there is only ever one of each. */
+.sidebar-nav.nav-collapsed .nav-btn    { position: relative; }
+.sidebar-nav.nav-collapsed .nav-status {
+  position: absolute;
+  /* Anchored to the icon's top-right CORNER, not the button's right edge. The
+     icon is centred in a collapsed button, so 50% is its middle and +4px puts
+     the badge's left edge just inside its top-right corner — which means a
+     growing count spills outward, away from the glyph, instead of creeping back
+     across it. Anchoring by `right` grew them leftward over the icon. */
+  top: 1px;
+  left: 50%;
+  right: auto;
+  transform: translateX(4px);
+  margin: 0;
+  /* The button underneath keeps the hover target and its own tooltip; a badge
+     is a readout, never something to aim at in a 64px rail. */
+  pointer-events: none;
+}
+
+/* Tranquility reports a five-digit player count. That cannot be a bubble, and
+   the dot beside it already carries the part that matters at a glance. */
+.sidebar-nav.nav-collapsed .eve-status-count { display: none; }
+
+/* The ring is what makes a dot read as a badge sitting ON the icon rather than
+   a stray pixel next to it — it punches the sidebar's own colour back out
+   around the light. */
+.sidebar-nav.nav-collapsed .nav-status .status-light {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+
+/* Mail carries a real number, so it stays a pill and grows with the digits
+   rather than capping — a three-digit inbox is exactly when you want to see
+   the figure, and there is room for it. */
+.sidebar-nav.nav-collapsed .mail-nav-unread {
+  font-size: 9px;
+  line-height: 15px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+/* Suppress the exact count here and draw the capped one in its place. The
+   element keeps the real number as its text so the expanded rail — which has
+   room for it — is untouched. */
+.sidebar-nav.nav-collapsed .mail-nav-unread          { font-size: 0; }
+.sidebar-nav.nav-collapsed .mail-nav-unread::after   { content: attr(data-badge); font-size: 9px; }
 
 /* Narrow the whole column to icon width. The main content is flex:1, so it
    reflows wider automatically. Width animates for a smooth collapse/expand. */

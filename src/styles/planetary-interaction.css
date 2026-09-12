@@ -56,6 +56,224 @@
 }
 
 /* ── Filter bar ─────────────────────────────────────────────────── */
+/* ── Status strip ─────────────────────────────────────────────────────────────
+   A wide row of lamps above the filters, answering "is anything wrong" before
+   you have touched a control. Deliberately the same width and border language as
+   the filter bar beneath it so the two read as one header block rather than as a
+   panel someone bolted on top.
+   The lamps themselves are .sig-light from signals.css — the same component the
+   Beehive stand-down indicator uses, so a green dot means one thing app-wide. */
+.pi-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+/* Only the lamps wrap; the total keeps the end of the row. */
+.pi-stats      { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 26px;
+                 flex: 1; min-width: 0; }
+.pi-stat       { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* DESIGN.md's `stat` role — mono / 20px / 700 / 1.1. These are stat figures, so
+   they take the documented stat step rather than a size invented for this strip. */
+.pi-stat-num   { font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1.1;
+                 color: var(--value-bright); font-variant-numeric: tabular-nums; }
+/* The count is the figure; the label is what it counts. Sized apart so the row
+   scans as numbers, with the words available when you need them. */
+.pi-stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+                 color: var(--label-muted); white-space: nowrap; }
+/* A zero is not news — dim the whole stat, not just its lamp, so a clean board
+   reads as calm rather than as four bright numbers competing for attention. */
+.pi-stat:has(.sig-light.is-off) .pi-stat-num { color: var(--text-3); }
+.pi-stat-total { margin-left: auto; font-family: var(--mono); font-size: 10px;
+                 letter-spacing: 0.08em; color: var(--text-3); white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .pi-stats        { gap: 10px 18px; }
+  .pi-status-strip { padding: 9px 12px; }
+}
+
+/* ── Free planet capacity ───────────────────────────────────────────────────
+   Max planets per character is 1 + Interplanetary Consolidation, so 1..6.
+   The headline figure rides in the strip's total slot, ahead of the colony
+   count: how many colonies exist is context, how many you could still build is
+   the thing you came here to act on. The total is a flex row now because it
+   holds two figures rather than one. */
+.pi-stat-total { display: flex; align-items: baseline; gap: 10px; }
+.pi-cap-total  { color: var(--accent); font-weight: 700; letter-spacing: 0.06em; }
+.pi-cap-total + span::before { content: '·'; margin-right: 10px; color: var(--border); }
+
+/* One chip per character with room, widest opening first. Free slots belong to
+   a character rather than to a planet, so they get a compact row of their own
+   instead of placeholder colony cards -- eighteen empty cards among thirty-eight
+   real ones would have made the page read as mostly absence. */
+.pi-cap-row {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 0 4px 10px;
+  margin-top: -2px;
+  flex-shrink: 0;
+}
+.pi-cap-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+  color: var(--label-muted); white-space: nowrap;
+}
+.pi-cap-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-deep);
+  min-width: 0;
+}
+.pi-cap-name {
+  font-size: 11px; color: var(--text-2);
+  max-width: 15ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pi-cap-pips { display: inline-flex; align-items: center; gap: 3px; }
+
+/* Six discrete slots is exactly what pips are for -- no number to parse, and it
+   maps one-to-one onto the game concept. A HOLLOW accent ring is the free slot:
+   an outline reads as "empty" the way a filled dot never will, and the accent
+   makes availability the thing that catches the eye. Used slots are solid but
+   muted -- they are the part you already know about. */
+.pi-pip {
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  flex-shrink: 0;
+}
+.pi-pip.is-used { border-color: var(--text-3); background: var(--text-3); }
+
+.pi-cap-free {
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+/* Both boring outcomes still say something. An empty row reads as "not loaded"
+   just as readily as "nothing free", so neither is left to silence. */
+.pi-cap-none,
+.pi-cap-unknown { font-size: 11px; color: var(--text-3); }
+.pi-cap-unknown { border-bottom: 1px dotted var(--border); cursor: help; }
+
+/* The shortfall panel's closing line: what production needs, and whether you
+   have anywhere to put it. Green when capacity covers the gap, amber when it
+   does not -- and when it does not, it names the skill that lifts the ceiling. */
+.pi-sf-cap {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  margin: 2px 0 6px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-deep);
+  font-size: 12px; color: var(--text-2);
+}
+.pi-sf-cap.is-short { color: var(--value-bright); }
+
+/* The overflow out of the inline chip row. Reads as a count, not an ellipsis:
+   someone with forty spare slots needs to see forty. */
+.pi-cap-more {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+  color: var(--accent);
+  background: none; border: 1px dashed var(--border); border-radius: 999px;
+  padding: 3px 10px; cursor: pointer;
+}
+.pi-cap-more:hover { border-color: var(--accent); background: var(--bg-deep); }
+
+/* ── Capacity tab ───────────────────────────────────────────────────────────
+   Chips answer "who has room" for a handful of characters; this answers it for
+   a hundred, and carries the half a chip cannot: what each command centre can
+   actually hold. */
+.pi-cap-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  margin-bottom: 10px;
+}
+.pi-cap-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--text-2); cursor: pointer; white-space: nowrap;
+}
+.pi-cap-toggle input { accent-color: var(--accent); cursor: pointer; }
+.pi-cap-warn { margin-left: auto; font-size: 11px; color: var(--signal-hold); }
+
+.pi-cap-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pi-cap-table th {
+  text-align: left; padding: 6px 10px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; font-weight: 400;
+  color: var(--label-muted); border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.pi-cap-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.pi-cap-tr:hover { background: var(--bg-deep); }
+.pi-cap-td-name  { color: var(--text-1); font-weight: 500; }
+.pi-cap-td-slots { display: flex; align-items: center; gap: 9px; }
+.pi-cap-frac,
+.pi-cap-lvl      { font-family: var(--mono); font-size: 10px; color: var(--text-3);
+                   font-variant-numeric: tabular-nums; }
+/* Room is the news on this page, so the number carrying it is the accent. */
+.pi-cap-td-free  { font-family: var(--mono); font-size: 14px; font-weight: 700;
+                   color: var(--accent); font-variant-numeric: tabular-nums; }
+.pi-cap-zero     { color: var(--text-3); font-weight: 400; }
+.pi-cap-td-cc    { color: var(--text-2); white-space: nowrap; }
+.pi-cap-role     { color: var(--text-2); }
+/* A CCU-0 character is a dead end rather than a smaller working one — the row
+   should read as a problem, not as another entry in the list. */
+.pi-cap-note     { color: var(--signal-hold); font-size: 11px; }
+.pi-cap-unknown-cell { color: var(--text-3); font-style: italic; }
+.pi-cap-empty    { color: var(--text-3); text-align: center; padding: 18px 0; }
+
+/* ── Role legend ────────────────────────────────────────────────────────────
+   Doubles as the explanation of why a character with free slots can still be
+   the wrong one to put a reactor on. */
+/* The extractor estimate sits between the shortfall and the planet types: it is
+   the actionable half of a raw deficit, so it reads brighter than the advice. */
+.pi-sf-ecu {
+  font-family: var(--mono); font-size: 10px; color: var(--accent);
+  white-space: nowrap; margin-left: 14px;
+}
+.pi-cap-role-none { color: var(--text-3); }
+.pi-role-intro { font-size: 11px; color: var(--text-3); line-height: 1.5; margin: 0 0 10px; }
+.pi-role-head-row {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+  color: var(--label-muted); margin: 22px 0 8px;
+}
+.pi-role-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px;
+}
+.pi-role-card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-deep); padding: 10px 12px;
+}
+.pi-role-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pi-role-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.pi-role-tiers { font-family: var(--mono); font-size: 10px; color: var(--accent); white-space: nowrap; }
+.pi-role-what { font-size: 11px; color: var(--text-3); line-height: 1.45; margin: 6px 0 8px; }
+.pi-role-cost {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+}
+.pi-role-min  { color: var(--value-bright); white-space: nowrap; }
+.pi-role-only { margin-top: 6px; font-size: 10px; color: var(--signal-hold); }
+.pi-role-foot { margin: 12px 0 4px; font-size: 11px; color: var(--text-3); line-height: 1.5; }
+
+/* ── Planner: netted against the live network ──────────────────────────────
+   A step already covered by existing surplus still earns its row — seeing that
+   it needs nothing is the point — but it steps back out of the build order. */
+.pi-plan-row.is-covered { opacity: 0.55; }
+.pi-plan-have {
+  font-family: var(--mono); font-size: 10px; color: var(--signal-go);
+  white-space: nowrap; margin-left: auto;
+}
+.pi-plan-net {
+  font-family: var(--mono); font-size: 10px; color: var(--text-3);
+  margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--border);
+}
+
 .pi-filter-bar {
   display: flex;
   flex-direction: row;
@@ -685,3 +903,111 @@
   0%, 100% { opacity: 1;    box-shadow: 0 0 6px var(--pal-green), 0 0 2px var(--pal-green); }
   50%       { opacity: 0.55; box-shadow: 0 0 3px var(--pal-green); }
 }
+/* ── Production shortfalls (Colonies) ─────────────────────────────────────────
+   What the network cannot sustain, above the colony grid. Lamps are .sig-light
+   from signals.css — the same component as the status strip and the Beehive
+   stand-down light, so red means one thing everywhere. */
+.pi-shortfalls  { border: 1px solid var(--border); border-radius: var(--radius);
+                  background: var(--bg-deep); padding: 10px 14px; margin-bottom: 8px; }
+.pi-sf-head     { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+                  padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--border-e); }
+.pi-sf-title    { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+                  color: var(--label-muted); }
+.pi-sf-sub      { font-family: var(--mono); font-size: 9px; color: var(--text-3); }
+.pi-sf-row      { display: flex; align-items: center; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
+.pi-sf-name     { font-size: 12px; color: var(--value-bright); min-width: 150px; }
+.pi-sf-tier     { font-family: var(--mono); font-size: 9px; color: var(--text-3);
+                  border: 1px solid var(--border); border-radius: var(--radius); padding: 0 5px; }
+.pi-sf-gap      { font-family: var(--mono); font-size: 11px; color: var(--signal-stop);
+                  font-variant-numeric: tabular-nums; }
+.pi-sf-row.is-raw .pi-sf-gap { color: var(--signal-hold); }
+/* The instruction, not the diagnosis — this is the part you act on. */
+.pi-sf-fix      { margin-left: auto; font-family: var(--mono); font-size: 11px;
+                  color: var(--accent); white-space: nowrap; }
+.pi-sf-row.is-raw .pi-sf-fix { color: var(--text-2); }
+.pi-sf-foot     { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border-e);
+                  font-size: 10px; color: var(--text-3); line-height: 1.5; }
+.pi-sf-ok       { display: flex; align-items: center; gap: 9px; padding: 9px 14px;
+                  border: 1px solid var(--border); border-radius: var(--radius);
+                  background: var(--bg-deep); margin-bottom: 8px; font-size: 12px; color: var(--text-2); }
+.pi-sf-note     { padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+                  background: var(--bg-deep); margin-bottom: 8px; font-size: 11px; color: var(--text-3); }
+
+/* ── PI Planner ─────────────────────────────────────────────────────────────── */
+.pi-plan-bar    { display: flex; align-items: center; background: var(--bg-deep);
+                  border: 1px solid var(--border); border-radius: var(--radius);
+                  height: 34px; overflow: hidden; margin-bottom: 8px; flex-shrink: 0; }
+/* The caveat is not fine print. Resource richness is the one thing this tool
+   cannot know, and a planner that hid that would be lying by omission. */
+.pi-plan-caveat { display: flex; align-items: flex-start; gap: 9px; padding: 9px 12px;
+                  border: 1px solid color-mix(in srgb, var(--signal-hold) 35%, transparent);
+                  background: color-mix(in srgb, var(--signal-hold) 8%, transparent);
+                  border-radius: var(--radius); margin-bottom: 10px;
+                  font-size: 11px; line-height: 1.5; color: var(--text-2); }
+.pi-plan-caveat .material-symbols-outlined { font-size: 17px; color: var(--signal-hold); flex-shrink: 0; }
+.pi-plan-summary{ font-family: var(--mono); font-size: 11px; color: var(--text-3);
+                  margin-bottom: 10px; letter-spacing: 0.04em; }
+.pi-plan-total  { color: var(--value-bright); font-weight: 700; font-size: 13px; }
+.pi-plan-tiers  { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                  gap: 8px; margin-bottom: 14px; }
+.pi-plan-tier   { border: 1px solid var(--border); border-radius: var(--radius);
+                  background: var(--bg-card-deep); padding: 8px 10px; }
+.pi-plan-tier-head { display: flex; justify-content: space-between; align-items: baseline;
+                  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+                  color: var(--accent); padding-bottom: 5px; margin-bottom: 4px;
+                  border-bottom: 1px solid var(--border-e); }
+.pi-plan-tier-n { color: var(--text-3); letter-spacing: 0; }
+.pi-plan-row    { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; }
+.pi-plan-count  { font-family: var(--mono); font-size: 12px; font-weight: 700;
+                  color: var(--value-bright); min-width: 34px; font-variant-numeric: tabular-nums; }
+.pi-plan-name   { flex: 1; min-width: 0; font-size: 12px; color: var(--text-1);
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pi-plan-rate   { font-family: var(--mono); font-size: 10px; color: var(--text-3);
+                  font-variant-numeric: tabular-nums; }
+.pi-plan-raw-head { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
+                  color: var(--label-muted); margin-bottom: 6px; }
+.pi-plan-raw    { border: 1px solid var(--border); border-radius: var(--radius);
+                  background: var(--bg-card-deep); padding: 8px 10px; margin-bottom: 6px; }
+.pi-plan-raw-top{ display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.pi-plan-ptypes { font-family: var(--mono); font-size: 9px; color: var(--text-3);
+                  letter-spacing: 0.05em; margin-left: auto; }
+.pi-plan-site   { margin-top: 6px; font-size: 12px; }
+.pi-plan-site-name { color: var(--signal-go); font-weight: 600; }
+.pi-plan-site-meta { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin-left: 8px; }
+.pi-plan-site.is-none { color: var(--text-3); font-size: 11px; font-style: italic; }
+/* Alternatives, because the first pick may scan badly and starting over is the
+   worst possible answer to that. */
+.pi-plan-alts   { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
+.pi-plan-alt-label { font-size: 10px; color: var(--text-3); font-style: italic; }
+.pi-plan-alt    { font-family: var(--mono); font-size: 10px; color: var(--text-2);
+                  border: 1px solid var(--border-e); border-radius: var(--radius); padding: 1px 7px; }
+.pi-plan-alt i  { color: var(--text-3); font-style: normal; margin-left: 5px; }
+
+/* ── Commodity icons ──────────────────────────────────────────────────────────
+   The item art carries the tier and the family faster than the name does — you
+   recognise a Camera Drone before you finish reading it. Decorative only: every
+   icon sits beside its written name, never instead of one. */
+.pi-ico        { width: 22px; height: 22px; flex-shrink: 0; border-radius: 3px;
+                 background: var(--bg-deep); }
+.pi-plan-row .pi-ico { width: 20px; height: 20px; }
+
+/* ── System chips — click to fly there ────────────────────────────────────────
+   Left-click, not right-click: a destination you cannot find is not a shortcut.
+   Sends the waypoint to the SAME character the jump counts are measured from. */
+.pi-sys-chip   { display: inline-flex; align-items: center; gap: 7px;
+                 background: none; border: 1px solid var(--border-e);
+                 border-radius: var(--radius); padding: 3px 9px; cursor: pointer;
+                 font-family: var(--mono); font-size: 11px; color: var(--text-2);
+                 transition: border-color 0.15s, color 0.15s, background-color 0.15s; }
+.pi-sys-chip:hover        { border-color: var(--accent); color: var(--accent);
+                            background: var(--accent-08); }
+.pi-sys-chip .pi-sys-ico  { font-size: 13px; opacity: 0.7; }
+.pi-sys-chip:hover .pi-sys-ico { opacity: 1; }
+.pi-sys-name   { font-weight: 600; }
+.pi-sys-meta   { color: var(--text-3); font-size: 10px; }
+.pi-sys-chip:hover .pi-sys-meta { color: var(--accent); opacity: 0.8; }
+/* The recommended site reads as the answer; the alternatives as the fallbacks. */
+.pi-sys-chip.is-best            { border-color: color-mix(in srgb, var(--signal-go) 45%, transparent); }
+.pi-sys-chip.is-best .pi-sys-name { color: var(--signal-go); }
+.pi-sys-chip.is-best:hover      { border-color: var(--accent); }
+.pi-sys-chip.is-best:hover .pi-sys-name { color: var(--accent); }

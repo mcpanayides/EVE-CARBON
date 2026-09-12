@@ -88,3 +88,6 @@ graphify-out/*
 # documentation now (CLAUDE.md already points agents at wiki/index.md), so it
 # has to be readable from a fresh clone rather than living on one machine.
 !graphify-out/wiki/
+
+# Python bytecode from scripts/
+__pycache__/

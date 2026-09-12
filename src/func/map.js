@@ -972,7 +972,12 @@ let _accentCol = '';
 function _refreshThemeVars() {
   const cs = getComputedStyle(document.documentElement);
   _fontStack = cs.getPropertyValue('--mono').trim()   || 'monospace';
-  _accentCol = cs.getPropertyValue('--accent').trim() || '#e0483a';
+  // Fallback matches theme-default.css's --accent (the `main` swatch). It was
+  // still the old crimson after main and negative were split, so a canvas that
+  // failed to resolve the var would have drawn in a colour the app no longer
+  // uses anywhere — and silently, since this is the path that exists for exactly
+  // that failure.
+  _accentCol = cs.getPropertyValue('--accent').trim() || '#e6a5e6';
 }
 function _monoStack() {
   if (!_fontStack) _refreshThemeVars();

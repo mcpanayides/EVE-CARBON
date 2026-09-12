@@ -45,6 +45,27 @@ body.glass-on { background-color: rgba(var(--glass-tint-rgb), var(--glass-bg-alp
 .pw-btn.pinned { color: var(--accent); border-color: var(--accent-30, rgba(192,57,43,0.3)); }
 .pw-btn .material-symbols-outlined { font-size: 15px; }
 
+/* ── Nano mode ──────────────────────────────────────────────────────────────
+   The whole window becomes its own title bar, to park over the game. Nothing
+   here changes the expanded look: every rule is scoped to body.nano. */
+.pw-nano-light { display: none; }
+body.nano .pw-nano-light {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  -webkit-app-region: drag;   /* part of the bar, not a target */
+}
+/* The lamp is sized for a widget body; in a title bar it is a full stop. */
+body.nano .pw-nano-light .sig-light { width: 8px; height: 8px; }
+
+body.nano .pw-content   { display: none; }
+/* No content beneath it any more, so the rule under the bar would be an edge
+   floating on nothing. */
+body.nano .pw-titlebar  { border-bottom: none; padding: 5px 6px 5px 11px; gap: 7px; }
+body.nano .pw-title     { font-size: 10px; letter-spacing: 0.08em; }
+body.nano .pw-btn       { width: 22px; height: 22px; border-radius: 6px; }
+body.nano .pw-btn .material-symbols-outlined { font-size: 14px; }
+
 .pw-content {
   flex: 1; min-height: 0;
   overflow-y: auto;

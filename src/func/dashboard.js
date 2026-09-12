@@ -555,6 +555,98 @@ const DASHBOARD_WIDGETS = {
       apply: (instId, value) => _setKillScope(instId, value),
     },
   },
+
+  // Chronological killmails for one subject — your whole roster, one character,
+  // or ANY corporation looked up by name or ticker. Distinct from killTicker
+  // above, which is a marquee of your most VALUABLE kills: this one is ordered
+  // by time and answers "what just happened". Rendered by dashboard-killfeed.js;
+  // rows come from the same cached zKill fetch the Killboard page uses.
+  killFeed: {
+    icon: 'skull', title: 'KILLFEED', multi: true,
+    // Tall by default because a feed of four rows is a status line, not a feed.
+    w: 4, h: 14, minW: 3, minH: 6,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+    titleOf: (instId) => kfTitle(instId),
+    pick: {
+      heading: 'Whose killmails?',
+      empty:   'Add a character, or search for a corporation.',
+      options: async () => kfOptions(),
+      search:  {
+        // Says "full name" because this is exact-match, not type-ahead — see
+        // kfSearchCorps for why a prefix search is not available to us.
+        placeholder: 'Corporation — full name or ticker…',
+        empty:       'No corporation by that exact name or ticker.',
+        run:         (q) => kfSearchCorps(q),
+      },
+      apply: (instId, value, label) => kfSetSubject(instId, value, label),
+    },
+  },
+
+  // ── Faction Warfare (rendered by src/func/dashboard-fw.js) ─────────────────
+  // Public ESI, so these are offered to everyone: no militia, character or scope
+  // is needed to read them, and someone deciding whether to enlist wants the
+  // warzone on their dashboard more than someone already in it.
+  //
+  // All three are `multi` because all three answer a question with more than one
+  // right answer — kills or victory points, this warzone or that one — and the
+  // registry's rule is that what a widget shows belongs to the instance you
+  // added, not to a control eating a row of a tile that is already small.
+  // `titleOf` is what makes that liveable: two of the same widget side by side
+  // have to be tellable apart from their headers.
+  fwBoard: {
+    // `title` is the ADD-MENU label only — all three of these carry a titleOf,
+    // which names the tile after the board or warzone it was pointed at once it
+    // is on the grid. The "FW - " prefix groups them in a menu of twenty widgets
+    // where "TOP PILOTS" alone does not say which feature it belongs to (and sits
+    // near "TOP KILLS · 90 DAYS", which is a different thing entirely).
+    icon: 'military_tech', title: 'FW - TOP PILOTS', multi: true,
+    // h:11 is measured, not guessed: five rows plus the subtitle come to ~152px
+    // of body, and h:10 leaves the fifth pilot needing a scroll on a tile that
+    // has just been added. See e2e/widget-fit.spec.js.
+    w: 3, h: 11, minW: 2, minH: 5,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+    titleOf: (instId) => fwWBoardTitle(instId),
+    pick: {
+      heading: 'Which leaderboard?',
+      empty:   'Faction Warfare leaderboards are unavailable.',
+      options: async () => fwWBoardOptions(),
+      apply:   (instId, value) => _fwWSetPick('fwBoard', instId, value),
+    },
+  },
+  fwSystems: {
+    icon: 'swords', title: 'FW - CAPTURE PRESSURE', multi: true,
+    w: 4, h: 10, minW: 2, minH: 5,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+    titleOf: (instId) => fwWSystemsTitle(instId),
+    pick: {
+      heading: 'Which warzone?',
+      empty:   'Faction Warfare systems are unavailable.',
+      options: async () => fwWSystemsOptions(),
+      apply:   (instId, value) => _fwWSetPick('fwSystems', instId, value),
+    },
+  },
+  fwTug: {
+    icon: 'compare_arrows', title: 'FW - WARZONES', multi: true,
+    // Wider than the others by default: this one only reads as a tug of war when
+    // both militias' names and the rope between them fit on one line.
+    //
+    // minH 8, not 7. Unlike the two lists beside it this is a card, and a card
+    // that does not fit is not a shorter card — it is a rope with its result cut
+    // off the bottom. At seven rows the push line was clipped by 4px however hard
+    // the container queries compacted it (measured in e2e/widget-fit.spec.js), so
+    // the floor is set where the smallest USEFUL form of it fits. h:11 is the
+    // height at which the kill and pilot counts survive too.
+    w: 5, h: 11, minW: 3, minH: 8,
+    body: '<div class="dashboard-widget-loading">Loading…</div>',
+    titleOf: (instId) => fwWTugTitle(instId),
+    pick: {
+      heading: 'Which warzone?',
+      empty:   'Faction Warfare stats are unavailable.',
+      options: async () => fwWTugOptions(),
+      apply:   (instId, value) => _fwWSetPick('fwTug', instId, value),
+    },
+  },
+
   // NOTE: the incursion alert is intentionally NOT a grid widget — it is an
   // always-on banner pinned above the grid (#allianceIncursionAlert in
   // pageLoader.js) that only appears when an incursion is active.
@@ -597,12 +689,20 @@ function _makeDashItemEl({ id, x, y, w, h }) {
   el.setAttribute('gs-h', h || def.h);
   if (def.minW) el.setAttribute('gs-min-w', def.minW);
   if (def.minH) el.setAttribute('gs-min-h', def.minH);
+  // A `multi` widget whose instances show different things names its own subject
+  // in the header (registry `titleOf`), because two identically-titled tiles side
+  // by side are unreadable. It resolves from the saved pick, so it survives a
+  // reload; a widget without one keeps its fixed title. Escaped because unlike
+  // `title` this is derived at runtime.
+  let title = def.title;
+  try { if (typeof def.titleOf === 'function') title = def.titleOf(id) || def.title; }
+  catch (_) { /* a bad pick must not stop the grid building */ }
   el.innerHTML = `
     <div class="grid-stack-item-content">
       <div class="dashboard-panel dnd-panel" data-widget-id="${id}" data-widget-base="${_widgetBase(id)}">
         <div class="dashboard-panel-title dnd-handle">
           ${def.icon ? `<span class="material-symbols-outlined dashboard-widget-icon">${def.icon}</span>` : ''}
-          <span class="dashboard-widget-title-text">${def.title}</span>
+          <span class="dashboard-widget-title-text">${escHtml(title)}</span>
           <span class="dnd-grip">⠿</span>
           <button class="dashboard-widget-popout" title="Pop out as floating widget"
                   onclick="popOutDashboardWidget('${id}')">
@@ -704,8 +804,12 @@ function addDashboardWidget(id, config = null) {
   const instId = def.multi ? _newInstanceId(id) : id;
   // The choice made in the add menu is stored against the new instance BEFORE
   // the widget renders, so its first paint already shows the right thing.
+  // The label goes with the value. A searched subject — a corporation you looked
+  // up — has a name that came from ESI at pick time and nothing on the grid can
+  // recover it later without another round trip, so the picker hands it over and
+  // the widget stores both.
   if (config && config.value != null && typeof def.pick?.apply === 'function') {
-    def.pick.apply(instId, config.value);
+    def.pick.apply(instId, config.value, config.label);
   }
   const el = _makeDashItemEl({ id: instId });
   document.getElementById('dashboardGrid').appendChild(el);
@@ -722,6 +826,8 @@ function removeDashboardWidget(id) {
   if (_widgetBase(id) === 'jobWatch')   _setJobWatch(id, null);     // drop its saved selection
   if (_widgetBase(id) === 'charWallet') _setCharWallet(id, null);   // drop its saved character
   if (_widgetBase(id) === 'killTicker') _setKillScope(id, null);    // drop its saved scope
+  fwWForgetPick(id);                                                // FW tiles: drop their saved subject
+  kfForgetSubject(id);                                              // Killfeed: drop its saved subject
   _saveDashLayout();
 }
 
@@ -924,16 +1030,17 @@ async function dashWidgetPickMenu(key, e) {
     menu.innerHTML = '<div class="dashboard-add-empty">Could not load the list — try again.</div>';
     return;
   }
-  if (!options.length) {
+  // A picker with a search box has something to offer even with no ready-made
+  // options: an empty roster still lets you look up a corporation.
+  if (!options.length && !def.pick.search) {
     menu.innerHTML = `<div class="dashboard-add-empty">${escHtml(def.pick.empty || 'Nothing to pick.')}</div>`;
     return;
   }
 
-  // Built as DOM, not innerHTML: option labels carry character and item names,
-  // which have no business being parsed as markup or squeezed into an inline
-  // onclick handler.
-  menu.innerHTML = `<div class="dashboard-add-heading">${escHtml(def.pick.heading)}</div>`;
-  for (const opt of options) {
+  // Built as DOM, not innerHTML: option labels carry character, corporation and
+  // item names, which have no business being parsed as markup or squeezed into
+  // an inline onclick handler.
+  const optionButton = (opt) => {
     const btn = document.createElement('button');
     btn.className = 'dashboard-add-item';
     const icon = document.createElement('span');
@@ -943,9 +1050,73 @@ async function dashWidgetPickMenu(key, e) {
     label.textContent = opt.label;
     btn.append(icon, label);
     btn.title = opt.label;
-    btn.addEventListener('click', () => addDashboardWidget(key, { value: opt.value }));
-    menu.appendChild(btn);
+    // A search can answer with an explanation instead of a result — "that is an
+    // alliance, not a corporation". It reads as a row but must not add a widget.
+    if (opt.disabled) {
+      btn.disabled = true;
+      btn.classList.add('is-note');
+      return btn;
+    }
+    btn.addEventListener('click', () => addDashboardWidget(key, { value: opt.value, label: opt.label }));
+    return btn;
+  };
+
+  menu.innerHTML = `<div class="dashboard-add-heading">${escHtml(def.pick.heading)}</div>`;
+
+  // ── Optional search ────────────────────────────────────────────────────────
+  // Some subjects cannot be listed in advance. Your characters can — there are
+  // three of them; EVE's corporations cannot. So a picker may declare a `search`
+  // and get a box above its static options.
+  let results = null;
+  if (def.pick.search) {
+    const wrap = document.createElement('div');
+    wrap.className = 'dash-pick-search';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'field-input';
+    input.placeholder = def.pick.search.placeholder || 'Search…';
+    // The menu closes on the next click anywhere outside it; typing in here is
+    // inside it, but the click that focuses the box would otherwise bubble up to
+    // the toolbar handler that opened the menu in the first place.
+    input.addEventListener('click', (ev) => ev.stopPropagation());
+    wrap.appendChild(input);
+    menu.appendChild(wrap);
+
+    results = document.createElement('div');
+    results.className = 'dash-pick-results';
+    menu.appendChild(results);
+
+    // Debounced, and every run is stamped: a slow lookup for "goo" must not
+    // overwrite the finished one for "goonwaffe" when it finally lands.
+    let timer = null, run = 0;
+    const search = async () => {
+      const q = input.value.trim();
+      const mine = ++run;
+      if (q.length < 3) { results.innerHTML = ''; return; }
+      results.innerHTML = '<div class="dashboard-add-empty">Searching…</div>';
+      let found = [];
+      try { found = await def.pick.search.run(q); }
+      catch (err) {
+        if (mine !== run) return;
+        results.innerHTML = '<div class="dashboard-add-empty">Search failed — try again.</div>';
+        return;
+      }
+      if (mine !== run) return;
+      results.innerHTML = '';
+      if (!found.length) {
+        results.innerHTML = `<div class="dashboard-add-empty">${escHtml(def.pick.search.empty || 'Nothing found.')}</div>`;
+        return;
+      }
+      found.forEach(opt => results.appendChild(optionButton(opt)));
+    };
+    input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 320); });
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(timer); search(); }
+    });
+    setTimeout(() => input.focus(), 0);
   }
+
+  options.forEach(opt => menu.appendChild(optionButton(opt)));
 }
 
 function toggleAddWidgetMenu(e) {
@@ -995,10 +1166,12 @@ async function _checkBeehiveGoon() {
 // pair most commonly confused, so the state is always spelled out in words too.
 function _beehiveMeta(status) {
   switch (status) {
-    case 'green':  return { color: 'var(--signal-go)',   label: 'RUNNING',    sub: 'Up and running — good to go' };
-    case 'yellow': return { color: 'var(--signal-hold)', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
-    case 'red':    return { color: 'var(--signal-stop)', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
-    default:       return { color: 'var(--text-3)',      label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
+    // `sig` is the lamp class (signals.css); `color` still drives the text label
+    // beside it, which is set inline because it varies per status.
+    case 'green':  return { sig: 'sig-go',   color: 'var(--signal-go)',   label: 'RUNNING',    sub: 'Up and running — good to go' };
+    case 'yellow': return { sig: 'sig-hold', color: 'var(--signal-hold)', label: 'HOLDING',    sub: 'Holding pattern — finishing active beacons' };
+    case 'red':    return { sig: 'sig-stop', color: 'var(--signal-stop)', label: 'STAND DOWN', sub: 'Beacons are not running — stand down' };
+    default:       return { sig: 'is-off',   color: 'var(--text-3)',      label: 'UNKNOWN',    sub: 'No live MOTD — assume stand down until confirmed' };
   }
 }
 
@@ -1012,7 +1185,7 @@ function renderBeehiveWidget() {
   const esc    = (typeof escHtml === 'function') ? escHtml : (s => s);
   el.innerHTML = `
     <div class="beehive-widget beehive-${status}">
-      <span class="beehive-light" style="background:${m.color};box-shadow:0 0 14px ${m.color},0 0 4px ${m.color};"></span>
+      <span class="sig-light beehive-light ${m.sig}"></span>
       <div class="beehive-info">
         <div class="beehive-label" style="color:${m.color};">${m.label}</div>
         <div class="beehive-sub">${esc(m.sub)}</div>
@@ -1662,6 +1835,10 @@ async function loadDashboard() {
   if (document.getElementById('dashboardBeehiveWidget')) initBeehiveWidget();
   // Same for early warning: local intel, no ESI needed.
   if (document.getElementById('dashboardEarlyWarning')) initEarlyWarningWidget();
+  // Faction Warfare tiles read PUBLIC ESI, so they don't wait on the account
+  // list or a sync the way the wealth/jobs sections below do. The popped-out
+  // host counts: a tile floating over the game is still a tile to keep current.
+  if (document.querySelector('#dashboardGrid [data-widget-base^="fw"], #dashPopoutHost [data-widget-base^="fw"]')) initFwWidgets();
 
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
   const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
@@ -2201,6 +2378,12 @@ async function loadDashboard() {
     catch (e) { console.error('[dashboard] Top Kills widget failed:', e); }
   })();
 
+  // ── Section 13: Killfeeds (optional, multi-instance) ─────────────────────
+  (async () => {
+    try { initKillFeedWidgets(accounts); }
+    catch (e) { console.error('[dashboard] Killfeed widget failed:', e); }
+  })();
+
   // Update ping panel live when a new Jabber message arrives.
   // Guard prevents duplicate listeners across repeated loadDashboard() calls.
   if (!_pingListenerRegistered) {
@@ -2323,16 +2506,24 @@ function _renderWealthGrowth(container, d, compact = false) {
     borderWidth: 1.5, borderDash: [], pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0.3,
   }));
 
-  // Total line: the palette's red (--chart-1), solid, dot at every point
+  // Total line: the app's MAIN colour, solid, dot at every point.
+  //
+  // It used to be --chart-1, which is --pal-red — the Negative swatch. That made
+  // the headline "everything you own, growing" line the same colour the app uses
+  // for losses and alerts, and it only ever looked deliberate because accent and
+  // danger were the same colour. Growing net worth is not a loss.
+  //
+  // --accent doesn't collide with the character lines either: those take
+  // --chart-2..7 and never used chart-1.
   if (top.length > 1) {
-    const TOTAL_RED  = getCSSVar('--chart-1') || '#ff2010';
-    const TOTAL_GLOW = (window.ThemeVars && TOTAL_RED.startsWith('#'))
-      ? window.ThemeVars.hexToRgba(TOTAL_RED, 0.45) : 'rgba(255,32,16,0.45)';
+    const TOTAL      = getCSSVar('--accent') || '#e6a5e6';
+    const TOTAL_GLOW = (window.ThemeVars && TOTAL.startsWith('#'))
+      ? window.ThemeVars.hexToRgba(TOTAL, 0.45) : 'rgba(230,165,230,0.45)';
     charDatasets.push({
       label: 'Total',
       data: growthFactors.map(f => Math.round(d.grandTotal * f)),
-      borderColor: TOTAL_RED, borderWidth: 2, borderDash: [],
-      pointBackgroundColor: TOTAL_RED, pointBorderColor: TOTAL_GLOW, pointBorderWidth: 3,
+      borderColor: TOTAL, borderWidth: 2, borderDash: [],
+      pointBackgroundColor: TOTAL, pointBorderColor: TOTAL_GLOW, pointBorderWidth: 3,
       pointRadius: 4, pointHoverRadius: 7, fill: false, tension: 0.3, _isTotal: true,
     });
   }
@@ -2648,24 +2839,18 @@ async function renderDashboardPIWidget(container, accounts) {
 
   const now = Date.now();
 
-  // Categorise every colony using the same logic as the PI page
-  let nActive = 0, nWarning = 0, nIdle = 0;
+  // Categorised by piTally() on the PI page — ONE tally for both surfaces. This
+  // used to be a second copy carrying a comment that promised it used "the same
+  // logic as the PI page", with nothing enforcing it. The two had already
+  // drifted: this one parsed storage_json and the page's did not.
+  const tally  = piTally(allColonies, now);
+  const nActive = tally.extracting, nWarning = tally.storageFull, nIdle = tally.idle;
+
   const soonExpiring = []; // colonies expiring within 24h, sorted soonest first
-
   allColonies.forEach(col => {
-    const expiresAt   = col.extractor_expires_at;
-    const storageArr  = Array.isArray(col.storage) ? col.storage
-                      : (col.storage_json ? JSON.parse(col.storage_json) : []);
-    const storageFull = storageArr.some(s => s.fill_pct >= 90);
-
-    if (expiresAt && expiresAt > now) {
-      nActive++;
-      const hoursLeft = (expiresAt - now) / 3_600_000;
-      if (hoursLeft <= 24) soonExpiring.push({ col, expiresAt });
-    } else if (storageFull) {
-      nWarning++;
-    } else {
-      nIdle++;
+    const expiresAt = col.extractor_expires_at;
+    if (expiresAt && expiresAt > now && (expiresAt - now) <= 24 * 3_600_000) {
+      soonExpiring.push({ col, expiresAt });
     }
   });
 
@@ -2709,19 +2894,17 @@ async function renderDashboardPIWidget(container, accounts) {
     </div>
 
     <!-- Status counts (stack vertically when the widget is narrow) -->
+    <!-- The same lamps the Planetary Networks page uses (.sig-light, signals.css),
+         so a green dot means one thing whichever screen you are on. Colour is
+         never the only cue: every lamp carries its word. -->
     <div class="dash-pi-counts">
+      ${[['go', nActive, 'EXTRACTING'], ['hold', nWarning, 'STORAGE FULL'], ['stop', nIdle, 'IDLE']]
+        .map(([kind, n, label]) => `
       <div class="dash-pi-count">
-        <div class="dash-pi-count-num" style="color:#4ecbb0;">${nActive}</div>
-        <div class="dash-pi-count-label">EXTRACTING</div>
-      </div>
-      <div class="dash-pi-count">
-        <div class="dash-pi-count-num" style="color:${nWarning > 0 ? 'var(--pal-gold)' : 'var(--text-3)'};">${nWarning}</div>
-        <div class="dash-pi-count-label">STORAGE FULL</div>
-      </div>
-      <div class="dash-pi-count">
-        <div class="dash-pi-count-num" style="color:${nIdle > 0 ? 'var(--text-2)' : 'var(--text-3)'};">${nIdle}</div>
-        <div class="dash-pi-count-label">IDLE</div>
-      </div>
+        <span class="sig-light sig-${kind}${n > 0 ? '' : ' is-off'}"></span>
+        <div class="dash-pi-count-num">${n}</div>
+        <div class="dash-pi-count-label">${label}</div>
+      </div>`).join('')}
     </div>
 
     <!-- Expiring soon -->

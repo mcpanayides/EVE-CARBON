@@ -67,11 +67,41 @@
     return hslToHex(h, s, Math.min(100, l + frac * 100));
   }
 
+  // The dark companion for a colour that is used as a BACKGROUND with the colour
+  // itself as the text on top — `.panel-count` is `background: var(--accent-dim);
+  // color: var(--accent)`.
+  //
+  // This lands on a FIXED lightness rather than subtracting a fixed amount,
+  // because the role needs a guaranteed dark backdrop, not a guaranteed step.
+  // darken(x, 0.25) only ever produced one because the original accent was a
+  // mid-lightness crimson (L55 → L30). Run the same call on a pastel accent at
+  // L75 and it lands at L50, where the accent-coloured text on it stops being
+  // readable — so every light accent anyone picked would have quietly failed.
+  // L30 is the lightness the old hand-tuned #7d201a already sat at.
+  function dimOf(hex) {
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return hex;
+    const [h, s] = hexToHsl(hex);
+    return hslToHex(h, s, 30);
+  }
+
   // ── Full palette (Carbon/Sirius-style slots) → CSS variable map ────────────
 
   function buildCssVars(palette, roles) {
     const p = palette;
-    const a = p[roles?.accent || 'red'];   // the accent slot for this theme
+
+    // Which slot fills the primary-accent role.
+    //
+    // `main` is the slot that exists for this and nothing else. It was split out
+    // of `red` because the two were the same slot: `accent` and `danger` both
+    // pointed at it, so ~470 of the app's ~635 colour references — every icon,
+    // hover, focus ring, nav highlight and banner glow — moved whenever somebody
+    // adjusted the colour that is supposed to mean "you lost a ship".
+    //
+    // The fallback chain is the compatibility story. A theme written before the
+    // split names `red` here and still gets `red`, so it looks exactly as it did;
+    // one that names `main` but predates the swatch falls through to `red` too,
+    // rather than rendering greyed-out from an undefined slot.
+    const a = p[roles?.accent] || p.main || p.red;
 
     return {
       // Teal / danger alpha helpers (character sync button states)
@@ -82,7 +112,9 @@
 
       // Primary accent (driven by roles.accent)
       '--accent':          a?.base,
-      '--accent-dim':      a?.dim,
+      // dimOf, not the slot's own `dim`: this one is a background that carries
+      // --accent as its text, so it has a contrast floor the other dims do not.
+      '--accent-dim':      dimOf(a?.base) || a?.dim,
       '--accent-glow':     a?.glow       || hexToRgba(a?.base, 0.18),
       '--accent-03':       hexToRgba(a?.base, 0.03),
       '--accent-04':       hexToRgba(a?.base, 0.04),
@@ -226,10 +258,18 @@
   // ── Simplified user theme (16 swatches) → CSS variable map ─────────────────
 
   function buildCssVarsFromCustom(sw, roles) {
-    const accent = sw[roles?.accent || 'red'] || sw.red;
+    // Same fallback chain as buildCssVars, for the same reason: a theme saved
+    // before the main/negative split has no `main` swatch and names `red` as its
+    // accent, and must keep looking exactly as its author left it.
+    const accent = sw[roles?.accent] || sw.main || sw.red;
+    // And when there is no `main` swatch at all, the derived slot mirrors the
+    // accent rather than being built from undefined — hexToHsl would hand back a
+    // neutral grey and the theme would come out desaturated for no visible reason.
+    const main   = sw.main || accent;
 
-    // Derive a minimal full-palette structure from the 16 swatches
+    // Derive a minimal full-palette structure from the swatches
     const derived = {
+      main:      { base: main,         bright: lighten(main, 0.08),        dim: dimOf(main),               glow: hexToRgba(main, 0.22),         border: hexToRgba(main, 0.25),   subtle: hexToRgba(main, 0.08) },
       red:       { base: sw.red,       bright: lighten(sw.red, 0.10),      dim: darken(sw.red, 0.25),      glow: hexToRgba(sw.red, 0.22),       border: hexToRgba(sw.red, 0.25), subtle: hexToRgba(sw.red, 0.08) },
       teal:      { base: sw.teal,      bright: lighten(sw.teal, 0.10),     dim: darken(sw.teal, 0.20),     glow: hexToRgba(sw.teal, 0.30) },
       purple:    { base: sw.purple,    bright: lighten(sw.purple, 0.08),   dim: darken(sw.purple, 0.20) },
@@ -334,7 +374,7 @@
   }
 
   return {
-    hexToRgba, hexToHsl, hslToHex, darken, lighten,
+    hexToRgba, hexToHsl, hslToHex, darken, lighten, dimOf,
     buildCssVars, buildCssVarsFromCustom,
     varsToCss, buildThemeCssFileText, parseThemeCssMeta,
   };

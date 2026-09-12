@@ -10,6 +10,12 @@
 
 const { ESI_BASE } = require('../app_ident');   // one definition — src/shared/esi.js
 
+// The two skills that decide what a character can do with PI. Verified against
+// the SDE rather than typed from memory: a name search for either also matches
+// a Skill Accelerator booster, which is not a skill.
+const IC_SKILL_ID  = 2495;   // Interplanetary Consolidation -> planets = 1 + level
+const CCU_SKILL_ID = 2505;   // Command Center Upgrades      -> command centre tier
+
 // ─── PI storage-type registry ─────────────────────────────────────────────────
 // Built dynamically from the SDE at first sync so every planet-specific
 // launchpad/storage-facility type ID is covered automatically.
@@ -174,6 +180,124 @@ function registerPIHandlers({
       storage: row.storage_json ? JSON.parse(row.storage_json) : [],
     }));
   });
+
+  // ── pi-capacities ───────────────────────────────────────────────────────────
+  // Planet slots and command-centre tier for MANY characters in one call.
+  //
+  // Deliberately batched. The renderer used to ask per character and pull the
+  // whole skill list each time, to tell "trained to zero" from "never synced" by
+  // the row count. Correct, but it is one IPC round-trip and ~300 rows per
+  // character on every visit to the page -- and people run PI on dozens of alts.
+  // This asks once and returns four numbers each.
+  //
+  //   ic     Interplanetary Consolidation  -> planets = 1 + level
+  //   ccu    Command Center Upgrades       -> command centre tier, so what a
+  //                                           planet can physically hold
+  //   synced false when the character has no skill rows at all, which the page
+  //          must show as unknown rather than guessing zero
+  ipcHandle('pi-capacities', async (_event, characterIds) => {
+    const ids = Array.isArray(characterIds) ? characterIds : [];
+    const out = {};
+    await Promise.all(ids.map(async (id) => {
+      const cid = Number(id);
+      if (!Number.isFinite(cid)) return;
+      const { levels, total } = await charInfoDb.getSkillProfile(cid, [IC_SKILL_ID, CCU_SKILL_ID]);
+      out[cid] = {
+        ic:     levels[IC_SKILL_ID]  || 0,
+        ccu:    levels[CCU_SKILL_ID] || 0,
+        synced: total > 0,
+      };
+    }));
+    return out;
+  });
+
+  // ── pi-schematics ───────────────────────────────────────────────────────────
+  // The P0→P4 recipe graph. Small (68 schematics, ~200 rows) and immutable
+  // between SDE updates, so it is sent whole and indexed once in the renderer.
+  //
+  // Returns null when the tables are absent, which is the state every install
+  // is in until its next SDE update — the pages check for that and say so
+  // rather than rendering an empty production model as though it were the truth.
+  ipcHandle('pi-schematics', async () => {
+    const sde = getSdeDb ? getSdeDb() : null;
+    if (!sde) return null;
+    try {
+      const [schematics, typeMap] = await Promise.all([
+        sde.all('SELECT schematicID, schematicName, cycleTime FROM planetSchematics'),
+        sde.all('SELECT schematicID, typeID, quantity, isInput FROM planetSchematicsTypeMap'),
+      ]);
+      if (!schematics.length) return null;
+      return { schematics, typeMap };
+    } catch (_) {
+      return null;    // pre-schematics SDE: the table does not exist yet
+    }
+  });
+
+  // ── pi-planet-candidates ────────────────────────────────────────────────────
+  // Planets of the requested types within N jumps of an origin system.
+  //
+  // The jump graph is walked LOCALLY, from mapSolarSystemJumps. The PI page's
+  // existing distance helper asks ESI /route/ once per destination, which is
+  // fine for the dozen systems you already have colonies in and hopeless here:
+  // a five-jump radius is hundreds of systems, and the planner would spend the
+  // shared ESI error budget to compute something the SDE can answer offline.
+  //
+  // What this CANNOT do is say whether a planet is rich. Nothing can — see
+  // PiModel.SURVEY_CAVEAT. It answers "the right kind of planet, near you".
+  ipcHandle('pi-planet-candidates', async (_event, { originSystemId, maxJumps = 5, planetTypes = [] }) => {
+    const sde = getSdeDb ? getSdeDb() : null;
+    if (!sde || !originSystemId) return [];
+
+    const jumps = await getJumpGraph(sde);
+    const dist = new Map([[Number(originSystemId), 0]]);
+    let frontier = [Number(originSystemId)];
+    for (let d = 1; d <= maxJumps && frontier.length; d++) {
+      const next = [];
+      for (const sys of frontier) {
+        for (const nb of (jumps.get(sys) || [])) {
+          if (dist.has(nb)) continue;
+          dist.set(nb, d);
+          next.push(nb);
+        }
+      }
+      frontier = next;
+    }
+    if (!dist.size) return [];
+
+    // "Planet (Temperate)" is how the SDE names them; match on the word.
+    const wanted = planetTypes.map(t => String(t).toLowerCase());
+    const ids = [...dist.keys()];
+    const rows = await sde.all(
+      `SELECT d.itemID AS planetId, d.itemName AS planetName, d.solarSystemID AS systemId,
+              s.solarSystemName AS systemName, s.security, t.typeName AS planetType
+         FROM mapDenormalize d
+         JOIN invTypes t        ON t.typeID = d.typeID
+         JOIN mapSolarSystems s ON s.solarSystemID = d.solarSystemID
+        WHERE d.groupID = 7 AND d.solarSystemID IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+
+    return rows
+      .map(r => ({ ...r, planetType: String(r.planetType).replace(/^Planet \(|\)$/g, '').toLowerCase(),
+                   jumps: dist.get(r.systemId) }))
+      .filter(r => !wanted.length || wanted.includes(r.planetType))
+      .sort((a, b) => a.jumps - b.jumps || a.systemName.localeCompare(b.systemName));
+  });
+}
+
+// Adjacency built once per session — 13,978 edges, and the planner re-queries it
+// on every parameter change.
+let _jumpGraph = null;
+async function getJumpGraph(sde) {
+  if (_jumpGraph) return _jumpGraph;
+  const rows = await sde.all('SELECT fromSolarSystemID f, toSolarSystemID t FROM mapSolarSystemJumps');
+  const g = new Map();
+  for (const { f, t } of rows) {
+    if (!g.has(f)) g.set(f, []);
+    g.get(f).push(t);
+  }
+  _jumpGraph = g;
+  return g;
 }
 
 // ─── Core sync logic (also exported for use by main.js sync functions) ────────
@@ -198,6 +322,7 @@ async function syncPIForCharacter(
     let extractor_expires_at = null;
     let storage_json         = null;
     let pins_json            = null;
+    let routes_json          = null;
 
     try {
       const detail = await httpGet(
@@ -219,6 +344,13 @@ async function syncPIForCharacter(
 
       // ── Full pin list (for View All panel in UI) ──────────────────────────
       pins_json = JSON.stringify(detail.pins || []);
+
+      // ── Routes ────────────────────────────────────────────────────────────
+      // Already in this response; it was being thrown away. Without it a factory
+      // pin tells you what it COULD make and nothing about whether anything
+      // feeds it — so a network analysis can only report installed capacity,
+      // never what is actually running. Costs no extra call.
+      routes_json = JSON.stringify(detail.routes || []);
     } catch {
       // Detail call failed — leave all null; colony still visible as Idle
     }
@@ -234,6 +366,7 @@ async function syncPIForCharacter(
       extractor_expires_at,
       storage_json,
       pins_json,
+      routes_json,
     };
   }));
 

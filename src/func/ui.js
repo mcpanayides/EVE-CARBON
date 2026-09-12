@@ -1,3 +1,15 @@
+// The app honours "reduce motion" in six stylesheets; this is the same question
+// from JS, for motion that CSS cannot switch off — a view transition has to be
+// declined at the call site, because by the time there is a ::view-transition
+// pseudo-element to style, the browser has already frozen a screenshot.
+//
+// Read live rather than cached: the OS setting can change while the app is open,
+// and a cached answer would keep animating (or keep refusing to) until restart.
+function _prefersReducedMotion() {
+  try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch (_) { return false; }
+}
+
 // ─── Settings Drawer ──────────────────────────────────────────────────────────
 
 function setSettingsTab(tab) {
@@ -57,6 +69,27 @@ async function populateGeneralSettings() {
       showToast(`Couldn't update tray setting: ${e.message}`, 'error');
     }
   };
+
+  // Server-instability notifications. Defaults ON in main, so a fresh install
+  // gets the warning without having to know the setting exists — this reflects
+  // that default rather than an unchecked box.
+  const alertsToggle = document.getElementById('serverAlertsToggle');
+  if (alertsToggle) {
+    try { alertsToggle.checked = await window.eveAPI.getServerAlerts(); }
+    catch (_) { alertsToggle.checked = true; }
+
+    alertsToggle.onchange = async () => {
+      try {
+        const enabled = await window.eveAPI.setServerAlerts(alertsToggle.checked);
+        alertsToggle.checked = !!enabled;
+        showToast(enabled ? 'You will be warned when Tranquility looks unstable.'
+                          : 'Server instability warnings turned off.', 'success');
+      } catch (e) {
+        alertsToggle.checked = !alertsToggle.checked;
+        showToast(`Couldn't update alert setting: ${e.message}`, 'error');
+      }
+    };
+  }
 
   await populateFileLogSetting();
   await populateDemoModeSetting();
@@ -238,30 +271,71 @@ function eveStatusModalNav(action) {
   if (action === 'reload' && wv) { try { wv.reload(); } catch (_) {} }
 }
 
-async function _pollEveStatus() {
+// Two sources, because neither answers the whole question.
+//
+// ESI's /status has the player count and the VIP flag and nothing else — it is
+// binary, so it can never say "Tranquility is unstable". CCP's status page can
+// (its `minor` indicator is the yellow on that page), but has no player count.
+// So the count comes from ESI and the colour from the status page, and VIP wins
+// over both because a server only staff can log into is down as far as a player
+// is concerned.
+let _eveServiceStatus = null;   // last reading pushed by the main-process watch
+let _eveVip           = false;
+
+function _paintEveStatusLight() {
   const light = document.getElementById('eveStatusLight');
-  const count = document.getElementById('eveStatusCount');
   if (!light) return;
+
+  const svc = _eveServiceStatus;
+  let level = svc && svc.level ? svc.level : 'unknown';
+  let title = svc && svc.description ? `Tranquility: ${svc.description}` : 'Tranquility: checking…';
+
+  if (svc && svc.unreachable) { level = 'unknown'; title = 'EVE status page unreachable'; }
+  if (_eveVip) { level = 'down'; title = 'Tranquility: VIP mode (staff only)'; }
+
+  // Name the components rather than just the colour — "degraded" with nothing
+  // attached leaves the pilot to go and look it up.
+  if (svc && svc.affected && svc.affected.length) {
+    title += ` — ${svc.affected.map(c => `${c.name}: ${String(c.status).replace(/_/g, ' ')}`).join(', ')}`;
+  }
+
+  light.classList.toggle('status-online',   level === 'ok');
+  light.classList.toggle('status-degraded', level === 'degraded');
+  light.classList.toggle('status-offline',  level === 'down' || level === 'unknown');
+  light.title = title;
+}
+
+async function _pollEveStatus() {
+  const count = document.getElementById('eveStatusCount');
+  if (!document.getElementById('eveStatusLight')) return;
   try {
     const res = await fetch(Esi.url('/status'),
                             { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const s  = await res.json();
-    const up = !s.vip;   // VIP mode = staff-only — treat as down for players
-    light.classList.toggle('status-online',  up);
-    light.classList.toggle('status-offline', !up);
-    light.title = up ? 'Tranquility: online' : 'Tranquility: VIP mode (staff only)';
+    const s = await res.json();
+    _eveVip = !!s.vip;
     if (count) count.textContent = typeof s.players === 'number' ? s.players.toLocaleString() : '';
   } catch (_) {
-    light.classList.remove('status-online');
-    light.classList.add('status-offline');
-    light.title = 'Tranquility: unreachable (downtime?)';
+    // ESI being unreachable costs us the player count, but says nothing about
+    // Tranquility — the status page is the authority on that, so the light is
+    // left to it rather than being flipped red on our own bad connection.
+    _eveVip = false;
     if (count) count.textContent = '';
   }
+  _paintEveStatusLight();
 }
 
 (function initEveStatusNav() {
   if (!document.getElementById('eveStatusLight')) return;
+
+  // The service status is polled in main (it must keep running while the window
+  // is minimised to tray), so the renderer takes one reading on load and then
+  // listens.
+  try {
+    window.eveAPI?.getEveStatus?.().then(s => { _eveServiceStatus = s; _paintEveStatusLight(); }).catch(() => {});
+    window.eveAPI?.onEveStatusChanged?.((s) => { _eveServiceStatus = s; _paintEveStatusLight(); });
+  } catch (_) { /* an older preload just leaves the light on the ESI reading */ }
+
   _pollEveStatus();
   setInterval(_pollEveStatus, 60 * 1000);   // ESI caches this ~30s; 1 min is polite
 })();
@@ -839,10 +913,20 @@ function bindUISettings() {
       }
     });
   }
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => { if (drawer) drawer.style.display = 'none'; });
-  }
-  drawer?.addEventListener('click', e => { if (e.target === drawer) drawer.style.display = 'none'; });
+  // Leaving the drawer discards an unsaved palette edit and takes its live
+  // preview with it. Without this the preview <style> stayed injected for the
+  // rest of the session: the app went on wearing colours that were never saved,
+  // while the palette editor correctly reported what the theme file said. The
+  // two disagreed and both were right about different things.
+  const _leaveSettings = () => {
+    if (typeof exitPaletteEditor === 'function' && exitPaletteEditor()) {
+      showToast('Palette changes discarded — use SAVE PALETTE to keep them.', 'info');
+    }
+    if (typeof setEditMode === 'function') setEditMode(false);
+    if (drawer) drawer.style.display = 'none';
+  };
+  if (closeBtn) closeBtn.addEventListener('click', _leaveSettings);
+  drawer?.addEventListener('click', e => { if (e.target === drawer) _leaveSettings(); });
   document.querySelectorAll('.settings-menu-btn').forEach(btn => {
     btn.addEventListener('click', () => { if (btn.dataset.settingsTab) setSettingsTab(btn.dataset.settingsTab); });
   });
@@ -851,8 +935,16 @@ function bindUISettings() {
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       await saveAllSettings();
+      // This button has never saved the palette — it commits Jabber, calendar and
+      // the rest. It is also the biggest, most obvious SAVE on the drawer, so it
+      // is exactly what somebody presses after picking a colour. Say what
+      // happened instead of pocketing the edit and leaving its preview applied.
+      const hadPaletteEdits = typeof exitPaletteEditor === 'function' && exitPaletteEditor();
+      if (typeof setEditMode === 'function') setEditMode(false);
       if (drawer) drawer.style.display = 'none';
-      showToast('Settings saved.', 'success');
+      showToast(hadPaletteEdits
+        ? 'Settings saved. Palette changes were NOT — use SAVE PALETTE for those.'
+        : 'Settings saved.', hadPaletteEdits ? 'info' : 'success');
     });
   }
 }
@@ -974,18 +1066,54 @@ function _initPageForFirstVisit(page) {
 // It is shown ONLY while the page is fetching data in the background — so the
 // user can tell "still loading" from "this is the cached data, it's done". It's
 // not clickable; it appears when a load starts and disappears when it finishes.
+// A spinner that flashes for 40ms is not feedback, it is a glitch — the eye
+// registers something moved and cannot say what. So once it is up it stays up
+// for a beat, even if the load finished immediately. The token guards the case
+// where a second load starts inside that beat: the older timer must not clear
+// the newer load's spinner.
+const SPINNER_MIN_MS = 400;
+const _spinState = new Map();   // page -> { at, id }
+
 function _setPageSpinning(page, on) {
   const sp = document.querySelector(`#page-${page} .page-spinner`);
-  if (sp) sp.classList.toggle('loading', !!on);
+  if (!sp) return;
+
+  if (on) {
+    const id = (_spinState.get(page)?.id || 0) + 1;
+    _spinState.set(page, { at: Date.now(), id });
+    sp.classList.add('loading');
+    return;
+  }
+
+  const cur  = _spinState.get(page);
+  const id   = cur?.id;
+  const wait = Math.max(0, SPINNER_MIN_MS - (Date.now() - (cur?.at || 0)));
+  setTimeout(() => {
+    if (_spinState.get(page)?.id !== id) return;   // a newer load owns it now
+    sp.classList.remove('loading');
+  }, wait);
 }
 
-// Inject the spinner beside every page's ✕, grouped so the header's
-// space-between layout keeps both pinned top-right. Idempotent.
-function _injectPageSpinners() {
+// Build every page's header action group: refresh, then any page-declared
+// actions, then the loading spinner, then ✕. Idempotent.
+//
+// The refresh is injected here rather than written into fifteen page templates,
+// so it is in the same place on every page and a page added later gets one
+// without anybody remembering to add it. Before this, eleven pages had a refresh
+// button and four did not, each in its own spot — so when something looked stuck
+// there was nowhere reliable to reach for.
+function _injectPageHeaderActions() {
   document.querySelectorAll('.nav-page .close-page-btn').forEach(closeBtn => {
     if (closeBtn.parentElement && closeBtn.parentElement.classList.contains('page-header-actions')) return;
     const navPage = closeBtn.closest('.nav-page');
     if (!navPage || !navPage.id) return;
+
+    const refresh = document.createElement('button');
+    refresh.className = 'page-header-btn page-refresh-btn';
+    refresh.title = 'Refresh this page (Ctrl+R)';
+    refresh.setAttribute('aria-label', 'Refresh');
+    refresh.innerHTML = '<span class="material-symbols-outlined">refresh</span>';
+    refresh.addEventListener('click', () => refreshApp());
 
     const spinner = document.createElement('span');
     spinner.className = 'page-spinner';
@@ -995,10 +1123,11 @@ function _injectPageSpinners() {
     const wrap = document.createElement('div');
     wrap.className = 'page-header-actions';
     closeBtn.parentNode.insertBefore(wrap, closeBtn);
-    // Page-level actions (e.g. the dashboard's refresh) declare themselves in the
-    // header markup and get pulled into this group, so the header keeps exactly
-    // two children and its space-between layout still pins everything top-right.
-    closeBtn.parentNode.querySelectorAll(':scope > .page-header-btn')
+    wrap.appendChild(refresh);
+    // Page-level actions declare themselves in the header markup and get pulled
+    // into this group, so the header keeps exactly two children and its
+    // space-between layout still pins everything top-right.
+    closeBtn.parentNode.querySelectorAll(':scope > .page-header-btn:not(.page-refresh-btn)')
       .forEach(actionBtn => wrap.appendChild(actionBtn));
     wrap.appendChild(spinner);
     wrap.appendChild(closeBtn);   // move ✕ in beside the spinner
@@ -1016,13 +1145,32 @@ function navigateToPage(page) {
   const pagesContainer = document.getElementById('navPagesContainer');
   if (pagesContainer) pagesContainer.style.display = 'flex';
 
-  document.querySelectorAll('.nav-page').forEach(p => p.classList.remove('active'));
   const selectedPage = document.getElementById(`page-${page}`);
-  if (selectedPage) selectedPage.classList.add('active');
 
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.page === page);
-  });
+  // Switching pages is a class swap — one .nav-page loses `active`, another
+  // gains it — which is exactly the shape the View Transitions API exists for.
+  // Wrapping just the swap cross-fades every page change in the app; the styling
+  // is in base.css (::view-transition-*), including the reduced-motion opt-out.
+  //
+  // ONLY the DOM mutation goes inside the callback. Everything after it — page
+  // init, the data fetch, autoSyncOnNavigate — must stay outside: the browser
+  // holds a screenshot of the old page until the callback resolves, so awaiting
+  // a network round-trip in here would freeze the UI on a still image for as
+  // long as ESI took to answer.
+  const swap = () => {
+    document.querySelectorAll('.nav-page').forEach(p => p.classList.remove('active'));
+    if (selectedPage) selectedPage.classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.page === page);
+    });
+  };
+  if (typeof document.startViewTransition === 'function' && !_prefersReducedMotion()) {
+    // .skipTransition()/.finished reject when a transition is interrupted by the
+    // next one — clicking through the nav quickly is normal, not an error.
+    document.startViewTransition(swap).finished.catch(() => {});
+  } else {
+    swap();
+  }
 
   currentPage = page;
 
@@ -1061,6 +1209,102 @@ function navigateToPage(page) {
 function refreshCurrentDataView() {
   if (currentPage === 'assets'  && typeof loadAssets     === 'function') loadAssets();
   else if (currentPage === 'wallets' && typeof renderWallets === 'function') renderWallets();
+}
+
+// ─── Universal refresh (titlebar) ────────────────────────────────────────────
+//
+// Individual pages have their own refresh buttons — eleven of them at the last
+// count — but which pages have one, and where it sits in their header, varies.
+// There was nowhere to reach for when something looked stuck. This one is in the
+// titlebar, so it is on screen on every page.
+//
+// WHAT IT DOES, and does not:
+//
+//   • Rebuilds the page you are on, by dropping it from _pageInitialized and
+//     re-entering it. That runs the page's OWN first-visit initialiser through
+//     navigateToPage — the same path a fresh visit takes — rather than a
+//     hand-maintained map of twenty per-page reload functions that would go out
+//     of date the first time somebody added a page.
+//   • Re-syncs characters whose data is past its staleness gate.
+//
+//   • It does NOT force a sync past that gate, and it is not Ctrl+R. Ctrl+R is
+//     wired (the default menu owns it) and does work — but a window reload
+//     re-renders from the same caches, so the numbers come back identical and it
+//     reads as "nothing happened". This does the thing that was actually wanted.
+//   • It does not blow away the ESI caches. Those exist to protect a shared error
+//     budget, and this app polls each endpoint on its own TTL by design; a button
+//     that bypassed that would just be a way to get rate-limited.
+let _appRefreshing = false;
+
+// A page may already know how to refresh itself better than a rebuild does.
+//
+// This is NOT a page→loader map — _initPageForFirstVisit is that, and a second
+// copy of it would go stale the first time somebody added a page. Entries here
+// exist only where a plain re-init would re-render a warm in-memory cache
+// instead of fetching: the dashboard holds a shared industry-job list, Faction
+// Warfare holds its public ESI payloads for five minutes. Anything absent falls
+// through to a full re-init, which is correct — just possibly from a warm cache.
+const PAGE_REFRESHERS = {
+  dashboard: () => refreshDashboardPage(),
+  fw: () => {
+    try { _fwFetchedAt = 0; } catch (_) {}
+    return (typeof navigateFwTab === 'function') ? navigateFwTab(_fwTab || 'overview') : null;
+  },
+};
+
+// Ctrl+R arrives from main (before-input-event, so it beats the menu's Reload).
+let _appRefreshHotkeyBound = false;
+function bindRefreshHotkey() {
+  if (_appRefreshHotkeyBound) return;
+  _appRefreshHotkeyBound = true;
+  try { window.eveAPI.on('app-refresh', () => refreshApp()); } catch (_) {}
+}
+
+async function refreshApp() {
+  if (_appRefreshing) return;                    // double-click is one refresh
+  _appRefreshing = true;
+
+  const page = currentPage;
+  const btn = document.querySelector(`#page-${page} .page-refresh-btn`);
+  // The button dims; the spinner beside it does the moving. One indicator, in the
+  // slot the eye is already on because that is where the click just happened —
+  // and the same slot a first-visit load uses, so "this page is working" always
+  // looks the same wherever it came from.
+  if (btn) btn.disabled = true;
+  _setPageSpinning(page, true);
+
+  try {
+    // Characters first, so the page rebuild below reads whatever the sync wrote.
+    // autoRefreshStaleCharacters is called directly rather than through
+    // autoSyncOnNavigate: that one is throttled to a scan a minute, which is
+    // right for navigation and wrong for a button somebody just pressed. The
+    // 30-minute per-character gate inside it still applies.
+    if (typeof autoRefreshStaleCharacters === 'function') {
+      const accounts = await window.eveAPI.getAccounts().catch(() => []);
+      if (Array.isArray(accounts) && accounts.length) await autoRefreshStaleCharacters(accounts);
+    }
+
+    // Then rebuild the current page — its own refresher if it has one, otherwise
+    // by dropping it from _pageInitialized and re-entering it, which re-runs the
+    // page's first-visit initialiser through the app's normal path.
+    if (page && typeof PAGE_REFRESHERS[page] === 'function') {
+      await PAGE_REFRESHERS[page]();
+    } else if (page && typeof navigateToPage === 'function') {
+      _pageInitialized.delete(page);
+      navigateToPage(page);
+    } else if (typeof refreshCurrentDataView === 'function') {
+      refreshCurrentDataView();
+    }
+
+    if (typeof showToast === 'function') showToast('Refreshed.', 'success');
+  } catch (e) {
+    console.warn('[ui] app refresh failed:', e?.message || e);
+    if (typeof showToast === 'function') showToast(`Refresh failed: ${e.message}`, 'error');
+  } finally {
+    _appRefreshing = false;
+    if (btn) btn.disabled = false;
+    _setPageSpinning(page, false);
+  }
 }
 
 // ─── Nav Status Lights ────────────────────────────────────────────────────────

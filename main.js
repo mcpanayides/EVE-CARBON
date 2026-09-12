@@ -16,7 +16,7 @@ if (app.isPackaged) {
 }
 
 // ── Now safe to require everything else ────────────────────────────────────────
-const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session } = require('electron');
+const { BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session, Notification } = require('electron');
 const https = require('https');
 const http  = require('http');
 const crypto = require('crypto');
@@ -69,6 +69,7 @@ const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
 const { initPresence, getPresenceCount, getPresenceState } = require('./src/presence');
+const eveStatusWatch = require('./src/eve_status_watch');
 const netLog = require('./src/net_log');
 const fileLog = require('./src/file_log');
 const requestBroker = require('./src/request_broker');
@@ -325,6 +326,34 @@ function _scanBackgroundDir(dir, source) {
   } catch (_) { /* folder may not exist yet */ }
   return out;
 }
+
+// Planet hero art for the PI detail panel. Same two-location resolve as the
+// bundled backgrounds above, and for the same reason: assets/ is copied to
+// resources/ by build.extraResources, so a packaged app must read it from
+// process.resourcesPath rather than a path relative to the asar.
+// Returned as file:// URLs keyed by planet type, and only for types whose file
+// is actually present -- the renderer falls back to CCP's type icon for the
+// rest, so shipping art for six of nine planets degrades instead of breaking.
+const _PLANET_ART_TYPES = ['temperate', 'oceanic', 'ice', 'gas', 'lava', 'barren', 'storm', 'plasma', 'shattered'];
+const _PLANET_ART_EXT   = ['.jpg', '.jpeg', '.webp', '.png', '.avif'];
+
+function _planetArtDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath || __dirname, 'assets', 'planets')
+    : path.join(__dirname, 'assets', 'planets');
+}
+
+ipcHandle('planet-art', async () => {
+  const dir = _planetArtDir();
+  const out = {};
+  for (const type of _PLANET_ART_TYPES) {
+    for (const ext of _PLANET_ART_EXT) {
+      const abs = path.join(dir, type + ext);
+      if (fs.existsSync(abs)) { out[type] = require('url').pathToFileURL(abs).href; break; }
+    }
+  }
+  return out;
+});
 
 ipcHandle('list-backgrounds', async () => {
   // Resfile-sourced presets (see src/resfile_backgrounds.js) are fetched from
@@ -686,6 +715,22 @@ ipcMain.handle('log-reveal', () => {
 ipcMain.on('log-write', (_e, entry) => {
   if (!entry) return;
   fileLog.write(entry.level || 'info', entry.source || 'ui', entry.message);
+});
+
+// The nav light asks for this on load; after that it rides 'eve-status-changed'.
+ipcMain.handle('get-eve-status', () => eveStatusWatch.currentStatus());
+
+ipcMain.handle('set-server-alerts', (_, enabled) => {
+  const cfg = loadConfig();
+  cfg.app = cfg.app || {};
+  cfg.app.serverAlerts = !!enabled;
+  saveConfig(cfg);
+  return cfg.app.serverAlerts;
+});
+
+ipcMain.handle('get-server-alerts', () => {
+  const cfg = loadConfig();
+  return cfg?.app?.serverAlerts !== false;
 });
 
 ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
@@ -2027,6 +2072,53 @@ app.whenReady().then(async () => {
     },
   });
 
+  // ── EVE service-status watch ───────────────────────────────────────────────
+  // Raises an OS notification when Tranquility starts misbehaving, so a pilot
+  // in something expensive can dock before the socket closes rather than after.
+  //
+  // Started here, not in the renderer, for two reasons: it has to keep running
+  // while the window is minimised to tray (which is exactly when someone is
+  // in-game and cannot see the app), and the notification must come from the
+  // shell rather than from a window of ours — see the GAME-SAFETY note in
+  // eve_status_watch.js and the one on the Jabber ping popup below.
+  // Not under e2e. Every spec launches the app, so leaving this on would send a
+  // request to CCP's status page for each of ~130 tests on every full run —
+  // and a desktop toast could fire mid-suite on a machine nobody is watching.
+  if (!process.env.EVE_CARBON_E2E) eveStatusWatch.startEveStatusWatch({
+    Notification,
+    userAgent: APP_USER_AGENT,
+    alertsEnabled: () => {
+      // Default ON: someone who has not found the setting is exactly the person
+      // this is for. Opting out is one click in Settings.
+      const cfg = loadConfig();
+      return cfg?.app?.serverAlerts !== false;
+    },
+    onChange: (status) => {
+      BrowserWindow.getAllWindows().forEach(win => {
+        if (!win.isDestroyed()) win.webContents.send('eve-status-changed', status);
+      });
+      // The tray tooltip is the other place someone glances while in-game.
+      try {
+        if (tray && !tray.isDestroyed()) {
+          tray.setToolTip(status.level === 'ok' || status.level === 'unknown'
+            ? 'EVE Carbon'
+            : `EVE Carbon — Tranquility: ${status.description || status.level}`);
+        }
+      } catch (_) { /* tray may not exist; never break the poll */ }
+    },
+    onClick: () => {
+      // Only ever on a deliberate click. Nothing here moves focus on its own.
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      } catch (_) {}
+    },
+    log: (level, msg) => { try { fileLog.write(level, 'eve-status', msg); } catch (_) {} },
+  });
+
   await initSde();
   try {
     // Bring across a database from an older build that kept it in the install
@@ -3117,6 +3209,7 @@ ipcHandle('widget-popout-open', (_e, { id, title, w, h }) => {
 
   win.on('closed', () => {
     widgetPopouts.delete(id);
+    _widgetPreNano.delete(id);
     // Any close (pop-in button or OS ✕) returns the widget to the dashboard
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('widget-popped-in', id);
@@ -3204,6 +3297,49 @@ ipcHandle('intel-widget-state', () => ({
 ipcHandle('widget-popout-pin', (_e, { id, pinned }) => {
   const win = widgetPopouts.get(id);
   if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!pinned, 'screen-saver');
+  return { success: true };
+});
+
+// ── Nano mode ───────────────────────────────────────────────────────────────
+// Collapse a popout to its titlebar so it can sit over the game.
+//
+// This needs the main process at all because of `minHeight: 160` above. The
+// renderer can hide its own content, but the WINDOW would still refuse to
+// shrink past a box far taller than the bar it is now showing — which is
+// exactly what a popped-out widget bottoms out at today. So the floor is
+// lowered, and the height is pinned for the duration: with content hidden
+// there is nothing to reveal, and a stray drag would otherwise open a band of
+// empty glass under the bar.
+//
+// Width stays free. A nano bar is worth widening to read a long title, and
+// narrowing to tuck into a corner.
+const _widgetPreNano = new Map();   // widgetId → bounds before it collapsed
+
+ipcHandle('widget-popout-nano', (_e, { id, nano, barHeight }) => {
+  const win = widgetPopouts.get(id);
+  if (!win || win.isDestroyed()) return { success: false, error: 'No such popout' };
+
+  if (nano) {
+    const before = win.getBounds();
+    _widgetPreNano.set(id, before);
+    // The renderer measures the bar in CSS pixels; setBounds works in window
+    // pixels. On a frameless or hidden-titlebar window those differ by the
+    // resize border, so ask the window for its own delta rather than assuming
+    // it is zero — assuming left a few pixels of content peeking out.
+    const delta = before.height - win.getContentBounds().height;
+    const h = Math.max(24, Math.round(Number(barHeight) || 34)) + delta;
+    win.setMinimumSize(160, h);
+    win.setMaximumSize(4000, h);
+    win.setBounds({ x: before.x, y: before.y, width: before.width, height: h });
+  } else {
+    win.setMaximumSize(0, 0);          // 0 means "no limit" to Electron
+    win.setMinimumSize(240, 160);
+    const prev = _widgetPreNano.get(id);
+    // Restore where and how big it was, so leaving nano is genuinely undo and
+    // not "somewhere near the top-left at the default size".
+    if (prev) win.setBounds(prev);
+    _widgetPreNano.delete(id);
+  }
   return { success: true };
 });
 
@@ -3365,7 +3501,16 @@ function createWindow() {
       // therefore async, which is useless to code that runs before the first
       // await — the dashboard builds its widget layout synchronously and has to
       // know then whether to drop the Goon-only Beehive tile.
-      additionalArguments: demoPaths ? ['--demo-active'] : [],
+      // --automated marks a throwaway e2e profile. It suppresses the nag
+      // prompts only (see donation.js): every test profile is brand new, so the
+      // "first open this month" donate modal fires on the 1st of EVERY month and
+      // its backdrop swallows clicks across the whole suite — a green pipeline
+      // that goes red one calendar day in thirty, on a hard release gate, for a
+      // reason nothing in the failure points at.
+      additionalArguments: [
+        ...(demoPaths ? ['--demo-active'] : []),
+        ...(process.env.EVE_CARBON_E2E ? ['--automated'] : []),
+      ],
     }
   }));
 
@@ -3379,6 +3524,25 @@ function createWindow() {
     slashes: true
   }));
   mainWindow = win;   // keep a reference so 'second-instance' can focus it
+
+  // Ctrl+R does the app's refresh, not a window reload.
+  //
+  // The default menu owns Reload, so Ctrl+R already worked — it just reloaded the
+  // renderer, which repaints from the same caches and comes back identical. It
+  // LOOKED like the shortcut was broken. It now runs the same refresh the page
+  // header's button does: rebuild the page, re-sync stale characters.
+  //
+  // before-input-event, because it fires ahead of menu accelerators — which is
+  // the only way to take a key the application menu already claims.
+  // Shift+Ctrl+R is deliberately left alone: Force Reload is the real reload, and
+  // it is what you want when the renderer itself is wedged.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (String(input.key).toLowerCase() !== 'r') return;
+    if (!(input.control || input.meta) || input.shift || input.alt) return;
+    event.preventDefault();
+    if (!win.isDestroyed()) win.webContents.send('app-refresh');
+  });
 
   // Minimize to tray: hide the window instead of dropping it to the taskbar.
   // window-all-closed never fires (the window is hidden, not closed) so the

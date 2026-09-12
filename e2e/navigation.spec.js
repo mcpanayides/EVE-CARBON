@@ -403,3 +403,76 @@ test('collapsing the nav keeps the status indicators as badges on the icons', as
   await window.locator('#navToggleBtn').click();
   await expect(nav).not.toHaveClass(/nav-collapsed/);
 });
+
+// ── Navigation must land even when the view transition never runs ────────────
+// A view transition cannot call its DOM-update callback until it has captured a
+// frame of the old page, and a window that is not being painted produces none —
+// one occluded behind a fullscreen game, or a CI runner with no real desktop.
+// The v3.8.0 release gate failed exactly this way: Industry clicked, Dashboard
+// still on screen fifteen seconds later, and the transition's overlay left up so
+// every hit-test landed on <html> instead of the page. These fake the transition
+// so the starved case is reproduced deterministically rather than by luck.
+
+test('a navigation still lands when its view transition never gets a frame', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  const res = await window.evaluate(async () => {
+    const real = document.startViewTransition;
+    let calls = 0, skipped = 0;
+    // Never captures, so never runs its callback and never resolves.
+    document.startViewTransition = () => {
+      calls++;
+      const never = new Promise(() => {});
+      return { finished: never, ready: never, updateCallbackDone: never,
+               skipTransition() { skipped++; } };
+    };
+    try {
+      navigateToPage('industry');
+      const deferred = !document.getElementById('page-industry').classList.contains('active');
+      await new Promise(r => setTimeout(r, 1500));   // past the 600ms rescue
+      return {
+        calls, skipped, deferred,
+        landed:    document.getElementById('page-industry').classList.contains('active'),
+        dashboard: document.getElementById('page-dashboard').classList.contains('active'),
+        navLit:    document.querySelector('.nav-btn[data-page="industry"]').classList.contains('active'),
+      };
+    } finally {
+      document.startViewTransition = real;
+    }
+  });
+  expect(res.calls, 'it did attempt a transition').toBe(1);
+  expect(res.deferred, 'so the swap was genuinely left to the transition').toBe(true);
+  expect(res.landed, 'and the page still arrived').toBe(true);
+  expect(res.dashboard).toBe(false);
+  expect(res.navLit).toBe(true);
+  // Ending the stalled transition is what takes its overlay down; without it
+  // the page would show but stay unclickable.
+  expect(res.skipped, 'the stalled transition was ended').toBe(1);
+});
+
+test('transition callbacks landing out of order cannot leave a stale page', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  const res = await window.evaluate(() => {
+    const real = document.startViewTransition;
+    const cbs = [];
+    const done = Promise.resolve();
+    document.startViewTransition = (cb) => {
+      cbs.push(cb);
+      return { finished: done, ready: done, updateCallbackDone: done, skipTransition() {} };
+    };
+    try {
+      navigateToPage('calendar');
+      navigateToPage('industry');          // the one actually asked for, last
+      cbs.slice().reverse().forEach(cb => cb());   // the stale swap runs LAST
+      return {
+        industry: document.getElementById('page-industry').classList.contains('active'),
+        calendar: document.getElementById('page-calendar').classList.contains('active'),
+        active:   document.querySelectorAll('.nav-page.active').length,
+      };
+    } finally {
+      document.startViewTransition = real;
+    }
+  });
+  expect(res.industry, 'the last navigation wins').toBe(true);
+  expect(res.calendar, 'not whichever swap happened to run last').toBe(false);
+  expect(res.active, 'exactly one page is showing').toBe(1);
+});

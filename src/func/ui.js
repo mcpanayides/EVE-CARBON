@@ -1134,6 +1134,13 @@ function _injectPageHeaderActions() {
   });
 }
 
+// Settles once the most recent page change has finished animating — or been
+// skipped, or rescued — so nothing is still overlaying the page. While a view
+// transition is live its pseudo-element layer covers everything and every
+// hit-test lands on <html>, so anything that measures or probes the page must
+// wait for this rather than for the page merely to be visible.
+let _navSettled = Promise.resolve();
+
 function navigateToPage(page) {
   // Guard against being called with no target (e.g. a .nav-btn without a
   // data-page). Bailing here keeps a real page selected instead of blanking the
@@ -1157,22 +1164,64 @@ function navigateToPage(page) {
   // holds a screenshot of the old page until the callback resolves, so awaiting
   // a network round-trip in here would freeze the UI on a still image for as
   // long as ESI took to answer.
+  //
+  // The swap applies `currentPage` — the LATEST page asked for — not the `page`
+  // this call closed over. A transition's callback is not run synchronously, so
+  // two quick navigations can have their swaps land late and out of order; if
+  // each applied its own page, a stale one could land last and win. Reading the
+  // latest intent makes every swap idempotent and the last navigation always
+  // the one on screen.
   const swap = () => {
-    document.querySelectorAll('.nav-page').forEach(p => p.classList.remove('active'));
-    if (selectedPage) selectedPage.classList.add('active');
+    const target = currentPage;
+    const el = document.getElementById(`page-${target}`);
+    document.querySelectorAll('.nav-page').forEach(p => p.classList.toggle('active', p === el));
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.page === page);
+      btn.classList.toggle('active', btn.dataset.page === target);
     });
   };
+
+  // Set BEFORE the swap is scheduled, so whichever swap runs reads this call.
+  currentPage = page;
+
   if (typeof document.startViewTransition === 'function' && !_prefersReducedMotion()) {
-    // .skipTransition()/.finished reject when a transition is interrupted by the
-    // next one — clicking through the nav quickly is normal, not an error.
-    document.startViewTransition(swap).finished.catch(() => {});
+    const vt = document.startViewTransition(swap);
+    // A skipped transition rejects BOTH .ready and .finished with "Transition was
+    // skipped". Skips are normal — clicking through the nav quickly supersedes
+    // the one before, and the rescue below skips on purpose — so neither is an
+    // error. Leaving .ready unhandled surfaced every skip as an uncaught
+    // rejection in the console and the diagnostic log.
+    vt.ready.catch(() => {});
+    vt.finished.catch(() => {});
+    _navSettled = vt.finished.then(() => {}, () => {});
+
+    // A transition cannot run its callback until it has captured a frame of the
+    // old page, and a window that is not being painted produces no frames: one
+    // occluded behind a fullscreen game, or on a CI runner with no real desktop.
+    // The swap then sits pending indefinitely — the page you clicked never
+    // appears — and the transition's overlay stays up, so every click and
+    // hit-test lands on the document root instead of the page. That is how the
+    // v3.8.0 release gate failed: Industry clicked, Dashboard still on screen
+    // fifteen seconds later.
+    //
+    // A healthy transition runs its callback within a frame or two, and its
+    // 160ms fade plays AFTER the callback — so this never cuts a running fade
+    // short. The margin is for a renderer that is BUSY rather than starved: a
+    // heavy first-visit page init runs synchronously right after this and can
+    // hold the capture frame back for a few hundred milliseconds. At 300ms that
+    // skipped transitions that were merely late; at 600 it waits them out, and
+    // one that is still pending after that is not coming. A skip then costs only
+    // the fade, on a window nobody can see.
+    let applied = false;
+    vt.updateCallbackDone.then(() => { applied = true; }, () => { applied = true; });
+    setTimeout(() => {
+      if (applied) return;
+      try { vt.skipTransition(); } catch (_) { /* already finished */ }
+      swap();
+    }, 600);
   } else {
     swap();
+    _navSettled = Promise.resolve();
   }
-
-  currentPage = page;
 
   // Remember where the user is so a reload (Ctrl+R) reopens this page instead of
   // bouncing back to the dashboard. sessionStorage (not localStorage): it should

@@ -20,6 +20,13 @@ async function openMap(window) {
   // The galaxy comes from a local SQLite read plus the layout build; wait for
   // the page's own ready state rather than a fixed sleep.
   await expect(window.locator('#mapCanvas')).toBeVisible({ timeout: 20_000 });
+  // Visible is not the same as settled. The page change runs as a view
+  // transition, and while that is live its overlay covers the page, so
+  // elementFromPoint returns <html> for every point on it. The map is the
+  // heaviest page to open, so under load its fade was often still running when
+  // the dropdown probe below measured — which is why that test passed alone and
+  // failed in a full run, and failed outright on the release runner.
+  await window.evaluate(() => _navSettled);
 }
 
 test('map page opens and stays error-free', async ({ window }) => {

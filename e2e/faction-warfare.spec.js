@@ -41,6 +41,18 @@ test('My Militia degrades gracefully without a valid FW token', async ({ window 
 // actually go to read a warzone — never got. Seeded rather than live so the
 // assertion is about the rendering, not about what the warzone is doing today.
 test('the warzone overview draws the tug of war, not a flat bar', async ({ window }) => {
+  // Let the page's own live fetch LAND before seeding. Opening the page (in
+  // beforeEach) starts a public-ESI fetch, and _fwEnsurePublic assigns _fwStats
+  // unconditionally when it resolves — the freshness guard below only stops a
+  // new fetch starting, it cannot cancel one already in flight. On a fast
+  // machine that fetch finished first and the seed won; on the release runner
+  // it finished second, overwrote the seed with that day's real warzone, and
+  // the rope pointed whichever way the real war was going. _fwFetchedAt leaves
+  // zero only when the fetch has settled, success or failure, so after this
+  // nothing is left in flight to clobber the seed.
+  await expect.poll(() => window.evaluate(() => _fwFetchedAt), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+
   await window.evaluate(() => {
     const st = (id, sys, vp) => ({ faction_id: id, systems_controlled: sys, pilots: 1,
       kills: { yesterday: 1, total: 1 }, victory_points: { yesterday: vp, total: 1 } });

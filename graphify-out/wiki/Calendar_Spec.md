@@ -26,18 +26,18 @@
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (11 shared connections)
+- [Electron App](Electron_App.md) (12 shared connections)
 - [Assets Spec](Assets_Spec.md) (1 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (1 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (1 shared connections)
 - [Faction Warfare Spec](Faction_Warfare_Spec.md) (1 shared connections)
 - [Fleet Commander Spec](Fleet_Commander_Spec.md) (1 shared connections)
-- [Industry Spec](Industry_Spec.md) (1 shared connections)
 - [Intel Patterns Spec](Intel_Patterns_Spec.md) (1 shared connections)
 - [Jabber Spec](Jabber_Spec.md) (1 shared connections)
 - [Map Spec](Map_Spec.md) (1 shared connections)
 - [Navigation Spec](Navigation_Spec.md) (1 shared connections)
 - [Palette Signals Spec](Palette_Signals_Spec.md) (1 shared connections)
+- [PI Spec](PI_Spec.md) (1 shared connections)
 
 ## Source Files
 

@@ -20,7 +20,7 @@
 
 ## Relationships
 
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
 - [Electron Builder Config](Electron_Builder_Config.md) (1 shared connections)
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)

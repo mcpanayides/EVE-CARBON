@@ -1,12 +1,13 @@
 # Navigation Spec
 
-> 3 nodes · cohesion 0.67
+> 4 nodes · cohesion 0.50
 
 ## Key Concepts
 
-- **navigation.spec.js** (4 connections) — `e2e/navigation.spec.js`
+- **navigation.spec.js** (5 connections) — `e2e/navigation.spec.js`
 - **{ test, expect }** (1 connections) — `e2e/navigation.spec.js`
 - **PAGES** (1 connections) — `e2e/navigation.spec.js`
+- **skipTransition()** (1 connections) — `e2e/navigation.spec.js`
 
 ## Relationships
 
@@ -19,7 +20,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 6 (100%)
+- EXTRACTED: 8 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -35,16 +35,16 @@
 
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (35 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (10 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (8 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (6 shared connections)
 - [PI IPC](PI_IPC.md) (4 shared connections)
 - [Presence](Presence.md) (4 shared connections)
-- [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Fleet After-Action Report](Fleet_After-Action_Report.md) (2 shared connections)
+- [Demo Mode](Demo_Mode.md) (3 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
-- [Theme IPC](Theme_IPC.md) (2 shared connections)
+- [Theme Vars](Theme_Vars.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
-- [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
 
 ## Source Files
 

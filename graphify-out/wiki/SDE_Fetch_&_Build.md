@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files

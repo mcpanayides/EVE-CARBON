@@ -34,7 +34,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
 
 ## Source Files
 

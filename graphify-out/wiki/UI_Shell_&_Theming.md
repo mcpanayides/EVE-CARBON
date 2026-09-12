@@ -1,10 +1,10 @@
 # UI Shell & Theming
 
-> 70 nodes · cohesion 0.06
+> 71 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **ui.js** (69 connections) — `src/func/ui.js`
+- **ui.js** (70 connections) — `src/func/ui.js`
 - **setSettingsTab()** (7 connections) — `src/func/ui.js`
 - **importBeaconNetwork()** (7 connections) — `src/func/ui.js`
 - **populateGlassSettings()** (7 connections) — `src/func/ui.js`
@@ -29,7 +29,7 @@
 - **_presenceVersionRows()** (3 connections) — `src/func/ui.js`
 - **_updatePresenceCount()** (3 connections) — `src/func/ui.js`
 - **_navGetBridges()** (3 connections) — `src/func/ui.js`
-- *... and 45 more nodes in this community*
+- *... and 46 more nodes in this community*
 
 ## Relationships
 
@@ -41,7 +41,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 260 (98%)
+- EXTRACTED: 262 (98%)
 - INFERRED: 6 (2%)
 - AMBIGUOUS: 0 (0%)
 

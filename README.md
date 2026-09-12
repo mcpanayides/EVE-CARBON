@@ -5,7 +5,7 @@ EVE Carbon is a comprehensive desktop companion for EVE Online — one fast, nat
 ## 🚀 Features
 
 * **Secure EVE SSO Integration**: Authenticate multiple characters via EVE Online SSO; access tokens are stored locally.
-* **Dashboard & Net Worth**: At-a-glance liquid wealth, asset value and activity across your whole roster, plus a live market ticker.
+* **Dashboard & Net Worth**: At-a-glance liquid wealth, asset value and activity across your whole roster, plus a live market ticker. Build it from widgets — Faction Warfare warzone and leaderboard tiles, a killfeed for your characters or any corporation, and more — and pop any of them out into its own window, or shrink one to a **nano** title bar to keep on top of the game.
 * **Multi-Character Skill Planner**: Build a plan once and cost it against every character, with an in-game-style skill browser, plan-by-ship prerequisite expansion, optimal remaps, and a Jita-priced implant / cerebral-accelerator cost optimiser. Export to Multibuy, plain text, or EVEMon.
 * **Blueprint Library & Industry Tools**: Synchronize and browse blueprints (with correct BPO/BPC icons), plus a recursive material calculator, reactions, salvage, ore/reprocessing, cost index, bulk Jita appraisal, shopping lists, and a **Station Checkout** that diffs a shopping list against what you already hold in a chosen station, structure or container and surfaces exactly what's missing.
 * **Mining Ledger**: Per-character (and combined) mining yield valued as raw ore or refined minerals, daily trends, and corp moon-extraction timers — auto-refreshed on ESI's own cadence.
@@ -13,11 +13,12 @@ EVE Carbon is a comprehensive desktop companion for EVE Online — one fast, nat
 * **Faction Warfare Tracker**: Live warzone control and tiers, per-system plex/contested status, militia stats, pilot & corp leaderboards, and LP-rate tiers.
 * **Killboard**: Recent kills and losses with all-time PvP stats, plus combined all-character and all-corporation overviews (via zKillboard).
 * **EVE Mail & Notifications**: Read, reply to and send in-game mail, and browse the in-game notification feed — all live from ESI.
+* **Server Status & Instability Warnings**: Live Tranquility status and player count in the nav, and a desktop notification when CCP reports the game server or login as degraded — so you can dock something expensive before a disconnect rather than after.
 * **Fitting Simulator, Fleet Tools & Star Map**: Simulate ship fits (browsing hulls by the in-game market tree), with saved clones so an implant set carries across the fits you are comparing, and an early-warning system that reads intel channels and your own position straight out of EVE's chat logs. Run live fleet tools, and plan jumps on an interactive map with Thera / wormhole routing. The map also paints live sovereignty as a glowing influence field — coloured by alliance, or by your own standings, with each territory named on its own ground.
-* **Planetary Interaction**: Track PI colonies and extractor timers across your characters.
+* **Planetary Interaction**: Track every colony and extractor timer across your characters, see where your production chains run short — and how many factories, extractors and planets it would take to fix — and plan new chains with the **PI Planner**, solved back to the raw materials, netted against what you already produce, with real nearby planets to survey. A **Capacity** view shows every character's free planet slots and suggests which should run extraction, refining, reactor or P4 planets based on their command-centre skills.
 * **Built-in Jabber Client**: Connect directly to `jabber.eveonline.com` via an integrated XMPP client with director-only filtering, message pop-ups, and a configurable ping-alert sound (with custom uploads).
 * **Local SDE Database**: A bundled SQLite EVE Static Data Export for lightning-fast, offline item and type lookups.
-* **Dynamic Theming**: Customizable UI with user-configurable themes saved locally.
+* **Dynamic Theming**: Customizable UI with user-configurable themes saved locally, including a main colour set independently of the one that marks losses and alerts.
 
 ---
 

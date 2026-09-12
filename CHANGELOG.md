@@ -30,6 +30,418 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [3.8.0] - 2026-09-13
+
+### Added
+- **PI production model, in two halves.**
+
+  **Colonies → Production shortfalls.** Reads every colony's factories and
+  extractors against the real recipe graph and says what the network cannot
+  sustain: what you are short of per hour, how many more factories that is, and
+  roughly how many planets. Deepest tier first, because fixing a P3 is pointless
+  while the P2 under it is also starved. A raw-material deficit is reported
+  separately with the planet types that yield it — being short of ore needs
+  another extractor, not another factory.
+
+  **Planetary Interaction → PI Planner.** Pick a product and a rate; it solves
+  the tree backwards into a bill of factories per tier and the extraction under
+  it, then finds real planets near you for each raw material — ranked by how many
+  candidates a system holds, with **alternatives one or two jumps out** for when
+  the first pick scans badly.
+
+  Shared inputs are solved once against their total demand, which is where a
+  branch-by-branch solver quietly under-builds: making a Self-Harmonizing Power
+  Core, Oxidizing Compound feeds both Silicate Glass and Polyaramids, and buying
+  two half-sized sets meets neither.
+
+  Every commodity carries its EVE item icon, P4 down to P1 — the art tells you
+  the tier and the family faster than the name does. And each recommended system
+  is a chip you click to **set the autopilot destination in the running client**,
+  including the alternatives. It routes the same character the jump counts are
+  measured from, because routing a different pilot would make the "3 jumps"
+  beside it a lie.
+
+  **What it cannot do, stated on the page:** EVE publishes no per-planet resource
+  richness — not in the SDE, not in ESI. The planner recommends planet TYPES in
+  LOCATIONS; you still survey in the client and swap what scans poorly. That is
+  why the alternatives exist.
+- **A status strip across the top of Planetary Networks.** A wide row of lamps
+  above the filters — extracting, expiring within 24h, storage full, idle — plus
+  the colony total, so the page answers "is anything wrong" before you have
+  touched a control. A count of zero shows a DARK lamp and a dimmed figure: a red
+  light burning beside a zero reads as an alarm when the news is that everything
+  is fine.
+- The dashboard's Planetary Industry tile now uses the same lamps, and both read
+  from **one shared tally** rather than two copies of the counting logic. The
+  dashboard's copy carried a comment promising it matched the PI page, with
+  nothing enforcing it — and the two had already drifted: it parsed the character
+  DB's `storage_json` and the page only understood the live sync's `storage`
+  array, so the same colony could be "storage full" on one screen and "idle" on
+  the other.
+- **Free planet capacity on Planetary Networks.** A character can run one
+  planet plus one per level of Interplanetary Consolidation — up to six — and
+  the page now shows who has room. A **FREE CAPACITY** row sits under the status
+  strip, one chip per character with an empty slot, widest opening first. Each
+  carries a row of pips, hollow for free and filled for used: six discrete slots
+  is exactly what pips are for, and the row answers "who?" before you read a
+  number. The strip leads with the headline — *7 slots free · 38 colonies* — and
+  the shortfall panel closes the loop in one line: *Needs ~3 more planets · you
+  have 7 free slots across 3 characters*, turning amber and naming the skill when
+  capacity falls short.
+
+  **Characters with no colonies at all now appear.** They were filtered out
+  before the page rendered — so an alt with Interplanetary Consolidation V and
+  nothing built, six free slots, was the single most invisible thing on it.
+
+  A character whose skills have never synced reads as *unknown*, not as
+  untrained. The two arrive looking identical, and guessing zero would put a
+  working four-colony alt at a capacity of one.
+- **Capacity — a new PI tool for character colony availability.** For when
+  chips stop scaling: the row on the colonies page caps at six and spills here
+  as *+N more characters*. Every character in one table — planet slots, free
+  slots, command centre tier and a **suggested role** — filterable by name and to
+  only those with room. Built for accounts running dozens of alts: capacity for
+  every character is now read in a single call instead of one round-trip, and
+  three hundred skill rows, per character.
+
+  The suggested role is an **allocation, not a ceiling.** Slots and capability
+  are two different skills: Interplanetary Consolidation buys *more* planets,
+  Command Center Upgrades buys a *bigger* one, and only the second decides
+  whether a planet can hold a reactor line. From a Standard command centre
+  (CCU II) up, every character can hold every role, so "what can it hold" stops
+  telling you anything. Instead the strongest command centres are given the
+  demanding work first, in the shape a P4 chain actually has — one high-tech
+  planet fed by about three reactor planets — repeating so a large account gets a
+  second chain. A weaker character takes the best role it can hold without using
+  up one of the chain's reactor slots.
+
+  Four role cards explain it, priced in powergrid and CPU read from the SDE. Two
+  of the numbers run against the usual advice. **Extraction is the most
+  powergrid-hungry role**, not the cheap one you give a new alt: an Extractor
+  Control Unit costs 2,600 PG, the dearest pin in the game. And **a Basic command
+  centre (CCU 0) fits no working layout at all** — its 1,675 CPU will not carry a
+  single 3,600-CPU launchpad — so a CCU 0 character is flagged rather than
+  suggested. P4 is marked as possible **only on Barren and Temperate planets**,
+  the only two with a High-Tech Production Plant.
+
+  Link cost grows with the distance between pins, which nothing can know before
+  you survey, so every role cost shown is a floor.
+- **The PI Planner can plan on top of what you already run.** *Subtract what I
+  already produce* nets the target against your colonies' live surplus, and the
+  saving cascades down the tree — a P2 you no longer need to build is also a P1
+  you no longer make and a P0 you no longer extract. Steps your network already
+  covers stay in the list, dimmed, with the amount covered beside them.
+
+  A shortfall is never counted as stock. The network balance runs negative for
+  whatever you are already short of, and reading that as inventory would
+  understate the build by exactly what is missing. Off by default, so the plain
+  cost of a chain does not quietly shift with whatever happens to be running.
+- **Raw-material shortfalls are priced in extractors and planets** — *+4
+  extractors · ~4 planets* beside each one. EVE publishes no planet richness, and
+  output varies by an order of magnitude between a poor planet and a rich one, so
+  there is no published average worth borrowing. The estimate uses **the median
+  yield of your own live extractors** and how many you actually put on a planet.
+
+  Median rather than mean, because one fresh extractor on a rich planet would
+  drag a mean up and understate the answer. Expired extractors are left out — a
+  dead one reads as a genuine zero and would roughly halve the estimate. With no
+  extractor running there is no figure at all, rather than an invented one.
+- **High-resolution planet art** in the colony detail panel, one image per
+  planet type in `assets/planets/`. A type with no image falls back to CCP's own
+  icon for that planet alone, so art can be added or replaced a planet at a time.
+  `npm run planets:build` downscales and re-encodes new art using the image
+  encoder already inside Electron — no new dependency — and took the first set
+  from 21.6 MB to 1.5 MB with no visible loss at the size it is shown.
+- **A refresh button on every page, beside the ✕.** Eleven pages had one, four
+  had none, and each sat wherever that page happened to put it — so when
+  something looked stuck there was nowhere reliable to reach for. It is now
+  injected into every page's header action group, which also means a page added
+  later gets one without anybody remembering to add it.
+
+  It rebuilds the page you are on by re-running that page's own first-visit
+  initialiser — the same path a fresh visit takes, rather than a hand-maintained
+  list of per-page reload functions that would go stale the first time a page was
+  added — and re-syncs any character whose data is past its staleness gate. Two
+  pages keep a warm in-memory cache and drop it first (the dashboard's shared
+  industry-job list, Faction Warfare's five-minute public data).
+
+  It does not force a sync past the staleness gate and does not clear the ESI
+  caches: those exist to protect a shared error budget, and this app polls each
+  endpoint on its own cache TTL by design.
+
+- **The loading spinner is now universal too**, in the slot between the refresh
+  button and the ✕ on every page. The element was already there and already in
+  that slot — but only two code paths ever lit it, so most pages had a loading
+  indicator that never appeared, and pressing refresh lit none of them. Refresh
+  now drives it on all 14 pages, and five page initialisers that were dropping
+  their render promise on the floor now return it, so first-visit loading reports
+  as well.
+
+  It also holds for a beat once shown: a spinner that flashes for 40ms is not
+  feedback, it is a glitch — the eye registers that something moved and cannot
+  say what.
+
+  The refresh button no longer spins while it works, it just dims. Two spinning
+  things side by side is noise; the indicator belongs in one place, and that
+  place is the same one a first-visit load uses.
+
+- **Ctrl+R now does that instead of reloading the window.** It was already wired
+  — the application menu owns Reload — but a window reload re-renders from the
+  same caches, so the numbers came back identical and it read as though the
+  shortcut was broken. Shift+Ctrl+R is untouched and still does a real reload,
+  which is what you want when the renderer itself is wedged.
+- **Killfeed widget**, with three subjects chosen when you add it: every
+  character you have added merged into one feed, a single character, or **any
+  corporation in EVE**, found by full name or ticker. Newest first, kills edged
+  green and losses red, each row opening the killmail on zKillboard.
+
+  Distinct from Top Kills · 90 Days beside it, which is a marquee of your most
+  *valuable* kills — this one is ordered by time and answers "what just
+  happened". Rows come from the same cached zKillboard fetch the Killboard page
+  uses (10-minute cache, 30-day stale fallback), several feeds on the same
+  subject are fetched once, and a killmail two of your characters were both on
+  appears as one row rather than two.
+
+  Corporation lookup is exact-match on name or ticker, not type-ahead: CCP
+  removed the public ESI search endpoint, and its replacement is authenticated
+  behind a scope this app does not hold. `/universe/ids` needs no scope and
+  matches either, so that is what it uses — and an alliance name says it is an
+  alliance rather than silently finding nothing.
+- The widget picker can now **search**, not only list. Some subjects can be
+  enumerated in advance and some cannot: your characters can, EVE's
+  corporations cannot.
+- **Page changes cross-fade instead of cutting.** Moving between pages is a class
+  swap, so it now runs through the browser's view-transition machinery — a 160ms
+  fade, no slide. The nav is a flat list rather than a stack, so there is no
+  "forward" for a slide to mean, and a slide on every click gets tiring by the
+  tenth one. Turned off entirely under "reduce motion".
+- **Modals arrive rather than appear** — a 130ms fade and a 4px rise, on every
+  dialog in the app from one rule.
+- **The Warzone Control page now draws the tug of war**, not a flat two-tone bar:
+  the rope positioned by systems held, the knot, the dead-even tick, and chevrons
+  running toward the half being pushed into. It is the same markup and CSS as the
+  dashboard's Warzone tile, reading from the same selector — the page had its own
+  copy of the control maths, which is exactly how the tile ended up with a 24-hour
+  push indicator that the page never got. Only a warzone with a real edge shows a
+  direction; inside four points of even it says "evenly matched" and shows none.
+  The rope is brightest where the two militias meet and fades toward each end:
+  the contested boundary is the part worth looking at, and 0% and 100% are the
+  ground nobody is fighting over.
+- **Capture progress on the Systems & Plexes table** now uses the same pressure
+  ramp as the dashboard tile — gold into red — and only systems that can flip
+  *right now* pulse. It was painted in the loss colour, which read as Caldari
+  progress when a Caldari system was the one falling.
+- **Faction Warfare on the dashboard.** Three tiles, all reading public ESI, so
+  none of them needs a character, a scope or a militia:
+  - **Top Pilots** — the top five by kills or by victory points, all-time or
+    yesterday. Which of the four boards you want is chosen when you add the
+    tile, so it carries no dropdown; add it twice for kills and victory points
+    side by side. Each row is a bar scaled to the leader, because a leaderboard
+    is a distribution as much as a ranking and a tile has no room for both a
+    list and a chart.
+  - **Capture Pressure** — the six systems closest to changing hands, for one
+    warzone or both, most urgent first: vulnerable before merely close, because
+    a vulnerable system can flip right now and a system at 90% cannot. The bar
+    is coloured by pressure rather than by the owner's militia — filling a
+    Caldari system in Caldari blue as it falls reads as Caldari progress.
+  - **Warzone** — the tug of war. Where the rope sits comes from systems held;
+    which way it is being pulled comes from each militia's share of yesterday's
+    victory points, with chevrons running into the half being pushed into. The
+    tick at dead-even is the point of it: a two-tone bar shows the split, but
+    only the tick shows how far the warzone has been dragged from level. Inside
+    four points of even it says so and shows no direction at all, rather than
+    picking a side on noise.
+
+  The 24-hour victory-point share is labelled as what it is — who out-plexed
+  whom yesterday — not as a forecast that systems are about to flip. All three
+  tiles refresh on the endpoints' own ~30-minute cadence, with no sync button,
+  and every figure comes from the same selectors the Faction Warfare page uses,
+  so a tile and the page cannot disagree about who is winning.
+- **Server instability warnings.** EVE Carbon now reads CCP's own status page
+  and raises a desktop notification when Tranquility starts misbehaving — *Game
+  Server reporting degraded performance. Consider docking anything you cannot
+  afford to lose to a disconnect.* It keeps running while the app is minimised
+  to the tray, which is exactly when you are in the game and cannot see it.
+
+  It is an OS notification rather than a window of ours on purpose. Forcing
+  foreground while a game holds the screen in exclusive fullscreen can crash the
+  game, and warning a pilot by crashing their client would be worse than not
+  warning them at all.
+
+  Only **Game Server, Tranquility and Login** can raise it — Login because a
+  disconnect you cannot log back in from is the very risk being hedged. A website
+  or CDN outage turns the nav light red and says nothing aloud. It warns once per
+  escalation rather than every minute; never when the status page is unreachable
+  (your own connection failing says nothing about Tranquility); never for
+  scheduled maintenance, since EVE has a downtime every day; and not twice in
+  twenty minutes for a component flapping between states. Recovery gets one
+  silent notice. Opening the app into an outage that is already under way does
+  warn — that is exactly who this is for. On by default; Settings → General
+  turns it off.
+- **Collapsing the navigation keeps its indicators**, as badges floating on the
+  icons: unread mail as a count, and Forums, Jabber and Tranquility as dots.
+  Collapsing used to hide them outright, taking with it the four things worth
+  glancing at while you work somewhere else. The collapsed rail is 64px wide, so
+  a mail count over 99 shows as `99+` there; the exact figure stays on the
+  expanded rail and in the tooltip.
+- **Nano mode for popped-out widgets.** A button in a popout's title bar
+  collapses the window to just that bar — title, pin and return — to park over
+  the game. A widget with a status lamp, Beehive among them, brings the lamp up
+  into the bar and keeps it live, so the strip still answers the question you
+  popped it out to watch. Height is locked while collapsed and width left free;
+  expanding puts the window back exactly where it was and at the size it was. A
+  popout used to bottom out at 160px tall however far it was dragged.
+
+### Changed
+- The static data export now imports **planetSchematics** — the full P0→P4 recipe
+  graph, which was in CCP's export all along and never pulled in. Existing
+  installs get it on their next SDE update; until then the PI analysis says so
+  rather than rendering an empty model as though it were the truth.
+- PI colony syncs now keep **routes** alongside pins. ESI returned them in the
+  same response and they were being discarded — without them a factory pin says
+  what it *could* make and nothing about whether anything feeds it, so the model
+  could only ever report installed capacity, never what is actually running.
+- **The STOP signal is a brighter, hotter red** (`#FF3B30`). It used to be a copy
+  of the palette's `--pal-red`, which is a data hue tuned to sit quietly in a
+  chart beside seven others — the wrong job for the colour that has to say STOP
+  across a room. The Beehive stand-down light, the PI strip and the PI tile all
+  share one lamp component now, so they cannot drift apart.
+- **The app's colour and the "you lost a ship" colour are now two different
+  colours.** They were one swatch. The theme's role map named `red` for both
+  `accent` and `danger`, so the swatch labelled *Negative — losses, danger,
+  alerts* was also driving every `--accent*` token: roughly **470 of the app's
+  ~635 colour references**, across 25 stylesheets and 81 more in JS. Every icon,
+  hover, focus ring, nav highlight, KPI figure and banner glow moved when you
+  adjusted the colour that is only supposed to mean a loss — so you could not
+  have red losses and a non-red app, and nothing in the editor said so.
+
+  There is now a **Main** swatch, shown as a full-width bar above the status
+  grid in Settings → Colour Palette, because it is not one of five equals — it
+  is the colour the others are read against. It defaults to a soft orchid
+  (`#E6A5E6`). Negative keeps its crimson and now only paints losses, alerts,
+  failed syncs and offline states.
+
+  Themes saved before this change are untouched: they name `red` as their accent
+  and have no Main swatch, and the fallback resolves them exactly as before.
+
+- `--accent-dim` now lands on a fixed lightness instead of a fixed step down
+  from the accent. It is a background that carries `--accent` as its text
+  (`.panel-count`), and a fixed step only produced a dark backdrop because the
+  old accent happened to be a mid-lightness crimson — the same maths on a pale
+  accent lands mid-tone and the text on it stops being readable. Any Main colour
+  you pick now keeps that pair legible.
+
+- Chart.js is vendored locally instead of loaded from cdnjs with an integrity
+  hash — the last such load in the app, and the same arrangement that broke
+  Gridstack twice (a versioned "immutable" file whose bytes changed under the
+  pinned hash, and caches that keep serving the stale copy and never
+  revalidate). When it fires, SRI blocks the file and every chart silently stops
+  rendering. The vendored copy was verified byte-identical to the pinned hash
+  first. The app now needs no network to start.
+- A dashboard widget that can be added more than once now names its own subject
+  in its header, so two Top Pilots tiles showing different boards are tellable
+  apart at a glance.
+- Faction Warfare name lookups now resolve only the rows about to be drawn.
+  Opening the page used to resolve everything it might ever show — 160 systems
+  plus both leaderboards across two metrics and three windows, up to ~1,200 ids
+  for a view that displays 25 rows.
+- **The EVE Server Status light has a middle state.** It could only ever be
+  green or red, because ESI's `/status` is binary — up, VIP, or unreachable —
+  and has no notion of "unstable". It now also reads status.eveonline.com, whose
+  `minor` indicator is the yellow on that page: amber with a slow pulse (still
+  under "reduce motion"), and a tooltip naming the affected components. The
+  player count still comes from ESI, which is the only place that has it.
+
+### Security
+- **fast-uri 3.1.4 → 3.1.7** (high)
+- **js-yaml 4.3.0 → 4.3.2** (high)
+- **undici 6.27.0 → 6.28.1, 7.28.0 → 7.29.1** (high)
+- **@xmldom/xmldom 0.8.13 → 0.8.15** (medium)
+
+  Fifteen Dependabot alerts across those four, every one of them in build and
+  test tooling — electron-builder and Playwright. None of it ships inside the
+  app; the exposure was the build machine and CI.
+- **Dependabot now opens pull requests**, weekly, for npm and GitHub Actions.
+  Alert scanning was switched on with no update configuration, so alerts
+  accumulated with nothing to clear them. Minor and patch updates arrive grouped
+  as one pull request instead of fifteen; major versions stay separate, so a
+  breaking Electron or sqlite3 bump — both carry native modules — is read on its
+  own.
+
+### Fixed
+- **The Main colour now works on a theme you already had.** Every theme saved
+  before the main/negative split names `red` for its accent and carries no Main
+  swatch, and the app deliberately keeps painting those exactly as they were so
+  that nobody's theme repaints itself on upgrade. That compatibility path had no
+  door out of it: Main showed a grey placeholder for a slot the theme did not
+  have, the live preview was handed the theme's old roles, and saving wrote those
+  roles straight back. You could set Main all day and the app stayed on the
+  Negative colour, with nothing on screen saying why.
+
+  The editor now migrates instead. Main is seeded from whichever colour the theme
+  is actually painting with, so opening the editor and saving without touching it
+  changes nothing, and changing it does what it says. A theme nobody edits is
+  still left alone.
+- **The palette editor no longer leaves the app wearing colours you did not
+  save.** The live preview is an injected stylesheet, and only Cancel and a theme
+  switch ever removed it — so picking a colour and then leaving the editor any
+  other way left it applied for the rest of the session. The app went on showing
+  the preview while the editor correctly reported what the theme file said: pink
+  app, red swatch, both right about different things. Leaving now discards the
+  preview, and the drawer's own SAVE button — which commits Jabber and calendar
+  settings and never touched the palette — says so instead of pocketing the edit.
+- Saving a palette no longer redraws the swatches from the theme it just
+  replaced: the new theme is activated before the editor reloads, not after.
+- Saving OVER the theme you are already using now takes effect immediately. The
+  stylesheet link was skipped when the path had not changed, so the commonest
+  edit of all did nothing visible until the app was restarted.
+- The Wealth Growth chart's **Total** line follows the Main colour instead of the
+  Negative one. Net worth going up is not a loss.
+- **Deleting a custom theme no longer means editing one.** DELETE lived inside
+  the palette editor's save row, shown only in edit mode — so removing a theme
+  with a mistyped name meant clicking CUSTOMISE, which enters an edit state and
+  arms the live preview, purely to reach the button. It now sits beside the theme
+  picker, on the theme you are looking at, and only appears for themes you can
+  actually delete. It also asks with the app's own confirm dialog rather than a
+  native browser one, and names the theme it is about to remove.
+- Deleting a theme you were only browsing no longer switches the app to the
+  built-in Default. That now happens only when the theme deleted was in use.
+- **Editing one of your own themes offers to update it rather than to spawn a
+  copy.** Every save used to prefill "Copy of X" regardless, so saving a theme you
+  already owned quietly produced another one — which is how a picker fills up
+  with near-identical themes. Built-ins still default to a copy, because a user
+  theme named "Default" would shadow the one that ships with the app.
+- The donation prompt no longer opens over the end-to-end suite. It shows on the
+  first launch of each month, and every test run gets a brand-new profile — so
+  on the 1st of any month it opened during the tests and its modal backdrop
+  swallowed every subsequent click. A hard release gate was failing one calendar
+  day in thirty, with a timeout that pointed nowhere near the cause.
+- **Asset values had been silently going stale.** At startup the price refresh
+  and a post-sync rebuild could run at the same moment. Both clear the valuation
+  table and write it back, and interleaved, the second write collided with the
+  first — `SQLITE_CONSTRAINT: UNIQUE constraint failed: asset_value.item_id`. The
+  rollback that followed discarded the good rebuild along with the bad one, so
+  values stayed at whatever the last clean rebuild had left: on the profile it
+  was found on, a week old. Rebuilds now run strictly one at a time. Nothing was
+  lost, and the next launch rebuilds correctly.
+- **Ship names with symbols in them showed as code** — `u'\u2666 Pegasus'`
+  instead of `♦ Pegasus`. That is Python 2's repr of the string, and it is what
+  CCP's `/ship/` endpoint hands over; the same name comes back properly encoded
+  from `/fittings/`, which is why the fitting window was right all along. It is
+  now decoded where it enters, and conservatively: a ship genuinely named
+  `u'hello'` is left alone, and a string that will not decode cleanly is kept
+  exactly as received rather than half-converted into a plausible wrong name.
+  An audit of every stored string found it confined to ship names, but the same
+  decoding now covers the other player-authored names from that API — jump
+  clones, Upwell structures, character bios and asset names.
+- **The colony detail header was blurry.** It asked CCP for a planet *render*,
+  which does not exist for planets, so it silently fell back to the 64px icon
+  stretched across a 700px header. It now shows the new planet art, or the
+  1024px icon where there is none.
+- A colony card could show no character name when that character's stored
+  profile had an empty one; it now falls back to the account's name, as the
+  code always intended.
+
 ## [3.7.0] - 2026-09-01
 
 Two numbers this release were wrong in a way you could not see from inside the

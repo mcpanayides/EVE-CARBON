@@ -102,6 +102,37 @@ function registerValuationHandlers({ ipcHandle, getCharDb, charInfoDb, httpGet,
    * every row would be worth zero — so it escalates to a full refresh once
    * rather than quietly materialising a portfolio worth nothing.
    */
+  // ── One materialisation at a time ─────────────────────────────────────────
+  //
+  // Every path that rebuilds the valuation ends in the same two statements:
+  // DELETE FROM asset_value, then INSERT the whole thing back. Two of those
+  // interleaving gives
+  //
+  //     DELETE(A)  DELETE(B)  INSERT(A)  INSERT(B)
+  //
+  // and B's insert lands on the rows A just wrote:
+  // SQLITE_CONSTRAINT, UNIQUE constraint failed: asset_value.item_id.
+  //
+  // The transaction inside rebuildAssetValues does NOT prevent this. Both
+  // rebuilds run on one shared sqlite connection, so they share the
+  // transaction rather than being isolated by it — BEGIN from the second
+  // caller joins the first's rather than opening its own.
+  //
+  // The debounced path already had a `running` flag, but it only guarded
+  // itself. The startup price refresh and both IPC entry points walked
+  // straight past it, so a character sync finishing while the twenty-second
+  // startup refresh was still in flight raced exactly as above. That is the
+  // reported failure, and it is a cold-start race: the two triggers are most
+  // likely to collide precisely when the app has just opened.
+  let _chain = Promise.resolve();
+  function serialised(fn) {
+    // `.then(fn, fn)` so a failed predecessor does not skip us, and the tail
+    // is swallowed so one failure cannot poison every rebuild after it.
+    const run = _chain.then(fn, fn);
+    _chain = run.then(() => {}, () => {});
+    return run;
+  }
+
   async function rebuildFromLocalData({ allowPriceFetch = true } = {}) {
     const db = getCharDb();
     if (!db) return { ok: false, error: 'character database not open' };
@@ -113,22 +144,28 @@ function registerValuationHandlers({ ipcHandle, getCharDb, charInfoDb, httpGet,
       return refreshValuation();
     }
 
-    const started = Date.now();
-    const built = await valuation.rebuildAssetValues(db);
+    // The lock goes HERE, not around the whole function. The escalation above
+    // calls refreshValuation, which calls back into this function — taking the
+    // lock before that point would have it wait on itself forever. Everything
+    // above is read-only; only what follows writes.
+    return serialised(async () => {
+      const started = Date.now();
+      const built = await valuation.rebuildAssetValues(db);
 
-    const rows = await resolvedRows();
-    const typeIds = [...new Set(rows.map(r => Number(r.type_id)).filter(Boolean))];
-    const meta = await typeMetadata(typeIds);
-    const idx = await assetIndex.rebuildAssetIndex(db, rows, meta);
+      const rows = await resolvedRows();
+      const typeIds = [...new Set(rows.map(r => Number(r.type_id)).filter(Boolean))];
+      const meta = await typeMetadata(typeIds);
+      const idx = await assetIndex.rebuildAssetIndex(db, rows, meta);
 
-    const result = {
-      ok: true, ms: Date.now() - started,
-      items: built.items, containers: built.containers,
-      indexRows: idx.rows, groups: idx.groups,
-    };
-    console.log(`[valuation] rebuilt ${result.indexRows.toLocaleString()} indexed rows ` +
-                `across ${result.groups} location(s) in ${result.ms} ms`);
-    return result;
+      const result = {
+        ok: true, ms: Date.now() - started,
+        items: built.items, containers: built.containers,
+        indexRows: idx.rows, groups: idx.groups,
+      };
+      console.log(`[valuation] rebuilt ${result.indexRows.toLocaleString()} indexed rows ` +
+                  `across ${result.groups} location(s) in ${result.ms} ms`);
+      return result;
+    });
   }
 
   /**

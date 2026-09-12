@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **valuation_ipc.js** (7 connections) — `src/ipc/valuation_ipc.js`
+- **valuation_ipc.js** (8 connections) — `src/ipc/valuation_ipc.js`
 - **valuation_rebuild_debounce.test.js** (7 connections) — `test/valuation_rebuild_debounce.test.js`
 - **harness()** (2 connections) — `test/valuation_rebuild_debounce.test.js`
 - **valuation** (1 connections) — `src/ipc/valuation_ipc.js`
@@ -20,6 +20,7 @@
 - [Asset Index Schema](Asset_Index_Schema.md) (4 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Asset Valuation](Asset_Valuation.md) (1 shared connections)
+- [Valuation Rebuild Race Test](Valuation_Rebuild_Race_Test.md) (1 shared connections)
 
 ## Source Files
 
@@ -28,8 +29,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 21 (95%)
-- INFERRED: 1 (5%)
+- EXTRACTED: 22 (96%)
+- INFERRED: 1 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

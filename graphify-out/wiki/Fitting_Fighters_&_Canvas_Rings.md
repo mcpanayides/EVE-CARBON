@@ -28,7 +28,7 @@
 - [Fitting Simulator](Fitting_Simulator.md) (23 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (12 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (12 shared connections)
-- [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (5 shared connections)
+- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (5 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (3 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (1 shared connections)
 

@@ -6,7 +6,7 @@
 
 - **resfile_backgrounds.js** (15 connections) — `src/resfile_backgrounds.js`
 - **resfile.js** (9 connections) — `src/resfile.js`
-- **_ensureCached()** (9 connections) — `src/resfile_backgrounds.js`
+- **_ensureCached()** (8 connections) — `src/resfile_backgrounds.js`
 - **resolveResourcePaths()** (6 connections) — `src/resfile.js`
 - **_url()** (4 connections) — `src/resfile.js`
 - **getBuildNumber()** (4 connections) — `src/resfile.js`
@@ -30,7 +30,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files
@@ -40,8 +40,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 73 (86%)
-- INFERRED: 12 (14%)
+- EXTRACTED: 73 (87%)
+- INFERRED: 11 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

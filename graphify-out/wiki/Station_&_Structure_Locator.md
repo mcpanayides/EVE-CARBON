@@ -5,7 +5,7 @@
 ## Key Concepts
 
 - **locator.js** (35 connections) — `src/locator.js`
-- **resolveStructureName()** (15 connections) — `src/locator.js`
+- **resolveStructureName()** (16 connections) — `src/locator.js`
 - **net_log.js** (12 connections) — `src/net_log.js`
 - **station_sync.test.js** (9 connections) — `test/station_sync.test.js`
 - **_authStructureRead()** (7 connections) — `src/locator.js`
@@ -27,14 +27,15 @@
 - **fetchHtml()** (3 connections) — `src/locator.js`
 - **_fetchJsonRaw()** (3 connections) — `src/locator.js`
 - **fetchJsonInsecure()** (3 connections) — `src/locator.js`
+- **_waitForEsiCooldown()** (3 connections) — `src/locator.js`
 - **resolveJobLocation()** (3 connections) — `src/locator.js`
-- **iso()** (3 connections) — `src/net_log.js`
 - *... and 33 more nodes in this community*
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (3 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Calendar & Events](Calendar_%26_Events.md) (1 shared connections)
 
 ## Source Files
@@ -47,8 +48,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 183 (88%)
-- INFERRED: 25 (12%)
+- EXTRACTED: 183 (87%)
+- INFERRED: 27 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

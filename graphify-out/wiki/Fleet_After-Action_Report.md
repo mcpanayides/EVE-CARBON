@@ -13,7 +13,7 @@
 - **toBBCode()** (8 connections) — `src/fleet_aar.js`
 - **fleet_ipc_clone.test.js** (8 connections) — `test/fleet_ipc_clone.test.js`
 - **fleet_kills.js** (7 connections) — `src/fleet_kills.js`
-- **render()** (6 connections) — `src/fleet_aar.js`
+- **render()** (5 connections) — `src/fleet_aar.js`
 - **pullOpKills()** (5 connections) — `src/fleet_kills.js`
 - **fmtIsk()** (4 connections) — `src/fleet_aar.js`
 - **fmtQty()** (4 connections) — `src/fleet_aar.js`
@@ -34,7 +34,6 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Planetary Interaction](Planetary_Interaction.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
 
@@ -49,8 +48,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 142 (82%)
-- INFERRED: 31 (18%)
+- EXTRACTED: 142 (83%)
+- INFERRED: 30 (17%)
 - AMBIGUOUS: 0 (0%)
 
 ---

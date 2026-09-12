@@ -33,8 +33,8 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

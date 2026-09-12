@@ -7,7 +7,7 @@
 ## Connections by Relation
 
 ### contains
-- [_](_.md) `EXTRACTED`
+- _ `EXTRACTED`
 
 ### method
 - ._setupAcceptWidget() `EXTRACTED`

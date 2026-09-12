@@ -6,12 +6,12 @@
 
 - **market.js** (3 connections) — `src/func/market.js`
 - **renderMarket()** (3 connections) — `src/func/market.js`
-- **_marketFetch()** (2 connections) — `src/func/market.js`
+- **_marketFetch()** (3 connections) — `src/func/market.js`
 - **_marketRenderRows()** (2 connections) — `src/func/market.js`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -19,8 +19,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 8 (80%)
-- INFERRED: 2 (20%)
+- EXTRACTED: 8 (73%)
+- INFERRED: 3 (27%)
 - AMBIGUOUS: 0 (0%)
 
 ---

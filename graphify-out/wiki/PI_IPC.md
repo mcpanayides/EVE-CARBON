@@ -1,33 +1,55 @@
 # PI IPC
 
-> 9 nodes · cohesion 0.33
+> 20 nodes · cohesion 0.14
 
 ## Key Concepts
 
-- **pi_ipc.js** (10 connections) — `src/ipc/pi_ipc.js`
+- **t()** (16 connections) — `scripts/watch-fleet-op.js`
+- **pi_ipc.js** (11 connections) — `src/ipc/pi_ipc.js`
+- **watch-fleet-op.js** (8 connections) — `scripts/watch-fleet-op.js`
 - **syncPIForCharacter()** (7 connections) — `src/ipc/pi_ipc.js`
+- **registerPIHandlers()** (6 connections) — `src/ipc/pi_ipc.js`
+- **render()** (3 connections) — `scripts/watch-fleet-op.js`
 - **summariseStorage()** (3 connections) — `src/ipc/pi_ipc.js`
-- **registerPIHandlers()** (3 connections) — `src/ipc/pi_ipc.js`
+- **getJumpGraph()** (3 connections) — `src/ipc/pi_ipc.js`
+- **_fitBuildTree()** (2 connections) — `main.js`
+- **dur()** (2 connections) — `scripts/watch-fleet-op.js`
 - **buildStorageTypes()** (2 connections) — `src/ipc/pi_ipc.js`
 - **getItemVolume()** (2 connections) — `src/ipc/pi_ipc.js`
+- **sqlite3** (1 connections) — `scripts/watch-fleet-op.js`
+- **{ open }** (1 connections) — `scripts/watch-fleet-op.js`
+- **path** (1 connections) — `scripts/watch-fleet-op.js`
+- **ONCE** (1 connections) — `scripts/watch-fleet-op.js`
+- **snapshot()** (1 connections) — `scripts/watch-fleet-op.js`
 - **{ ESI_BASE }** (1 connections) — `src/ipc/pi_ipc.js`
 - **PI_STORAGE_TYPES_FALLBACK** (1 connections) — `src/ipc/pi_ipc.js`
 - **PI_ITEM_VOLUMES** (1 connections) — `src/ipc/pi_ipc.js`
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Market Trading](Market_Trading.md) (2 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
+- [Demo Mode](Demo_Mode.md) (1 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (1 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (1 shared connections)
+- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (1 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
 
 ## Source Files
 
+- `main.js`
+- `scripts/watch-fleet-op.js`
 - `src/ipc/pi_ipc.js`
 
 ## Audit Trail
 
-- EXTRACTED: 24 (80%)
-- INFERRED: 6 (20%)
+- EXTRACTED: 49 (67%)
+- INFERRED: 24 (33%)
 - AMBIGUOUS: 0 (0%)
 
 ---

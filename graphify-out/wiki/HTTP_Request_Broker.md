@@ -5,7 +5,7 @@
 ## Key Concepts
 
 - **request_broker.js** (31 connections) — `src/request_broker.js`
-- **get()** (13 connections) — `src/request_broker.js`
+- **get()** (14 connections) — `src/request_broker.js`
 - **request_broker.test.js** (10 connections) — `test/request_broker.test.js`
 - **_token()** (6 connections) — `src/request_broker.js`
 - **_pump()** (5 connections) — `src/request_broker.js`
@@ -36,6 +36,7 @@
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -44,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 106 (87%)
-- INFERRED: 16 (13%)
+- EXTRACTED: 106 (86%)
+- INFERRED: 17 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

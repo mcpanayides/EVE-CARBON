@@ -12,28 +12,28 @@
 - .swap() `EXTRACTED`
 
 ### contains
-- [_](_.md) `EXTRACTED`
+- _ `EXTRACTED`
 
 ### method
 - .moveNode() `EXTRACTED`
 - ._fixCollisions() `EXTRACTED`
 - .addNode() `EXTRACTED`
 - ._notify() `EXTRACTED`
-- .nodeBoundFix() `EXTRACTED`
 - ._packNodes() `EXTRACTED`
+- .nodeBoundFix() `EXTRACTED`
 - .moveNodeCheck() `EXTRACTED`
 - .sortNodes() `EXTRACTED`
+- .restoreInitial() `EXTRACTED`
 - .batchUpdate() `EXTRACTED`
 - .collide() `EXTRACTED`
 - .findEmptyPosition() `EXTRACTED`
 - .prepareNode() `EXTRACTED`
-- .restoreInitial() `EXTRACTED`
+- .saveInitial() `EXTRACTED`
 - .willItFit() `EXTRACTED`
 - .beginUpdate() `EXTRACTED`
 - .compact() `EXTRACTED`
 - .findCacheLayout() `EXTRACTED`
 - .save() `EXTRACTED`
-- .saveInitial() `EXTRACTED`
 - .cacheOneLayout() `EXTRACTED`
 
 ### references

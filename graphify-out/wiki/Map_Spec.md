@@ -13,7 +13,7 @@
 ## Relationships
 
 - [Electron App](Electron_App.md) (1 shared connections)
-- [Assets Spec](Assets_Spec.md) (1 shared connections)
+- [Calendar Spec](Calendar_Spec.md) (1 shared connections)
 
 ## Source Files
 

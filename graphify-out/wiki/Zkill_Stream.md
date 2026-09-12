@@ -18,7 +18,7 @@
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Intel Service](Intel_Service.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
 - [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)

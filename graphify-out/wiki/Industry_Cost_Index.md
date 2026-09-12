@@ -10,12 +10,12 @@
 - **renderCITable()** (5 connections) — `src/func/cost-index.js`
 - **loadCIData()** (4 connections) — `src/func/cost-index.js`
 - **loadCISystemDetails()** (3 connections) — `src/func/cost-index.js`
+- **filterByJumpRange()** (3 connections) — `src/func/cost-index.js`
 - **ciBarCell()** (3 connections) — `src/func/cost-index.js`
 - **formatCI()** (3 connections) — `src/func/cost-index.js`
 - **handleCISystemInput()** (3 connections) — `src/func/cost-index.js`
 - **_ciPopulateRegionSelect()** (2 connections) — `src/func/cost-index.js`
 - **findCISystemByName()** (2 connections) — `src/func/cost-index.js`
-- **filterByJumpRange()** (2 connections) — `src/func/cost-index.js`
 - **_ciSort** (1 connections) — `src/func/cost-index.js`
 - **_routeCache** (1 connections) — `src/func/cost-index.js`
 - **_ciSystemMap** (1 connections) — `src/func/cost-index.js`
@@ -25,7 +25,7 @@
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -33,8 +33,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 62 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 62 (98%)
+- INFERRED: 1 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

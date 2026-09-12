@@ -10,7 +10,6 @@
 - **renderEarlyWarningWidget()** (4 connections) — `src/func/dashboard.js`
 - **renderAllianceIncursionAlert()** (4 connections) — `src/func/dashboard.js`
 - **_ktRenderInstance()** (4 connections) — `src/func/dashboard.js`
-- **_pingCommsUrl()** (3 connections) — `src/func/dashboard.js`
 - **_pingSetDestination()** (3 connections) — `src/func/dashboard.js`
 - **renderBeehiveWidget()** (3 connections) — `src/func/dashboard.js`
 - **_ewTick()** (3 connections) — `src/func/dashboard.js`
@@ -20,6 +19,7 @@
 - **_killScopeMap()** (3 connections) — `src/func/dashboard.js`
 - **_getKillScope()** (3 connections) — `src/func/dashboard.js`
 - **_setKillScope()** (3 connections) — `src/func/dashboard.js`
+- **_pingCommsUrl()** (2 connections) — `src/func/dashboard.js`
 - **_pingSystemFromFormup()** (2 connections) — `src/func/dashboard.js`
 - **_pingResolveFcPortrait()** (2 connections) — `src/func/dashboard.js`
 - **_beehiveMeta()** (2 connections) — `src/func/dashboard.js`
@@ -39,8 +39,8 @@
 - [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) (7 shared connections)
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (5 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
-- [Ping Alert](Ping_Alert.md) (1 shared connections)
+- [FC Intel](FC_Intel.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -49,7 +49,7 @@
 ## Audit Trail
 
 - EXTRACTED: 204 (97%)
-- INFERRED: 7 (3%)
+- INFERRED: 6 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

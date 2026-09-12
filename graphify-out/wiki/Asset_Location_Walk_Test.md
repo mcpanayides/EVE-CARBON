@@ -8,7 +8,7 @@
 - **asset-location-walk.js** (4 connections) — `src/asset-location-walk.js`
 - **resolveAssetLocationChain()** (4 connections) — `src/asset-location-walk.js`
 - **isPlaceholderName()** (3 connections) — `src/asset-location-walk.js`
-- **getCharacterAssets()** (2 connections) — `src/character_info_db.js`
+- **getCharacterAssets()** (3 connections) — `src/character_info_db.js`
 - **ctx()** (2 connections) — `test/asset-location-walk.test.js`
 - **resolved()** (2 connections) — `test/asset-location-walk.test.js`
 - **nested()** (2 connections) — `test/asset-location-walk.test.js`
@@ -20,6 +20,7 @@
 ## Relationships
 
 - [Character Database](Character_Database.md) (3 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -29,8 +30,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (79%)
-- INFERRED: 7 (21%)
+- EXTRACTED: 26 (76%)
+- INFERRED: 8 (24%)
 - AMBIGUOUS: 0 (0%)
 
 ---

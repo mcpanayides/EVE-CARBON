@@ -12,19 +12,19 @@
 - **_skActive()** (10 connections) — `src/func/skills.js`
 - **_skRenderTotals()** (10 connections) — `src/func/skills.js`
 - **_skAddSkill()** (9 connections) — `src/func/skills.js`
-- **_skPasteModal()** (9 connections) — `src/func/skills.js`
 - **_skCostPlan()** (8 connections) — `src/func/skills.js`
 - **_skSavePlans()** (8 connections) — `src/func/skills.js`
 - **_skCharName()** (8 connections) — `src/func/skills.js`
-- **_skRenderBrowser()** (8 connections) — `src/func/skills.js`
+- **_skQueueCard()** (8 connections) — `src/func/skills.js`
 - **_skRenderBoosters()** (8 connections) — `src/func/skills.js`
+- **_skPasteModal()** (8 connections) — `src/func/skills.js`
 - **_skFmtDuration()** (7 connections) — `src/func/skills.js`
-- **initSkillsPage()** (7 connections) — `src/func/skills.js`
 - **_skRenderQueuesTab()** (7 connections) — `src/func/skills.js`
-- **_skQueueCard()** (7 connections) — `src/func/skills.js`
 - **_skBindQueuesTab()** (7 connections) — `src/func/skills.js`
+- **_skRenderBrowser()** (7 connections) — `src/func/skills.js`
 - **_skAddTypeRequirements()** (7 connections) — `src/func/skills.js`
 - **_skRenderPlansTab()** (7 connections) — `src/func/skills.js`
+- **initSkillsPage()** (6 connections) — `src/func/skills.js`
 - **_skRenderTab()** (6 connections) — `src/func/skills.js`
 - **_skOptimalRemap()** (5 connections) — `src/func/skills.js`
 - **_skNewPlan()** (5 connections) — `src/func/skills.js`
@@ -33,8 +33,7 @@
 
 ## Relationships
 
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (3 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -42,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 364 (99%)
-- INFERRED: 5 (1%)
+- EXTRACTED: 364 (100%)
+- INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

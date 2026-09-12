@@ -7,22 +7,22 @@
 - **jump-planner.js** (59 connections) — `src/func/jump-planner.js`
 - **_jpShowMapMenu()** (13 connections) — `src/func/jump-planner.js`
 - **openJumpPlanner()** (12 connections) — `src/func/jump-planner.js`
+- **_jpRoute()** (9 connections) — `src/func/jump-planner.js`
 - **_jpBuildModal()** (9 connections) — `src/func/jump-planner.js`
-- **_jpRoute()** (8 connections) — `src/func/jump-planner.js`
 - **_jpReplot()** (8 connections) — `src/func/jump-planner.js`
 - **_jpPlot()** (8 connections) — `src/func/jump-planner.js`
 - **_jpRenderRoute()** (8 connections) — `src/func/jump-planner.js`
 - **_jpDistLY()** (7 connections) — `src/func/jump-planner.js`
 - **_jpAddBridge()** (6 connections) — `src/func/jump-planner.js`
+- **_jpNeighboursInRange()** (5 connections) — `src/func/jump-planner.js`
+- **_jpMidAlternatives()** (5 connections) — `src/func/jump-planner.js`
 - **_jpShipById()** (5 connections) — `src/func/jump-planner.js`
 - **_jpUpdateRangeNote()** (5 connections) — `src/func/jump-planner.js`
 - **_jpResolveSystem()** (5 connections) — `src/func/jump-planner.js`
 - **_jpRenderBridges()** (5 connections) — `src/func/jump-planner.js`
 - **_jpGetBridges()** (4 connections) — `src/func/jump-planner.js`
 - **_jpLoadData()** (4 connections) — `src/func/jump-planner.js`
-- **_jpNeighboursInRange()** (4 connections) — `src/func/jump-planner.js`
 - **_jpRouteMulti()** (4 connections) — `src/func/jump-planner.js`
-- **_jpMidAlternatives()** (4 connections) — `src/func/jump-planner.js`
 - **_jpInsertWaypointAtSegment()** (4 connections) — `src/func/jump-planner.js`
 - **_jpRangeFor()** (4 connections) — `src/func/jump-planner.js`
 - **_jpMaybeReplot()** (4 connections) — `src/func/jump-planner.js`
@@ -33,7 +33,9 @@
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (f)](Chart_Umd_%28f%29.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (1 shared connections)
 
 ## Source Files
 
@@ -42,8 +44,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 264 (96%)
-- INFERRED: 12 (4%)
+- EXTRACTED: 264 (95%)
+- INFERRED: 15 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

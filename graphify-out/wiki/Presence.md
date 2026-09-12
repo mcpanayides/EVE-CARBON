@@ -5,9 +5,9 @@
 ## Key Concepts
 
 - **presence.js** (12 connections) — `src/presence.js`
+- **_beat()** (4 connections) — `src/presence.js`
 - **initPresence()** (4 connections) — `src/presence.js`
 - **presence.test.js** (4 connections) — `test/presence.test.js`
-- **_beat()** (3 connections) — `src/presence.js`
 - **_schedule()** (3 connections) — `src/presence.js`
 - **_versionParts()** (2 connections) — `src/presence.js`
 - **summarisePresenceVersions()** (2 connections) — `src/presence.js`
@@ -23,6 +23,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -31,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (75%)
-- INFERRED: 10 (25%)
+- EXTRACTED: 30 (73%)
+- INFERRED: 11 (27%)
 - AMBIGUOUS: 0 (0%)
 
 ---

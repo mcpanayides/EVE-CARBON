@@ -5,8 +5,8 @@
 ## Key Concepts
 
 - **asset_index.js** (29 connections) — `src/asset_index.js`
+- **registerValuationHandlers()** (12 connections) — `src/ipc/valuation_ipc.js`
 - **ensureAssetIndex()** (11 connections) — `src/asset_index.js`
-- **registerValuationHandlers()** (10 connections) — `src/ipc/valuation_ipc.js`
 - **rebuildAssetIndex()** (7 connections) — `src/asset_index.js`
 - **buildWhere()** (6 connections) — `src/asset_index.js`
 - **getLocationGroups()** (5 connections) — `src/asset_index.js`
@@ -35,9 +35,10 @@
 
 - [Asset Valuation](Asset_Valuation.md) (4 shared connections)
 - [Valuation Rebuild Debounce Test](Valuation_Rebuild_Debounce_Test.md) (4 shared connections)
+- [Valuation Rebuild Race Test](Valuation_Rebuild_Race_Test.md) (2 shared connections)
 - [Stress Index](Stress_Index.md) (1 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
@@ -48,8 +49,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 82 (70%)
-- INFERRED: 35 (30%)
+- EXTRACTED: 84 (71%)
+- INFERRED: 35 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

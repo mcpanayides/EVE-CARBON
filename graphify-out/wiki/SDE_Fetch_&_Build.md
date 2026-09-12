@@ -8,7 +8,7 @@
 - **fetch-sde.js** (14 connections) — `scripts/fetch-sde.js`
 - **sde_build.js** (13 connections) — `src/sde_build.js`
 - **sde_extract.test.js** (12 connections) — `test/sde_extract.test.js`
-- **buildSdeFromJsonl()** (7 connections) — `src/sde_build.js`
+- **buildSdeFromJsonl()** (9 connections) — `src/sde_build.js`
 - **fetchAndBuildSde()** (7 connections) — `src/sde_fetch.js`
 - **extractZipSafely()** (5 connections) — `src/sde_fetch.js`
 - **main()** (4 connections) — `scripts/fetch-sde.js`
@@ -22,18 +22,19 @@
 - **b01()** (2 connections) — `src/sde_build.js`
 - **entryMode()** (2 connections) — `src/sde_fetch.js`
 - **downloadFile()** (2 connections) — `src/sde_fetch.js`
+- **makeZip()** (2 connections) — `test/sde_extract.test.js`
 - **{ buildSdeFromJsonl }** (1 connections) — `scripts/build-sde-from-jsonl.js`
 - **fs** (1 connections) — `scripts/fetch-sde.js`
 - **path** (1 connections) — `scripts/fetch-sde.js`
 - **{ fetchAndBuildSde, fetchManifest }** (1 connections) — `scripts/fetch-sde.js`
 - **{ APP_USER_AGENT }** (1 connections) — `scripts/fetch-sde.js`
 - **DATA_DIR** (1 connections) — `scripts/fetch-sde.js`
-- **OUT_FILE** (1 connections) — `scripts/fetch-sde.js`
 - *... and 23 more nodes in this community*
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files
@@ -46,8 +47,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 123 (91%)
-- INFERRED: 12 (9%)
+- EXTRACTED: 123 (89%)
+- INFERRED: 15 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

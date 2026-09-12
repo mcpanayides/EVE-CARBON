@@ -6,7 +6,7 @@
 
 - **appraisal.js** (11 connections) — `src/func/appraisal.js`
 - **_apRenderResult()** (7 connections) — `src/func/appraisal.js`
-- **_apTotals()** (4 connections) — `src/func/appraisal.js`
+- **_apTotals()** (5 connections) — `src/func/appraisal.js`
 - **_apRun()** (4 connections) — `src/func/appraisal.js`
 - **_apCandidates()** (3 connections) — `src/func/appraisal.js`
 - **_apResolve()** (3 connections) — `src/func/appraisal.js`
@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 
 ## Source Files
 
@@ -27,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 42 (93%)
-- INFERRED: 3 (7%)
+- EXTRACTED: 42 (91%)
+- INFERRED: 4 (9%)
 - AMBIGUOUS: 0 (0%)
 
 ---

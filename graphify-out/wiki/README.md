@@ -7,7 +7,7 @@
 - **zkill-fanout** (7 connections) — `workers/zkill-fanout/README.md`
 - **Two protocols** (3 connections) — `workers/zkill-fanout/README.md`
 - **What it will actually cost** (2 connections) — `workers/zkill-fanout/README.md`
-- **README.md** (1 connections) — `workers/zkill-fanout/README.md`
+- **zkill-fanout/README.md** (1 connections) — `workers/zkill-fanout/README.md`
 - **Why** (1 connections) — `workers/zkill-fanout/README.md`
 - **v1 — mirror (deploy this first)** (1 connections) — `workers/zkill-fanout/README.md`
 - **v2 — batched feed** (1 connections) — `workers/zkill-fanout/README.md`

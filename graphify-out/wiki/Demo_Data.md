@@ -1,6 +1,6 @@
 # Demo Data
 
-> 20 nodes · cohesion 0.15
+> 21 nodes · cohesion 0.14
 
 ## Key Concepts
 
@@ -8,12 +8,13 @@
 - **writeCharacterDb()** (6 connections) — `src/demo_data.js`
 - **seedMain()** (4 connections) — `src/demo_data.js`
 - **seedIndy()** (4 connections) — `src/demo_data.js`
+- **sys()** (4 connections) — `test/dashboard_fw.test.js`
 - **lcg()** (3 connections) — `src/demo_data.js`
 - **pick()** (3 connections) — `src/demo_data.js`
 - **seed()** (3 connections) — `src/demo_data.js`
+- **seedFleetOps()** (3 connections) — `src/demo_data.js`
 - **writeUserData()** (2 connections) — `src/demo_data.js`
 - **seedScout()** (2 connections) — `src/demo_data.js`
-- **seedFleetOps()** (2 connections) — `src/demo_data.js`
 - **fs** (1 connections) — `src/demo_data.js`
 - **path** (1 connections) — `src/demo_data.js`
 - **CHARS** (1 connections) — `src/demo_data.js`
@@ -28,15 +29,19 @@
 ## Relationships
 
 - [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
+- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/demo_data.js`
+- `test/dashboard_fw.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 55 (93%)
-- INFERRED: 4 (7%)
+- EXTRACTED: 56 (88%)
+- INFERRED: 8 (12%)
 - AMBIGUOUS: 0 (0%)
 
 ---

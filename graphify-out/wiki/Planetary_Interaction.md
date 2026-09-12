@@ -1,39 +1,39 @@
 # Planetary Interaction
 
-> 27 nodes · cohesion 0.15
+> 52 nodes · cohesion 0.09
 
 ## Key Concepts
 
-- **planetary-interaction.js** (26 connections) — `src/func/planetary-interaction.js`
-- **openPIDetail()** (8 connections) — `src/func/planetary-interaction.js`
-- **loadPlanetaryInteraction()** (7 connections) — `src/func/planetary-interaction.js`
+- **planetary-interaction.js** (51 connections) — `src/func/planetary-interaction.js`
+- **loadPlanetaryInteraction()** (10 connections) — `src/func/planetary-interaction.js`
+- **_piRenderPlanOutput()** (10 connections) — `src/func/planetary-interaction.js`
+- **renderPIShell()** (9 connections) — `src/func/planetary-interaction.js`
+- **openPIDetail()** (9 connections) — `src/func/planetary-interaction.js`
+- **renderPiShortfalls()** (8 connections) — `src/func/planetary-interaction.js`
+- **navigatePiTab()** (6 connections) — `src/func/planetary-interaction.js`
+- **piCapacitySummary()** (6 connections) — `src/func/planetary-interaction.js`
 - **buildColonyCard()** (6 connections) — `src/func/planetary-interaction.js`
 - **applyPIFilters()** (5 connections) — `src/func/planetary-interaction.js`
-- **navigatePiTab()** (4 connections) — `src/func/planetary-interaction.js`
+- **_piEnsureNetwork()** (5 connections) — `src/func/planetary-interaction.js`
+- **renderPiPlanner()** (5 connections) — `src/func/planetary-interaction.js`
 - **getJumps()** (4 connections) — `src/func/planetary-interaction.js`
-- **renderPIShell()** (4 connections) — `src/func/planetary-interaction.js`
+- **piAllColonies()** (4 connections) — `src/func/planetary-interaction.js`
+- **_piLoadCapacities()** (4 connections) — `src/func/planetary-interaction.js`
+- **renderPiCapacityTab()** (4 connections) — `src/func/planetary-interaction.js`
+- **_piName()** (4 connections) — `src/func/planetary-interaction.js`
+- **loadCharacterColonies()** (3 connections) — `src/func/planetary-interaction.js`
 - **resetPIFilters()** (3 connections) — `src/func/planetary-interaction.js`
 - **getColonyStatus()** (3 connections) — `src/func/planetary-interaction.js`
+- **piTally()** (3 connections) — `src/func/planetary-interaction.js`
+- **piSlotCapacity()** (3 connections) — `src/func/planetary-interaction.js`
+- **piCapacityRoleRows()** (3 connections) — `src/func/planetary-interaction.js`
+- **_piRenderCapacityTab()** (3 connections) — `src/func/planetary-interaction.js`
 - **_piEscListener()** (3 connections) — `src/func/planetary-interaction.js`
-- **closePIDetail()** (3 connections) — `src/func/planetary-interaction.js`
-- **buildStorageBars()** (3 connections) — `src/func/planetary-interaction.js`
-- **getPlanetLabel()** (3 connections) — `src/func/planetary-interaction.js`
-- **renderPlanetSizeMapper()** (3 connections) — `src/func/planetary-interaction.js`
-- **resolvePlanetNames()** (2 connections) — `src/func/planetary-interaction.js`
-- **_autoSyncPIIfStale()** (2 connections) — `src/func/planetary-interaction.js`
-- **initPiPage()** (2 connections) — `src/func/planetary-interaction.js`
-- **loadCharacterColonies()** (2 connections) — `src/func/planetary-interaction.js`
-- **prefetchJumpDistances()** (2 connections) — `src/func/planetary-interaction.js`
-- **buildPinsListHtml()** (2 connections) — `src/func/planetary-interaction.js`
-- **PI_PLANET_TYPE_IDS** (1 connections) — `src/func/planetary-interaction.js`
-- **_piAllCharData** (1 connections) — `src/func/planetary-interaction.js`
-- **_piJumpCache** (1 connections) — `src/func/planetary-interaction.js`
-- **_piPinsMap** (1 connections) — `src/func/planetary-interaction.js`
-- *... and 2 more nodes in this community*
+- *... and 27 more nodes in this community*
 
 ## Relationships
 
-- [Fleet After-Action Report](Fleet_After-Action_Report.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 96 (93%)
-- INFERRED: 7 (7%)
+- EXTRACTED: 220 (97%)
+- INFERRED: 7 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

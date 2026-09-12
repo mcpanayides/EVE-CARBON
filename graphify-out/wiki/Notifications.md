@@ -25,7 +25,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 
 ## Source Files

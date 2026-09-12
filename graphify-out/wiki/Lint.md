@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **lint.js** (18 connections) — `scripts/lint.js`
+- **lint.js** (19 connections) — `scripts/lint.js`
 - **collectHtml()** (2 connections) — `scripts/lint.js`
 - **htmlFiles()** (2 connections) — `scripts/lint.js`
 - **fs** (1 connections) — `scripts/lint.js`
@@ -26,7 +26,7 @@
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -34,8 +34,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 38 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 38 (97%)
+- INFERRED: 1 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

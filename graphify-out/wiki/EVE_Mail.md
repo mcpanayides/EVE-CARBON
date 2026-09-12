@@ -5,7 +5,7 @@
 ## Key Concepts
 
 - **mail.js** (52 connections) — `src/func/mail.js`
-- **_mailReload()** (16 connections) — `src/func/mail.js`
+- **_mailReload()** (15 connections) — `src/func/mail.js`
 - **_mailRenderReader()** (12 connections) — `src/func/mail.js`
 - **_mailOneId()** (10 connections) — `src/func/mail.js`
 - **_mailLoadPage()** (10 connections) — `src/func/mail.js`
@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

@@ -1,6 +1,6 @@
 # Intel Zkill Stream Test
 
-> 17 nodes · cohesion 0.15
+> 19 nodes · cohesion 0.14
 
 ## Key Concepts
 
@@ -8,6 +8,8 @@
 - **kill_watch.js** (7 connections) — `src/intel/kill_watch.js`
 - **createKillWatch()** (5 connections) — `src/intel/kill_watch.js`
 - **normalisePackage()** (2 connections) — `src/intel/kill_watch.js`
+- **tick()** (2 connections) — `test/intel_zkill_stream.test.js`
+- **advance()** (2 connections) — `test/intel_zkill_stream.test.js`
 - **idOf()** (2 connections) — `test/intel_zkill_stream.test.js`
 - **fakeServer()** (2 connections) — `test/intel_zkill_stream.test.js`
 - **watch()** (2 connections) — `test/intel_zkill_stream.test.js`
@@ -29,8 +31,7 @@
 - [Intel Service](Intel_Service.md) (2 shared connections)
 - [Intel Test](Intel_Test.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 
@@ -39,8 +40,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 47 (92%)
-- INFERRED: 4 (8%)
+- EXTRACTED: 51 (93%)
+- INFERRED: 4 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

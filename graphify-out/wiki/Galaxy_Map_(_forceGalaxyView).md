@@ -1,12 +1,13 @@
 # Galaxy Map (_forceGalaxyView)
 
-> 8 nodes · cohesion 0.29
+> 9 nodes · cohesion 0.28
 
 ## Key Concepts
 
-- **_initSearch()** (7 connections) — `src/func/map.js`
+- **_initSearch()** (8 connections) — `src/func/map.js`
+- **_showInfo()** (7 connections) — `src/func/map.js`
 - **_flyTo()** (7 connections) — `src/func/map.js`
-- **mapGoToSystem()** (4 connections) — `src/func/map.js`
+- **mapGoToSystem()** (5 connections) — `src/func/map.js`
 - **_worldPos()** (4 connections) — `src/func/map.js`
 - **_forceGalaxyView()** (3 connections) — `src/func/map.js`
 - **_fitToSystems()** (3 connections) — `src/func/map.js`
@@ -15,8 +16,10 @@
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (8 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (6 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (10 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (7 shared connections)
+- [Demo Data](Demo_Data.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
 
@@ -26,8 +29,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (94%)
-- INFERRED: 2 (6%)
+- EXTRACTED: 37 (90%)
+- INFERRED: 4 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---

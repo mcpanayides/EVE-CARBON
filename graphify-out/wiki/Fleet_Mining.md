@@ -7,7 +7,7 @@
 - **fleet_mining.js** (7 connections) — `src/fleet_mining.js`
 - **key()** (6 connections) — `src/fleet_mining.js`
 - **fleet_mining.test.js** (5 connections) — `test/fleet_mining.test.js`
-- **buildWalks()** (4 connections) — `src/intel/patterns.js`
+- **buildWalks()** (3 connections) — `src/intel/patterns.js`
 - **computeDelta()** (2 connections) — `src/fleet_mining.js`
 - **restrictToSystems()** (1 connections) — `src/fleet_mining.js`
 - **priceRows()** (1 connections) — `src/fleet_mining.js`
@@ -24,7 +24,6 @@
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
 - [Notifications](Notifications.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 
@@ -34,8 +33,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 16 (52%)
-- INFERRED: 15 (48%)
+- EXTRACTED: 16 (53%)
+- INFERRED: 14 (47%)
 - AMBIGUOUS: 0 (0%)
 
 ---

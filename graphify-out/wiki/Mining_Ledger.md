@@ -7,8 +7,8 @@
 - **mining.js** (25 connections) — `src/func/mining.js`
 - **_mlRenderView()** (8 connections) — `src/func/mining.js`
 - **_mlLoadAndRender()** (7 connections) — `src/func/mining.js`
+- **_mlRenderOre()** (7 connections) — `src/func/mining.js`
 - **_mlEnsureFresh()** (6 connections) — `src/func/mining.js`
-- **_mlRenderOre()** (6 connections) — `src/func/mining.js`
 - **renderMiningLedger()** (5 connections) — `src/func/mining.js`
 - **_mlRenderDaily()** (5 connections) — `src/func/mining.js`
 - **_mlRenderMoon()** (5 connections) — `src/func/mining.js`
@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 104 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 104 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

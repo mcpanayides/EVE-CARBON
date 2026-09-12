@@ -6,11 +6,11 @@
 
 - **calendar.js** (48 connections) — `src/func/calendar.js`
 - **_calLoadEvents()** (10 connections) — `src/func/calendar.js`
-- **_calRenderMonth()** (8 connections) — `src/func/calendar.js`
+- **_calRenderMonth()** (9 connections) — `src/func/calendar.js`
+- **_calRenderAgenda()** (7 connections) — `src/func/calendar.js`
+- **_calBindOccClicks()** (7 connections) — `src/func/calendar.js`
 - **renderCalendar()** (6 connections) — `src/func/calendar.js`
 - **_calBuildGoonSource()** (6 connections) — `src/func/calendar.js`
-- **_calRenderAgenda()** (6 connections) — `src/func/calendar.js`
-- **_calBindOccClicks()** (6 connections) — `src/func/calendar.js`
 - **_calFmtEve()** (5 connections) — `src/func/calendar.js`
 - **_calFmtEveTime()** (5 connections) — `src/func/calendar.js`
 - **_calFmtEveLocal()** (5 connections) — `src/func/calendar.js`
@@ -33,6 +33,7 @@
 
 ## Relationships
 
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
 
 ## Source Files
@@ -41,8 +42,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 198 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 198 (98%)
+- INFERRED: 4 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

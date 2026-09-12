@@ -12,11 +12,11 @@
 - **_assetEnsureOpenBranches()** (7 connections) — `src/func/assets.js`
 - **_bindAssetCollapse()** (6 connections) — `src/func/assets.js`
 - **_formatAssetIsk()** (5 connections) — `src/func/assets.js`
+- **populateAssetFilters()** (5 connections) — `src/func/assets.js`
 - **loadAssets()** (5 connections) — `src/func/assets.js`
 - **initAssetColResize()** (5 connections) — `src/func/assets.js`
 - **renderWallets()** (5 connections) — `src/func/assets.js`
 - **assetFilters()** (4 connections) — `src/func/assets.js`
-- **populateAssetFilters()** (4 connections) — `src/func/assets.js`
 - **_assetTbody()** (4 connections) — `src/func/assets.js`
 - **_assetBindScroll()** (4 connections) — `src/func/assets.js`
 - **_assetLocHeaderRow()** (4 connections) — `src/func/assets.js`
@@ -24,16 +24,16 @@
 - **_assetToggleLocation()** (4 connections) — `src/func/assets.js`
 - **_assetToggleCharacter()** (4 connections) — `src/func/assets.js`
 - **setAssetSort()** (4 connections) — `src/func/assets.js`
+- **renderJournalOverview()** (4 connections) — `src/func/assets.js`
 - **_repairSetStatus()** (3 connections) — `src/func/assets.js`
 - **repairAssetLocations()** (3 connections) — `src/func/assets.js`
 - **_assetScroller()** (3 connections) — `src/func/assets.js`
-- **_assetBuildModel()** (3 connections) — `src/func/assets.js`
-- **_assetCharHeaderRow()** (3 connections) — `src/func/assets.js`
+- **_assetItemTree()** (3 connections) — `src/func/assets.js`
 - *... and 43 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (3 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (5 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 268 (98%)
-- INFERRED: 5 (2%)
+- EXTRACTED: 268 (97%)
+- INFERRED: 7 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

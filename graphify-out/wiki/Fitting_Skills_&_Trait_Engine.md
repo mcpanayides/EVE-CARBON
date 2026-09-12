@@ -8,8 +8,8 @@
 - **_fitShipDerived()** (19 connections) — `src/func/fitting.js`
 - **_fitDroneSim()** (15 connections) — `src/func/fitting.js`
 - **_fitTraitRecords()** (11 connections) — `src/func/fitting.js`
-- **_fitAllMods()** (11 connections) — `src/func/fitting.js`
 - **_fitTraitLvl()** (10 connections) — `src/func/fitting.js`
+- **_fitAllMods()** (10 connections) — `src/func/fitting.js`
 - **_fitEffOutputs()** (9 connections) — `src/func/fitting.js`
 - **_fitSkMult()** (8 connections) — `src/func/fitting.js`
 - **_fitOwnBursts()** (8 connections) — `src/func/fitting.js`
@@ -35,8 +35,8 @@
 
 - [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (14 shared connections)
-- [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (6 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (4 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (2 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (1 shared connections)
 
 ## Source Files
@@ -46,7 +46,7 @@
 ## Audit Trail
 
 - EXTRACTED: 232 (99%)
-- INFERRED: 3 (1%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

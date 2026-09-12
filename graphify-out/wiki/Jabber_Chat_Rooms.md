@@ -8,10 +8,10 @@
 - **initJabberRooms()** (9 connections) — `src/func/jabber_rooms.js`
 - **jabberOpenRoom()** (8 connections) — `src/func/jabber_rooms.js`
 - **jabberRefreshRooms()** (7 connections) — `src/func/jabber_rooms.js`
-- **_jrRenderLog()** (5 connections) — `src/func/jabber_rooms.js`
+- **_jrLoadOlder()** (6 connections) — `src/func/jabber_rooms.js`
 - **_jrRowEl()** (5 connections) — `src/func/jabber_rooms.js`
-- **_jrLoadOlder()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrPaintActive()** (4 connections) — `src/func/jabber_rooms.js`
+- **_jrRenderLog()** (4 connections) — `src/func/jabber_rooms.js`
 - **_jrRenderSubject()** (4 connections) — `src/func/jabber_rooms.js`
 - **_jrRenderRoster()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrLinkify()** (3 connections) — `src/func/jabber_rooms.js`
@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

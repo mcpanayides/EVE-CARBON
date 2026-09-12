@@ -5,9 +5,9 @@
 ## Key Concepts
 
 - **updater_ipc.js** (15 connections) — `src/ipc/updater_ipc.js`
-- **registerUpdaterHandlers()** (7 connections) — `src/ipc/updater_ipc.js`
-- **parseReleaseFlags()** (5 connections) — `src/ipc/updater_ipc.js`
+- **registerUpdaterHandlers()** (8 connections) — `src/ipc/updater_ipc.js`
 - **updater_critical.test.js** (5 connections) — `test/updater_critical.test.js`
+- **parseReleaseFlags()** (4 connections) — `src/ipc/updater_ipc.js`
 - **clean()** (2 connections) — `src/ipc/updater_ipc.js`
 - **compareVersions()** (2 connections) — `src/ipc/updater_ipc.js`
 - **fetchJson()** (2 connections) — `src/ipc/updater_ipc.js`
@@ -24,9 +24,9 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (2 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

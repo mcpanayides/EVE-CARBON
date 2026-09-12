@@ -1,22 +1,21 @@
 # Fitting Drones & Stats Display
 
-> 23 nodes · cohesion 0.17
+> 22 nodes · cohesion 0.16
 
 ## Key Concepts
 
-- **_fitRenderStats()** (35 connections) — `src/func/fitting.js`
-- **d()** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **_fitDroneBayHtml()** (13 connections) — `src/func/fitting.js`
+- **_fitRenderStats()** (34 connections) — `src/func/fitting.js`
+- **_fitDroneBayHtml()** (12 connections) — `src/func/fitting.js`
 - **_fitDrawRangeChart()** (10 connections) — `src/func/fitting.js`
 - **_fitDroneSetActive()** (9 connections) — `src/func/fitting.js`
 - **_fitCapChart()** (8 connections) — `src/func/fitting.js`
 - **_fitIsFighter()** (7 connections) — `src/func/fitting.js`
-- **_fitDroneUsedM3()** (7 connections) — `src/func/fitting.js`
 - **_fitEffDrone()** (6 connections) — `src/func/fitting.js`
-- **_fitDroneActiveBw()** (6 connections) — `src/func/fitting.js`
-- **_fitDroneActiveN()** (6 connections) — `src/func/fitting.js`
+- **_fitDroneUsedM3()** (6 connections) — `src/func/fitting.js`
+- **_fitDrawRangeChartBase()** (6 connections) — `src/func/fitting.js`
+- **_fitDroneActiveBw()** (5 connections) — `src/func/fitting.js`
+- **_fitDroneActiveN()** (5 connections) — `src/func/fitting.js`
 - **_fitDroneCap()** (5 connections) — `src/func/fitting.js`
-- **_fitDrawRangeChartBase()** (5 connections) — `src/func/fitting.js`
 - **_fitKm()** (5 connections) — `src/func/fitting.js`
 - **_fitActiveBuffs()** (3 connections) — `src/func/fitting.js`
 - **_fitAppliedAt()** (3 connections) — `src/func/fitting.js`
@@ -35,20 +34,18 @@
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (12 shared connections)
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (7 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (6 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (6 shared connections)
-- [Fitting Simulator (_fitPassesFilters)](Fitting_Simulator_%28_fitPassesFilters%29.md) (4 shared connections)
-- [Skills & Training Queue](Skills_%26_Training_Queue.md) (3 shared connections)
-- [Watch Fleet Op](Watch_Fleet_Op.md) (1 shared connections)
+- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (3 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/fitting.js`
-- `src/vendor/gridstack/gridstack-all.js`
 
 ## Audit Trail
 
-- EXTRACTED: 141 (88%)
-- INFERRED: 19 (12%)
+- EXTRACTED: 139 (99%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

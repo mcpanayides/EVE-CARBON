@@ -508,7 +508,7 @@ const PAGE_HTML = {
           <div class="jabber-room-toolbar">
             <button type="button" class="jabber-fmt-btn" data-fmt="b" title="Bold"><b>B</b></button>
             <button type="button" class="jabber-fmt-btn" data-fmt="i" title="Italic"><i>I</i></button>
-            <button type="button" class="jabber-fmt-btn" data-fmt="u" title="Underline"><u>U</u></button>
+            <button type="button" class="jabber-fmt-btn" data-fmt="s" title="Strikethrough"><s>S</s></button>
             <span class="jabber-toolbar-sep"></span>
             <button type="button" class="jabber-fmt-btn" id="jabberEmojiBtn" title="Insert emoji">
               <span class="material-symbols-outlined">mood</span>

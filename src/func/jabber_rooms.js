@@ -186,7 +186,7 @@ function _jrRowEl(m, sameSpeaker) {
 
   const body = document.createElement('span');
   body.className = 'jabber-msg-body';
-  body.appendChild(_jrLinkify(m.raw_body || m.body || ''));
+  body.appendChild(_jrStyled(m.raw_body || m.body || '', !!m.unstyled));
   row.appendChild(body);
 
   const time = document.createElement('span');
@@ -263,6 +263,86 @@ function _jrRenderRoster(occupants) {
 
 // Plain text with its URLs turned into real links. Returns a fragment, so the
 // caller never has to build markup out of message text.
+// ─── XEP-0393 message styling ──────────────────────────────────────────────────
+// *strong*, _emphasis_, ~strike~ and `preformatted`, plus ``` blocks and > quotes.
+// This is the syntax the composer has always sent; what was missing was THIS
+// client rendering it, so your own bold arrived back as asterisks.
+//
+// Built as DOM nodes from the parse tree — createElement and text nodes, never
+// innerHTML — so a message cannot inject markup however it is written. The spec
+// forbids feeding this format to an HTML or Markdown parser for exactly that
+// reason. Links are still found inside styled text, by the same linkify.
+//
+// Directive characters stay VISIBLE, styled like the text they wrap, as the
+// spec recommends: the message then reads identically in a client that does not
+// style it, and nothing the sender typed quietly disappears.
+const _JR_SPAN_CLASS = { strong: 'jms-strong', em: 'jms-em', strike: 'jms-strike' };
+
+function _jrStyled(text, unstyled) {
+  // The sender asked for no styling (XEP-0393 §6), or the parser failed to load.
+  if (unstyled || typeof MessageStyling === 'undefined') return _jrLinkify(text);
+
+  const dir = (ch) => {
+    const d = document.createElement('span');
+    d.className = 'jms-dir';
+    d.textContent = ch;
+    return d;
+  };
+
+  const spans = (nodes, into) => {
+    for (const n of nodes) {
+      if (n.t === 'text') { into.appendChild(_jrLinkify(n.v)); continue; }
+      if (n.t === 'pre') {
+        // Verbatim: not styled further, and not linkified either — code is copied,
+        // and a link hijacking a click inside it would be a surprise.
+        const code = document.createElement('code');
+        code.className = 'jms-pre';
+        code.appendChild(dir(n.d));
+        code.appendChild(document.createTextNode(n.v));
+        code.appendChild(dir(n.d));
+        into.appendChild(code);
+        continue;
+      }
+      const el = document.createElement('span');
+      el.className = _JR_SPAN_CLASS[n.t] || '';
+      el.appendChild(dir(n.d));
+      spans(n.c, el);
+      el.appendChild(dir(n.d));
+      into.appendChild(el);
+    }
+  };
+
+  const blocks = (bs, into) => {
+    bs.forEach((b, i) => {
+      if (b.t === 'line') {
+        // Lines are separated, not wrapped, so a one-line message stays inline.
+        if (i > 0 && bs[i - 1].t === 'line') into.appendChild(document.createElement('br'));
+        spans(b.c, into);
+      } else if (b.t === 'block') {
+        const pre = document.createElement('pre');
+        pre.className = 'jms-block';
+        const fence = (t) => { const f = dir(t); f.classList.add('jms-fence'); return f; };
+        pre.appendChild(fence(b.open));
+        // The fences are display:block, so they already break the line; adding
+        // newlines around the content as well rendered a blank line under the
+        // opening fence.
+        pre.appendChild(document.createTextNode(b.v));
+        if (b.close) pre.appendChild(fence(b.close));
+        into.appendChild(pre);
+      } else if (b.t === 'quote') {
+        const q = document.createElement('blockquote');
+        q.className = 'jms-quote';
+        blocks(b.c, q);
+        into.appendChild(q);
+      }
+    });
+  };
+
+  const frag = document.createDocumentFragment();
+  blocks(MessageStyling.parseBlocks(text), frag);
+  return frag;
+}
+
 function _jrLinkify(text) {
   const frag = document.createDocumentFragment();
   const re = /https?:\/\/[^\s<>"']+/g;
@@ -555,11 +635,16 @@ async function _jrFindRooms() {
 
 // ─── Composer toolbar ─────────────────────────────────────────────────────────
 // Emoji and links are plain text, so they arrive intact in every client in the
-// room — Pidgin, Swift, a phone, anything. Bold/italic/underline wrap the
-// selection in the conventional *asterisk* markers rather than XHTML-IM: the
-// markers are what chat clients and people already read, whereas rich markup is
-// dropped by half the clients on an EVE Jabber server and would arrive as
-// nothing at all.
+// room — Pidgin, Swift, a phone, anything. Bold/italic/strikethrough wrap the
+// selection in XEP-0393 Message Styling directives (*, _, ~), a Stable XMPP
+// standard: modern clients render them, and anything else still shows a
+// readable message with the markers in it.
+//
+// That plain body is never replaced. Rich markup is dropped by half the clients
+// on an EVE Jabber server, so a message that relied on it would arrive as
+// nothing at all. main adds an XHTML-IM copy ALONGSIDE the body for clients
+// such as Pidgin that implement XEP-0071 but not 0393 — additive only, so a
+// client that drops it loses nothing. See src/shared/message_styling.js.
 
 const JR_EMOJI = [
   '🙂', '😃', '😆', '😉', '😅', '😂', '🙃', '😐', '😑', '😕',
@@ -596,7 +681,11 @@ function _jrWrapSelection(marker) {
   input.focus();
 }
 
-const _JR_MARKER = { b: '*', i: '_', u: '__' };
+// XEP-0393's span directives. Underline is gone because the standard has none:
+// the old `__text__` rendered nowhere, in no client, ever — it sent two literal
+// underscores either side of the word. Strikethrough is what the spec offers in
+// that slot.
+const _JR_MARKER = { b: '*', i: '_', s: '~' };
 
 function _jrToggleEmojiPicker() {
   const picker = document.getElementById('jabberEmojiPicker');

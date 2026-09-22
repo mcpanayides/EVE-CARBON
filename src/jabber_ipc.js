@@ -6,6 +6,15 @@
 const { ipcMain, BrowserWindow } = require('electron');
 
 const { classifyPing } = require('./intel/ping_classify');
+const MessageStyling = require('./shared/message_styling');
+
+// XEP-0393 §6: a sender can ask that a message NOT be styled, with an empty
+// <unstyled xmlns='urn:xmpp:styling:0'/>. Bots posting config or code use it,
+// and ignoring it would bold a stray pair of asterisks in someone's pasted log.
+function isUnstyled(messageEl) {
+  return typeof messageEl?.getChild === 'function'
+    && !!messageEl.getChild('unstyled', MessageStyling.STYLING_NS);
+}
 
 let jabberClient = null;
 let jabberConnectionActive = false;
@@ -287,6 +296,9 @@ function parseMamResult(stanza, queryId) {
     roomJid:    bareJid(from),
     senderNick: nickOf(from),
     body,
+    // Read off the ARCHIVED message, not the MAM wrapper: the opt-out belongs to
+    // what the sender sent, and history must render the same as it did live.
+    unstyled:   isUnstyled(inner),
     receivedAt: delayStamp(forwarded) || delayStamp(inner) || null,
   };
 }
@@ -463,6 +475,7 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
             from: stanza.attrs.from || '', type: stanza.attrs.type || 'groupchat',
             body, isDirector: false, raw: stanza.toString(),
             roomJid: fromBare, senderNick,
+            unstyled: isUnstyled(stanza),
             stanzaId:   sidEl?.attrs?.id || null,
             // Join history arrives as ordinary messages with a <delay/>; without
             // this every one of them is filed as having arrived at join time.
@@ -623,7 +636,19 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
     if (!joinedRooms.has(roomJid)) return { ok: false, error: 'Not in that room.' };
     try {
       const { xml } = await getXmppClient();
-      await jabberClient.send(xml('message', { to: roomJid, type: 'groupchat' }, xml('body', {}, text)));
+      // The body stays the plain text as typed, directives and all — that is the
+      // XEP-0393 wire format, readable by every client and rendered by modern
+      // ones. Alongside it, an XHTML-IM copy for clients such as Pidgin that
+      // implement XEP-0071 but not 0393, so bold arrives as bold there too.
+      //
+      // Send-only on purpose. XEP-0071 is deprecated because RENDERING HTML from
+      // strangers cannot be made safe; generating it from our own parse carries
+      // none of that risk, and we never render the XHTML we receive. Built with
+      // the library's xml() so every text node is escaped for us. Plain messages
+      // get no copy at all.
+      const xhtml = MessageStyling.toXhtmlIm(text, xml);
+      await jabberClient.send(xml('message', { to: roomJid, type: 'groupchat' },
+        xml('body', {}, text), ...(xhtml ? [xhtml] : [])));
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e.message || String(e) };
@@ -693,7 +718,7 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
         const stored = await jabberDataDb.insertJabberMessage({
           from: `${m.roomJid}/${m.senderNick}`, type: 'groupchat', body: m.body,
           isDirector: false, raw: '', roomJid: m.roomJid, senderNick: m.senderNick,
-          stanzaId: m.stanzaId, receivedAt: m.receivedAt,
+          stanzaId: m.stanzaId, receivedAt: m.receivedAt, unstyled: m.unstyled,
         }).catch(() => null);
         if (stored) added++;
       }

@@ -72,9 +72,37 @@ test('the room columns exist after the upgrade', async () => {
   const conn = await open({ filename: path.join(dir, 'jabber_data.db'), driver: sqlite3.Database });
   const cols = (await conn.all('PRAGMA table_info(jabber_messages)')).map(c => c.name);
   await conn.close();
-  for (const col of ['room_jid', 'sender_nick', 'stanza_id']) {
+  for (const col of ['room_jid', 'sender_nick', 'stanza_id', 'unstyled']) {
     assert.ok(cols.includes(col), `${col} was not added`);
   }
+});
+
+// XEP-0393's opt-out. It has to survive storage, because history is rendered
+// from the database — a flag honoured live and forgotten on reload would style
+// the same message differently the second time you looked at it.
+test('rows stored before the styling opt-out existed still render styled', async () => {
+  const conn = await open({ filename: path.join(dir, 'jabber_data.db'), driver: sqlite3.Database });
+  const old = await conn.get(`SELECT unstyled FROM jabber_messages WHERE raw_body = 'an old ping'`);
+  await conn.close();
+  assert.strictEqual(old.unstyled, 0, 'a pre-existing row must default to styled');
+});
+
+test('a message that opted out of styling keeps that on the way back out', async () => {
+  const room = 'optout@conference.example.com';
+  const stored = await db.insertJabberMessage({
+    from: `${room}/configbot`, type: 'groupchat', body: 'a*b*c and _x_',
+    isDirector: false, raw: '', roomJid: room, senderNick: 'configbot', unstyled: true,
+  });
+  assert.strictEqual(stored.unstyled, 1, 'the live push carries it');
+  const [row] = await db.getRoomMessages(room);
+  assert.strictEqual(row.unstyled, 1, 'and so does history');
+
+  await db.insertJabberMessage({
+    from: `${room}/pilotone`, type: 'groupchat', body: '*ordinary*',
+    isDirector: false, raw: '', roomJid: room, senderNick: 'pilotone',
+  });
+  const rows = await db.getRoomMessages(room);
+  assert.strictEqual(rows[1].unstyled, 0, 'omitted means styled');
 });
 
 test('room messages store on an upgraded database', async () => {

@@ -50,7 +50,8 @@ async function initJabberDb(appDataDir, userDataDir) {
       -- existed before rooms were a feature — the ping feed reads those as before.
       room_jid        TEXT    DEFAULT NULL,        -- bare room JID, e.g. corp@conference.goonfleet.com
       sender_nick     TEXT    DEFAULT NULL,        -- occupant nick (the resource part of the from JID)
-      stanza_id       TEXT    DEFAULT NULL         -- server archive id (XEP-0313), stable per room
+      stanza_id       TEXT    DEFAULT NULL,        -- server archive id (XEP-0313), stable per room
+      unstyled        INTEGER NOT NULL DEFAULT 0   -- sender opted out of XEP-0393 styling
     );
 
     -- Per-room read marker: the id of the last message the user has actually seen.
@@ -73,7 +74,10 @@ async function initJabberDb(appDataDir, userDataDir) {
   // ALTER TABLE ADD COLUMN is the only in-place migration SQLite offers, and it
   // throws when the column is already there, so each is attempted on its own.
   for (const [col, decl] of [['room_jid', 'TEXT DEFAULT NULL'], ['sender_nick', 'TEXT DEFAULT NULL'],
-                             ['stanza_id', 'TEXT DEFAULT NULL']]) {
+                             ['stanza_id', 'TEXT DEFAULT NULL'],
+                             // XEP-0393 opt-out. Defaults to 0 so every row stored
+                             // before it existed renders styled, as it would have.
+                             ['unstyled', 'INTEGER NOT NULL DEFAULT 0']]) {
     try { await jabberDb.exec(`ALTER TABLE jabber_messages ADD COLUMN ${col} ${decl}`); }
     catch (_) { /* column already present */ }
   }
@@ -225,6 +229,7 @@ async function insertJabberMessage(msg) {
     ':room_jid':        msg.roomJid     || null,
     ':sender_nick':     msg.senderNick  || null,
     ':stanza_id':       msg.stanzaId    || null,
+    ':unstyled':        msg.unstyled    ? 1 : 0,
     ':raw_body':        msg.body        || '',
     ':ping_timestamp':  parsed.ping_timestamp,
     ':who_pinged':      parsed.who_pinged,
@@ -244,13 +249,13 @@ async function insertJabberMessage(msg) {
     const result = await jabberDb.run(`
       INSERT INTO jabber_messages (
         received_at, from_jid, msg_type, is_director, raw_body,
-        room_jid, sender_nick, stanza_id,
+        room_jid, sender_nick, stanza_id, unstyled,
         ping_timestamp, who_pinged, hurf,
         fc_name, formup_location, pap_type, comms, doctrine,
         sig, gsol_member, target_sig, eve_timecode
       ) VALUES (
         :received_at, :from_jid, :msg_type, :is_director, :raw_body,
-        :room_jid, :sender_nick, :stanza_id,
+        :room_jid, :sender_nick, :stanza_id, :unstyled,
         :ping_timestamp, :who_pinged, :hurf,
         :fc_name, :formup_location, :pap_type, :comms, :doctrine,
         :sig, :gsol_member, :target_sig, :eve_timecode
@@ -270,6 +275,7 @@ async function insertJabberMessage(msg) {
       room_jid:        bindParams[':room_jid'],
       sender_nick:     bindParams[':sender_nick'],
       stanza_id:       bindParams[':stanza_id'],
+      unstyled:        bindParams[':unstyled'],
       raw_body:        bindParams[':raw_body'],
       ping_timestamp:  parsed.ping_timestamp,
       who_pinged:      parsed.who_pinged,

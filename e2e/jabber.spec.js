@@ -219,3 +219,97 @@ test('the feed filter defaults to broadcasts and separates bot alerts', async ({
   expect(counts.alert).toBe(2);
   expect(counts.all).toBe(4);
 });
+
+// ── XEP-0393 message styling ──────────────────────────────────────────────────
+// Bold and italic arrived back in our own room view as literal asterisks: the
+// composer sent XEP-0393 (the Stable standard; XHTML-IM is deprecated) and
+// nothing rendered it. These drive the real renderer — _jrStyled builds the room
+// log's message bodies — without a server: styling is a pure function of the
+// body text, so no connection is needed or made.
+
+test('room messages render their styling, with the directives still visible', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  const r = await window.evaluate(() => {
+    const host = document.createElement('div');
+    host.appendChild(_jrStyled('*undock* _slowly_ ~cancelled~ `J-GAMP` then *see https://example.test/a_b*'));
+    const strong = host.querySelector('.jms-strong');
+    return {
+      strong:   host.querySelectorAll('.jms-strong').length,
+      em:       !!host.querySelector('.jms-em'),
+      strike:   !!host.querySelector('.jms-strike'),
+      pre:      host.querySelector('code.jms-pre')?.textContent,
+      // XEP-0393 recommends keeping the directives shown, styled like the text.
+      strongText: strong?.textContent,
+      dirs:     strong?.querySelectorAll('.jms-dir').length,
+      // A link inside bold is still found and still opens externally.
+      linkInBold: !!host.querySelector('.jms-strong .jabber-link'),
+      linkText: host.querySelector('.jabber-link')?.textContent,
+    };
+  });
+  expect(r.strong).toBe(2);
+  expect(r.em).toBe(true);
+  expect(r.strike).toBe(true);
+  expect(r.pre).toBe('`J-GAMP`');
+  expect(r.strongText).toBe('*undock*');
+  expect(r.dirs).toBe(2);
+  expect(r.linkInBold).toBe(true);
+  expect(r.linkText).toBe('https://example.test/a_b');
+});
+
+test('a message body can never inject markup into the room view', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  const r = await window.evaluate(async () => {
+    window.__pwned = false;
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    host.appendChild(_jrStyled(
+      '*<img src=x onerror="window.__pwned=true">* _<script>window.__pwned=true</script>_ ' +
+      '`<b onmouseover="window.__pwned=true">x</b>`'));
+    await new Promise(r => setTimeout(r, 300));    // give any payload the chance to fire
+    const out = {
+      pwned:   window.__pwned,
+      img:     host.querySelectorAll('img').length,
+      script:  host.querySelectorAll('script').length,
+      b:       host.querySelectorAll('b').length,
+      // Every tag the renderer emitted is one of its own.
+      foreign: [...host.querySelectorAll('*')].filter(e => !/^(SPAN|CODE|A|BR|PRE|BLOCKQUOTE)$/.test(e.tagName)).length,
+      text:    host.textContent.includes('<img src=x'),
+    };
+    host.remove();
+    return out;
+  });
+  expect(r.pwned).toBe(false);
+  expect(r.img).toBe(0);
+  expect(r.script).toBe(0);
+  expect(r.b).toBe(0);
+  expect(r.foreign).toBe(0);
+  expect(r.text, 'the markup survives as the text the sender typed').toBe(true);
+});
+
+test('a message whose sender opted out of styling is shown as typed', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  const r = await window.evaluate(() => {
+    const host = document.createElement('div');
+    host.appendChild(_jrStyled('config: a=*x* b=_y_', true));
+    return { styled: host.querySelectorAll('.jms-strong, .jms-em').length, text: host.textContent };
+  });
+  expect(r.styled).toBe(0);
+  expect(r.text).toBe('config: a=*x* b=_y_');
+});
+
+test('the composer only offers formatting the standard defines', async ({ window }) => {
+  await window.locator('.nav-btn[data-page="jabber"]').click();
+  await expect(window.locator('#page-jabber')).toBeVisible({ timeout: 15_000 });
+  // XEP-0393 has no underline; the old button sent `__text__`, which renders in
+  // no client at all. Strikethrough is what the spec has in that slot.
+  await expect(window.locator('.jabber-fmt-btn[data-fmt="u"]')).toHaveCount(0);
+  await expect(window.locator('.jabber-fmt-btn[data-fmt="s"]')).toHaveCount(1);
+
+  const wrapped = await window.evaluate(() => {
+    const i = document.getElementById('jabberRoomInput');
+    i.disabled = false; i.value = 'cancel the op'; i.setSelectionRange(7, 13);
+    _jrWrapSelection(_JR_MARKER.s);
+    return i.value;
+  });
+  expect(wrapped).toBe('cancel ~the op~');
+});

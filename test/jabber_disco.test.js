@@ -120,6 +120,8 @@ test('an archived message keeps its own room, sender, id and sent time', () => {
     roomJid: 'corp@conference.example.com',
     senderNick: 'pilotone',
     body: 'hello',
+    // XEP-0393 opt-out, read off the archived message. Absent here, so styled.
+    unstyled: false,
     receivedAt: '2026-08-01T12:00:00.000Z',
   });
 });

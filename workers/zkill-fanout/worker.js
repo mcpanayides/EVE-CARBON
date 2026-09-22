@@ -99,10 +99,27 @@ function json(body, status, ttl, extra = {}) {
  * requests for the same URL collapse, so the leading edge of the cursor — where
  * every client is at once — costs one fetch rather than one per client.
  */
-async function fromUpstream(url, ttl, env) {
+async function fromUpstream(url, ttl, env, notFoundTtl = 0) {
   return fetch(url, {
     headers: upstreamHeaders(env),
-    cf: { cacheTtl: ttl, cacheEverything: true },
+    // cacheTtlByStatus, NOT cacheTtl. cacheTtl forces its TTL onto WHATEVER
+    // comes back ("regardless of what headers are seen on the response"), so a
+    // killmail fetched a moment before it was published — a 404 — was cached for
+    // the full hour meant for a published one.
+    //
+    // That is how the first deployment stalled the real feed. The client probes
+    // cursor+1 every 15s; the id it was waiting on came back "not found" from
+    // this cache for an hour, while zKillboard served the same id fine. And the
+    // client only skips FORWARD when the cursor is ahead of it, which zKillboard's
+    // own edge-cached sequence.json often is not, so nothing broke the wait.
+    //
+    // Success keeps the long TTL, a 404 gets a brief one so a burst of clients on
+    // the leading edge still collapses onto one fetch, and an upstream error is
+    // never cached at all.
+    cf: {
+      cacheEverything: true,
+      cacheTtlByStatus: { '200-299': ttl, '404': notFoundTtl, '500-599': 0 },
+    },
   });
 }
 
@@ -181,7 +198,7 @@ export default {
       const ids = [];
       for (let id = range.from; id <= top; id++) ids.push(id);
       const settled = await Promise.all(ids.map(async (id) => {
-        const res = await fromUpstream(`${upstream}/ephemeral/${id}.json`, KILLMAIL_TTL, env);
+        const res = await fromUpstream(`${upstream}/ephemeral/${id}.json`, KILLMAIL_TTL, env, NOT_FOUND_TTL);
         if (res.status === 404) return null;          // gap in the sequence, or not published yet
         if (!res.ok) return null;
         try { return JSON.parse(await res.text()); } catch (_) { return null; }
@@ -198,7 +215,7 @@ export default {
 
     const km = KILLMAIL_RE.exec(url.pathname);
     if (km) {
-      const res = await fromUpstream(`${upstream}/ephemeral/${km[1]}.json`, KILLMAIL_TTL, env);
+      const res = await fromUpstream(`${upstream}/ephemeral/${km[1]}.json`, KILLMAIL_TTL, env, NOT_FOUND_TTL);
       if (res.status === 404) return json({ error: 'not found' }, 404, NOT_FOUND_TTL);
       if (!res.ok) return json({ error: 'upstream', status: res.status }, 502, 0);
       const text = await res.text();

@@ -1,12 +1,13 @@
 # FC Intel Patterns
 
-> 4 nodes · cohesion 0.83
+> 5 nodes · cohesion 0.60
 
 ## Key Concepts
 
 - **fc_intel_patterns.js** (4 connections) — `src/func/fc_intel_patterns.js`
 - **_intelPatRender()** (3 connections) — `src/func/fc_intel_patterns.js`
 - **_intelPatDays()** (2 connections) — `src/func/fc_intel_patterns.js`
+- **_intelPatPredictChip()** (2 connections) — `src/func/fc_intel_patterns.js`
 - **_intelOpenPatterns()** (2 connections) — `src/func/fc_intel_patterns.js`
 
 ## Relationships
@@ -19,8 +20,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 11 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 12 (92%)
+- INFERRED: 1 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

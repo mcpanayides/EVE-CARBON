@@ -1,6 +1,6 @@
 # FC Intel
 
-> 32 nodes · cohesion 0.15
+> 31 nodes · cohesion 0.15
 
 ## Key Concepts
 
@@ -29,7 +29,7 @@
 - **_intelPosBadge()** (3 connections) — `src/func/fc_intel.js`
 - **_intelFmtEta()** (2 connections) — `src/func/fc_intel.js`
 - **_intelSaveSound()** (2 connections) — `src/func/fc_intel.js`
-- *... and 7 more nodes in this community*
+- *... and 6 more nodes in this community*
 
 ## Relationships
 
@@ -40,12 +40,11 @@
 ## Source Files
 
 - `src/func/fc_intel.js`
-- `src/func/fc_intel_patterns.js`
 
 ## Audit Trail
 
-- EXTRACTED: 139 (95%)
-- INFERRED: 8 (5%)
+- EXTRACTED: 138 (95%)
+- INFERRED: 7 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

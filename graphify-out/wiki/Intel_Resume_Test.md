@@ -26,7 +26,7 @@
 - [Intel Test](Intel_Test.md) (3 shared connections)
 - [Intel Service](Intel_Service.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Chart Umd (utils)](Chart_Umd_%28utils%29.md) (1 shared connections)
+- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (1 shared connections)
 
 ## Source Files
 

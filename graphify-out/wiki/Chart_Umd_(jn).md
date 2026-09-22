@@ -1,6 +1,6 @@
 # Chart Umd (jn)
 
-> 14 nodes · cohesion 0.30
+> 15 nodes · cohesion 0.27
 
 ## Key Concepts
 
@@ -17,14 +17,15 @@
 - **._getVisibleDatasetWeightTotal()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.calculateTotal()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.calculateCircumference()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.getLabelAndValue()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.constructor()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (5 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (4 shared connections)
-- [Chart Umd (running)](Chart_Umd_%28running%29.md) (3 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (6 shared connections)
+- [Chart Umd (n)](Chart_Umd_%28n%29.md) (4 shared connections)
 - [Chart Umd (u)](Chart_Umd_%28u%29.md) (3 shared connections)
+- [Chart Umd (f)](Chart_Umd_%28f%29.md) (2 shared connections)
 - [Chart Umd](Chart_Umd.md) (1 shared connections)
 
 ## Source Files
@@ -33,7 +34,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 68 (97%)
+- EXTRACTED: 70 (97%)
 - INFERRED: 2 (3%)
 - AMBIGUOUS: 0 (0%)
 

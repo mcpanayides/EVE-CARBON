@@ -1,18 +1,24 @@
 # Ping Alert
 
-> 13 nodes · cohesion 0.17
+> 19 nodes · cohesion 0.12
 
 ## Key Concepts
 
 - **populate** (8 connections) — `src/html/ping-alert.html`
+- **comms_channels — comms text to voice URL map** (4 connections) — `yaml/gsf_sigs.yaml`
+- **Join Button Flow (comms, FC info window, waypoint)** (4 connections) — `src/html/ping-alert.html`
 - **Shared-ESI fetch Header Wrapper** (3 connections) — `src/html/ping-alert.html`
+- **resolveCommsUrl** (3 connections) — `src/html/ping-alert.html`
 - **Renderer Script Load Order** (3 connections) — `src/index.html`
 - **resolveSystemId** (2 connections) — `src/html/ping-alert.html`
 - **resolveFcPortrait** (2 connections) — `src/html/ping-alert.html`
 - **clean** (2 connections) — `src/html/ping-alert.html`
 - **truncate** (2 connections) — `src/html/ping-alert.html`
+- **Capital Ops comms channel** (1 connections) — `yaml/gsf_sigs.yaml`
 - **Ping Pop-up isDirector False Positive** (1 connections) — `TODO.md`
 - **parsePingBody** (1 connections) — `src/html/ping-alert.html`
+- **showFooterError** (1 connections) — `src/html/ping-alert.html`
+- **extractSystemName** (1 connections) — `src/html/ping-alert.html`
 - **playPingSound** (1 connections) — `src/html/ping-alert.html`
 - **esc** (1 connections) — `src/html/ping-alert.html`
 - **Gridstack Vendored Locally (cdnjs + SRI failure)** (1 connections) — `src/index.html`
@@ -20,18 +26,20 @@
 
 ## Relationships
 
-- [Gsf Sigs](Gsf_Sigs.md) (2 shared connections)
+- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
+- [Intel Row](Intel_Row.md) (1 shared connections)
 
 ## Source Files
 
 - `TODO.md`
 - `src/html/ping-alert.html`
 - `src/index.html`
+- `yaml/gsf_sigs.yaml`
 
 ## Audit Trail
 
-- EXTRACTED: 24 (86%)
-- INFERRED: 4 (14%)
+- EXTRACTED: 38 (90%)
+- INFERRED: 4 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---

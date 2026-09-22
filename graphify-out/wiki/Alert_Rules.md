@@ -31,7 +31,7 @@
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
+- [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 

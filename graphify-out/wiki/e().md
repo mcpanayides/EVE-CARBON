@@ -25,8 +25,8 @@
 - [o()](o%28%29.md) `INFERRED`
 - l() `INFERRED`
 - d() `INFERRED`
-- loadDashboard() `INFERRED`
 - registerJabberHandlers() `INFERRED`
+- loadDashboard() `INFERRED`
 - h() `INFERRED`
 - lint.js `INFERRED`
 - da() `INFERRED`

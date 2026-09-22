@@ -1,45 +1,64 @@
 # Package Manifest
 
-> 23 nodes · cohesion 0.09
+> 35 nodes · cohesion 0.07
 
 ## Key Concepts
 
-- **scripts** (23 connections) — `package.json`
-- **start** (1 connections) — `package.json`
-- **demo** (1 connections) — `package.json`
-- **demo:shots** (1 connections) — `package.json`
-- **lint** (1 connections) — `package.json`
-- **esi:audit** (1 connections) — `package.json`
-- **graphify:sync** (1 connections) — `package.json`
-- **planets:build** (1 connections) — `package.json`
-- **graphify:lint** (1 connections) — `package.json`
-- **hooks:install** (1 connections) — `package.json`
-- **watch:op** (1 connections) — `package.json`
-- **test** (1 connections) — `package.json`
-- **coverage** (1 connections) — `package.json`
-- **test:e2e** (1 connections) — `package.json`
-- **stress:data** (1 connections) — `package.json`
-- **stress:index** (1 connections) — `package.json`
-- **stress:render** (1 connections) — `package.json`
-- **fetch-sde** (1 connections) — `package.json`
-- **build-win** (1 connections) — `package.json`
-- **build-mac** (1 connections) — `package.json`
-- **build-linux** (1 connections) — `package.json`
-- **postinstall** (1 connections) — `package.json`
-- **shots** (1 connections) — `package.json`
+- **app_ident.js** (23 connections) — `src/app_ident.js`
+- **package.json** (13 connections) — `package.json`
+- **APP_USER_AGENT** (11 connections) — `src/app_ident.js`
+- **esi_client.test.js** (9 connections) — `test/esi_client.test.js`
+- **character_ipc.js** (8 connections) — `src/ipc/character_ipc.js`
+- **esi_headers.test.js** (6 connections) — `test/esi_headers.test.js`
+- **Esi** (4 connections) — `src/app_ident.js`
+- **esi.js** (4 connections) — `src/shared/esi.js`
+- **allowScripts** (3 connections) — `package.json`
+- **overrides** (3 connections) — `package.json`
+- **version** (2 connections) — `package.json`
+- **name** (1 connections) — `package.json`
+- **productName** (1 connections) — `package.json`
+- **author** (1 connections) — `package.json`
+- **description** (1 connections) — `package.json`
+- **main** (1 connections) — `package.json`
+- **electron-winstaller@5.4.0** (1 connections) — `package.json`
+- **sqlite3@6.0.1** (1 connections) — `package.json`
+- **brace-expansion** (1 connections) — `package.json`
+- **tar** (1 connections) — `package.json`
+- **{ version }** (1 connections) — `src/app_ident.js`
+- **{ ipcMain }** (1 connections) — `src/ipc/character_ipc.js`
+- **{ ESI_BASE, Esi }** (1 connections) — `src/ipc/character_ipc.js`
+- **registered** (1 connections) — `src/ipc/character_ipc.js`
+- **NOTE: the corp mining routes use singular "/corporation/" (an ESI quirk),** (1 connections) — `src/ipc/character_ipc.js`
+- *... and 10 more nodes in this community*
 
 ## Relationships
 
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (3 shared connections)
+- [SDE Fetch & Build](SDE_Fetch_%26_Build.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (2 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [ESI IPC](ESI_IPC.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
+- [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
+- [Electron Builder Config](Electron_Builder_Config.md) (1 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
+- [Package Manifest (scripts)](Package_Manifest_%28scripts%29.md) (1 shared connections)
 
 ## Source Files
 
 - `package.json`
+- `src/app_ident.js`
+- `src/ipc/character_ipc.js`
+- `src/shared/esi.js`
+- `test/esi_client.test.js`
+- `test/esi_headers.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 45 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 109 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

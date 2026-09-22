@@ -17,7 +17,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
+- [Package Manifest](Package_Manifest.md) (2 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 
 ## Source Files

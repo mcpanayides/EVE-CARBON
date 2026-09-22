@@ -1,12 +1,13 @@
 # Demo Mode Fixtures
 
-> 30 nodes · cohesion 0.11
+> 37 nodes · cohesion 0.08
 
 ## Key Concepts
 
 - **demo_fixtures.js** (26 connections) — `src/demo_fixtures.js`
 - **match()** (11 connections) — `src/demo_fixtures.js`
 - **iso()** (8 connections) — `src/demo_fixtures.js`
+- **demo_fixtures.test.js** (8 connections) — `test/demo_fixtures.test.js`
 - **demo_fixtures_zkill.test.js** (5 connections) — `test/demo_fixtures_zkill.test.js`
 - **industryJobs()** (4 connections) — `src/demo_fixtures.js`
 - **mailHeaders()** (3 connections) — `src/demo_fixtures.js`
@@ -28,22 +29,22 @@
 - **intelStatus()** (1 connections) — `src/demo_fixtures.js`
 - **intelContacts()** (1 connections) — `src/demo_fixtures.js`
 - **D** (1 connections) — `src/demo_fixtures.js`
-- **SHIP** (1 connections) — `src/demo_fixtures.js`
-- *... and 5 more nodes in this community*
+- *... and 12 more nodes in this community*
 
 ## Relationships
 
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
+- [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 
 - `src/demo_fixtures.js`
+- `test/demo_fixtures.test.js`
 - `test/demo_fixtures_zkill.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 63 (66%)
-- INFERRED: 32 (34%)
+- EXTRACTED: 77 (71%)
+- INFERRED: 32 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

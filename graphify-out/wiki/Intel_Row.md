@@ -1,6 +1,6 @@
 # Intel Row
 
-> 17 nodes · cohesion 0.18
+> 18 nodes · cohesion 0.17
 
 ## Key Concepts
 
@@ -21,25 +21,27 @@
 - **paintStatus() — watcher state line** (2 connections) — `src/html/intel-widget.html`
 - **Dashboard Widget Pop-out Window** (2 connections) — `src/html/widget-window.html`
 - **#pwContent pushed widget HTML** (2 connections) — `src/html/widget-window.html`
+- **Beehive comms channel** (2 connections) — `yaml/gsf_sigs.yaml`
 
 ## Relationships
 
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
 - [FC Intel](FC_Intel.md) (1 shared connections)
 - [Dashboard Widgets](Dashboard_Widgets.md) (1 shared connections)
+- [Ping Alert](Ping_Alert.md) (1 shared connections)
 
 ## Source Files
 
 - `src/html/intel-widget.html`
 - `src/html/widget-window.html`
 - `src/shared/intel-row.js`
+- `yaml/gsf_sigs.yaml`
 
 ## Audit Trail
 
-- EXTRACTED: 48 (89%)
+- EXTRACTED: 49 (88%)
 - INFERRED: 5 (9%)
-- AMBIGUOUS: 1 (2%)
+- AMBIGUOUS: 2 (4%)
 
 ---
 

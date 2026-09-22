@@ -514,6 +514,54 @@ and stay well under it regardless.
       so it helps every user — a default pointing at a Worker that does not
       exist takes the intel feed down for everyone at once. Until then it is
       opt-in and nothing changes for anybody.
+
+      **DEPLOYED 2026-09-14** to the seeratzion@gmail.com Cloudflare account, at
+      `https://eve-carbon-zkill-fanout.eve-carbon.workers.dev`. Nothing points at
+      it yet: the client still defaults to zKillboard, so it serves no user and
+      costs nothing until `EVE_CARBON_ZKILL_BASE` is set.
+
+      **The first deployment stalled the real feed, and was taken down.** The
+      unchanged client, pointed at it, received 29 killmails and then froze on
+      one id for good. Cause: `cf.cacheTtl` applies its TTL "regardless of what
+      headers are seen on the response", so the 404 for a killmail that was not
+      published YET got the hour meant for a published one. The client probes
+      cursor+1 every 15s and only skips FORWARD when the cursor is ahead of it —
+      so it waited an hour on an id zKillboard was already serving. The unit
+      tests passed throughout because they checked the 404 sent to CLIENTS
+      (`max-age=5`), not the TTL forced on the UPSTREAM fetch.
+
+      Fixed with `cacheTtlByStatus` (`200-299` long, `404` ≤5s, `500-599` never),
+      and `test/zkill_fanout_worker.test.js` now pins the upstream instruction
+      itself — restoring the bare `cacheTtl` fails 4 tests. Redeployed and
+      soak-tested: the real client through the Worker and a real client going
+      direct ran side by side for 3 minutes and matched exactly (same kills,
+      same cursor, 0 errors, every sample).
+
+      Checked before redeploying that the bad cache was the Worker's own and not
+      zKillboard's shared one: the id our client was stuck on came straight back
+      200 from zKillboard directly. No sign it affected anyone else.
+
+      Still open, in order:
+      - [ ] **Wire the client to the batched `/feed/` route.** It still walks the
+            mirror routes (`/ephemeral/…`, ~32 req/min per client); the batched
+            route is ~4.5 and shared between clients. Nothing calls it yet.
+      - [ ] **Cost.** A Worker is billed per invocation, including requests it
+            answers from cache. The free tier (100k requests/day) is outgrown by
+            ~15 clients on the batched route and ~3 on the mirror routes. Check
+            current pricing, and consider a custom domain with a Cache Rule so
+            cache hits are served by the CDN without invoking the Worker at all.
+      - [ ] **Only then flip the default** in `resolveZkillBase()`, and only after
+            watching the Worker under real traffic.
+
+      **Observed while testing, affects the PRODUCTION feed:** zKillboard's own
+      `sequence.json` is served from their edge cache for many minutes despite
+      `Cache-Control: no-store` — seen at `age` 170, 560 and 966 seconds, up to
+      20 ids behind the killmails actually published. The client only consults it
+      to skip past a genuine GAP in the sequence, so a real gap could stall live
+      intel for as long as that edge copy is stale. Not caused by the Worker and
+      not ours to fix on their CDN — but the gap-skip logic should not trust a
+      sequence it cannot confirm is fresh (e.g. probe ahead a few ids on a
+      prolonged 404 rather than waiting on the cursor alone).
 - [x] **Stagger the mail poll. DONE.** It was `Promise.all` over every account
       each 30s — the largest single burst the app makes, and the largest
       steady-state contributor at ~0.67 req/s for 20 characters. Concurrency
@@ -902,6 +950,61 @@ pulls are idempotent, so re-running only ever corrects the numbers.
   panel and still flagged `is_director`; they just do not take the screen. An
   explicit fleet signal ("form up", "undock") BEATS structure suppression, so
   "Fortizar under attack — home defence fleet up" still pops.
-- **XHTML-IM for Jabber rooms** — bold/italic currently send `*asterisk*`
-  markers, which every client shows as typed. True rich text means XEP-0071 on
-  both the send and receive paths, with a sanitised render.
+- ~~**XHTML-IM for Jabber rooms**~~ **Fixed 2026-09-14 — but not as written.**
+  XEP-0071 (XHTML-IM) is **Deprecated** by the XSF: rendering HTML that strangers
+  send cannot be made safe, and its own security section says the profile's
+  exclusions cannot be relied on. XEP-0393 Message Styling is the Stable
+  replacement — and was already exactly what the composer sent. The asterisks
+  were our OWN client not rendering a standard it was sending.
+  - `src/shared/message_styling.js` parses 0393 (spans, ``` blocks, `>` quotes)
+    into a tree; the room view builds DOM from it and never touches innerHTML.
+    `2*3*4`, `snake_case` and URLs with underscores stay literal, per the spec's
+    whitespace rules.
+  - Outbound, an XHTML-IM copy rides ALONGSIDE the unchanged plain body, for
+    clients like Pidgin that do 0071 but not 0393. Send-only: it is generated
+    from our own parse and escaped by `@xmpp/client`, and we never render the
+    XHTML we receive.
+  - A sender's `<unstyled xmlns='urn:xmpp:styling:0'/>` opt-out is honoured live
+    and in history (new `unstyled` column).
+  - The composer's Underline button sent `__text__`, which no client renders —
+    0393 has no underline. It is now Strikethrough.
+  - Rooms only. Broadcasts/pings still render as plain text.
+
+## Open from the v3.8.0 cycle
+
+Carried out of the session that shipped 3.8.0, so they live in one list rather
+than in scrollback.
+
+- [ ] **Nine native `confirm()` dialogs.** The standing rule is that a native
+      dialog is a defect — use `showConfirm()` from `src/utils.js` (async,
+      `danger: true` for anything destructive). Most of these guard exactly that:
+      - `src/func/mail.js:397` — delete mail
+      - `src/func/jabber.js:1101` — wipe ALL Jabber messages and saved credentials
+      - `src/func/jabber.js:1154` — delete a ping-sound pack
+      - `src/func/jabber_rooms.js:761` — remove a room
+      - `src/func/shopping-lists.js:553`, `:560` — clear / delete a list
+      - `src/func/skills.js:706`, `:1415` — delete a plan
+      - `src/func/fc_intel_patterns.js:69` — forget learned intel patterns
+      Worth a lint rule once they are gone, so a tenth does not creep back in.
+- [ ] **Confirm what mail delete should do.** Its prompt says it "also removes it
+      in-game". An earlier instruction was that a delete button should remove
+      things from EVE Carbon only, not from the game — it is not recorded which
+      feature that was about (fittings is the other candidate). Settle it before
+      the `confirm()` sweep rewrites that prompt.
+- [ ] **`assets/planets/gas.jpg` is the 1024px source**; the other eight are
+      1600px, so the gas giant is visibly softer. Regenerate at full size, drop it
+      in, `npm run planets:build`.
+- [ ] **Waiting on art:** the animated planet clips, and the PI guides and
+      tutorials planned "down the road".
+- [ ] **Decide: corporation type-ahead.** Needs a 41st scope,
+      `esi-search.search_structures.v1`, which forces every character to
+      re-authorise. Until then corporation lookup is exact-match on name or
+      ticker via `/universe/ids`.
+- [ ] **Polish offered, not taken up:**
+      - `temperate.jpg` reads as Earth (Africa, Iberia, the Mediterranean).
+      - The collapsed-nav pips are subtle at 1×.
+      - Raw PI shortfalls round every estimate up to a whole planet; four close
+        deficits all show "~4 planets". A fractional figure would separate them.
+      - The collapsed-nav badges could float fully outside the rail. `.sidebar`
+        is `overflow-y: auto`, which clips the other axis too, so it means moving
+        scrolling onto an inner wrapper — a structural change touching every page.

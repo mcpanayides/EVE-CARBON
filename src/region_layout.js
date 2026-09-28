@@ -94,6 +94,34 @@ function regionForceLayout(ids, adj, seeds) {
     }
   }
 
+  // ── Orientation, BEFORE the grid snap ─────────────────────────────────────
+  //
+  // Mirrors _regionForceLayout in src/func/map.js — region_layout.test.js
+  // asserts the two produce identical output, because a region laid out by the
+  // prefetch worker and the same region laid out live must not differ.
+  //
+  // The rotation used to happen after rectification, in _buildRegionLayout, and
+  // that undid it: rectification puts every node on an integer grid, then
+  // rotating the finished grid by an arbitrary angle takes every edge back off
+  // it. Rotating first keeps both the framing and the grid.
+  if (n > 2) {
+    let mx = 0, mz = 0;
+    for (let i = 0; i < n; i++) { mx += px[i]; mz += pz[i]; }
+    mx /= n; mz /= n;
+    let cxx = 0, cxz = 0, czz = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = px[i] - mx, dz = pz[i] - mz;
+      cxx += dx * dx; cxz += dx * dz; czz += dz * dz;
+    }
+    const ang = 0.5 * Math.atan2(2 * cxz, cxx - czz);
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    for (let i = 0; i < n; i++) {
+      const dx = px[i] - mx, dz = pz[i] - mz;
+      px[i] = dx * ca - dz * sa;
+      pz[i] = dx * sa + dz * ca;
+    }
+  }
+
   // ── Rectification — the reference's "clean" look ──────────────────────────
   // Snap every node onto the integer grid (high-degree hubs first, spiralling
   // to the nearest free cell on collision). Gate neighbours end up 1 cell or a

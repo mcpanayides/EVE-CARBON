@@ -136,6 +136,40 @@
 
 /* View-style toggle (Classic / Modern) — mirrors the overlay buttons but kept on a
    separate class so the overlay click-handler doesn't clear its active state. */
+/* Layout level + Flat. Same chrome as the other toolbar groups — these are
+   peers of the overlay and view toggles, not a different kind of control.
+   Flat is a two-state toggle rather than one of a set, so it reads as pressed
+   rather than selected. */
+.map-layout-btn,
+.map-flat-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.map-flat-btn { border-right: none; }
+
+.map-layout-btn:hover,
+.map-flat-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.map-layout-btn.active,
+.map-flat-btn.active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
 .map-view-btn {
   padding: 5px 10px;
   font-size: 11px;
@@ -500,6 +534,95 @@
   text-align: right;
   word-break: break-word;
 }
+
+/* ── Layer detail in the system panel ────────────────────────────────────── */
+/* Evidence for whatever the active overlay is claiming: a recorded curve, the
+   real killmails, a sov timer. Sits at the foot of the info panel and is empty
+   for overlays that have nothing extra to say. */
+.map-info-detail:empty { display: none; }
+
+.map-info-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.map-detail-title,
+.map-detail-sub {
+  font-size: 9px;
+  font-family: var(--mono);
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+
+.map-detail-sub {
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+.map-detail-note {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.map-detail-figure {
+  margin: 2px 0 0;
+  line-height: 0;                 /* no descender gap under the inline svg */
+}
+
+.map-detail-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The two ends of the time axis. The bars carry the shape; these say which way
+   round it runs, which is the one thing a bare sparkline never tells you. */
+.map-detail-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+
+.map-detail-kill {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.map-detail-kill-t { color: var(--text-3); }
+.map-detail-kill-s { color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-detail-kill-v { color: var(--text-2); text-align: right; }
+
+.map-detail-tag {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.map-detail-campaign {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.map-detail-campaign:last-child { border-bottom: 0; }
+
+/* The campaign actually in THIS system, as opposed to elsewhere in the
+   constellation — both are relevant, only one is where you clicked. */
+.map-detail-campaign.is-here { border-left: 2px solid var(--accent); padding-left: 6px; }
 
 /* ── Zoom controls ───────────────────────────────────────────────────────── */
 .map-zoom-controls {

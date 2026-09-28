@@ -13,6 +13,12 @@
         <button type="button" class="map-overlay-btn" data-overlay="sovereignty" aria-pressed="false">Sovereignty</button>
         <button type="button" class="map-overlay-btn" data-overlay="fnf" aria-pressed="false" title="Colour sov by your alliance's standings — blue (+5/+10), orange (−5), red (−10), NPC grey">Friends &amp; Foes</button>
         <button type="button" class="map-overlay-btn" data-overlay="incursions" aria-pressed="false">Incursions</button>
+        <button type="button" class="map-overlay-btn" data-overlay="traffic" aria-pressed="false" title="Ship jumps through each system in the last hour (ESI, public)">Traffic</button>
+        <button type="button" class="map-overlay-btn" data-overlay="kills" aria-pressed="false" title="Ships and pods killed in the last hour — where players are dying (ESI, public)">Danger</button>
+        <button type="button" class="map-overlay-btn" data-overlay="ratting" aria-pressed="false" title="NPCs killed in the last hour — where the ratting is (ESI, public)">Ratting</button>
+        <button type="button" class="map-overlay-btn" data-overlay="campaigns" aria-pressed="false" title="Active sovereignty campaigns and their timers (ESI, public)">Sov Timers</button>
+        <button type="button" class="map-overlay-btn" data-overlay="fw" aria-pressed="false" title="Faction-warfare ownership and contested state (ESI, public)">Faction War</button>
+        <button type="button" class="map-overlay-btn" data-overlay="industry" aria-pressed="false" title="Manufacturing cost index per system (ESI, public)">Industry</button>
       </div>
 
       <!-- View style (Classic / Modern). Modern = CCP-style flattened galaxy with
@@ -20,8 +26,25 @@
            DOTLAN-style per-region view via the region picker. -->
       <div class="map-overlay-group" role="group" aria-label="Map view style">
         <span class="map-group-label">VIEW</span>
-        <button type="button" class="map-view-btn" data-view="classic" aria-pressed="false" title="The whole-galaxy overview (true positions)">Classic</button>
-        <button type="button" class="map-view-btn active" data-view="modern" aria-pressed="true" title="Flattened galaxy — every region as a tidy cluster; pick a region for the detailed layout">Modern</button>
+        <!-- Two views, because there are two questions: where things ARE, and what
+             the numbers SAY. Classic was a third answer to neither — a flat
+             top-down that was decluttered out of true position but not arranged
+             for reading either. Its renderer is still in map.js (see _render)
+             and can be brought back by restoring a button with data-view="classic";
+             nothing else was removed. -->
+        <button type="button" class="map-view-btn active" data-view="spatial" aria-pressed="true" title="Where things actually are — the SDE's own 3D coordinates through a real camera. Drag to orbit, shift-drag to pan, scroll to fly in.">Spatial</button>
+        <button type="button" class="map-view-btn" data-view="modern" aria-pressed="false" title="Schematic — every region as a tidy cluster, stars moved onto a grid so the data is easy to read; pick a region for the detailed layout">Schematic</button>
+      </div>
+
+      <!-- Level of detail over the SAME arrangement, the way the in-game map's
+           Layout control works: the galaxy stays put and the nodes merge, so
+           you never lose your place stepping between them. Spatial only. -->
+      <div class="map-overlay-group" role="group" aria-label="Map layout" id="mapLayoutGroup">
+        <span class="map-group-label">LAYOUT</span>
+        <button type="button" class="map-layout-btn active" data-layout="system" aria-pressed="true" title="Every solar system">System</button>
+        <button type="button" class="map-layout-btn" data-layout="constellation" aria-pressed="false" title="One node per constellation, at the centre of its systems">Constellation</button>
+        <button type="button" class="map-layout-btn" data-layout="region" aria-pressed="false" title="One node per region, at the centre of its systems">Region</button>
+        <button type="button" class="map-flat-btn" id="mapFlatBtn" aria-pressed="false" title="Flat — look straight down with no perspective, so position never depends on depth">Flat</button>
       </div>
 
       <!-- Region picker — the Modern-view JS shows/hides this as the view switches -->

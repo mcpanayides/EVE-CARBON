@@ -36,11 +36,36 @@ let _selected    = null;
 let _overlay     = 'security';
 let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + endpoint diamonds) on by default
 let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
-let _viewMode    = 'modern'; // 'classic' (original look) | 'modern' (flat DOTLAN-style, default)
+// 'spatial'  — true 3-D coordinates through a camera. The default: it is the
+//              only view that answers "where IS this", and the one the in-game
+//              map is doing.
+// 'modern'   — the DOTLAN-style schematic. Stars are moved onto a grid so the
+//              overlays are easy to read; kept deliberately, on its own toggle,
+//              because reading data and reading space are different jobs.
+// 'classic'  — RETIRED from the UI, still implemented.
+//
+//              It was a flat top-down of wx/wz, which _declutterAll has already
+//              pushed off true position — so it answered neither question the
+//              other two answer: not where things are, and not arranged for
+//              reading. That middle ground is what people complained about.
+//
+//              The renderer is untouched (it is the tail of _render, after the
+//              spatial and modern dispatch) and costs nothing while unreachable:
+//              it is a pure draw function that fetches nothing of its own. To
+//              bring it back, restore a button with data-view="classic" in
+//              page-map.html and add it to VIEW_MODES below. Nothing else needs
+//              changing.
+let _viewMode    = 'spatial';
+
+// The views the toggle will actually switch to. The mode switch validates
+// against this rather than trusting the button's data-view, so a stray or
+// stale attribute cannot strand the map in a view with no button to leave it.
+const VIEW_MODES = new Set(['spatial', 'modern']);
 
 // Modern "region view" (prototype): when set, the Modern view shows a single region
 // laid out from its gate graph (DOTLAN-style), NOT the flattened 3D galaxy.
 let _regionView     = null;   // regionId being shown (null = no region picked yet)
+let _curatedRegions = null;   // {regionId: {seeds: {systemId: [x, y]}}} traced from the in-game map
 let _regionLayout   = null;   // Map(systemId → { x, z }) computed layout positions
 let _regionLayoutId = null;   // regionId the cached layout was built for
 let _regionExits    = [];     // [{ fromId, name, regionId, regionName, x, z }] inter-region gate stubs
@@ -68,6 +93,7 @@ let _incSet      = new Set();
 let _jbSet           = new Set();
 let _savedBridges    = [];        // user's saved Ansiblex bridges [[idA,idB],…] drawn as green arcs
 let _regions         = {};        // {regionId: name}
+let _constellations  = {};        // {constellationId: name}
 let _sysById         = {};        // {systemId: system}  — O(1) lookup
 
 // Region-level sovereignty labels (sovereignty overlay, zoomed out)
@@ -269,15 +295,63 @@ function _normalise(raw) {
   const angle = 20 * Math.PI / 180, cosA = Math.cos(angle), sinA = Math.sin(angle);
   const cx = _MAP_WORLD / 2, cz = _MAP_WORLD / 2;
 
+  // ── TRUE 3-D, for the spatial view ────────────────────────────────────────
+  //
+  // wx/wz below are working coordinates: the declutter pass pushes them apart,
+  // the wormhole block overwrites them, and the region views relayout from
+  // scratch. Every one of those is a deliberate lie in service of legibility,
+  // and they are what make the schematic views readable.
+  //
+  // The spatial view cannot use them. It exists to answer "where IS this", so it
+  // needs the SDE's own numbers, and it needs the axis the flat views discard:
+  // inside a region the vertical spread is 43-67% of the horizontal one, so a
+  // top-down projection is throwing away a third of the shape.
+  //
+  // tx/ty/tz are therefore centred and scaled by ONE factor across all three
+  // axes - scaling per-axis would square the box up and silently distort every
+  // distance on screen - and nothing downstream is allowed to modify them.
+  const ys3 = ks.map(s => s.y);
+  const minY3 = Math.min(...ys3), maxY3 = Math.max(...ys3);
+  const cx3 = (minX + maxX) / 2, cy3 = (minY3 + maxY3) / 2, cz3 = (minZ + maxZ) / 2;
+  // One scale for all three axes, sized off the widest, so the result lands in
+  // about [-1, 1] with the real proportions intact.
+  const s3 = 2 / (Math.max(maxX - minX, maxY3 - minY3, maxZ - minZ) || 1);
+
   const ksOut = ks.map(s => {
     const fx = ox + (s.x - minX) * scale;
     const fz = oz + (maxZ - s.z) * scale;
     const dx = fx - cx, dz = fz - cz;
-    return { ...s, wx: cx + dx * cosA + dz * sinA, wz: cz - dx * sinA + dz * cosA };
+    return {
+      ...s,
+      wx: cx + dx * cosA + dz * sinA,
+      wz: cz - dx * sinA + dz * cosA,
+      // ── The canonical orientation ────────────────────────────────────────
+      //
+      // Every third-party New Eden map — and the in-game one — agrees on the
+      // same picture: plot x across, z up, look straight down, no rotation.
+      // That agreement is not a convention anybody published; it is just what
+      // the raw coordinates give you, which is why independent tools all land
+      // on the identical map.
+      //
+      // We did not, because of two mistakes stacked on each other: z was
+      // negated here, mirroring the galaxy top-to-bottom, and the camera's
+      // default yaw then turned it a further 20 degrees. Fitted against nine
+      // landmarks read off the in-game map, +z up with zero yaw reproduces it
+      // to within 0.22 hours of clock angle — Tenal at 12, Period Basis at
+      // 7-8, Fountain at 9, Cobalt Edge at 2.
+      //
+      // The projection maps +tz to screen-up, so z is carried through as-is.
+      tx: (s.x - cx3) * s3,
+      ty: (s.y - cy3) * s3,
+      tz: (s.z - cz3) * s3,
+    };
   });
 
   // Wormhole systems get placeholder positions; _layoutWormholeBlock() arranges
   // them as a grid to the right once the k-space layout is finalised.
+  // No tx/ty/tz for wormhole space. Anoikis really is somewhere else - including
+  // it would scale the whole galaxy down to fit a block nothing connects to - so
+  // the spatial view skips anything without true coordinates.
   const whOut = wh.map(s => ({ ...s, wx: 0, wz: 0 }));
   return [...ksOut, ...whOut];
 }
@@ -468,6 +542,19 @@ function _fitGalaxy() {
 }
 
 function _adjustZoom(factor, cx, cy) {
+  if (_viewMode === 'spatial') {
+    _camCancelTween();        // scrolling mid-glide should not fight it
+    // Zoom about the cursor, so the star you are aiming at stays put as you
+    // fly in. The pan is what holds it: scaling alone would pull everything
+    // towards the canvas centre.
+    const k = Math.min(400, Math.max(0.05, _camZoom * factor)) / _camZoom;
+    const ox = cx - _canvas.width / 2, oy = cy - _canvas.height / 2;
+    _camPanX = ox - (ox - _camPanX) * k;
+    _camPanY = oy - (oy - _camPanY) * k;
+    _camZoom *= k;
+    _scheduleRender();
+    return;
+  }
   const [wx, wz] = _c2w(cx, cy);
   const nz = Math.min(_MAX_ZOOM, Math.max(_MIN_ZOOM, _zoom * factor));
   _panX = cx - wx * nz;
@@ -478,6 +565,23 @@ function _adjustZoom(factor, cx, cy) {
 
 // ── Hit detection ─────────────────────────────────────────────────────────────
 function _hitTest(cx, cy) {
+  // Spatial: nearest projected star within a few pixels, and when two overlap
+  // the one in FRONT wins — clicking through a foreground star to something
+  // behind it is never what was meant.
+  if (_viewMode === 'spatial') {
+    let best = null, bestD = 14 * 14;
+    for (const s of _spatialSystems()) {
+      const pr = _spatialProject(s);
+      if (!pr) continue;
+      const [sx, sy] = _spatialToCanvas(pr);
+      const d = (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy);
+      if (d > bestD) continue;
+      if (!best || d < bestD - 4 || pr.depth < best._depth) {
+        best = s; best._depth = pr.depth; bestD = Math.max(d, 4);
+      }
+    }
+    return best;
+  }
   // Modern region view: test in screen space against the laid-out pill centres.
   if (_viewMode === 'modern' && _regionView != null && _regionLayout) {
     let best = null, bestD2 = 18 * 18;
@@ -645,6 +749,157 @@ function _regularPolyPath(ctx, cx, cy, r, sides) {
 // no glow / bloom / gradients. Shares system positions with the classic view.
 
 // Colour a system's dot uses under the current overlay (shared by both views).
+
+// ─── Live ESI map layers ──────────────────────────────────────────────────────
+//
+// Six overlays off five public endpoints. None needs a scope, a token or a
+// logged-in character, so they work on a fresh install.
+//
+// Every one of them colours systems through _systemColor, which is the single
+// colour source all four renderers already share — Classic, the Schematic
+// galaxy, the Schematic region view and Spatial. That is why these layers light
+// up in all three maps without any renderer knowing they exist.
+//
+// Data is fetched lazily, on first selection, and never on app start: a layer
+// nobody is looking at should cost nothing. Main caches each one for the window
+// ESI itself serves it on.
+let _trafficData  = null;   // { systemId: shipJumps }
+let _killsData    = null;   // { systemId: { ship, pod, npc } }
+let _fwData       = null;   // { systemId: { owner, occupier, contested, progress } }
+let _indIdxData   = null;   // { systemId: manufacturingCostIndex }
+let _campaignData = null;   // [ { constellationId, solarSystemId, eventType, startTime, ... } ]
+let _campaignCons = null;   // Set(constellationId) for O(1) lookup while drawing
+let _layerBusy    = null;   // overlay key currently in flight, so we ask once
+const _layerRef   = {};     // overlay key -> the value the ramp treats as "hot"
+
+/**
+ * The reference value a heat ramp tops out at.
+ *
+ * These distributions are savagely skewed — Jita alone can carry more jumps
+ * than a whole null region, and most systems are flat zero. Scaling linearly
+ * against the maximum paints the entire galaxy black with one white dot, which
+ * is technically accurate and completely useless. So the ramp tops out at a
+ * high percentile and everything above it simply reads as "hot".
+ */
+function _layerReference(values) {
+  const nz = values.filter(v => v > 0).sort((a, b) => a - b);
+  if (!nz.length) return 1;
+  return nz[Math.min(nz.length - 1, Math.floor(nz.length * 0.97))] || 1;
+}
+
+// Dark -> violet -> rose -> amber -> pale gold. Perceptually ordered, so it
+// reads as one scale rather than a set of unrelated colours, and it stays
+// legible on black.
+const _HEAT_STOPS = [
+  [0.00, [18, 21, 32]],
+  [0.25, [63, 42, 104]],
+  [0.50, [150, 49, 94]],
+  [0.75, [222, 104, 52]],
+  [1.00, [255, 214, 130]],
+];
+
+function _heat(t) {
+  const k = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < _HEAT_STOPS.length; i++) {
+    const [p1, c1] = _HEAT_STOPS[i];
+    if (k > p1 && i < _HEAT_STOPS.length - 1) continue;
+    const [p0, c0] = _HEAT_STOPS[i - 1];
+    const f = (k - p0) / ((p1 - p0) || 1);
+    const m = (a, b) => Math.round(a + (b - a) * f);
+    return `rgb(${m(c0[0], c1[0])},${m(c0[1], c1[1])},${m(c0[2], c1[2])})`;
+  }
+  return '#121520';
+}
+
+/**
+ * A measured value on the ramp.
+ *
+ * Log, not linear: the interesting difference between 2 kills and 20 is the
+ * same size as the one between 20 and 200, and a linear ramp hides the first
+ * entirely. Systems with no data at all stay near-black so the layer reads as
+ * "here is where it is happening" rather than a wash over the whole galaxy.
+ */
+function _heatFor(v, key) {
+  if (v === undefined || v === null) return '#0e1018';
+  if (!v) return '#141824';
+  const ref = _layerRef[key] || 1;
+  return _heat(Math.log1p(v) / Math.log1p(ref));
+}
+
+/** Faction-warfare ownership, brightened where the system is being fought over. */
+function _fwSysColor(s) {
+  const f = _fwData && _fwData[s.id];
+  if (!f) return '#121520';
+  const base = _FACTIONS[f.occupier || f.owner] || '#8892a4';
+  if (f.contested === 'contested')  return _mixHex(base, '#ffffff', 0.45);
+  if (f.contested === 'vulnerable') return _mixHex(base, '#ffffff', 0.7);
+  return _mixHex(base, '#000000', 0.25);
+}
+
+/** Systems inside a constellation with a live sov campaign. */
+function _campaignColor(s) {
+  if (!_campaignCons) return '#121520';
+  if (_campaignCons.has(s.constellationId)) return '#ff8a3d';
+  return _sovColor(s.id);      // context: whose space the fight is in
+}
+
+/** Blend two hex colours — used to say "contested" without inventing a hue. */
+function _mixHex(a, b, f) {
+  const p = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const [r1, g1, b1] = p(a), [r2, g2, b2] = p(b);
+  const m = (x, y) => Math.round(x + (y - x) * f);
+  return `rgb(${m(r1, r2)},${m(g1, g2)},${m(b1, b2)})`;
+}
+
+/** Which overlays need a fetch, and what to do with it. */
+const _LAYER_LOADERS = {
+  traffic: async () => {
+    _trafficData = await window.eveAPI.mapGetTraffic();
+    _layerRef.traffic = _layerReference(Object.values(_trafficData || {}));
+  },
+  kills: async () => {
+    _killsData = await window.eveAPI.mapGetKills();
+    _layerRef.kills = _layerReference(Object.values(_killsData || {}).map(k => k.ship + k.pod));
+    _layerRef.ratting = _layerReference(Object.values(_killsData || {}).map(k => k.npc));
+  },
+  industry: async () => {
+    _indIdxData = await window.eveAPI.mapGetIndustryIndices();
+    _layerRef.industry = _layerReference(Object.values(_indIdxData || {}));
+  },
+  fw: async () => { _fwData = await window.eveAPI.mapGetFwSystems(); },
+  campaigns: async () => {
+    _campaignData = await window.eveAPI.mapGetSovCampaigns();
+    _campaignCons = new Set((_campaignData || []).map(c => c.constellationId));
+  },
+};
+
+/**
+ * Fetch a layer's data the first time it is asked for.
+ *
+ * 'ratting' rides on the kills fetch — one endpoint carries both — so it maps
+ * onto the same loader rather than pulling /universe/system_kills twice.
+ */
+async function _ensureLayer(overlay) {
+  const key = overlay === 'ratting' ? 'kills' : overlay;
+  const loader = _LAYER_LOADERS[key];
+  if (!loader) return;
+  const have = { traffic: () => _trafficData, kills: () => _killsData,
+                 industry: () => _indIdxData, fw: () => _fwData,
+                 campaigns: () => _campaignData }[key];
+  if (have && have()) return;
+  if (_layerBusy === key) return;         // already asked; the render will follow
+  _layerBusy = key;
+  try {
+    await loader();
+  } catch (e) {
+    console.warn(`[map] layer "${key}" failed to load:`, e.message);
+  } finally {
+    _layerBusy = null;
+    _updateLegend();
+    _scheduleRender();
+  }
+}
+
 function _systemColor(s) {
   // With the influence field up, a dot's job changes: the security ramp paints
   // every null system the same rose (_secColorModern), which on top of per-holder
@@ -660,6 +915,18 @@ function _systemColor(s) {
     case 'sovereignty': return _sovColor(s.id);
     case 'fnf':         return _fnfColor(s);
     case 'incursions':  return _incSet.has(s.id) ? '#dd44aa' : '#1c1c28';
+    case 'traffic':     return _heatFor(_trafficData ? _trafficData[s.id] : undefined, 'traffic');
+    case 'kills': {
+      const k = _killsData && _killsData[s.id];
+      return _heatFor(k ? k.ship + k.pod : (_killsData ? 0 : undefined), 'kills');
+    }
+    case 'ratting': {
+      const k = _killsData && _killsData[s.id];
+      return _heatFor(k ? k.npc : (_killsData ? 0 : undefined), 'ratting');
+    }
+    case 'industry':    return _heatFor(_indIdxData ? _indIdxData[s.id] : undefined, 'industry');
+    case 'fw':          return _fwSysColor(s);
+    case 'campaigns':   return _campaignColor(s);
     case 'security':
     default:
       if (_viewMode === 'modern') {
@@ -1234,9 +1501,82 @@ function _regionGraph(regionId) {
 
 // Single-region view layout: clean node positions + clickable inter-region gate
 // stubs, oriented so the region's gateways sit at the top. Cached per region.
+/**
+ * Positions for a region somebody has traced off the in-game map.
+ *
+ * Deliberately NOT _regionForceLayout with different seeds. That was the first
+ * attempt and it threw the trace away: the relaxation pulls every gate to one
+ * uniform length, which is precisely the structure a traced layout is carrying
+ * — in-game gate lengths vary more than twofold, and the long ones are what
+ * make a region recognisable. Feeding the trace in as a seed produced a tidy
+ * lattice with none of the shape.
+ *
+ * So the trace is used as-is. The only processing is a scale onto the same
+ * cell pitch the algorithmic path uses, and a few rounds of pure collision
+ * relief to absorb the error in reading coordinates off a screenshot. No
+ * springs, no PCA rotation — the trace already has the orientation the game
+ * draws, and rotating it would be undoing the entire point.
+ */
+function _curatedRegionPositions(ids, adjAll, seeds) {
+  const out = new Map();
+  const have = ids.filter(id => seeds[id]);
+  if (have.length < 3) return null;           // not enough traced to be worth it
+
+  // Scale so the median GATE matches the algorithmic path's rest length of 1.
+  const lens = [];
+  for (const id of have) {
+    for (const v of (adjAll.get(id) || [])) {
+      if (!seeds[v] || v <= id) continue;
+      lens.push(Math.hypot(seeds[v][0] - seeds[id][0], seeds[v][1] - seeds[id][1]));
+    }
+  }
+  lens.sort((a, b) => a - b);
+  const med = lens.length ? (lens[Math.floor(lens.length / 2)] || 1) : 1;
+
+  const px = new Float64Array(have.length), pz = new Float64Array(have.length);
+  for (let i = 0; i < have.length; i++) {
+    px[i] = seeds[have[i]][0] / med;
+    pz[i] = seeds[have[i]][1] / med;
+  }
+
+  // Collision relief only. A traced layout does not overlap in the game, but a
+  // hand-read one can by a few pixels, and two systems drawn on top of each
+  // other is the one failure that makes a map unusable.
+  const MIND = 0.8;
+  for (let it = 0; it < 40; it++) {
+    let moved = false;
+    for (let i = 0; i < have.length; i++) {
+      for (let j = i + 1; j < have.length; j++) {
+        let dx = px[j] - px[i], dz = pz[j] - pz[i];
+        let d = Math.hypot(dx, dz);
+        if (d >= MIND) continue;
+        if (d < 1e-6) { dx = Math.sin(i + 1); dz = Math.cos(j + 1); d = Math.hypot(dx, dz) || 1e-6; }
+        const push = ((MIND - d) / d) * 0.5;
+        px[i] -= dx * push; pz[i] -= dz * push;
+        px[j] += dx * push; pz[j] += dz * push;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+
+  for (let i = 0; i < have.length; i++) out.set(have[i], { x: px[i], z: pz[i] });
+  return out;
+}
+
 function _buildRegionLayout(regionId) {
+  // The cache is also filled by _prefetchRegionLayouts, which runs the layout
+  // in a worker off the SHARED kernel — and that kernel has no idea a region
+  // might be traced. A curated region would therefore hand back the prefetched
+  // algorithmic positions and the trace would never be drawn at all. So an
+  // entry only counts as a hit when it was built the same way the region is
+  // laid out now.
+  const isCurated = !!(_curatedRegions && _curatedRegions[regionId]);
   const cached = _regionCache.get(regionId);
-  if (cached) { _regionLayout = cached.layout; _regionExits = cached.exits; _regionLayoutId = regionId; return _regionLayout; }
+  if (cached && !!cached.curated === isCurated) {
+    _regionLayout = cached.layout; _regionExits = cached.exits; _regionLayoutId = regionId;
+    return _regionLayout;
+  }
 
   // Node positions come from the force layout. The previous layered grid put BFS
   // depth on one axis and slot-within-layer on the other, so a chain-shaped
@@ -1248,25 +1588,18 @@ function _buildRegionLayout(regionId) {
   // both axes. It's the same layout the galaxy overview's clusters already use.
   const { sys, adj, inRegion } = _regionGraph(regionId);
   const map = new Map(), exits = [];
-  for (const [id, p] of _regionForceLayout(sys.map(s => s.id), adj)) {
+  // A traced layout wins outright where one exists; everything else is laid
+  // out by the force pass exactly as before.
+  const curated = _curatedRegions && _curatedRegions[regionId];
+  const traced = (curated && curated.seeds)
+    ? _curatedRegionPositions(sys.map(s => s.id), adj, curated.seeds) : null;
+  for (const [id, p] of (traced || _regionForceLayout(sys.map(s => s.id), adj))) {
     map.set(id, { x: p.x * _REGION_CELL, z: p.z * _REGION_CELL });
   }
 
-  // Lay the region's long axis across the canvas. Regions are elongated in real
-  // space and the direction is arbitrary, so an unrotated Delve arrives 1650×1980
-  // — overflowing a landscape viewport vertically while leaving the sides empty.
-  // Rotating the dominant axis (same 2-D PCA the overview orients clusters with)
-  // onto the horizontal spends the space we actually have. Done BEFORE the exit
-  // stubs below so they're placed against the final positions.
-  if (map.size > 2) {
-    const ang = _pcaAngle([...map.values()]);
-    const ca = Math.cos(-ang), sa = Math.sin(-ang);
-    for (const p of map.values()) {
-      const x = p.x * ca - p.z * sa;
-      p.z = p.x * sa + p.z * ca;
-      p.x = x;
-    }
-  }
+  // The long-axis rotation now happens inside _regionForceLayout, ahead of its
+  // grid snap — doing it here, afterwards, took every rectified edge back off
+  // the grid.
 
   if (sys.length) {
     const ck = (x, z) => Math.round(x / _REGION_CELL) + '|' + Math.round(z / _REGION_CELL);
@@ -1373,14 +1706,20 @@ function _buildRegionLayout(regionId) {
     let zmin = Infinity, zmax = -Infinity;
     for (const p of map.values()) { zmin = Math.min(zmin, p.z); zmax = Math.max(zmax, p.z); }
     let emz = 0; for (const e of exits) emz += e._orientZ; emz /= (exits.length || 1);
-    if (exits.length && emz > (zmin + zmax) / 2) {
+    //
+    // Not for a traced region. This flip exists because the force layout's
+    // vertical orientation is arbitrary and needs canonicalising; a trace has
+    // the orientation the game itself draws, and mirroring it is the one thing
+    // guaranteed to be wrong. It flipped Insmother upside down — the FD-7Y4
+    // chain ran bottom-to-top against the screenshot.
+    if (!isCurated && exits.length && emz > (zmin + zmax) / 2) {
       for (const p of map.values()) p.z = -p.z;
       for (const e of exits) e.z = -e.z;
     }
   }
 
   _regionLayout = map; _regionExits = exits; _regionLayoutId = regionId;
-  _regionCache.set(regionId, { layout: map, exits });
+  _regionCache.set(regionId, { layout: map, exits, curated: isCurated });
   return map;
 }
 
@@ -1599,6 +1938,39 @@ function _regionForceLayout(ids, adjAll) {
           px[i] -= dx; pz[i] -= dz; px[j] += dx; pz[j] += dz;
         }
       }
+    }
+  }
+
+  // ── Orientation, BEFORE the grid snap ─────────────────────────────────────
+  //
+  // Lay the region's long axis across the canvas. Regions are elongated in real
+  // space and the direction is arbitrary, so an unrotated Delve arrives
+  // 1650x1980 — overflowing a landscape viewport vertically while leaving the
+  // sides empty.
+  //
+  // This used to run AFTER the rectification below, in _buildRegionLayout, and
+  // that ordering quietly undid it: rectification puts every node on an integer
+  // grid so gate edges come out horizontal, vertical or 45°, and then rotating
+  // the finished grid by an arbitrary angle takes every one of those edges back
+  // off it. Measured across three regions, Delve kept 88% of its edges on-grid
+  // purely because its PCA angle happened to land near a grid multiple, while
+  // The Forge kept 0%. Rotating first costs nothing and the grid then survives,
+  // because it is built in the final orientation.
+  if (n > 2) {
+    let mx = 0, mz = 0;
+    for (let i = 0; i < n; i++) { mx += px[i]; mz += pz[i]; }
+    mx /= n; mz /= n;
+    let cxx = 0, cxz = 0, czz = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = px[i] - mx, dz = pz[i] - mz;
+      cxx += dx * dx; cxz += dx * dz; czz += dz * dz;
+    }
+    const ang = 0.5 * Math.atan2(2 * cxz, cxx - czz);
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    for (let i = 0; i < n; i++) {
+      const dx = px[i] - mx, dz = pz[i] - mz;
+      px[i] = dx * ca - dz * sa;
+      pz[i] = dx * sa + dz * ca;
     }
   }
 
@@ -2453,12 +2825,798 @@ function _renderRegion() {
   ctx.shadowBlur = 0;
 }
 
+
+// ─── Spatial view ─────────────────────────────────────────────────────────────
+//
+// The view that answers "where IS this". It renders the SDE's own coordinates
+// through a real camera and never moves a star, which is the one thing the two
+// schematic views cannot do and the whole reason people compare us unfavourably
+// with the in-game map.
+//
+// The schematic views are not wrong - they are a different job. Dotlan-style
+// maps move stars onto a grid so you can READ them: jumps, kills, sov, at a
+// glance, in a stable arrangement that does not change when you rotate. That is
+// worth having, so it stays, on its own toggle. What does not work is doing
+// half of each, which is what we shipped: stars moved like a schematic, painted
+// like the star map, answering neither question well.
+//
+// Three things make the in-game map read the way it does, and all three are
+// missing from a flat projection:
+//
+//   • THE THIRD AXIS. Inside a region the vertical spread is 43-67% of the
+//     horizontal one. Flattening it does not merely lose detail, it collapses
+//     distinct systems on top of each other and invents adjacencies that are
+//     not there.
+//   • A CAMERA. Tilt and perspective are what turn a scatter plot into a place.
+//     Near stars are bigger and brighter; far ones recede. Without it the eye
+//     has no depth cue at all.
+//   • LEVEL OF DETAIL. New Eden has ~5 500 systems and no projection makes them
+//     all legible at once. The in-game map answers crowding by letting you fly
+//     in, not by pushing stars apart. So do we: labels are culled by occupancy,
+//     never by relayout.
+const _SPATIAL_FOV  = 2.3;    // focal length; larger flattens the perspective
+const _SPATIAL_DIST = 3.4;    // camera distance from the galactic centre
+const _SPATIAL_NEAR = 0.05;   // anything nearer is behind the lens
+
+// Zero, not a pleasing three-quarter angle: at yaw 0 the flat view IS the map
+// everyone else draws. Orbiting from there is a choice the viewer makes.
+let _camYaw   = 0;            // orbit about the vertical axis
+let _camPitch = 1.00;         // tilt; PI/2 would be straight down
+let _camZoom  = 1;
+let _camPanX  = 0, _camPanY = 0;
+// Drag start, so an orbit is absolute against where the drag began rather than
+// accumulating rounding error frame by frame.
+let _camDragPan = false;
+let _camSY0 = 0, _camSP0 = 0, _camSPX = 0, _camSPY = 0;
+
+// ── What the camera orbits ───────────────────────────────────────────────────
+//
+// Rotation happens about this point, not about the origin. That distinction is
+// invisible in the middle of the galaxy and miserable at the edge: orbiting a
+// rim system about the galactic centre swings it through a arc a whole galaxy
+// wide, so the thing you are trying to look at leaves the screen the moment you
+// drag. Pivoting on what you actually clicked turns the same gesture into
+// turning the object over in your hand.
+//
+// It starts at the origin, which IS the galactic centre — tx/ty/tz are centred
+// on the k-space bounding box — so the opening view is unchanged.
+let _camFocusX = 0, _camFocusY = 0, _camFocusZ = 0;
+let _camTween = null;     // rAF handle for the glide to a new focus
+
+// ── Aggregation level ────────────────────────────────────────────────────────
+//
+// The in-game map has one arrangement and three levels of detail over it:
+// every system, every constellation, or every region. It is not three maps —
+// the galaxy stays where it is and the nodes merge, which is why you never lose
+// your place moving between them.
+//
+// Ours works the same way: a node's position is the centroid of the true
+// positions of whatever it stands for, so a region sits exactly in the middle
+// of its own systems and nothing jumps when the level changes.
+let _spatialLayout = 'system';           // 'system' | 'constellation' | 'region'
+let _aggCache = { key: null, nodes: null, links: null };
+
+// ── Flat (orthographic) ──────────────────────────────────────────────────────
+//
+// Perspective is what makes the 3-D view read as a place, and it is exactly
+// what a flat map must not have: under a perspective divide the screen position
+// depends on depth, so at top-down the vertical axis quietly pulls systems
+// toward the centre. Orthographic drops the divide — every node is scaled
+// identically and the third axis survives only as depth order and shading.
+let _camFlat = false;
+
+/** Stop any focus glide — called by anything that takes over the camera. */
+function _camCancelTween() {
+  if (_camTween) { cancelAnimationFrame(_camTween); _camTween = null; }
+}
+
+/**
+ * Make a system the pivot, and centre it.
+ *
+ * Centring is free: the projection of the focus point is (0, 0) by
+ * construction, so panning to zero puts it exactly at the canvas centre.
+ *
+ * The move is eased over a moment rather than snapped. A hard cut re-frames
+ * every star at once and costs you the thread of where you were; ~380ms of
+ * glide keeps it. The tween drives itself off requestAnimationFrame and stops
+ * when it arrives — it must never become a standing loop.
+ */
+function _spatialFocusOn(sys, ms = 380) {
+  if (!sys || sys.tx === undefined) return;
+  _camCancelTween();
+  const fx0 = _camFocusX, fy0 = _camFocusY, fz0 = _camFocusZ;
+  const px0 = _camPanX,   py0 = _camPanY;
+  const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const step = () => {
+    const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const k = ms > 0 ? Math.min(1, (now - t0) / ms) : 1;
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // easeInOutQuad
+    _camFocusX = fx0 + (sys.tx - fx0) * e;
+    _camFocusY = fy0 + (sys.ty - fy0) * e;
+    _camFocusZ = fz0 + (sys.tz - fz0) * e;
+    _camPanX = px0 * (1 - e);
+    _camPanY = py0 * (1 - e);
+    _scheduleRender();
+    _camTween = (k < 1) ? requestAnimationFrame(step) : null;
+  };
+  _camTween = requestAnimationFrame(step);
+}
+
+/**
+ * A colour with an alpha applied, whatever notation it arrived in.
+ *
+ * The overlays hand back hex for security and faction, and hashed hsl() for
+ * player alliances, and the spatial view needs to fade every one of them by
+ * depth. Canvas has no opacity channel of its own for fillStyle, so the alpha
+ * has to be baked into the colour string.
+ *
+ * A var() would be silently dropped by canvas - it has bitten this file before
+ * (see _mono/_accent) - so an unresolved one falls back to a visible grey
+ * rather than painting nothing at all.
+ */
+function _rgba(col, a) {
+  const c = typeof col === 'string' ? col.trim() : '';
+  if (!c || c.startsWith('var(')) return `rgba(200,210,230,${a})`;
+  if (c[0] === '#') {
+    let h = c.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    const n = parseInt(h, 16);
+    if (!Number.isFinite(n)) return `rgba(200,210,230,${a})`;
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = /^(hsla?|rgba?)\(([^)]+)\)$/i.exec(c);
+  if (m) {
+    const head = m[1].toLowerCase().startsWith('hsl') ? 'hsla' : 'rgba';
+    const parts = m[2].split(',').slice(0, 3).map(v => v.trim());
+    if (parts.length === 3) return `${head}(${parts.join(',')},${a})`;
+  }
+  return c;
+}
+
+/** Pixels per world unit at the focal plane — keeps the fit stable on resize. */
+function _spatialScale() {
+  return Math.min(_canvas.width, _canvas.height) * 0.46;
+}
+
+/**
+ * One system's true position through the camera.
+ *
+ * Yaw turns about the vertical axis (Y, EVE's own up), then pitch tips the
+ * whole galaxy towards the viewer, then a perspective divide. Returns null for
+ * anything behind the lens so callers can skip it without a depth test.
+ */
+// Orthographic scale. Chosen so that switching to flat does not change the
+// apparent size of anything at the pivot — it is the perspective scale AT the
+// focal plane, so the toggle reads as the perspective flattening out rather
+// than as a zoom.
+const _SPATIAL_ORTHO = _SPATIAL_FOV / _SPATIAL_DIST;
+
+function _spatialProject(p) {
+  // Everything is measured from the pivot, so the pivot is what stays still.
+  const rx = p.tx - _camFocusX, ry = p.ty - _camFocusY, rz = p.tz - _camFocusZ;
+  const cy = Math.cos(_camYaw), sy = Math.sin(_camYaw);
+  const x1 =  rx * cy + rz * sy;
+  const z1 = -rx * sy + rz * cy;
+  // Flat locks the camera overhead. Tilting an orthographic view is legal but
+  // pointless here — with no perspective it just shears the galaxy.
+  const pitch = _camFlat ? Math.PI / 2 : _camPitch;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const y2 = ry * cp - z1 * sp;
+  const z2 = ry * sp + z1 * cp;
+  const depth = z2 + _SPATIAL_DIST;
+  if (depth <= _SPATIAL_NEAR) return null;
+  // The one line that separates a flat map from a 3-D one.
+  const f = _camFlat ? (_SPATIAL_ORTHO * _camZoom) : ((_SPATIAL_FOV / depth) * _camZoom);
+  return { x: x1 * f, y: y2 * f, depth, f };
+}
+
+/** Projected point → canvas pixels. */
+function _spatialToCanvas(pr) {
+  const S = _spatialScale();
+  return [_canvas.width / 2 + pr.x * S + _camPanX,
+          _canvas.height / 2 + pr.y * S + _camPanY];
+}
+
+
+// ─── The composed flat map ────────────────────────────────────────────────────
+//
+// What Flat draws. Not a projection of the sky — a reconstruction of the map
+// the game draws, assembled from two sources:
+//
+//   • WHERE EACH REGION SITS comes from the schematic galaxy layout, which is
+//     itself aligned to the traced full-galaxy outline. That is the global
+//     shape.
+//   • WHAT IS INSIDE A REGION comes from its trace in region-layouts.json where
+//     one exists, and from the force layout where one does not.
+//
+// A region that has not been traced yet therefore still appears, laid out the
+// old way, and simply improves the day somebody traces it. The alternative —
+// leaving untraced regions out — would mean a map with holes in it for as long
+// as the tracing takes, which is worse than a map that is merely uneven.
+//
+// 3-D is deliberately NOT built this way. It keeps the SDE's real coordinates,
+// because "where is this actually" and "what does the game draw" are different
+// questions and conflating them would leave neither answerable.
+let _composedFlat = null;         // Map(systemId → { tx, tz }), built once
+
+// How far apart the regions sit, as a multiple of their spacing in the
+// schematic galaxy layout. Region CENTROIDS move; the inside of a region is
+// carried along rigidly and is never stretched, so a traced region keeps the
+// exact arrangement it was traced with.
+//
+// This does NOT zoom the map out. Everything is renormalised into the same box
+// afterwards, so the visible effect is each region drawing slightly smaller
+// against slightly wider gaps — which is the crowding complaint, not a
+// complaint about overall size.
+const REGION_SPREAD = 1.15;
+
+/**
+ * Median distance from a point to its nearest neighbour in the same group.
+ *
+ * This is the map's PITCH — how far apart adjacent dots sit — and it is what the
+ * eye reads as a region's scale.
+ *
+ * It replaced median GATE length, which looks equivalent and is not. The
+ * schematic galaxy layout is a grid, so its gates come in two lengths: an
+ * orthogonal step (~40) and a diagonal one √2 times longer (~56). A region's
+ * median gate snaps to whichever of the two it has more of, and regions sit
+ * right on that 50/50 line — Placid 52% orthogonal, Black Rise 45%, Lonetrek
+ * 43%. Scaling a trace by that median therefore handed neighbouring regions
+ * sizes 41% apart on what amounts to a coin flip, which is what swelled
+ * Lonetrek, Pure Blind and Black Rise into the regions beside them while Placid
+ * and The Forge drew small. Nearest-neighbour distance cannot flip that way:
+ * measured across the galaxy layout, 65 of its 66 regions agree on it to within
+ * 10% (the exception is Pochven, which is deliberately laid out as a triangle).
+ */
+function _nnPitch(pts) {
+  const d = [];
+  for (let i = 0; i < pts.length; i++) {
+    let best = Infinity;
+    for (let k = 0; k < pts.length; k++) {
+      if (k === i) continue;
+      const v = Math.hypot(pts[i][0] - pts[k][0], pts[i][1] - pts[k][1]);
+      if (v < best) best = v;
+    }
+    if (Number.isFinite(best)) d.push(best);
+  }
+  if (!d.length) return 0;
+  d.sort((x, y) => x - y);
+  return d[Math.floor(d.length / 2)] || 0;
+}
+
+function _buildComposedFlat() {
+  if (_composedFlat) return _composedFlat;
+
+  const g = _buildGalaxyModern();
+  if (!g || !g.gpos || !g.gpos.size) return null;
+
+  // Start from the schematic galaxy: every system already placed, every region
+  // already at its outline position.
+  const pos = new Map();
+  for (const [id, p] of g.gpos) pos.set(id, [p.x, p.z]);
+
+  // ONE pitch for the whole map, measured before anything is swapped in. Every
+  // traced region is scaled to the same spacing the untraced ones already draw
+  // at, instead of to its own region's pitch — which is what kept the traced
+  // regions 48% apart in size.
+  const byRegion = new Map();
+  for (const sy of _systems) {
+    const p = pos.get(sy.id);
+    if (!p) continue;
+    let list = byRegion.get(sy.regionId);
+    if (!list) byRegion.set(sy.regionId, list = []);
+    list.push(p);
+  }
+  const pitches = [];
+  for (const pts of byRegion.values()) if (pts.length >= 5) pitches.push(_nnPitch(pts));
+  pitches.sort((x, y) => x - y);
+  const TARGET = pitches[Math.floor(pitches.length / 2)] || 0;
+
+  // Then replace each traced region's interior, keeping the region where the
+  // galaxy layout put it and drawing it at that one shared pitch — a trace
+  // scaled to its own screenshot's pixels would otherwise arrive several times
+  // too large or too small.
+  let swapped = 0;
+  for (const [ridStr, entry] of Object.entries(_curatedRegions || {})) {
+    const rid = Number(ridStr);
+    if (!entry || !entry.seeds) continue;
+    const ids = _systems.filter(sy => sy.regionId === rid && pos.has(sy.id)).map(sy => sy.id);
+    const traced = ids.filter(id => entry.seeds[id]);
+    if (traced.length < 3 || traced.length !== ids.length) continue;   // partial trace: leave it alone
+
+    const mt = _nnPitch(traced.map(id => entry.seeds[id]));            // pitch in the trace
+    if (!TARGET || !mt) continue;
+    const k = TARGET / mt;
+
+    const cen = (list, of) => {
+      let x = 0, z = 0;
+      for (const id of list) { const p = of(id); x += p[0]; z += p[1]; }
+      return [x / list.length, z / list.length];
+    };
+    const [gx, gz] = cen(ids, (id) => pos.get(id));
+    const [tx0, tz0] = cen(traced, (id) => entry.seeds[id]);
+
+    for (const id of traced) {
+      const p = entry.seeds[id];
+      pos.set(id, [gx + (p[0] - tx0) * k, gz + (p[1] - tz0) * k]);
+    }
+    swapped++;
+  }
+
+  // Spread the regions apart. Each region is translated as a rigid body along
+  // the line from the galaxy centre through its own centroid, which preserves
+  // the outline's shape exactly (a uniform radial scale is a similarity) and
+  // leaves every gate inside a region the length it already was.
+  if (REGION_SPREAD !== 1) {
+    const groups = new Map();
+    for (const sy of _systems) {
+      if (!pos.has(sy.id)) continue;
+      let gp = groups.get(sy.regionId);
+      if (!gp) groups.set(sy.regionId, gp = { ids: [], x: 0, z: 0 });
+      const p = pos.get(sy.id);
+      gp.ids.push(sy.id); gp.x += p[0]; gp.z += p[1];
+    }
+    // Unweighted over regions, so a 200-system region does not drag the centre
+    // toward itself and push the small ones around disproportionately.
+    let ox = 0, oz = 0;
+    for (const gp of groups.values()) { ox += gp.x / gp.ids.length; oz += gp.z / gp.ids.length; }
+    ox /= groups.size; oz /= groups.size;
+
+    for (const gp of groups.values()) {
+      const rx = gp.x / gp.ids.length, rz = gp.z / gp.ids.length;
+      const dx = (rx - ox) * (REGION_SPREAD - 1), dz = (rz - oz) * (REGION_SPREAD - 1);
+      for (const id of gp.ids) {
+        const p = pos.get(id);
+        pos.set(id, [p[0] + dx, p[1] + dz]);
+      }
+    }
+  }
+
+  // Into the same normalised box the true coordinates use, so the camera, the
+  // fit and the hit test all carry over untouched.
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const [, p] of pos) {
+    if (p[0] < minX) minX = p[0];
+    if (p[0] > maxX) maxX = p[0];
+    if (p[1] < minZ) minZ = p[1];
+    if (p[1] > maxZ) maxZ = p[1];
+  }
+  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+  const sc = 2 / (Math.max(maxX - minX, maxZ - minZ) || 1);
+
+  _composedFlat = new Map();
+  // z is negated: the schematic's z grows DOWNWARD (screen convention) while
+  // spatial's tz is +up. Without this the whole map arrives mirrored — the same
+  // trap the canonical orientation fix walked into.
+  for (const [id, p] of pos) _composedFlat.set(id, { tx: (p[0] - cx) * sc, tz: -(p[1] - cz) * sc });
+
+  console.log(`[map] composed flat map: ${_composedFlat.size} systems, ` +
+              `${swapped} traced region(s) swapped in at pitch ${TARGET.toFixed(1)}, ` +
+              `regions spread ${REGION_SPREAD}x`);
+  return _composedFlat;
+}
+
+/**
+ * Every system the spatial view can place.
+ *
+ * Flat hands back the composed map; 3-D hands back the real sky. Both are
+ * shaped the same way — tx/ty/tz on a system object — so everything downstream
+ * (projection, fit, hit test, aggregation, the live layers) is identical either
+ * way and none of it knows which map it is drawing.
+ */
+let _composedList = null;
+
+function _spatialSystems() {
+  if (!_camFlat) return _systems.filter(s => s.tx !== undefined);
+
+  const c = _buildComposedFlat();
+  if (!c) return _systems.filter(s => s.tx !== undefined);
+  if (!_composedList || _composedList.length !== c.size) {
+    _composedList = [];
+    for (const sy of _systems) {
+      const p = c.get(sy.id);
+      if (p) _composedList.push({ ...sy, tx: p.tx, ty: 0, tz: p.tz });
+    }
+  }
+  return _composedList;
+}
+
+// Region centroids in TRUE space, for the labels shown at galaxy zoom.
+// Cached because it is a full pass over 5 500 systems and the positions never
+// move - that being the entire point of this view.
+let _spatialRegionCache = null;
+let _spatialRegionCacheFlat = null;   // which map the cache above was built from
+
+function _spatialRegionMarks() {
+  if (_spatialRegionCache && _spatialRegionCacheFlat === _camFlat) return _spatialRegionCache;
+  _spatialRegionCacheFlat = _camFlat;
+  const acc = new Map();
+  for (const s of _spatialSystems()) {
+    let a = acc.get(s.regionId);
+    if (!a) { a = { regionId: s.regionId, tx: 0, ty: 0, tz: 0, n: 0 }; acc.set(s.regionId, a); }
+    a.tx += s.tx; a.ty += s.ty; a.tz += s.tz; a.n++;
+  }
+  _spatialRegionCache = [...acc.values()].map(a => ({
+    regionId: a.regionId, n: a.n,
+    tx: a.tx / a.n, ty: a.ty / a.n, tz: a.tz / a.n,
+  }));
+  return _spatialRegionCache;
+}
+
+/**
+ * Frame the whole galaxy.
+ *
+ * Projected x/y scale linearly with _camZoom, so the bounds can be measured
+ * once at zoom 1 and the fit solved directly - no iteration, and no drift when
+ * the window is resized.
+ */
+function _fitSpatial() {
+  // Framing the whole galaxy means orbiting it again, not whatever system was
+  // last clicked — otherwise "fit" leaves the camera turning about a corner.
+  // Yaw goes back to zero with it, because that is the orientation the rest of
+  // New Eden's maps use; a fit should hand back the standard picture.
+  _camCancelTween();
+  _camFocusX = 0; _camFocusY = 0; _camFocusZ = 0;
+  _camYaw = 0;
+  _camZoom = 1; _camPanX = 0; _camPanY = 0;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const s of _spatialSystems()) {
+    const pr = _spatialProject(s);
+    if (!pr) continue;
+    if (pr.x < minX) minX = pr.x;
+    if (pr.x > maxX) maxX = pr.x;
+    if (pr.y < minY) minY = pr.y;
+    if (pr.y > maxY) maxY = pr.y;
+  }
+  if (!Number.isFinite(minX)) return;
+  const S = _spatialScale();
+  const wNeed = ((maxX - minX) * S) || 1, hNeed = ((maxY - minY) * S) || 1;
+  _camZoom = Math.min(_canvas.width * 0.88 / wNeed, _canvas.height * 0.88 / hNeed);
+  _camPanX = -((minX + maxX) / 2) * S * _camZoom;
+  _camPanY = -((minY + maxY) / 2) * S * _camZoom;
+}
+
+// Below this zoom the galaxy is a shape, not a list of places: region names are
+// the only labels that can be read, and the only ones worth reading. The
+// in-game map behaves the same way - system names arrive as you fly in.
+const _SPATIAL_SYS_LABEL_ZOOM = 3.2;
+
+/**
+ * The nodes and links for the active level.
+ *
+ * At 'system' this is just the systems and the gate graph. Above that, systems
+ * are folded into their constellation or region: the node sits at the centroid
+ * of its members' TRUE positions, and two aggregates are linked when any gate
+ * joins them. Cached, because the galaxy does not move.
+ */
+function _spatialNodes() {
+  if (_spatialLayout === 'system') {
+    return { nodes: _spatialSystems(), links: _jumps, level: 'system' };
+  }
+  const key = _spatialLayout + ':' + _systems.length + ':' + (_camFlat ? 'flat' : '3d');
+  if (_aggCache.key === key) return { nodes: _aggCache.nodes, links: _aggCache.links, level: _spatialLayout };
+
+  const keyOf = (s) => (_spatialLayout === 'region' ? s.regionId : s.constellationId);
+  const acc = new Map();
+  for (const s of _spatialSystems()) {
+    const k = keyOf(s);
+    if (k == null) continue;
+    let a = acc.get(k);
+    if (!a) { a = { id: k, aggregate: true, tx: 0, ty: 0, tz: 0, members: [], regionId: s.regionId }; acc.set(k, a); }
+    a.tx += s.tx; a.ty += s.ty; a.tz += s.tz;
+    a.members.push(s);
+  }
+  const nodes = [];
+  for (const a of acc.values()) {
+    const n = a.members.length || 1;
+    a.tx /= n; a.ty /= n; a.tz /= n;
+    a.name = _spatialLayout === 'region'
+      ? (_regions[a.id] || `Region ${a.id}`)
+      : (_constellations[a.id] || `Constellation ${a.id}`);
+    // Security is the median of the members, so one 1.0 island does not make a
+    // null region look safe (and the reverse).
+    const secs = a.members.map(m => m.sec).filter(v => v != null).sort((x, y) => x - y);
+    a.sec = secs.length ? secs[Math.floor(secs.length / 2)] : null;
+    // The faction that holds most of it — what the in-game colouring shows.
+    const tally = new Map();
+    for (const m of a.members) if (m.factionId) tally.set(m.factionId, (tally.get(m.factionId) || 0) + 1);
+    let best = null, bestN = 0;
+    for (const [fid, c] of tally) if (c > bestN) { best = fid; bestN = c; }
+    a.factionId = best;
+    nodes.push(a);
+  }
+
+  // Collapse the gate graph onto the aggregates, de-duplicated.
+  const of = new Map();
+  for (const s of _spatialSystems()) of.set(s.id, keyOf(s));
+  const seen = new Set(), links = [];
+  for (const j of _jumps) {
+    const a = of.get(j.from), b = of.get(j.to);
+    if (a == null || b == null || a === b) continue;
+    const k = a < b ? a + ':' + b : b + ':' + a;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    links.push({ from: a, to: b });
+  }
+
+  _aggCache = { key, nodes, links };
+  return { nodes, links, level: _spatialLayout };
+}
+
+/**
+ * An aggregate's value for the active live layer — the sum of its members.
+ *
+ * Summing is right for counts (jumps, kills): a region's traffic IS its
+ * systems' traffic added up. It would be wrong for an index, so industry keeps
+ * the members' mean instead.
+ */
+function _aggLayerColor(node) {
+  if (_overlay === 'traffic' && _trafficData) {
+    let v = 0; for (const m of node.members) v += _trafficData[m.id] || 0;
+    return _heatFor(v, 'traffic');
+  }
+  if ((_overlay === 'kills' || _overlay === 'ratting') && _killsData) {
+    let v = 0;
+    for (const m of node.members) {
+      const k = _killsData[m.id];
+      if (k) v += _overlay === 'ratting' ? k.npc : (k.ship + k.pod);
+    }
+    return _heatFor(v, _overlay);
+  }
+  if (_overlay === 'industry' && _indIdxData) {
+    let v = 0, n = 0;
+    for (const m of node.members) { const x = _indIdxData[m.id]; if (x != null) { v += x; n++; } }
+    return _heatFor(n ? v / n : undefined, 'industry');
+  }
+  // Everything else is categorical; the dominant member already carries it.
+  return _systemColor(node);
+}
+
+/** Layout controls belong to the spatial view; hide them elsewhere. */
+function _syncLayoutControls() {
+  const g = document.getElementById('mapLayoutGroup');
+  if (g) g.style.display = (_viewMode === 'spatial') ? '' : 'none';
+}
+
+function _renderSpatial() {
+  const ctx = _ctx, W = _canvas.width, H = _canvas.height;
+
+  // Black, like the star map. The schematic view's slate panel is right for a
+  // diagram and wrong for something pretending to be space.
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Project once, reuse everywhere ────────────────────────────────────────
+  const { nodes, links, level } = _spatialNodes();
+  const agg = level !== 'system';
+  const shown = new Map();          // nodeId → { s, cx, cy, depth, f }
+  let dMin = Infinity, dMax = -Infinity;
+  for (const s of nodes) {
+    const pr = _spatialProject(s);
+    if (!pr) continue;
+    const [cx, cy] = _spatialToCanvas(pr);
+    if (cx < -80 || cx > W + 80 || cy < -80 || cy > H + 80) continue;
+    shown.set(s.id, { s, cx, cy, depth: pr.depth, f: pr.f });
+    if (pr.depth < dMin) dMin = pr.depth;
+    if (pr.depth > dMax) dMax = pr.depth;
+  }
+  if (!shown.size) {
+    ctx.fillStyle = 'rgba(205,215,235,0.6)';
+    ctx.font = _mono(14);
+    ctx.textAlign = 'center';
+    ctx.fillText('Nothing in view — press F to refit.', W / 2, H / 2);
+    ctx.textAlign = 'left';
+    return;
+  }
+  const dSpan = (dMax - dMin) || 1;
+  // 1 at the near edge, 0 at the far edge. Everything visual keys off this.
+  const near = (d) => 1 - (d - dMin) / dSpan;
+
+  // ── Gate lines ────────────────────────────────────────────────────────────
+  //
+  // Three kinds, as the in-game map draws them, because a gate is not just a
+  // gate: crossing a constellation or a region boundary is what decides whether
+  // a route is cheap, whether sov applies, and where you are about to end up.
+  //
+  //   solid       within one constellation
+  //   short dash  across constellations, inside one region
+  //   long dash   a regional gate
+  //
+  // Batched into three passes rather than switching the dash pattern per line:
+  // at system level there are ~14 000 of them, and setLineDash is not free.
+  ctx.lineWidth = Math.max(0.35, Math.min(1.1, 0.5 * _camZoom));
+  const LINE_KINDS = [
+    { dash: [],      links: [] },       // 0 — same constellation
+    { dash: [3, 3],  links: [] },       // 1 — across constellations
+    { dash: [9, 6],  links: [] },       // 2 — across regions
+  ];
+  for (const j of links) {
+    const a = shown.get(j.from), b = shown.get(j.to);
+    if (!a || !b) continue;
+    let kind;
+    if (level === 'region') {
+      kind = 0;                          // every link here IS a region link
+    } else if (level === 'constellation') {
+      kind = (a.s.regionId !== b.s.regionId) ? 2 : 1;
+    } else {
+      const sa = _sysById[j.from], sb = _sysById[j.to];
+      kind = (!sa || !sb) ? 0
+           : sa.regionId !== sb.regionId ? 2
+           : sa.constellationId !== sb.constellationId ? 1 : 0;
+    }
+    LINE_KINDS[kind].links.push([a, b]);
+  }
+  for (const { dash, links: group } of LINE_KINDS) {
+    if (!group.length) continue;
+    ctx.setLineDash(dash);
+    for (const [a, b] of group) {
+      // Faded by the NEARER endpoint, so a line running into the distance dims
+      // along with the stars it joins.
+      const t = Math.max(near(a.depth), near(b.depth));
+      ctx.strokeStyle = `rgba(120,150,190,${(0.05 + 0.16 * t).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.moveTo(a.cx, a.cy);
+      ctx.lineTo(b.cx, b.cy);
+      ctx.stroke();
+    }
+  }
+  ctx.setLineDash([]);        // never leave a dash pattern set for the next caller
+
+  // ── Stars ─────────────────────────────────────────────────────────────────
+  // Painter's algorithm: far first, so near stars overlap far ones rather than
+  // the draw order deciding it arbitrarily.
+  const order = [...shown.values()].sort((p, q) => q.depth - p.depth);
+  for (const p of order) {
+    const t = near(p.depth);
+    // An aggregate stands for many systems, so it is drawn larger — and grows
+    // a little with how many it holds, which is the only cue left that The
+    // Forge is not the same size as a three-system pocket. Square-root, not
+    // linear: area reads as quantity, radius does not.
+    const base = 0.85 * p.f * _spatialScale() / 120;
+    const r = agg
+      ? Math.max(1.6, Math.min(7, base * (1.7 + Math.sqrt(p.s.members.length) * 0.32)))
+      : Math.max(0.45, Math.min(3.0, base));
+    const col = agg ? _aggLayerColor(p.s) : _systemColor(p.s);
+    // The halo is the difference between a star field and a heat map. New Eden
+    // has 5 500 systems packed into a disc, so a halo wide or strong enough to
+    // notice on one star merges into a solid wash across the core - the first
+    // cut of this bloomed null-sec into one red blob. It is therefore tight,
+    // faint, and only on stars near enough for it to mean anything.
+    if (t > 0.55 && r > 1.3) {
+      const R = r * 2.3;
+      const g = ctx.createRadialGradient(p.cx, p.cy, 0, p.cx, p.cy, R);
+      g.addColorStop(0, _rgba(col, 0.10 * t));
+      g.addColorStop(1, _rgba(col, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, R, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = _rgba(col, 0.28 + 0.62 * t);
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ── Labels ────────────────────────────────────────────────────────────────
+  // Nearest first, and a coarse occupancy grid drops any label whose cell is
+  // taken. That keeps the nearest star's name and silently loses the ones
+  // behind it, which is the behaviour you want: no overlap, no jitter, and the
+  // set grows smoothly as you fly in instead of snapping at a zoom threshold.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (level === 'region') {
+    // One node per region, and every one of them named. That is the whole
+    // point of the level.
+    ctx.font = _mono(10, 'bold');
+    for (let i = order.length - 1; i >= 0; i--) {
+      const p = order[i];
+      const t = near(p.depth);
+      ctx.fillStyle = `rgba(186,202,230,${(0.36 + 0.50 * t).toFixed(3)})`;
+      ctx.fillText(p.s.name.toUpperCase(), p.cx, p.cy - 12);
+    }
+  } else if (level === 'constellation') {
+    // Constellations are DOTS here, not names. 799 of them labelled at once is
+    // an unreadable mat of text — the first cut of this drew ~765 overlapping
+    // labels — and it is not what the level is for: you step down to it to see
+    // the shape of a region's interior, while still navigating by region. So
+    // the labels stay on the regions, and constellation names arrive only once
+    // you have flown in far enough for there to be room.
+    ctx.font = _mono(10, 'bold');
+    const taken = new Set();
+    for (const { m, pr } of _spatialRegionMarks()
+          .map(m => ({ m, pr: _spatialProject(m) }))
+          .filter(o => o.pr)
+          .sort((a, b) => a.pr.depth - b.pr.depth)) {
+      const [cx, cy] = _spatialToCanvas(pr);
+      if (cx < 0 || cx > W || cy < 0 || cy > H) continue;
+      const key = Math.floor(cx / 96) + '|' + Math.floor(cy / 18);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      const name = (_regions[m.regionId] || '').toUpperCase();
+      if (!name) continue;
+      ctx.fillStyle = `rgba(186,202,230,${(0.34 + 0.46 * near(pr.depth)).toFixed(3)})`;
+      ctx.fillText(name, cx, cy);
+    }
+    if (_camZoom >= _SPATIAL_SYS_LABEL_ZOOM) {
+      ctx.font = _mono(9);
+      const ctaken = new Set();
+      for (let i = order.length - 1; i >= 0; i--) {
+        const p = order[i];
+        const key = Math.floor(p.cx / 80) + '|' + Math.floor((p.cy - 12) / 15);
+        if (ctaken.has(key)) continue;
+        ctaken.add(key);
+        ctx.fillStyle = `rgba(170,186,214,${(0.30 + 0.45 * near(p.depth)).toFixed(3)})`;
+        ctx.fillText(p.s.name, p.cx, p.cy - 12);
+      }
+    }
+  } else if (_camZoom < _SPATIAL_SYS_LABEL_ZOOM) {
+    // Galaxy scale: region names only, in sparse caps.
+    ctx.font = _mono(10, 'bold');
+    const taken = new Set();
+    const marks = _spatialRegionMarks()
+      .map(m => ({ m, pr: _spatialProject(m) }))
+      .filter(o => o.pr)
+      .sort((a, b) => a.pr.depth - b.pr.depth);          // nearest first
+    for (const { m, pr } of marks) {
+      const [cx, cy] = _spatialToCanvas(pr);
+      if (cx < 0 || cx > W || cy < 0 || cy > H) continue;
+      const key = Math.floor(cx / 96) + '|' + Math.floor(cy / 18);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      const t = near(pr.depth);
+      const name = (_regions[m.regionId] || '').toUpperCase();
+      if (!name) continue;
+      ctx.fillStyle = `rgba(186,202,230,${(0.34 + 0.46 * t).toFixed(3)})`;
+      ctx.fillText(name, cx, cy);
+    }
+  } else {
+    // Flown in: system names, nearest wins the cell.
+    //
+    // Name and security are drawn as two runs, the way the in-game map does it:
+    // the number is coloured by the security ramp so the status reads without
+    // being parsed. Laid out from the left after measuring both, because a
+    // centred two-colour string has to know its own total width.
+    ctx.font = _mono(10);
+    ctx.textAlign = 'left';
+    const CELL_W = 76, CELL_H = 15;
+    const taken = new Set();
+    let drawn = 0;
+    for (let i = order.length - 1; i >= 0 && drawn < 260; i--) {
+      const p = order[i];                                // nearest first
+      const t = near(p.depth);
+      if (t < 0.22) continue;
+      const ly = p.cy - 9;
+      const key = Math.floor(p.cx / CELL_W) + '|' + Math.floor(ly / CELL_H);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      const nm  = p.s.name;
+      // `|| 0` is load-bearing: a system a hair below zero rounds to negative
+      // zero, and toFixed renders that as "-0.0", which the game never shows
+      // and which reads as a bug. -0 is falsy, so this normalises it to 0.
+      const sec = (p.s.sec == null)
+        ? ''
+        : ' ' + (Number(p.s.sec.toFixed(1)) || 0).toFixed(1);
+      const wN  = ctx.measureText(nm).width;
+      const x0  = p.cx - (wN + (sec ? ctx.measureText(sec).width : 0)) / 2;
+      ctx.fillStyle = `rgba(214,224,242,${(0.30 + 0.55 * t).toFixed(3)})`;
+      ctx.fillText(nm, x0, ly);
+      if (sec) {
+        ctx.fillStyle = _rgba(_secColor(p.s.sec), 0.30 + 0.55 * t);
+        ctx.fillText(sec, x0 + wN, ly);
+      }
+      drawn++;
+    }
+    ctx.textAlign = 'center';
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
 function _render() {
   _rafPending = false;
   if (!_canvas || !_ctx || !_systems.length) return;
   _refreshThemeVars();   // once per frame — every _mono()/_accent() below reads it
   // Modern takes over the whole canvas (its own coordinate space): a single region
   // when one is open, otherwise the galaxy overview of all region clusters.
+  if (_viewMode === 'spatial') { _renderSpatial(); return; }
   if (_viewMode === 'modern' && _regionView != null) { _renderRegion(); return; }
   if (_viewMode === 'modern') { _renderGalaxyModern(); return; }
 
@@ -2876,6 +4034,211 @@ function _scheduleRender() {
 }
 
 // ── Info panel ────────────────────────────────────────────────────────────────
+
+// ─── Layer detail in the system panel ─────────────────────────────────────────
+//
+// A layer colours a system by ONE number, and one number is rarely the answer.
+// "13 kills in the last hour" is the same figure whether it was a camp that has
+// been grinding all evening or a brawl that ended forty minutes ago — and those
+// two want opposite decisions from a person deciding whether to undock.
+//
+// So clicking a system opens whatever the active layer can actually evidence:
+// a curve where we have one, the real killmails where zKillboard has them, the
+// timer where sov gives us one.
+let _detailSeq = 0;          // guards against a slow fetch landing after a newer click
+
+/** Compact SVG bar chart. SVG, not canvas: it themes with currentColor and this
+ *  panel is HTML, so there is no second canvas to size, clear and redraw. */
+function _detailBars(values, { w = 232, h = 40, hot = '#de6834', dim = 'rgba(150,170,205,0.28)' } = {}) {
+  if (!values.length) return '';
+  const max = Math.max(...values, 1);
+  const bw = w / values.length;
+  const bars = values.map((v, i) => {
+    const bh = v > 0 ? Math.max(1.5, (v / max) * (h - 2)) : 0;
+    if (!bh) return '';
+    const x = (i * bw).toFixed(2), y = (h - bh).toFixed(2);
+    return `<rect x="${x}" y="${y}" width="${Math.max(1, bw - 1).toFixed(2)}" height="${bh.toFixed(2)}" fill="${v === max ? hot : dim}"/>`;
+  }).join('');
+  return `<svg class="map-detail-chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">${bars}</svg>`;
+}
+
+const _detailIsk = (v) =>
+  v >= 1e9 ? (v / 1e9).toFixed(1) + 'b' :
+  v >= 1e6 ? (v / 1e6).toFixed(0) + 'm' :
+  v >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : String(Math.round(v));
+
+const _detailAgo = (ms) => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  if (m < 60) return m + 'm';
+  const hr = Math.floor(m / 60);
+  return hr < 24 ? hr + 'h' : Math.floor(hr / 24) + 'd';
+};
+
+/** The recorded curve for one metric, or an honest note about why there isn't one. */
+function _detailHistoryHtml(hist, field, label, unit) {
+  const vals = hist && hist[field];
+  if (!vals || !vals.length) {
+    return `<div class="map-detail-note">No history yet. ESI only reports the last
+      hour, so the curve is built from our own hourly samples — it fills in as the
+      app runs.</div>`;
+  }
+  const now = vals[vals.length - 1];
+  // One sample is not a curve. Drawn anyway it is a single bar that is both the
+  // minimum and the maximum, so it fills the chart solid and reads as "maximum
+  // everything" — the exact opposite of what one unremarkable reading means.
+  if (vals.length < 2) {
+    return `<div class="map-info-row"><span class="map-info-label">NOW</span>
+        <span class="map-info-value">${now.toLocaleString()} ${unit}</span></div>
+      <div class="map-detail-note">First sample recorded. ESI publishes only the
+        last hour, so the curve builds one point per hour from here.</div>`;
+  }
+  const peak = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const hours = vals.length;
+  return `
+    <div class="map-detail-figure">${_detailBars(vals)}</div>
+    <div class="map-detail-axis"><span>${hours}h ago</span><span>now</span></div>
+    <div class="map-info-row"><span class="map-info-label">NOW</span>
+      <span class="map-info-value">${now.toLocaleString()} ${unit}</span></div>
+    <div class="map-info-row"><span class="map-info-label">${hours}H PEAK</span>
+      <span class="map-info-value map-muted">${peak.toLocaleString()}</span></div>
+    <div class="map-info-row"><span class="map-info-label">${hours}H AVERAGE</span>
+      <span class="map-info-value map-muted">${Math.round(avg).toLocaleString()}</span></div>`;
+}
+
+/**
+ * What actually died, and when.
+ *
+ * The histogram is the point. ESI's hourly count cannot distinguish a slow grind
+ * from a single engagement, and the shape of these bars answers it at a glance:
+ * one spike means it is over, an even spread means it is still happening.
+ */
+function _detailKillLogHtml(log, names) {
+  if (!log.length) {
+    return `<div class="map-detail-note">No recent kills on zKillboard for this system.</div>`;
+  }
+  const now = Date.now();
+  const BUCKET = 30 * 60 * 1000, SPAN = 12;          // 12 hours, half-hour buckets
+  const buckets = new Array(SPAN * 2).fill(0);
+  let isk = 0, inHour = 0;
+  for (const k of log) {
+    const t = Date.parse(k.t);
+    if (!Number.isFinite(t)) continue;
+    const age = now - t;
+    if (age <= 3600e3) { inHour++; isk += k.value || 0; }
+    const idx = buckets.length - 1 - Math.floor(age / BUCKET);
+    if (idx >= 0 && idx < buckets.length) buckets[idx]++;
+  }
+  const recent = log.slice(0, 8).map(k => {
+    const age = now - Date.parse(k.t);
+    const ship = names[k.shipId] || `Type ${k.shipId || '?'}`;
+    const tag = k.npc ? ' <span class="map-detail-tag">npc</span>'
+              : k.solo ? ' <span class="map-detail-tag">solo</span>' : '';
+    return `<div class="map-detail-kill">
+      <span class="map-detail-kill-t">${_detailAgo(age)}</span>
+      <span class="map-detail-kill-s">${ship}${tag}</span>
+      <span class="map-detail-kill-v">${_detailIsk(k.value || 0)}</span>
+    </div>`;
+  }).join('');
+  return `
+    <div class="map-detail-figure">${_detailBars(buckets)}</div>
+    <div class="map-detail-axis"><span>12h ago</span><span>now</span></div>
+    <div class="map-info-row"><span class="map-info-label">LAST HOUR</span>
+      <span class="map-info-value">${inHour} kill${inHour === 1 ? '' : 's'} · ${_detailIsk(isk)} ISK</span></div>
+    <div class="map-detail-sub">MOST RECENT</div>${recent}`;
+}
+
+/** Sov campaigns touching this system's constellation. */
+function _detailCampaignHtml(system) {
+  const all = (_campaignData || []).filter(c => c.constellationId === system.constellationId);
+  if (!all.length) return `<div class="map-detail-note">No active campaign in this constellation.</div>`;
+  const now = Date.now();
+  return all.map(c => {
+    const t = Date.parse(c.startTime);
+    const due = Number.isFinite(t) ? (t > now ? 'in ' + _detailAgo(t - now) : _detailAgo(now - t) + ' ago') : '—';
+    const here = c.solarSystemId === system.id;
+    const att = Math.round((c.attackersScore || 0) * 100);
+    const def = Math.round((c.defenderScore || 0) * 100);
+    return `<div class="map-detail-campaign${here ? ' is-here' : ''}">
+      <div class="map-info-row"><span class="map-info-label">${(c.eventType || 'event').replace(/_/g, ' ')}</span>
+        <span class="map-info-value">${due}</span></div>
+      <div class="map-info-row"><span class="map-info-label">SCORE</span>
+        <span class="map-info-value map-muted">def ${def}% · att ${att}%</span></div>
+      ${here ? '' : '<div class="map-detail-note">elsewhere in this constellation</div>'}
+    </div>`;
+  }).join('');
+}
+
+/**
+ * Fill the detail slot for whichever layer is active.
+ *
+ * Async and fire-and-forget: the panel's own rows are already on screen, and a
+ * click on another system while zKillboard is still answering must not have the
+ * older reply overwrite the newer panel — hence the sequence guard.
+ */
+async function _renderLayerDetail(system) {
+  const host = document.getElementById('mapInfoDetail');
+  if (!host) return;
+  const overlay = _overlay;
+  const TITLES = { traffic: 'TRAFFIC', kills: 'DANGER', ratting: 'RATTING',
+                   campaigns: 'SOV CAMPAIGN', industry: 'INDUSTRY', fw: 'FACTION WARFARE' };
+  if (!TITLES[overlay]) { host.innerHTML = ''; return; }
+
+  const seq = ++_detailSeq;
+  host.innerHTML = `<div class="map-detail-title">${TITLES[overlay]}</div>
+    <div class="map-detail-note">Loading…</div>`;
+
+  try {
+    let inner = '';
+    if (overlay === 'campaigns') {
+      inner = _detailCampaignHtml(system);
+    } else if (overlay === 'fw') {
+      const f = _fwData && _fwData[system.id];
+      inner = f
+        ? `<div class="map-info-row"><span class="map-info-label">STATE</span>
+             <span class="map-info-value">${f.contested || 'uncontested'}</span></div>
+           <div class="map-info-row"><span class="map-info-label">CONTESTED</span>
+             <span class="map-info-value map-muted">${Math.round((f.progress || 0) * 100)}%</span></div>`
+        : `<div class="map-detail-note">Not a faction-warfare system.</div>`;
+    } else if (overlay === 'industry') {
+      const v = _indIdxData && _indIdxData[system.id];
+      inner = `<div class="map-info-row"><span class="map-info-label">MANUFACTURING</span>
+        <span class="map-info-value">${v == null ? '—' : (v * 100).toFixed(2) + '%'}</span></div>
+        <div class="map-detail-note">Cost index — higher means more industry already running here.</div>`;
+    } else if (overlay === 'kills') {
+      const [log, hist] = await Promise.all([
+        window.eveAPI.mapGetSystemKillLog(system.id),
+        window.eveAPI.mapGetSystemHistory(system.id),
+      ]);
+      if (seq !== _detailSeq) return;
+      const ids = [...new Set((log || []).map(k => k.shipId).filter(Boolean))].slice(0, 30);
+      let names = {};
+      if (ids.length) {
+        try {
+          const rows = await window.eveAPI.getNames(ids);
+          if (seq !== _detailSeq) return;
+          for (const r of (rows || [])) names[r.id] = r.name;
+        } catch (_) { /* names are a nicety; the times are the substance */ }
+      }
+      inner = _detailKillLogHtml(log || [], names)
+            + `<div class="map-detail-sub">RECORDED HOURLY</div>`
+            + _detailHistoryHtml(hist, 'ship', 'kills', 'kills');
+    } else {
+      const hist = await window.eveAPI.mapGetSystemHistory(system.id);
+      if (seq !== _detailSeq) return;
+      inner = overlay === 'traffic'
+        ? _detailHistoryHtml(hist, 'traffic', 'jumps', 'jumps')
+        : _detailHistoryHtml(hist, 'npc', 'NPC kills', 'NPC kills');
+    }
+    if (seq !== _detailSeq) return;
+    host.innerHTML = `<div class="map-detail-title">${TITLES[overlay]}</div>${inner}`;
+  } catch (e) {
+    if (seq !== _detailSeq) return;
+    host.innerHTML = `<div class="map-detail-title">${TITLES[overlay]}</div>
+      <div class="map-detail-note">Couldn't load detail: ${e.message}</div>`;
+  }
+}
+
 async function _showInfo(system) {
   _selected = system;
   const panel  = document.getElementById('mapInfoPanel');
@@ -2969,10 +4332,15 @@ async function _showInfo(system) {
       <span class="map-info-label">SYSTEM ID</span>
       <span class="map-info-value map-muted">${system.id}</span>
     </div>
+    <div class="map-info-detail" id="mapInfoDetail"></div>
   `;
 
   panel.classList.remove('is-hidden');
   _scheduleRender();
+
+  // Layer evidence fills in underneath — it may need the network, and the rest
+  // of the panel should not wait on it.
+  _renderLayerDetail(system);
 
   // Resolve alliance name asynchronously and update label
   if (sov && sov.allianceId && !sov.factionId) {
@@ -3054,6 +4422,41 @@ function _updateLegend() {
       ${row(dot('#5b6472'), 'NPC sov')}
       ${row(dot('#cfd3db'), 'Other sov')}
       ${note}`;
+  } else if (_overlay === 'traffic' || _overlay === 'kills'
+          || _overlay === 'ratting' || _overlay === 'industry') {
+    // One ramp, four meanings. The key shows the SAME stops the canvas paints,
+    // and spells out the reference value the ramp tops out at — without it a
+    // colour is a vibe rather than a number.
+    const meta = {
+      traffic:  ['TRAFFIC · LAST HOUR',  'ship jumps',  v => Math.round(v)],
+      kills:    ['DANGER · LAST HOUR',   'ship + pod kills', v => Math.round(v)],
+      ratting:  ['RATTING · LAST HOUR',  'NPC kills',   v => Math.round(v)],
+      industry: ['INDUSTRY',             'manufacturing cost index', v => v.toFixed(4)],
+    }[_overlay];
+    const ref = _layerRef[_overlay];
+    const busy = _layerBusy === (_overlay === 'ratting' ? 'kills' : _overlay);
+    html = `<div class="map-legend-title">${meta[0]}</div>
+      ${row(dot(_heat(1.00)), `${ref ? meta[2](ref) + '+' : 'most'} ${meta[1]}`)}
+      ${row(dot(_heat(0.75)), '')}
+      ${row(dot(_heat(0.50)), '')}
+      ${row(dot(_heat(0.25)), '')}
+      ${row(dot('#141824'), 'none')}
+      ${row(dot('#0e1018'), 'no data')}
+      <div class="map-legend-note">${busy ? 'Loading…' : 'Log scale · ESI, public'}</div>`;
+  } else if (_overlay === 'campaigns') {
+    const n = _campaignData ? _campaignData.length : 0;
+    html = `<div class="map-legend-title">SOV CAMPAIGNS</div>
+      ${row(dot('#ff8a3d'), 'Contested constellation')}
+      <div class="map-legend-note">${_layerBusy === 'campaigns' ? 'Loading…'
+        : `${n} active · systems keep their sov colour`}</div>`;
+  } else if (_overlay === 'fw') {
+    html = `<div class="map-legend-title">FACTION WARFARE</div>
+      ${row(dot('#3a8fc5'), 'Caldari')}
+      ${row(dot('#c8a020'), 'Amarr')}
+      ${row(dot('#28a040'), 'Gallente')}
+      ${row(dot('#b84c14'), 'Minmatar')}
+      <div class="map-legend-note">${_layerBusy === 'fw' ? 'Loading…'
+        : 'Brighter = contested · brightest = vulnerable'}</div>`;
   }
 
   // With the influence field up, _systemColor repaints every sov dot to its
@@ -3305,6 +4708,9 @@ function _initToolbar() {
       if (_overlay === 'fnf' && !_fnfLoaded) {
         _loadFnfStandings().then(() => { _updateLegend(); _scheduleRender(); });
       }
+      // The live ESI layers do the same: fetched on first selection, never at
+      // start-up, so a layer nobody opens costs nothing.
+      _ensureLayer(_overlay);
       _updateLegend();
       _scheduleRender();
     });
@@ -3317,11 +4723,17 @@ function _initToolbar() {
   document.querySelectorAll('.map-view-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.view;
-      if (mode === _viewMode) return;
+      if (mode === _viewMode || !VIEW_MODES.has(mode)) return;
       _viewMode = mode;
       document.querySelectorAll('.map-view-btn')
         .forEach(b => _press(b, b.dataset.view === mode));
-      if (mode === 'modern') {
+      if (mode === 'spatial') {
+        if (regionSel) regionSel.style.display = 'none';
+        _regionView = null;
+        _fitSpatial();
+        _syncLayoutControls();
+      } else if (mode === 'modern') {
+        _syncLayoutControls();
         _populateRegionSelect();
         if (regionSel) { regionSel.style.display = ''; regionSel.value = 'galaxy'; }
         _regionView = null;                 // start at the galaxy overview
@@ -3336,6 +4748,39 @@ function _initToolbar() {
       _scheduleRender();
     });
   });
+
+  // Layout level + flat. Both belong to the spatial view, so the whole group
+  // hides in the schematic rather than offering controls that do nothing.
+  document.querySelectorAll('.map-layout-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const lvl = btn.dataset.layout;
+      if (!['system', 'constellation', 'region'].includes(lvl) || lvl === _spatialLayout) return;
+      _spatialLayout = lvl;
+      document.querySelectorAll('.map-layout-btn')
+        .forEach(b => _press(b, b.dataset.layout === lvl));
+      // Deliberately NOT refitting: the arrangement is identical between
+      // levels, so holding the camera still is what makes the change read as
+      // detail merging rather than as a new map.
+      _updateLegend();
+      _scheduleRender();
+    });
+  });
+
+  const flatBtn = document.getElementById('mapFlatBtn');
+  if (flatBtn) {
+    flatBtn.addEventListener('click', () => {
+      _camFlat = !_camFlat;
+      _press(flatBtn, _camFlat);
+      // Flat is a different MAP, not just a different lens, so everything
+      // derived from positions is dropped rather than reused.
+      _composedList = null;
+      _spatialRegionCache = null;
+      _aggCache = { key: null, nodes: null, links: null };
+      _camCancelTween();
+      _fitSpatial();          // the projection changed shape; reframe it
+      _scheduleRender();
+    });
+  }
 
   if (regionSel) {
     regionSel.addEventListener('change', () => {
@@ -3397,7 +4842,9 @@ function _initToolbar() {
   if (zoomIn)  zoomIn.addEventListener('click',  () => _adjustZoom(1.45, _canvas.width/2, _canvas.height/2));
   if (zoomOut) zoomOut.addEventListener('click', () => _adjustZoom(1/1.45, _canvas.width/2, _canvas.height/2));
   if (zoomFit) zoomFit.addEventListener('click', () => {
-    if (_viewMode === 'modern' && _regionView != null) _fitRegion(); else _fitGalaxy();
+    if (_viewMode === 'spatial') _fitSpatial();
+    else if (_viewMode === 'modern' && _regionView != null) _fitRegion();
+    else _fitGalaxy();
     _scheduleRender();
   });
 
@@ -3421,6 +4868,13 @@ function _initCanvas() {
     _dragging = true;
     _dragSX = e.clientX; _dragSY = e.clientY;
     _dragPX = _panX;     _dragPY = _panY;
+    // Spatial drags ORBIT by default and pan on shift. Orbiting is the gesture
+    // that makes a 3-D map legible - it is how you tell a near star from a far
+    // one - so it gets the unmodified drag.
+    _camCancelTween();          // a drag takes over from any running glide
+    _camDragPan = e.shiftKey;
+    _camSY0 = _camYaw; _camSP0 = _camPitch;
+    _camSPX = _camPanX; _camSPY = _camPanY;
     _canvas.style.cursor = 'grabbing';
   });
 
@@ -3428,6 +4882,25 @@ function _initCanvas() {
     const rect = _canvas.getBoundingClientRect();
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;
+
+    if (_dragging && _viewMode === 'spatial') {
+      const dx = e.clientX - _dragSX, dy = e.clientY - _dragSY;
+      // Flat inverts the gesture: the plain drag pans, because tilting is not
+      // on offer, and shift still rotates the map about its centre.
+      if (_camFlat ? !_camDragPan : _camDragPan) {
+        _camPanX = _camSPX + dx;
+        _camPanY = _camSPY + dy;
+      } else if (_camFlat) {
+        _camYaw = _camSY0 + dx * 0.006;
+      } else {
+        _camYaw = _camSY0 + dx * 0.006;
+        // Clamped just shy of either pole: at exactly +/-90 degrees the tilt
+        // has no horizon left to turn about and the view snaps.
+        _camPitch = Math.max(-1.45, Math.min(1.45, _camSP0 + dy * 0.006));
+      }
+      _scheduleRender();
+      return;
+    }
 
     if (_dragging) {
       _panX = _dragPX + (e.clientX - _dragSX);
@@ -3514,6 +4987,9 @@ function _initCanvas() {
       }
       const sys  = _hitTest(mx, my);
       if (sys) {
+        // In the spatial view a click also re-seats the camera on that system,
+        // which is what makes the outer regions navigable at all.
+        if (_viewMode === 'spatial') _spatialFocusOn(sys);
         _showInfo(sys);
       } else {
         _selected = null;
@@ -3568,7 +5044,9 @@ function _onResize() {
   _canvas.height = Math.floor(rect.height) || 300;
 
   if (!_loaded || prevW === 0 || prevH === 0) {
-    if (_viewMode === 'modern') _fitGalaxyModern(); else _fitGalaxy();
+    if (_viewMode === 'spatial') _fitSpatial();
+    else if (_viewMode === 'modern') _fitGalaxyModern();
+    else _fitGalaxy();
   } else {
     // Keep the galaxy centre stable across resize
     _panX += (_canvas.width  - prevW) / 2;
@@ -4360,10 +5838,14 @@ async function initMapPage() {
   // algorithm runs anyway and the load was wasted. Fetched together — two
   // small IPC reads, no reason to serialise them.
   try {
-    const [handmade, autoCached] = await Promise.all([
+    const [handmade, autoCached, curated] = await Promise.all([
       window.eveAPI.modernLayoutGet(),
       window.eveAPI.modernLayoutCacheGet?.() ?? null,
+      window.eveAPI.regionLayoutsGet?.() ?? null,
     ]);
+    _curatedRegions = curated || {};
+    const nCurated = Object.keys(_curatedRegions).length;
+    if (nCurated) console.log(`[map] ${nCurated} hand-curated region layout(s) loaded`);
     _savedModernLayout = handmade;
     // Drop a cache written by an older layout algorithm — the SDE key it was
     // stored under can't detect that. Discarding it here (rather than at the
@@ -4383,6 +5865,7 @@ async function initMapPage() {
     _systems  = _normalise(galaxy.systems);
     _jumps    = galaxy.jumps;
     _regions  = galaxy.regions;
+    _constellations = galaxy.constellations || {};
     _sysById  = {};
     for (const s of _systems) _sysById[s.id] = s;
 
@@ -4396,7 +5879,18 @@ async function initMapPage() {
     // and a layout that arrives after the build has already run is wasted.
     await _prefetchRegionLayouts();
 
+    // Warm the schematic layout even though Spatial is the view that opens.
+    //
+    // It used to be built as a side effect of the first render, back when the
+    // schematic WAS the default. With Spatial opening instead, nothing touched
+    // it until you pressed the toggle — which both stalled that first switch on
+    // a ~1.6s build and, worse, meant the curated layout shipped in
+    // src/data/ was never read at all, so the algorithm ran in its place.
+    // Loading it here keeps the toggle instant and the curated file authoritative.
+    _buildGalaxyModern();
+
     _loaded = true;
+    _syncLayoutControls();
     _onResize(); // Size the canvas now that data is ready; calls _fitGalaxy()
 
     _setMapState('ready');

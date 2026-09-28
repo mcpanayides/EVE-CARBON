@@ -393,6 +393,15 @@ contextBridge.exposeInMainWorld('eveAPI', {
   mapGetGalaxy:          ()    => ipcRenderer.invoke('map-get-galaxy'),
   mapGetSovereignty:     ()    => ipcRenderer.invoke('map-get-sovereignty'),
   mapGetIncursions:      ()    => ipcRenderer.invoke('map-get-incursions'),
+  // Live map layers — all public ESI, no scope, no character.
+  mapGetTraffic:         ()    => ipcRenderer.invoke('map-get-traffic'),
+  mapGetKills:           ()    => ipcRenderer.invoke('map-get-kills'),
+  mapGetSovCampaigns:    ()    => ipcRenderer.invoke('map-get-sov-campaigns'),
+  mapGetFwSystems:       ()    => ipcRenderer.invoke('map-get-fw-systems'),
+  mapGetIndustryIndices: ()    => ipcRenderer.invoke('map-get-industry-indices'),
+  mapGetSystemKillLog:   (id)  => ipcRenderer.invoke('map-get-system-kill-log', id),
+  mapGetSystemHistory:   (id)  => ipcRenderer.invoke('map-get-system-history', id),
+  regionLayoutsGet:      ()    => ipcRenderer.invoke('region-layouts-get'),
   mapGetAllianceTickers:   (ids)         => ipcRenderer.invoke('map-get-alliance-tickers', ids),
   getSovIncursionAlert:    (allianceId)  => ipcRenderer.invoke('get-sov-incursion-alert', allianceId),
 

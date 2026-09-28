@@ -65,6 +65,86 @@ async function _fetchSovSystems({ httpGet, writeCache }) {
 const _bundledLayoutPath = () => path.join(__dirname, '..', 'data', 'modern-map-layout.json');
 const _modernLayoutPath  = () => path.join(app.getPath('userData'), 'modern-map-layout.json');
 
+
+// ── Turning ESI snapshots into history ────────────────────────────────────────
+//
+// /universe/system_jumps and /universe/system_kills report ONE number each: what
+// happened in the last hour. There is no historical endpoint, anywhere, so the
+// question "why does this system say 240 jumps — is that normal?" cannot be
+// answered from ESI at all. The only way to have a curve is to keep the
+// snapshots we already fetch.
+//
+// Shape is a shared timestamp axis plus one aligned array per system:
+//
+//   { t: [t0..tN], traffic: { sysId: [v0..vN] }, ship: {...}, npc: {...} }
+//
+// rather than a list of whole snapshots, because the system id is then stored
+// once instead of once per sample — about 750 KB for a full day across 5 000
+// systems, against several megabytes the naive way.
+//
+// A system that appears late is back-padded with zeros so every array stays the
+// same length as `t`; a system that drops out of a snapshot records a real zero,
+// because "no jumps this hour" IS the measurement.
+const HISTORY_SLOTS = 24;          // one day at ESI's hourly cadence
+
+function _historyAppend(store, field, values, now) {
+  const series = store[field] || (store[field] = {});
+  const len = store.t.length;                 // BEFORE this sample is pushed
+  const seen = new Set();
+  for (const [id, v] of Object.entries(values)) {
+    let arr = series[id];
+    if (!arr) { arr = new Array(len).fill(0); series[id] = arr; }
+    arr.push(v);
+    seen.add(id);
+  }
+  // Everything that did not report this hour genuinely saw nothing.
+  for (const id of Object.keys(series)) if (!seen.has(id)) series[id].push(0);
+}
+
+function _historyTrim(store) {
+  while (store.t.length > HISTORY_SLOTS) {
+    store.t.shift();
+    for (const field of ['traffic', 'ship', 'npc']) {
+      const series = store[field];
+      if (!series) continue;
+      for (const id of Object.keys(series)) {
+        series[id].shift();
+        // Drop a system that has been silent for the whole window, so the file
+        // does not grow a permanent tail of dead entries.
+        if (series[id].every(v => !v)) delete series[id];
+      }
+    }
+  }
+}
+
+/**
+ * Record one fresh sample. Called only when a fetch actually hit ESI — a cache
+ * hit is the same hour's number and would flatten the curve with duplicates.
+ */
+function _recordHistory(readCache, writeCache, fields) {
+  const KEY = 'map_layer_history';
+  let store = readCache(KEY);
+  if (!store || !Array.isArray(store.t)) store = { t: [], traffic: {}, ship: {}, npc: {} };
+  const now = Date.now();
+  // Guard against double-recording inside one ESI window.
+  if (store.t.length && now - store.t[store.t.length - 1] < 30 * 60 * 1000) return;
+  for (const [field, values] of Object.entries(fields)) {
+    _historyAppend(store, field, values, now);
+  }
+  store.t.push(now);
+  // Fields not in this sample still need their arrays kept aligned.
+  for (const field of ['traffic', 'ship', 'npc']) {
+    if (fields[field]) continue;
+    const series = store[field];
+    if (!series) continue;
+    for (const id of Object.keys(series)) {
+      while (series[id].length < store.t.length) series[id].push(0);
+    }
+  }
+  _historyTrim(store);
+  writeCache(KEY, store, 30);        // 30 days; it is trimmed by slot count, not age
+}
+
 function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb, getSdeMd5Path }) {
 
   // ── Custom Modern-map layout: persist / load / reset ───────────────────────
@@ -76,6 +156,23 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     } catch (_) { /* fall through to a locally saved layout */ }
     try { return JSON.parse(fs.readFileSync(_modernLayoutPath(), 'utf8')); }
     catch (_) { return null; }   // neither present → algorithmic layout
+  });
+
+  // ── Hand-curated per-region layouts ───────────────────────────────────────
+  //
+  // Positions traced off the in-game map for regions somebody has actually sat
+  // down and matched. Identity and gates always come from the SDE; only the
+  // arrangement comes from the trace, and even that is a SEED for the usual
+  // relaxation rather than a final answer — so a region gains the in-game
+  // shape without needing pixel-accurate transcription of 110 systems.
+  //
+  // A region with no entry is laid out exactly as before, so this file can grow
+  // one region at a time and never has to be complete.
+  ipcHandle('region-layouts-get', async () => {
+    try {
+      return JSON.parse(fs.readFileSync(
+        path.join(__dirname, '..', 'data', 'region-layouts.json'), 'utf8'));
+    } catch (_) { return null; }     // absent → every region stays algorithmic
   });
 
   // ── Computed Modern-map layout cache ──────────────────────────────────────
@@ -268,7 +365,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     const db = getSdeDb();
     if (!db) throw new Error('SDE database not available — check Settings > Database');
 
-    const [systems, jumps, regRows] = await Promise.all([
+    const [systems, jumps, regRows, conRows] = await Promise.all([
       db.all(
         `SELECT solarSystemID   AS id,
                 solarSystemName AS name,
@@ -289,12 +386,21 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
                 regionName AS name
          FROM   mapRegions`
       ),
+      // Constellation names, for the map's middle aggregation level. The ids
+      // already ride along on every system; only the labels were missing.
+      db.all(
+        `SELECT constellationID   AS id,
+                constellationName AS name
+         FROM   mapConstellations`
+      ),
     ]);
 
     const regions = {};
     for (const r of regRows) regions[r.id] = r.name;
+    const constellations = {};
+    for (const c of conRows) constellations[c.id] = c.name;
 
-    _galaxyCache = { systems, jumps, regions };
+    _galaxyCache = { systems, jumps, regions, constellations };
     return _galaxyCache;
   });
 
@@ -308,6 +414,216 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       console.warn('[map] sovereignty fetch failed:', e.message);
       return {};
     }
+  });
+
+
+  // ── ESI: live map layers ───────────────────────────────────────────────────
+  //
+  // Five public endpoints that the map never used, each cached for the window
+  // ESI itself serves it on. Fetching faster than that window cannot return
+  // anything new - it just spends the shared error budget - and fetching slower
+  // shows stale numbers on a layer whose whole value is being current. The TTLs
+  // below were read off the live `expires` headers rather than recalled.
+  //
+  // All five are PUBLIC: no scope, no token, nothing tied to a character. They
+  // work on a fresh install with nobody logged in.
+  //
+  // Every one returns a plain object keyed by system id, because a Map does not
+  // survive structured-clone across IPC in a useful shape.
+
+  // Ship jumps through each system in the last hour. ESI caches this for an
+  // hour; it is the "where is everybody" layer.
+  ipcHandle('map-get-traffic', async () => {
+    const key = 'map_traffic';
+    const cached = readCache(key);
+    if (cached) return cached;
+    const out = {};
+    try {
+      const rows = await httpGet(`${ESI_BASE}/universe/system_jumps/?datasource=tranquility`);
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (r && r.system_id != null) out[r.system_id] = r.ship_jumps || 0;
+        }
+      }
+      writeCache(key, out, 1 / 24);   // 1 hour
+      _recordHistory(readCache, writeCache, { traffic: out });
+    } catch (e) {
+      console.warn('[map] traffic fetch failed:', e.message);
+    }
+    return out;
+  });
+
+  // Ship, pod and NPC kills in the last hour. One fetch feeds two layers -
+  // player danger (ship + pod) and ratting activity (npc) - so they are kept
+  // together rather than pulling the same endpoint twice.
+  ipcHandle('map-get-kills', async () => {
+    const key = 'map_kills';
+    const cached = readCache(key);
+    if (cached) return cached;
+    const out = {};
+    try {
+      const rows = await httpGet(`${ESI_BASE}/universe/system_kills/?datasource=tranquility`);
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (r && r.system_id != null) {
+            out[r.system_id] = {
+              ship: r.ship_kills || 0,
+              pod:  r.pod_kills  || 0,
+              npc:  r.npc_kills  || 0,
+            };
+          }
+        }
+      }
+      writeCache(key, out, 1 / 24);   // 1 hour
+      const ship = {}, npc = {};
+      for (const [sid, k] of Object.entries(out)) { ship[sid] = k.ship + k.pod; npc[sid] = k.npc; }
+      _recordHistory(readCache, writeCache, { ship, npc });
+    } catch (e) {
+      console.warn('[map] kills fetch failed:', e.message);
+    }
+    return out;
+  });
+
+  // Sovereignty campaigns are keyed by CONSTELLATION, not system, so the
+  // renderer has to map them back through the SDE. Returned as-is, with the
+  // event time, because a timer is the useful part.
+  //
+  // ESI serves this on a 5-second window, which is a cadence for a client
+  // watching a live timer tick - not for a map layer. Five minutes is the
+  // honest compromise: a campaign's schedule is set hours ahead, and polling
+  // 720 times an hour to watch a number that moves on the hour would spend the
+  // shared error budget for nothing.
+  ipcHandle('map-get-sov-campaigns', async () => {
+    const key = 'map_sov_campaigns';
+    const cached = readCache(key);
+    if (cached) return cached;
+    let out = [];
+    try {
+      const rows = await httpGet(`${ESI_BASE}/sovereignty/campaigns/?datasource=tranquility`);
+      if (Array.isArray(rows)) {
+        out = rows.map(r => ({
+          campaignId:      r.campaign_id,
+          constellationId: r.constellation_id,
+          solarSystemId:   r.solar_system_id,
+          structureId:     r.structure_id,
+          eventType:       r.event_type,
+          startTime:       r.start_time,
+          defenderId:      r.defender_id,
+          defenderScore:   r.defender_score,
+          attackersScore:  r.attackers_score,
+        }));
+      }
+      writeCache(key, out, 1 / 288);   // 5 minutes
+    } catch (e) {
+      console.warn('[map] sov campaign fetch failed:', e.message);
+    }
+    return out;
+  });
+
+  // Faction-warfare system ownership and contested state. Already fetched for
+  // the FW page; this is the same data shaped for the map.
+  ipcHandle('map-get-fw-systems', async () => {
+    const key = 'map_fw_systems';
+    const cached = readCache(key);
+    if (cached) return cached;
+    const out = {};
+    try {
+      const rows = await httpGet(`${ESI_BASE}/fw/systems/?datasource=tranquility`);
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (r && r.solar_system_id != null) {
+            out[r.solar_system_id] = {
+              owner:     r.owner_faction_id,
+              occupier:  r.occupier_faction_id,
+              contested: r.contested,
+              progress:  r.victory_points_threshold
+                ? (r.victory_points || 0) / r.victory_points_threshold : 0,
+            };
+          }
+        }
+      }
+      writeCache(key, out, 1 / 48);   // 30 minutes
+    } catch (e) {
+      console.warn('[map] fw systems fetch failed:', e.message);
+    }
+    return out;
+  });
+
+  // Industry cost indices per system. The map only wants the manufacturing
+  // index - the other activities are a research question, not a spatial one.
+  ipcHandle('map-get-industry-indices', async () => {
+    const key = 'map_industry_idx';
+    const cached = readCache(key);
+    if (cached) return cached;
+    const out = {};
+    try {
+      const rows = await httpGet(`${ESI_BASE}/industry/systems/?datasource=tranquility`);
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (!r || r.solar_system_id == null) continue;
+          const man = (r.cost_indices || []).find(c => c.activity === 'manufacturing');
+          out[r.solar_system_id] = man ? man.cost_index : 0;
+        }
+      }
+      writeCache(key, out, 1 / 24);   // 1 hour
+    } catch (e) {
+      console.warn('[map] industry index fetch failed:', e.message);
+    }
+    return out;
+  });
+
+
+  // ── zKillboard: what actually died in one system ───────────────────────────
+  //
+  // ESI's kill count says THIRTEEN and nothing else — not what, not whose, and
+  // crucially not WHEN inside the hour. Thirteen kills spread over an hour is a
+  // camp you might still fly into; thirteen in ninety seconds is a brawl that
+  // ended before you opened the map. Same number, opposite decision.
+  //
+  // zKillboard is the only public source for that detail. It is volunteer-run
+  // and free, so this is fetched ONLY when a person clicks a system — never on
+  // a timer, never speculatively for what is on screen — and cached per system.
+  ipcHandle('map-get-system-kill-log', async (_e, systemId) => {
+    const id = Number(systemId);
+    if (!Number.isFinite(id)) return [];
+    const key = `map_killlog_${id}`;
+    const cached = readCache(key);
+    if (cached) return cached;
+    let out = [];
+    try {
+      const rows = await httpGet(`https://zkillboard.com/api/systemID/${id}/`);
+      if (Array.isArray(rows)) {
+        // Trimmed hard: the panel needs a time, a hull, a victim and a value.
+        // Shipping whole killmails across IPC would be ~200x the payload.
+        out = rows.slice(0, 120).map(r => ({
+          id:        r.killmail_id,
+          t:         r.killmail_time,
+          shipId:    r.victim && r.victim.ship_type_id,
+          charId:    r.victim && r.victim.character_id,
+          corpId:    r.victim && r.victim.corporation_id,
+          allianceId: r.victim && r.victim.alliance_id,
+          attackers: Array.isArray(r.attackers) ? r.attackers.length : 0,
+          value:     (r.zkb && r.zkb.totalValue) || 0,
+          npc:       !!(r.zkb && r.zkb.npc),
+          solo:      !!(r.zkb && r.zkb.solo),
+        }));
+      }
+      writeCache(key, out, 1 / 288);      // 5 minutes
+    } catch (e) {
+      console.warn(`[map] kill log for ${id} failed:`, e.message);
+    }
+    return out;
+  });
+
+  // The recorded curve for one system — traffic, player kills and NPC kills.
+  ipcHandle('map-get-system-history', async (_e, systemId) => {
+    const id = String(Number(systemId));
+    const store = readCache('map_layer_history');
+    if (!store || !Array.isArray(store.t) || !store.t.length) {
+      return { t: [], traffic: [], ship: [], npc: [] };
+    }
+    const pick = (f) => (store[f] && store[f][id]) || new Array(store.t.length).fill(0);
+    return { t: store.t, traffic: pick('traffic'), ship: pick('ship'), npc: pick('npc') };
   });
 
   // ── ESI: active incursions (cached 30 min) ─────────────────────────────────

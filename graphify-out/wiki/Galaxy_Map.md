@@ -13,7 +13,7 @@
 - **_loadFnfStandings()** (6 connections) — `src/func/map.js`
 - **_kShortestRoutes()** (6 connections) — `src/func/map.js`
 - **openStargatePlanner()** (6 connections) — `src/func/map.js`
-- **_loadWormholes()** (5 connections) — `src/func/map.js`
+- **_secColor()** (5 connections) — `src/func/map.js`
 - **_sgMinimize()** (5 connections) — `src/func/map.js`
 - **_sgResolve()** (5 connections) — `src/func/map.js`
 - **_travelSafetyCost()** (4 connections) — `src/func/map.js`
@@ -21,7 +21,6 @@
 - **_computeTravelRoute()** (4 connections) — `src/func/map.js`
 - **_sgMaybeReplot()** (4 connections) — `src/func/map.js`
 - **_sgPlotAndShow()** (4 connections) — `src/func/map.js`
-- **_rebuildWhArcs()** (3 connections) — `src/func/map.js`
 - **_pathCost()** (3 connections) — `src/func/map.js`
 - **_pushEndpointsToPlanners()** (3 connections) — `src/func/map.js`
 - **_closeMapMenu()** (3 connections) — `src/func/map.js`
@@ -29,24 +28,29 @@
 - **_sgPopulateDatalist()** (3 connections) — `src/func/map.js`
 - **_sgRenderAlternatives()** (3 connections) — `src/func/map.js`
 - **_buildBridgeAdj()** (2 connections) — `src/func/map.js`
+- **_mapHeap()** (2 connections) — `src/func/map.js`
 - *... and 4 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (31 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (2 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (1 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (1 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/map.js`
 - `src/html/page-map.html`
+- `src/vendor/gridstack/gridstack-all.js`
 
 ## Audit Trail
 
-- EXTRACTED: 118 (90%)
+- EXTRACTED: 117 (90%)
 - INFERRED: 13 (10%)
 - AMBIGUOUS: 0 (0%)
 

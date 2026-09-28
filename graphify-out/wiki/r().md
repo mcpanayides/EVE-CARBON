@@ -30,8 +30,8 @@
 - .draw() `INFERRED`
 - .buildTicks() `INFERRED`
 - da() `INFERRED`
-- draw() `INFERRED`
 - _buildGalaxyModern() `INFERRED`
+- draw() `INFERRED`
 - fa() `INFERRED`
 - Fi() `INFERRED`
 - inRange() `INFERRED`

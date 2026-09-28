@@ -1,6 +1,6 @@
 # Chart Umd (mt)
 
-> 43 nodes · cohesion 0.07
+> 40 nodes · cohesion 0.08
 
 ## Key Concepts
 
@@ -14,7 +14,6 @@
 - **te()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._getAnims()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **Ft()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
-- **Gt()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.hslString()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **mt()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **vt()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -22,25 +21,25 @@
 - **It()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._refresh()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.listen()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- **jt()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **qt()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.constructor()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.rgb()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.hexString()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.darken()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.saturate()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 18 more nodes in this community*
+- **color()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._notify()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.add()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- *... and 15 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (15 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (8 shared connections)
+- [Chart Umd](Chart_Umd.md) (14 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (7 shared connections)
 - [Chart Umd (u)](Chart_Umd_%28u%29.md) (3 shared connections)
-- [Chart Umd (f)](Chart_Umd_%28f%29.md) (2 shared connections)
-- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (2 shared connections)
+- [Chart Umd (running)](Chart_Umd_%28running%29.md) (3 shared connections)
+- [Shared UI Utilities](Shared_UI_Utilities.md) (2 shared connections)
 - [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (2 shared connections)
-- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (2 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Market Trading](Market_Trading.md) (1 shared connections)
 - [Chart Umd (n)](Chart_Umd_%28n%29.md) (1 shared connections)
 - [Chart Umd (ct)](Chart_Umd_%28ct%29.md) (1 shared connections)
 
@@ -50,8 +49,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 162 (97%)
-- INFERRED: 5 (3%)
+- EXTRACTED: 154 (99%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

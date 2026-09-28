@@ -1,41 +1,42 @@
 # Map Colours & Modern Drawing
 
-> 27 nodes · cohesion 0.17
+> 26 nodes · cohesion 0.18
 
 ## Key Concepts
 
-- **_render()** (17 connections) — `src/func/map.js`
+- **_render()** (18 connections) — `src/func/map.js`
+- **_systemColor()** (16 connections) — `src/func/map.js`
 - **_w2c()** (14 connections) — `src/func/map.js`
 - **_renderGalaxyModern()** (14 connections) — `src/func/map.js`
-- **_systemColor()** (11 connections) — `src/func/map.js`
+- **_mono()** (10 connections) — `src/func/map.js`
 - **_renderRegion()** (10 connections) — `src/func/map.js`
-- **_mono()** (9 connections) — `src/func/map.js`
 - **_drawInfluenceField()** (8 connections) — `src/func/map.js`
 - **_infActive()** (7 connections) — `src/func/map.js`
 - **_drawInfluenceTitles()** (7 connections) — `src/func/map.js`
 - **_drawModernRouteExtras()** (6 connections) — `src/func/map.js`
+- **_sovColor()** (5 connections) — `src/func/map.js`
 - **_drawRouteMarkers()** (5 connections) — `src/func/map.js`
-- **_secColor()** (4 connections) — `src/func/map.js`
 - **_refreshThemeVars()** (4 connections) — `src/func/map.js`
 - **_drawModernWormholeArcs()** (4 connections) — `src/func/map.js`
 - **_drawModernJumpBridgeArcs()** (4 connections) — `src/func/map.js`
 - **_drawModernRoutes()** (4 connections) — `src/func/map.js`
-- **_fetchAllianceIdents()** (3 connections) — `src/func/map.js`
+- **_campaignColor()** (3 connections) — `src/func/map.js`
 - **_resolveSpecialRegionIds()** (3 connections) — `src/func/map.js`
 - **_monoStack()** (3 connections) — `src/func/map.js`
 - **_accent()** (3 connections) — `src/func/map.js`
 - **_infLighten()** (3 connections) — `src/func/map.js`
 - **_drawModernLinks()** (3 connections) — `src/func/map.js`
-- **_regionZoomFloor()** (3 connections) — `src/func/map.js`
 - **_secColorModern()** (2 connections) — `src/func/map.js`
 - **_regularPolyPath()** (2 connections) — `src/func/map.js`
-- *... and 2 more nodes in this community*
+- **_pillPath()** (2 connections) — `src/func/map.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (6 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (31 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (6 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
+- [Galaxy Map](Galaxy_Map.md) (2 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
 
@@ -45,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 156 (99%)
+- EXTRACTED: 161 (99%)
 - INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,6 +1,6 @@
 # Package Manifest
 
-> 35 nodes · cohesion 0.07
+> 41 nodes · cohesion 0.06
 
 ## Key Concepts
 
@@ -9,11 +9,13 @@
 - **APP_USER_AGENT** (11 connections) — `src/app_ident.js`
 - **esi_client.test.js** (9 connections) — `test/esi_client.test.js`
 - **character_ipc.js** (8 connections) — `src/ipc/character_ipc.js`
+- **forum_ipc.js** (8 connections) — `src/ipc/forum_ipc.js`
 - **esi_headers.test.js** (6 connections) — `test/esi_headers.test.js`
 - **Esi** (4 connections) — `src/app_ident.js`
 - **esi.js** (4 connections) — `src/shared/esi.js`
 - **allowScripts** (3 connections) — `package.json`
 - **overrides** (3 connections) — `package.json`
+- **registerForumHandlers()** (3 connections) — `src/ipc/forum_ipc.js`
 - **version** (2 connections) — `package.json`
 - **name** (1 connections) — `package.json`
 - **productName** (1 connections) — `package.json`
@@ -27,17 +29,15 @@
 - **{ version }** (1 connections) — `src/app_ident.js`
 - **{ ipcMain }** (1 connections) — `src/ipc/character_ipc.js`
 - **{ ESI_BASE, Esi }** (1 connections) — `src/ipc/character_ipc.js`
-- **registered** (1 connections) — `src/ipc/character_ipc.js`
-- **NOTE: the corp mining routes use singular "/corporation/" (an ESI quirk),** (1 connections) — `src/ipc/character_ipc.js`
-- *... and 10 more nodes in this community*
+- *... and 16 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (3 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
 - [SDE Fetch & Build](SDE_Fetch_%26_Build.md) (2 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (2 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
@@ -51,14 +51,15 @@
 - `package.json`
 - `src/app_ident.js`
 - `src/ipc/character_ipc.js`
+- `src/ipc/forum_ipc.js`
 - `src/shared/esi.js`
 - `test/esi_client.test.js`
 - `test/esi_headers.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 109 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 122 (98%)
+- INFERRED: 3 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

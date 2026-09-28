@@ -35,7 +35,7 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (35 shared connections)
 - [HTTP Request Broker](HTTP_Request_Broker.md) (2 shared connections)
-- [PI IPC](PI_IPC.md) (2 shared connections)
+- [Market Trading](Market_Trading.md) (2 shared connections)
 
 ## Source Files
 

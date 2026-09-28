@@ -8,8 +8,8 @@
 - **._each()** (15 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._get()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.remove()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.getElement()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._exec()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.stop()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.isForType()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getController()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getPlugin()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -29,10 +29,11 @@
 
 ## Relationships
 
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) (9 shared connections)
-- [Chart Umd](Chart_Umd.md) (3 shared connections)
-- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (2 shared connections)
-- [Chart Umd (ct)](Chart_Umd_%28ct%29.md) (1 shared connections)
+- [Chart Umd (running)](Chart_Umd_%28running%29.md) (6 shared connections)
+- [Chart Umd](Chart_Umd.md) (2 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (2 shared connections)
+- [Chart Umd (sn)](Chart_Umd_%28sn%29.md) (2 shared connections)
+- [Chart Umd (lt)](Chart_Umd_%28lt%29.md) (1 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (1 shared connections)
 

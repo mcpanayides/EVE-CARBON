@@ -261,3 +261,69 @@ test('a nonsense X-Pages cannot spin forever', () => {
   const got = pagesFetched({ pageSizes: new Array(200).fill(page(1000)), xPages: 9999 });
   assert.strictEqual(got.length, 60, 'the hard cap must hold');
 });
+
+// ─── Two characters claiming one item ─────────────────────────────────────────
+//
+// Reported from a live profile: the valuation rebuild aborted with
+//   SQLITE_CONSTRAINT: UNIQUE constraint failed: asset_value.item_id
+// on both the startup refresh and the sync-triggered rebuild.
+//
+// It was not the rebuild race that the serialising lock already fixed. Two
+// characters genuinely listed the same item: each character's assets are
+// replaced atomically, but sixteen characters cannot be synced atomically with
+// ONE ANOTHER. Hand a ship from A to B, sync B, and A's table still shows it
+// until A is synced again — in the reported profile the stale side was sixteen
+// days behind. UNION ALL does not deduplicate, so the insert collided.
+//
+// The rule is "newest observation wins", and it has to hold without throwing.
+
+test('one item claimed by two characters does not abort the rebuild', async () => {
+  const A = 90000101, B = 90000102;
+  await charDb.ensureCharacterTables(A);
+  await charDb.ensureCharacterTables(B);
+  await charDb.replaceBlueprints(CHAR, []);
+  await charDb.replaceAssets(CHAR, []);
+
+  const CONTESTED = 1050073577174;          // the real item id from the report
+  // A is the stale side: it still lists the item, as a Rifter.
+  await charDb.replaceAssets(A, [
+    { item_id: CONTESTED, type_id: 587, quantity: 1, location_id: 60003760, name: 'Rifter' },
+  ]);
+  // B holds it now, and says it is something else entirely.
+  await charDb.replaceAssets(B, [
+    { item_id: CONTESTED, type_id: 34, quantity: 7, location_id: 60003760, name: 'Tritanium' },
+  ]);
+  // Pin the two syncs apart explicitly rather than relying on wall-clock order.
+  await db.run(`UPDATE char_${A}_assets SET synced_at = 1000`);
+  await db.run(`UPDATE char_${B}_assets SET synced_at = 2000`);
+
+  await val.writeTypePrices(db, new Map([
+    [587, { value: 400_000, source: 'market' }],
+    [34,  { value: 5,       source: 'ccp' }],
+  ]));
+
+  // The bug: this threw instead of returning.
+  const built = await val.rebuildAssetValues(db);
+  assert.strictEqual(built.items, 1, 'the contested item is materialised exactly once');
+
+  const row = await db.get('SELECT * FROM asset_value WHERE item_id = ?', CONTESTED);
+  assert.ok(row, 'the item survived the de-duplication');
+  assert.strictEqual(row.character_id, B, 'the more recently synced character wins');
+  assert.strictEqual(row.type_id, 34, "and it is B's view of the item, not A's");
+  assert.strictEqual(row.quantity, 7);
+});
+
+test('the winner is decided by sync time, not table order', async () => {
+  // The mirror of the test above: flip which side is newer and the other one
+  // must win. Without this, a rule that always picked (say) the highest
+  // character id would pass the first test by accident.
+  const A = 90000101, B = 90000102;
+  await db.run(`UPDATE char_${A}_assets SET synced_at = 9000`);
+  await db.run(`UPDATE char_${B}_assets SET synced_at = 2000`);
+
+  await val.rebuildAssetValues(db);
+
+  const row = await db.get('SELECT * FROM asset_value WHERE item_id = ?', 1050073577174);
+  assert.strictEqual(row.character_id, A, 'now A is the newer observation');
+  assert.strictEqual(row.type_id, 587);
+});

@@ -220,6 +220,8 @@ async function rebuildAssetValues(db) {
 
   // A blueprint COPY is nominal whatever its type is worth, so the BPO/BPC test
   // has to happen per item — hence the join to each character's blueprint table.
+  //
+  // synced_at comes along for the de-duplication below; it is not stored.
   const selects = tables.map(tn => {
     const cid = tn.match(/char_(\d+)_assets/)?.[1];
     if (!cid) return null;
@@ -227,7 +229,8 @@ async function rebuildAssetValues(db) {
     return `
       SELECT a.item_id, ${cid} AS character_id, a.type_id, a.location_id, a.quantity,
              CASE WHEN b.is_bpc = 1 THEN ${BPC_UNIT_VALUE} * COALESCE(a.quantity, 1)
-                  ELSE COALESCE(a.quantity, 1) * COALESCE(p.unit_value, 0) END AS own_value
+                  ELSE COALESCE(a.quantity, 1) * COALESCE(p.unit_value, 0) END AS own_value,
+             COALESCE(a.synced_at, 0) AS synced_at
         FROM ${tn} a
         LEFT JOIN type_prices p ON p.type_id = a.type_id
         LEFT JOIN ${bp} b       ON b.item_id = a.item_id`;
@@ -236,8 +239,28 @@ async function rebuildAssetValues(db) {
   await db.exec('BEGIN');
   try {
     await db.exec('DELETE FROM asset_value');
+    // ── One row per item, newest sync wins ────────────────────────────────
+    //
+    // item_id is unique in asset_value, and UNION ALL does not deduplicate. An
+    // item that two characters both list therefore aborts the whole rebuild
+    // with SQLITE_CONSTRAINT — which is exactly what happened in the field.
+    //
+    // Two characters CAN legitimately both list one item, and it is not a bug
+    // in the sync: each character's assets are replaced atomically, but sixteen
+    // characters cannot be synced atomically with each other. Hand a ship from
+    // A to B, sync B, and until A is synced again A's table still shows it. In
+    // the reported case the stale side was sixteen days behind.
+    //
+    // So the newer sync wins, because it is the more recent observation of who
+    // actually holds the thing. character_id breaks an exact tie so the result
+    // is deterministic rather than depending on scan order.
     await db.exec(`INSERT INTO asset_value (item_id, character_id, type_id, location_id, quantity, own_value)
-                   ${selects.join(' UNION ALL ')}`);
+                   SELECT item_id, character_id, type_id, location_id, quantity, own_value
+                     FROM (SELECT *, ROW_NUMBER() OVER (
+                                       PARTITION BY item_id
+                                       ORDER BY synced_at DESC, character_id DESC) AS rn
+                             FROM (${selects.join(' UNION ALL ')}))
+                    WHERE rn = 1`);
 
     // Roll every item's value up to each of its ancestors. The depth bound is
     // not caution for its own sake: ESI has returned items whose location_id

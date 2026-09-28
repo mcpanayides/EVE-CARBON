@@ -11,7 +11,7 @@
 const test   = require('node:test');
 const assert = require('node:assert');
 const {
-  createZkillStream, STEP_MS, IDLE_MS, STALL_ROUNDS, MAX_CATCHUP,
+  createZkillStream, STEP_MS, IDLE_MS, STALL_ROUNDS, MAX_CATCHUP, FRONT_CHECK_EVERY,
 } = require('../src/intel/zkill_stream');
 const { createKillWatch, normalisePackage } = require('../src/intel/kill_watch');
 
@@ -72,6 +72,71 @@ test('sequential fetches are spaced, and going quiet waits much longer', async (
   // table for r2z2.zkillboard.com.
   assert.ok(STEP_MS >= 400, 'no faster than 2.5 req/s against a free service');
   assert.ok(IDLE_MS >= 6000, "zKillboard's own guidance on seeing a 404");
+  s.stop();
+});
+
+// ── Falling behind during a fight ────────────────────────────────────
+//
+// The feed consumes one kill per request at 2.5/s. New Eden's baseline is well
+// under that, so normally we win the race, run out of kills, get a 404, and the
+// 404 path is what notices a gap and steps over it.
+//
+// A large fleet fight inverts that: the galaxy produces kills faster than we
+// consume them, so every fetch succeeds and NO 404 ever arrives. The skip-ahead
+// that hangs off the 404 path can then never fire, and the stream walks every
+// killmail in the game one at a time, falling further behind for as long as the
+// fight lasts - which is precisely the window where the intel is worth having.
+//
+// These pin the count-driven check that a backlog cannot suppress.
+
+test('a backlog that never 404s still gets back to the front', async () => {
+  // `has: () => true` is the fight: every id we ask for exists, forever.
+  const srv = fakeServer({ head: 500, have: { has: () => true } });
+  const s = createZkillStream({ httpGet: srv.fetch, onKillmail: () => {} });
+
+  await s._cycle();                                  // start at the front
+  assert.strictEqual(s.status().cursor, 500);
+
+  srv.head = 5500;                                   // a 5 000-kill backlog opens
+
+  for (let i = 0; i < FRONT_CHECK_EVERY; i++) await s._cycle();
+
+  assert.strictEqual(s.status().cursor, 5500,
+    'walked FRONT_CHECK_EVERY kills, checked the front, and jumped to it');
+  assert.ok(s.status().skipped > 0, 'the skip is reported for diagnosis');
+  s.stop();
+});
+
+test('checking the front costs one request per FRONT_CHECK_EVERY kills', async () => {
+  // The whole file is about not being a bad citizen of a free service, so the
+  // new check has to be cheap as well as correct.
+  const srv = fakeServer({ head: 500, have: { has: () => true } });
+  const s = createZkillStream({ httpGet: srv.fetch, onKillmail: () => {} });
+
+  await s._cycle();
+  srv.head = 5500;
+  for (let i = 0; i < FRONT_CHECK_EVERY; i++) await s._cycle();
+
+  const seqCalls = srv.urls.filter(u => SEQ.test(u)).length;
+  assert.strictEqual(seqCalls, 2, 'one to start at the front, one to check it');
+  s.stop();
+});
+
+test('it keeps walking, and drops nothing, while it is keeping up', async () => {
+  // The mirror of the test above: a backlog SHORTER than MAX_CATCHUP is walked,
+  // not skipped. Skipping here would silently throw away kills that are still
+  // inside the relevance window - a worse bug than the one being fixed.
+  const seen = [];
+  const srv = fakeServer({ head: 500, have: { has: () => true } });
+  const s = createZkillStream({ httpGet: srv.fetch, onKillmail: (k) => seen.push(k) });
+
+  await s._cycle();
+  srv.head = 500 + FRONT_CHECK_EVERY + 10;           // small enough to walk
+  for (let i = 0; i < FRONT_CHECK_EVERY; i++) await s._cycle();
+
+  assert.strictEqual(s.status().cursor, 500 + FRONT_CHECK_EVERY, 'walked every one');
+  assert.strictEqual(s.status().skipped, 0, 'nothing stepped over');
+  assert.strictEqual(seen.length, FRONT_CHECK_EVERY, 'every kill was delivered');
   s.stop();
 });
 

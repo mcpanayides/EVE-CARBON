@@ -1385,8 +1385,11 @@ body.glass-on .active-jobs-list thead tr {
                letter-spacing: 0.06em; text-transform: uppercase; }
 .kt-sub      { font-size: 11px; font-family: var(--mono); color: var(--label-muted); }
 .kt-viewport { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: stretch; }
+/* No will-change here: Chromium already gives an animating transform its own
+   compositor layer, and the hint only adds the cost of keeping that layer alive
+   while the animation is paused - which, with anim-idle, is most of a fleet. */
 .kt-track    { display: inline-flex; align-items: stretch; gap: 10px; white-space: nowrap;
-               will-change: transform; animation: kt-scroll 120s linear infinite; }
+               animation: kt-scroll 120s linear infinite; }
 .kt-viewport:hover .kt-track { animation-play-state: paused; }
 @keyframes kt-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 

@@ -340,10 +340,26 @@ body.app-unfocused .kt-track {
 }
 .market-ticker-label .material-symbols-outlined { font-size: 14px; color: var(--accent); }
 .market-ticker-viewport { flex: 1; min-width: 0; height: 100%; overflow: hidden; display: flex; align-items: center; }
-.market-ticker-track    { display: inline-flex; align-items: center; white-space: nowrap; will-change: transform;
+.market-ticker-track    { display: inline-flex; align-items: center; white-space: nowrap;
                           animation: ticker-scroll 120s linear infinite; }
 .market-ticker-viewport:hover .market-ticker-track { animation-play-state: paused; }
 @keyframes ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* Nothing animates in a window nobody can see.
+   -------------------------------------------------------------------------
+   `anim-idle` is set on <html> by shared/anim_idle.js whenever the window is
+   minimised, hidden, or fully covered by another window - which, during a
+   fleet op, means covered by the game for hours at a time. Without this the
+   two 120s `infinite` tickers keep the renderer producing frames the whole
+   time, and every one of those frames is another pass through the desktop
+   compositor on top of the game.
+
+   Deliberately universal: an animation added next year is covered by it
+   without anyone having to find this rule. `paused` freezes rather than
+   cancels, so everything resumes where it left off. */
+html.anim-idle *,
+html.anim-idle *::before,
+html.anim-idle *::after { animation-play-state: paused !important; }
 
 .ticker-item  { display: inline-flex; align-items: center; gap: 6px; padding: 0 16px;
                 font-size: 11px; font-family: var(--mono); border-right: 1px solid var(--border); }

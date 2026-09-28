@@ -129,6 +129,22 @@ const STALL_ROUNDS = 3;
 // the relevance window.
 const MAX_CATCHUP = 50;
 
+// How many kills we consume before checking where the front actually is.
+//
+// MAX_CATCHUP used to be reachable ONLY down the 404 path: we noticed we were
+// behind when a fetch came back empty. That works while the galaxy produces
+// fewer kills than we consume, and fails exactly when it doesn't. A big fleet
+// fight pushes the global rate past our 2.5/s, so every fetch succeeds, no 404
+// ever arrives, the skip-ahead never runs - and the stream walks every killmail
+// in New Eden one request at a time, falling further behind for as long as the
+// fight lasts. Intel latency then grows without bound at the one moment the
+// feature exists for.
+//
+// So the front is also checked on a COUNT of consumed kills, which a backlog
+// cannot suppress. One extra request per MAX_CATCHUP kills is the whole cost,
+// and it bounds how far behind the feed can ever get.
+const FRONT_CHECK_EVERY = MAX_CATCHUP;
+
 const REQUEST_TIMEOUT_MS = 20_000;
 
 /**
@@ -197,6 +213,7 @@ function createZkillStream({ onKillmail, onStatus, base = resolveZkillBase(), ht
   let lastError = null;
   let connected = false;
   let skipped   = 0;      // sequence ids stepped over, for diagnosis
+  let sinceFront = 0;     // kills consumed since we last checked the front
 
   const seqUrl  = () => `${base}/ephemeral/sequence.json`;
   const killUrl = (id) => `${base}/ephemeral/${id}.json`;
@@ -259,6 +276,7 @@ function createZkillStream({ onKillmail, onStatus, base = resolveZkillBase(), ht
       if (res && res.notFound) {
         ok();   // 404 here is a healthy "nothing new", not a failure
         idleRounds++;
+        sinceFront = 0;   // caught up by definition - nothing to measure
         // A gap in the sequence looks exactly like "not published yet", and
         // waiting on one would freeze the feed for good. So after a few quiet
         // rounds, ask where the front actually is.
@@ -281,9 +299,29 @@ function createZkillStream({ onKillmail, onStatus, base = resolveZkillBase(), ht
       cursor++;
       idleRounds = 0;
       received++;
+      sinceFront++;
       ok();
       try { onKillmail && onKillmail(pkg); }
       catch (e) { console.warn('[intel] zkill consumer threw:', e.message); }
+
+      // Still winning the race, or falling behind it? A backlog never produces
+      // the 404 that the other skip-ahead waits on, so this is the only check
+      // that fires during a fight.
+      if (sinceFront >= FRONT_CHECK_EVERY) {
+        sinceFront = 0;
+        const seq = await newestSequence();
+        if (seq != null && seq - cursor > MAX_CATCHUP) {
+          // Everything in the gap is older than the relevance window anyway -
+          // ingestPackage would drop it on the LOSS_RELEVANT_MS check. Walking
+          // it would cost hundreds of requests to arrive at the same place,
+          // later.
+          const behind = seq - cursor;
+          skipped += behind;
+          cursor = seq;
+          console.warn(`[intel] zkill stream fell ${behind} kills behind - skipping to the front`);
+          report();
+        }
+      }
       return STEP_MS;
     } catch (e) {
       return fail(e);
@@ -326,4 +364,5 @@ function createZkillStream({ onKillmail, onStatus, base = resolveZkillBase(), ht
 module.exports = {
   createZkillStream, DEFAULT_BASE, resolveZkillBase,
   STEP_MS, IDLE_MS, BACKOFF_MIN_MS, BACKOFF_MAX_MS, STALL_ROUNDS, MAX_CATCHUP,
+  FRONT_CHECK_EVERY,
 };

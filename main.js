@@ -3279,24 +3279,62 @@ function createIntelWidgetWindow() {
   return intelWidgetWin;
 }
 
+// ── Pinning a widget over the game ─────────────────────────────────
+//
+// Two separate costs hide behind the pin button, and the GAME pays both of
+// them, which is why neither ever showed up in a CPU profile of this app.
+//
+//  1. The window LEVEL. 'screen-saver' is the highest band Windows has. Parking
+//     a window there over a fullscreen-windowed client breaks DWM's
+//     independent-flip path: the game stops flipping its buffers straight to
+//     the display and every frame starts going through the desktop compositor
+//     instead. createPingAlertWindow() already learned this the hard way and
+//     moved down to the ordinary topmost band - see the note there. The pin
+//     never did, so a pinned Early Warning widget was still sitting in the
+//     worst band there is, on top of a supercarrier. 'floating' is the band the
+//     ping alert settled on, and it still wins against a fullscreen-WINDOWED
+//     client, which is not itself topmost.
+//
+//  2. ACRYLIC. The material makes DWM sample and blur whatever is behind the
+//     window, continuously. Unpinned that is the desktop, and it costs nothing
+//     anyone notices. Pinned over a game it is the game's own framebuffer,
+//     re-blurred every frame, on top of the composition the level change has
+//     already forced. Glass is a look for sitting on the desktop; over a game
+//     it is a tax on the thing you are trying to watch. So the pin trades it
+//     for an opaque background and puts it back when you unpin.
+const WIDGET_OPAQUE_BG = '#070b14';
+
+function applyWidgetPin(win, pinned) {
+  if (!win || win.isDestroyed()) return !!pinned;
+  win.setAlwaysOnTop(!!pinned, 'floating');
+  if (acrylicSupported()) {
+    // Colour first when going opaque, material first when going back to glass -
+    // either way the window never renders a frame with neither in effect.
+    if (pinned) {
+      win.setBackgroundColor(WIDGET_OPAQUE_BG);
+      win.setBackgroundMaterial('none');
+    } else {
+      win.setBackgroundMaterial('acrylic');
+      win.setBackgroundColor('#00000000');
+    }
+  }
+  return !!pinned;
+}
+
 ipcHandle('intel-widget-open',  () => { createIntelWidgetWindow(); return { success: true }; });
 ipcHandle('intel-widget-close', () => {
   if (intelWidgetWin && !intelWidgetWin.isDestroyed()) intelWidgetWin.close();
   return { success: true };
 });
 ipcHandle('intel-widget-pin', (_e, pinned) => {
-  // 'screen-saver' level so it stays above a fullscreen-windowed EVE client —
-  // the ordinary 'floating' level loses to it.
-  if (intelWidgetWin && !intelWidgetWin.isDestroyed()) intelWidgetWin.setAlwaysOnTop(!!pinned, 'screen-saver');
-  return { pinned: !!pinned };
+  return { pinned: applyWidgetPin(intelWidgetWin, pinned) };
 });
 ipcHandle('intel-widget-state', () => ({
   open: !!(intelWidgetWin && !intelWidgetWin.isDestroyed()),
 }));
 
 ipcHandle('widget-popout-pin', (_e, { id, pinned }) => {
-  const win = widgetPopouts.get(id);
-  if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!pinned, 'screen-saver');
+  applyWidgetPin(widgetPopouts.get(id), pinned);
   return { success: true };
 });
 

@@ -79,12 +79,33 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
   }
 
   function queueReport(report) {
+    invalidateContacts();
     pending.push(report);
     if (!flushTimer) {
       flushTimer = setTimeout(flush, REPORT_FLUSH_MS);
       if (flushTimer.unref) flushTimer.unref();
     }
   }
+
+  // ── The contact list, computed once per change instead of once per asker ───
+  //
+  // Three surfaces poll this on their own timers: the FC Intel page (2s), the
+  // floating pop-out (2s) and the dashboard tile (3s). Every one of those calls
+  // ran a full prune + assess over every track plus groupContacts, IN THE MAIN
+  // PROCESS - so with all three open the same answer was computed about three
+  // times a second, and everything else waiting on main (including every other
+  // window's IPC) queued behind it.
+  //
+  // The window is deliberately shorter than the fastest poller, so it only ever
+  // collapses calls that overlap; it cannot add a poll's worth of latency. And
+  // because a new report or an alert clears it outright, a contact can never be
+  // held back by it - the memo is a de-duplicator, not a cache of stale intel.
+  // An origin change is left to expire on its own: the distances it invalidates
+  // are re-measured well inside one poll interval.
+  const CONTACTS_MEMO_MS = 750;
+  let contactsMemo = null;        // { at, value }
+
+  function invalidateContacts() { contactsMemo = null; }
 
   const cfg = () => {
     const c = loadConfig() || {};
@@ -113,7 +134,7 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
       // Only an override lands here; the module knows its own default host.
       zkillBase: cfg().zkillBase || undefined,
       onReport: queueReport,
-      onAlert:  (alert) => broadcast('intel-alert', alert),
+      onAlert:  (alert) => { invalidateContacts(); broadcast('intel-alert', alert); },
       onStatus: (status) => broadcast('intel-status', status),
     });
     const built = await service.init();
@@ -464,9 +485,15 @@ function registerIntelHandlers({ ipcHandle, getSdeDb, loadConfig, saveConfig, lo
     return { reach: svc.setOrigin(systemId), origin: systemId };
   });
 
-  ipcHandle('intel-contacts', async () =>
-    (require('../demo_mode').isEnabled() ? require('../demo_fixtures').intelContacts()
-                                         : (ready && service ? service.contacts() : [])));
+  ipcHandle('intel-contacts', async () => {
+    if (require('../demo_mode').isEnabled()) return require('../demo_fixtures').intelContacts();
+    if (!(ready && service)) return [];
+    const now = Date.now();
+    if (contactsMemo && now - contactsMemo.at < CONTACTS_MEMO_MS) return contactsMemo.value;
+    const value = service.contacts();
+    contactsMemo = { at: now, value };
+    return value;
+  });
   ipcHandle('intel-feed', async (_e, limit) => (ready && service ? service.feed(limit || 100) : []));
 
   // ── Patterns ────────────────────────────────────────────────────────────────

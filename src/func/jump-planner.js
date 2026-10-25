@@ -14,7 +14,15 @@
 
 'use strict';
 
-const JP_LY = 9.4607e15;            // metres per light-year
+// Metres per light-year, as EVE defines it — not as physics does.
+//
+// The real figure is 9.4607304725808e15. CCP's map-data guide is explicit that
+// the game uses exactly 9.46e15 and warns that the scientific value produces
+// impossible jumps: a larger metres-per-LY makes every distance read SHORTER in
+// light-years, so a route that the game refuses is offered as being in range.
+// The error is only 0.074%, which is exactly why it bites — it never shows up
+// except on the jumps that sit right on the limit, where it matters most.
+const JP_LY = 9.46e15;
 const JP_JUMPABLE_MAX_SEC = 0.45;   // can't jump to/from systems that display 0.5+
 
 // Zarzakh — the Triglavian hub. Routing *through* it is a trap: entering via a

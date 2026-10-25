@@ -30,6 +30,51 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.0.0] - 2026-10-26
+
+### Added
+- **The map is rebuilt from CCP's own map data.** CCP publishes the schematic
+  layout the in-game 2D map draws — `mapSolarSystems.position2D` — and the
+  galaxy view, the flat view and every region view now come from it directly.
+  It is not a projection of the 3-D coordinates and cannot be derived from one,
+  which is why every third-party map, this one included, used to approximate it.
+
+  The whole galaxy matches: all 5,485 systems the in-game map shows, each where
+  the game puts it. Pochven draws as its triangle because that is what the data
+  says, not because it was special-cased.
+
+  Opening a region now shows the same arrangement, in the same orientation, as
+  the overview it was opened from. The old layout rotated each region onto its
+  long axis and mirrored it when its exits sat low, because its orientation was
+  arbitrary and had to be canonicalised; CCP's positions already have the
+  orientation the game draws, so neither pass runs.
+- **Live ESI layers on every map** — traffic, kills, sovereignty campaigns,
+  faction warfare and industry indices — with a detail panel per system:
+  traffic over time, a zKillboard log with a time ramp, and sov structures.
+- **A true flat 2-D mode** on the spatial map, with System / Constellation /
+  Region layout levels matching the in-game control.
+- **Click-to-focus**: the camera pivots on the system you click instead of
+  always looking at the origin, which made the galaxy's edges unreachable.
+
+### Changed
+- The Classic map is no longer in the UI. Its code remains and its API polling
+  is disconnected, so nothing fetches for a view that cannot be opened.
+
+### Fixed
+- **Pinning the Early Warning widget over a fullscreen game no longer stutters
+  the whole desktop.** The pin used the topmost window band, which breaks
+  DWM independent flip and forces the entire desktop through composition every
+  frame; acrylic then blur-sampled the game's own framebuffer. While pinned the
+  widget now sits in the safe band and is opaque.
+- **Jump range used the real light-year.** EVE's is exactly
+  9,460,000,000,000,000 m, slightly short of the physical value. Ours read
+  distances 0.074% short and offered routes the game refuses — which could only
+  ever show up on the jumps sitting right on the range limit.
+- The asset valuation rebuild no longer aborts with a UNIQUE constraint on
+  `asset_value.item_id` when two characters have synced the same item.
+- The intel widget's kill feed no longer stays behind after falling back, and
+  CSS animation pauses while a window is covered.
+
 ## [3.8.0] - 2026-09-13
 
 ### Added

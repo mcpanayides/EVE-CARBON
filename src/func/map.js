@@ -1517,6 +1517,56 @@ function _regionGraph(regionId) {
  * springs, no PCA rotation — the trace already has the orientation the game
  * draws, and rotating it would be undoing the entire point.
  */
+/**
+ * CCP's position2D is an integer lattice, not a cloud. Across the galaxy the
+ * gaps between consecutive coordinate values are 1x, 2x and 3x CCP_2D_UNIT
+ * (496, 12 and 3 occurrences on the x axis), and dividing by it leaves all but
+ * 2 of 10,970 coordinates within 0.11 of a whole lattice point.
+ *
+ * The region view is laid out in CELLS, and everything downstream - the
+ * occupancy set, the gateway stubs, the zoom floor - assumes neighbouring
+ * systems are about one cell apart. On the lattice they are about THREE units
+ * apart (2.83 and 3.00 dominate), so the display step is three units, not one.
+ *
+ * Dividing by the unit instead looked tidier - exact integers - and was wrong:
+ * it made every region three times larger in world units, so _fitRegion's
+ * fit-to-canvas fell below _regionZoomFloor's legibility minimum, the floor
+ * won, and a region opened zoomed so far in that two thirds of it sat off
+ * screen.
+ *
+ * Positions land on thirds of a cell, which costs nothing: the closest pair
+ * anywhere is 2.24 units apart (Uchat/Clarelam, a (1,2) offset), and no pair
+ * at 2.24, 2.83 or 3.00 rounds into the same occupancy cell.
+ */
+const CCP_2D_UNIT = 2.0545e15;
+const CCP_2D_STEP = CCP_2D_UNIT * 3;
+
+/**
+ * A region's layout taken straight from CCP's schematic positions.
+ *
+ * This is the same data the galaxy map now draws, restricted to one region, so
+ * a region opens in exactly the orientation and shape it has on the galaxy
+ * view - no PCA rotation to fill the canvas, no vertical canonicalisation, no
+ * relaxation. That IS the unwrapping; the force layout's was a guess at it.
+ *
+ * All-or-nothing: a region with even one system missing a position falls back
+ * whole, rather than mixing a schematic with a relaxed cloud.
+ */
+function _ccpRegionPositions(sys) {
+  if (!sys || sys.length < 2) return null;
+  const out = new Map();
+  for (const sy of sys) {
+    const p = _pos2d(sy);
+    if (!p) return null;
+    out.set(sy.id, { x: p[0] / CCP_2D_STEP, z: -p[1] / CCP_2D_STEP });
+  }
+  let cx = 0, cz = 0;
+  for (const p of out.values()) { cx += p.x; cz += p.z; }
+  cx /= out.size; cz /= out.size;
+  for (const p of out.values()) { p.x -= cx; p.z -= cz; }
+  return out;
+}
+
 function _curatedRegionPositions(ids, adjAll, seeds) {
   const out = new Map();
   const have = ids.filter(id => seeds[id]);
@@ -1571,9 +1621,19 @@ function _buildRegionLayout(regionId) {
   // algorithmic positions and the trace would never be drawn at all. So an
   // entry only counts as a hit when it was built the same way the region is
   // laid out now.
-  const isCurated = !!(_curatedRegions && _curatedRegions[regionId]);
+  const { sys, adj, inRegion } = _regionGraph(regionId);
+
+  // Which of the three sources this region is laid out from. The cache is also
+  // filled by the prefetch worker, which knows only the shared kernel, so an
+  // entry only counts as a hit when it was built the same way the region is
+  // laid out now - otherwise a traced or CCP region would quietly hand back
+  // algorithmic positions.
+  const curated = _curatedRegions && _curatedRegions[regionId];
+  const ccp = _ccpRegionPositions(sys);
+  const src = ccp ? 'ccp' : ((curated && curated.seeds) ? 'curated' : 'force');
+
   const cached = _regionCache.get(regionId);
-  if (cached && !!cached.curated === isCurated) {
+  if (cached && cached.src === src) {
     _regionLayout = cached.layout; _regionExits = cached.exits; _regionLayoutId = regionId;
     return _regionLayout;
   }
@@ -1586,14 +1646,11 @@ function _buildRegionLayout(regionId) {
   // The force layout is seeded from the systems' true positions and relaxes every
   // gate to one rest length, so a region keeps its real shape and spreads over
   // both axes. It's the same layout the galaxy overview's clusters already use.
-  const { sys, adj, inRegion } = _regionGraph(regionId);
   const map = new Map(), exits = [];
-  // A traced layout wins outright where one exists; everything else is laid
-  // out by the force pass exactly as before.
-  const curated = _curatedRegions && _curatedRegions[regionId];
+  // CCP's own positions win outright, then a hand trace, then the force pass.
   const traced = (curated && curated.seeds)
     ? _curatedRegionPositions(sys.map(s => s.id), adj, curated.seeds) : null;
-  for (const [id, p] of (traced || _regionForceLayout(sys.map(s => s.id), adj))) {
+  for (const [id, p] of (ccp || traced || _regionForceLayout(sys.map(s => s.id), adj))) {
     map.set(id, { x: p.x * _REGION_CELL, z: p.z * _REGION_CELL });
   }
 
@@ -1712,14 +1769,14 @@ function _buildRegionLayout(regionId) {
     // the orientation the game itself draws, and mirroring it is the one thing
     // guaranteed to be wrong. It flipped Insmother upside down — the FD-7Y4
     // chain ran bottom-to-top against the screenshot.
-    if (!isCurated && exits.length && emz > (zmin + zmax) / 2) {
+    if (src === 'force' && exits.length && emz > (zmin + zmax) / 2) {
       for (const p of map.values()) p.z = -p.z;
       for (const e of exits) e.z = -e.z;
     }
   }
 
   _regionLayout = map; _regionExits = exits; _regionLayoutId = regionId;
-  _regionCache.set(regionId, { layout: map, exits, curated: isCurated });
+  _regionCache.set(regionId, { layout: map, exits, src });
   return map;
 }
 

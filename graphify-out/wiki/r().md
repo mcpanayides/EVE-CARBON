@@ -2,7 +2,7 @@
 
 > God node · 66 connections · `src/vendor/chartjs/chart.umd.js`
 
-**Community:** [Chart Umd (o)](Chart_Umd_%28o%29.md)
+**Community:** [Chart Umd (s)](Chart_Umd_%28s%29.md)
 
 ## Connections by Relation
 
@@ -38,10 +38,10 @@
 - ._createDescriptors() `INFERRED`
 - so() `INFERRED`
 - zn() `INFERRED`
+- _buildRegionLayout() `INFERRED`
 - lo() `INFERRED`
 - mi() `INFERRED`
 - Yi() `INFERRED`
-- _buildRegionLayout() `INFERRED`
 - _trRenderUndercut() `INFERRED`
 - buildSdeFromJsonl() `INFERRED`
 - rowHtml() `INFERRED`

@@ -1,6 +1,6 @@
 # Asset Index Schema
 
-> 27 nodes · cohesion 0.16
+> 26 nodes · cohesion 0.16
 
 ## Key Concepts
 
@@ -13,7 +13,6 @@
 - **getGroupCharacters()** (5 connections) — `src/asset_index.js`
 - **getGroupItems()** (5 connections) — `src/asset_index.js`
 - **searchBlob()** (4 connections) — `src/asset_index.js`
-- **SCHEMA()** (4 connections) — `src/asset_index.js`
 - **getSummary()** (4 connections) — `src/asset_index.js`
 - **getTopItems()** (4 connections) — `src/asset_index.js`
 - **locationIdentity()** (3 connections) — `src/asset_index.js`
@@ -29,16 +28,17 @@
 - **INDEXES** (1 connections) — `src/asset_index.js`
 - **DROP_INDEXES()** (1 connections) — `src/asset_index.js`
 - **EXPECTED_COLUMNS** (1 connections) — `src/asset_index.js`
-- *... and 2 more nodes in this community*
+- **_ensured** (1 connections) — `src/asset_index.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
+- [Asset Valuation](Asset_Valuation.md) (4 shared connections)
 - [Valuation Rebuild Debounce Test](Valuation_Rebuild_Debounce_Test.md) (4 shared connections)
-- [Asset Valuation](Asset_Valuation.md) (2 shared connections)
 - [Valuation Rebuild Race Test](Valuation_Rebuild_Race_Test.md) (2 shared connections)
 - [Stress Index](Stress_Index.md) (1 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
@@ -49,8 +49,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 87 (71%)
-- INFERRED: 36 (29%)
+- EXTRACTED: 84 (71%)
+- INFERRED: 35 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

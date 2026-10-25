@@ -37,7 +37,7 @@
 - [Intel Patterns Test](Intel_Patterns_Test.md) (3 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (3 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 - [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files

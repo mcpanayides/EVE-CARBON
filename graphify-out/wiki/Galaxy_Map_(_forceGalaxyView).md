@@ -18,8 +18,8 @@
 - [Galaxy Map State](Galaxy_Map_State.md) (8 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (6 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (1 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
+- [Galaxy Map (_ccpRegionPositions)](Galaxy_Map_%28_ccpRegionPositions%29.md) (1 shared connections)
 - [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (1 shared connections)
 
 ## Source Files

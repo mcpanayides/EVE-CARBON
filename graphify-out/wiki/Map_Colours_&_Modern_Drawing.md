@@ -6,11 +6,11 @@
 
 - **_systemColor()** (16 connections) — `src/func/map.js`
 - **_sovColor()** (5 connections) — `src/func/map.js`
+- **_allianceColor()** (4 connections) — `src/func/map.js`
 - **_heatFor()** (4 connections) — `src/func/map.js`
 - **_infColorOf()** (4 connections) — `src/func/map.js`
 - **_aggLayerColor()** (4 connections) — `src/func/map.js`
 - **_fnfColor()** (3 connections) — `src/func/map.js`
-- **_heat()** (3 connections) — `src/func/map.js`
 - **_fwSysColor()** (3 connections) — `src/func/map.js`
 - **_campaignColor()** (3 connections) — `src/func/map.js`
 - **_resolveSpecialRegionIds()** (3 connections) — `src/func/map.js`
@@ -23,8 +23,8 @@
 
 - [Galaxy Map State](Galaxy_Map_State.md) (15 shared connections)
 - [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (6 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (2 shared connections)
-- [Galaxy Map (_hitTest)](Galaxy_Map_%28_hitTest%29.md) (2 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (3 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 
 ## Source Files
@@ -33,7 +33,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 58 (100%)
+- EXTRACTED: 59 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

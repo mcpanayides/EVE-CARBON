@@ -22,9 +22,9 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Package Manifest](Package_Manifest.md) (2 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Chart Umd (q)](Chart_Umd_%28q%29.md) (1 shared connections)
 
 ## Source Files
 

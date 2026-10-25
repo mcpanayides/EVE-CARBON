@@ -1,49 +1,64 @@
 # Market Trading
 
-> 27 nodes · cohesion 0.16
+> 64 nodes · cohesion 0.06
 
 ## Key Concepts
 
 - **trading.js** (26 connections) — `src/func/trading.js`
+- **t()** (16 connections) — `scripts/watch-fleet-op.js`
+- **theme-vars.js** (12 connections) — `src/shared/theme-vars.js`
+- **pi_ipc.js** (11 connections) — `src/ipc/pi_ipc.js`
 - **_trRenderUndercut()** (9 connections) — `src/func/trading.js`
+- **watch-fleet-op.js** (8 connections) — `scripts/watch-fleet-op.js`
 - **_trRenderPnl()** (7 connections) — `src/func/trading.js`
+- **syncPIForCharacter()** (7 connections) — `src/ipc/pi_ipc.js`
+- **buildCssVarsFromCustom()** (7 connections) — `src/shared/theme-vars.js`
 - **_trRenderView()** (6 connections) — `src/func/trading.js`
 - **_trRenderProfit()** (6 connections) — `src/func/trading.js`
+- **registerPIHandlers()** (6 connections) — `src/ipc/pi_ipc.js`
+- **theme_ipc.js** (6 connections) — `src/ipc/theme_ipc.js`
 - **_trAllTransactions()** (5 connections) — `src/func/trading.js`
 - **_trEvaluateUndercuts()** (5 connections) — `src/func/trading.js`
 - **_trRenderAlertToggle()** (5 connections) — `src/func/trading.js`
 - **_trUndercutWatchTick()** (5 connections) — `src/func/trading.js`
+- **hslToHex()** (5 connections) — `src/shared/theme-vars.js`
+- **dimOf()** (5 connections) — `src/shared/theme-vars.js`
 - **_trStatus()** (4 connections) — `src/func/trading.js`
 - **_trAllOrders()** (4 connections) — `src/func/trading.js`
-- **_trAccountsScope()** (3 connections) — `src/func/trading.js`
-- **_trAvgCost()** (3 connections) — `src/func/trading.js`
-- **_trSetSort()** (3 connections) — `src/func/trading.js`
-- **startUndercutWatch()** (3 connections) — `src/func/trading.js`
-- **renderTrading()** (2 connections) — `src/func/trading.js`
-- **_trRenderMarket()** (2 connections) — `src/func/trading.js`
-- **_trFetchTypeOrders()** (2 connections) — `src/func/trading.js`
-- **_trUndercutRow()** (2 connections) — `src/func/trading.js`
-- **_trPnlRow()** (2 connections) — `src/func/trading.js`
-- **_trBucketOf()** (2 connections) — `src/func/trading.js`
-- **_trGetAlertSetting()** (2 connections) — `src/func/trading.js`
-- **_trOpenUndercutView()** (2 connections) — `src/func/trading.js`
-- **stopUndercutWatch()** (2 connections) — `src/func/trading.js`
-- **_trAccounts** (1 connections) — `src/func/trading.js`
-- *... and 2 more nodes in this community*
+- **hexToHsl()** (4 connections) — `src/shared/theme-vars.js`
+- **darken()** (4 connections) — `src/shared/theme-vars.js`
+- **lighten()** (4 connections) — `src/shared/theme-vars.js`
+- **buildCssVars()** (4 connections) — `src/shared/theme-vars.js`
+- *... and 39 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (4 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (4 shared connections)
+- [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
+- [Demo Mode](Demo_Mode.md) (1 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (1 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
+- [Ping Classify](Ping_Classify.md) (1 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (1 shared connections)
+- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (1 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
 
 ## Source Files
 
+- `main.js`
+- `scripts/watch-fleet-op.js`
 - `src/func/trading.js`
+- `src/ipc/pi_ipc.js`
+- `src/ipc/theme_ipc.js`
+- `src/shared/theme-vars.js`
 
 ## Audit Trail
 
-- EXTRACTED: 106 (92%)
-- INFERRED: 9 (8%)
+- EXTRACTED: 219 (86%)
+- INFERRED: 36 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

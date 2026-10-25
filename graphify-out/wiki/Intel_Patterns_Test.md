@@ -39,8 +39,8 @@
 - [Intel Service](Intel_Service.md) (3 shared connections)
 - [Intel Test](Intel_Test.md) (3 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (2 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Alert Rules](Alert_Rules.md) (2 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 
 ## Source Files
 

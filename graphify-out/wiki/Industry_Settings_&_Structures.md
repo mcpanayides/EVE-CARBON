@@ -23,7 +23,7 @@
 
 - [Blueprint Library](Blueprint_Library.md) (14 shared connections)
 - [Blueprint Library UI](Blueprint_Library_UI.md) (4 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

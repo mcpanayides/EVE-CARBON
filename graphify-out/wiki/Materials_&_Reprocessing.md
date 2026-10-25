@@ -17,7 +17,7 @@
 
 ## Relationships
 
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Blueprint Library UI](Blueprint_Library_UI.md) (1 shared connections)
 
 ## Source Files

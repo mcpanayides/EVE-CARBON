@@ -33,7 +33,8 @@
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
+- [Chart Umd (f)](Chart_Umd_%28f%29.md) (1 shared connections)
 - [Chart Umd](Chart_Umd.md) (1 shared connections)
 
 ## Source Files

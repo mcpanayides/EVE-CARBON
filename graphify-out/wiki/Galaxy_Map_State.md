@@ -4,8 +4,8 @@
 
 ## Key Concepts
 
-- **map.js** (197 connections) — `src/func/map.js`
-- **_buildRegionLayout()** (9 connections) — `src/func/map.js`
+- **map.js** (198 connections) — `src/func/map.js`
+- **_buildRegionLayout()** (10 connections) — `src/func/map.js`
 - **_infBuildCells()** (7 connections) — `src/func/map.js`
 - **_enterRegion()** (5 connections) — `src/func/map.js`
 - **_detailKillLogHtml()** (5 connections) — `src/func/map.js`
@@ -33,15 +33,15 @@
 
 ## Relationships
 
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (46 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (45 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (30 shared connections)
 - [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (22 shared connections)
-- [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (16 shared connections)
+- [Galaxy Map (_ccpRegionPositions)](Galaxy_Map_%28_ccpRegionPositions%29.md) (18 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (15 shared connections)
-- [Galaxy Map (_hitTest)](Galaxy_Map_%28_hitTest%29.md) (10 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (11 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (8 shared connections)
 - [App](App.md) (3 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (2 shared connections)
 
 ## Source Files
 
@@ -50,7 +50,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 315 (98%)
+- EXTRACTED: 317 (98%)
 - INFERRED: 5 (2%)
 - AMBIGUOUS: 0 (0%)
 

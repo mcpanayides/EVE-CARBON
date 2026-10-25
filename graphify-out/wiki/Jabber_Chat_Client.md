@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 
 ## Source Files
 

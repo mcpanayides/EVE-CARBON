@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Package Manifest](Package_Manifest.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

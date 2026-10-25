@@ -40,7 +40,7 @@
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (5 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (4 shared connections)
 - [Intel Row](Intel_Row.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 
 ## Source Files
 

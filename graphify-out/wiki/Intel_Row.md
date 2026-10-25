@@ -24,7 +24,7 @@
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 - [Gsf Sigs](Gsf_Sigs.md) (1 shared connections)
 - [FC Intel](FC_Intel.md) (1 shared connections)
 - [Dashboard Widgets](Dashboard_Widgets.md) (1 shared connections)

@@ -36,7 +36,7 @@
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Zkill Stream](Zkill_Stream.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files
 

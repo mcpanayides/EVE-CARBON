@@ -1,11 +1,13 @@
 # Intel Resume Test
 
-> 15 nodes · cohesion 0.16
+> 17 nodes · cohesion 0.15
 
 ## Key Concepts
 
 - **intel_resume.test.js** (21 connections) — `test/intel_resume.test.js`
+- **createIntelService()** (7 connections) — `src/intel/intel_service.js`
 - **createChatlogReader()** (6 connections) — `src/intel/chatlog_reader.js`
+- **createRuleEngine()** (4 connections) — `src/intel/alert_rules.js`
 - **writeLog()** (3 connections) — `test/intel_resume.test.js`
 - **readerOver()** (3 connections) — `test/intel_resume.test.js`
 - **serviceOver()** (3 connections) — `test/intel_resume.test.js`
@@ -22,21 +24,24 @@
 
 ## Relationships
 
+- [Intel Service](Intel_Service.md) (4 shared connections)
 - [Chatlog Reader](Chatlog_Reader.md) (4 shared connections)
+- [Alert Rules](Alert_Rules.md) (3 shared connections)
 - [Intel Test](Intel_Test.md) (3 shared connections)
-- [Intel Service](Intel_Service.md) (2 shared connections)
-- [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
+- [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 
 ## Source Files
 
+- `src/intel/alert_rules.js`
 - `src/intel/chatlog_reader.js`
+- `src/intel/intel_service.js`
 - `test/intel_resume.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 44 (96%)
-- INFERRED: 2 (4%)
+- EXTRACTED: 53 (93%)
+- INFERRED: 4 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

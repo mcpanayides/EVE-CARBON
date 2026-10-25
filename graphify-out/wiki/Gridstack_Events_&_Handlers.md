@@ -34,12 +34,13 @@
 ## Relationships
 
 - [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (20 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (16 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (8 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (14 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (10 shared connections)
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (4 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (4 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (2 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (2 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 
 ## Source Files

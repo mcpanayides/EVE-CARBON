@@ -1,6 +1,6 @@
 # Galaxy Map Layout & Drawing
 
-> 41 nodes · cohesion 0.09
+> 42 nodes · cohesion 0.09
 
 ## Key Concepts
 
@@ -25,21 +25,21 @@
 - **_ensureLayer()** (4 connections) — `src/func/map.js`
 - **_spatialFocusOn()** (4 connections) — `src/func/map.js`
 - **_loadSavedBridges()** (4 connections) — `src/func/map.js`
+- **_c2w()** (3 connections) — `src/func/map.js`
 - **_computeRegionDomSov()** (3 connections) — `src/func/map.js`
 - **_fetchAllianceIdents()** (3 connections) — `src/func/map.js`
 - **_populateRegionSelect()** (3 connections) — `src/func/map.js`
-- **_syncLayoutControls()** (3 connections) — `src/func/map.js`
-- *... and 16 more nodes in this community*
+- *... and 17 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (44 shared connections)
-- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (6 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (46 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (6 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (5 shared connections)
+- [Galaxy Map (_hitTest)](Galaxy_Map_%28_hitTest%29.md) (5 shared connections)
 - [Galaxy Map (_modernLayoutFromSaved)](Galaxy_Map_%28_modernLayoutFromSaved%29.md) (5 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (5 shared connections)
-- [Galaxy Map (_detailBars)](Galaxy_Map_%28_detailBars%29.md) (1 shared connections)
+- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (4 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (2 shared connections)
 
 ## Source Files
 
@@ -48,7 +48,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 221 (100%)
+- EXTRACTED: 224 (100%)
 - INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 

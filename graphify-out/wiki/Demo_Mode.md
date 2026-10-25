@@ -34,7 +34,7 @@
 
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 
 ## Source Files

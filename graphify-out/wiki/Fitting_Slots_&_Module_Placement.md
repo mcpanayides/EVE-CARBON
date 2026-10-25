@@ -38,7 +38,7 @@
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (12 shared connections)
 - [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (8 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (7 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files
 

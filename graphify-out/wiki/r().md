@@ -1,8 +1,8 @@
 # r()
 
-> God node · 65 connections · `src/vendor/chartjs/chart.umd.js`
+> God node · 66 connections · `src/vendor/chartjs/chart.umd.js`
 
-**Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
+**Community:** [Chart Umd (o)](Chart_Umd_%28o%29.md)
 
 ## Connections by Relation
 
@@ -28,9 +28,9 @@
 - [e()](e%28%29.md) `INFERRED`
 - update() `INFERRED`
 - .draw() `INFERRED`
+- _buildGalaxyModern() `INFERRED`
 - .buildTicks() `INFERRED`
 - da() `INFERRED`
-- _buildGalaxyModern() `INFERRED`
 - draw() `INFERRED`
 - fa() `INFERRED`
 - Fi() `INFERRED`

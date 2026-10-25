@@ -2,7 +2,7 @@
 
 > God node · 51 connections · `src/vendor/chartjs/chart.umd.js`
 
-**Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
+**Community:** [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md)
 
 ## Connections by Relation
 

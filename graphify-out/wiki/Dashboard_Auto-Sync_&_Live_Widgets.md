@@ -34,8 +34,9 @@
 ## Relationships
 
 - [Dashboard Widgets](Dashboard_Widgets.md) (36 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (5 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (4 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (3 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (2 shared connections)
 - [Dashboard Widgets (_charWalletMap)](Dashboard_Widgets_%28_charWalletMap%29.md) (2 shared connections)
 - [Dashboard Widgets (_jobWatchMap)](Dashboard_Widgets_%28_jobWatchMap%29.md) (2 shared connections)
 - [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) (1 shared connections)

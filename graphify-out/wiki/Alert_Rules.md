@@ -1,16 +1,14 @@
 # Alert Rules
 
-> 20 nodes · cohesion 0.16
+> 18 nodes · cohesion 0.17
 
 ## Key Concepts
 
 - **intel_rules.test.js** (15 connections) — `test/intel_rules.test.js`
 - **alert_rules.js** (9 connections) — `src/intel/alert_rules.js`
-- **createIntelService()** (7 connections) — `src/intel/intel_service.js`
 - **standings.js** (6 connections) — `src/intel/standings.js`
 - **normaliseRule()** (4 connections) — `src/intel/alert_rules.js`
 - **ruleMatches()** (4 connections) — `src/intel/alert_rules.js`
-- **createRuleEngine()** (4 connections) — `src/intel/alert_rules.js`
 - **createStandingsResolver()** (4 connections) — `src/intel/standings.js`
 - **describeRule()** (3 connections) — `src/intel/alert_rules.js`
 - **STARTER_RULES** (2 connections) — `src/intel/alert_rules.js`
@@ -27,23 +25,21 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (5 shared connections)
-- [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Intel Resume Test](Intel_Resume_Test.md) (3 shared connections)
+- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 - [Package Manifest](Package_Manifest.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/alert_rules.js`
-- `src/intel/intel_service.js`
 - `src/intel/standings.js`
 - `test/intel_rules.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 57 (80%)
-- INFERRED: 14 (20%)
+- EXTRACTED: 48 (80%)
+- INFERRED: 12 (20%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,6 +1,6 @@
 # Gridstack Core & Initialisation
 
-> 77 nodes · cohesion 0.08
+> 80 nodes · cohesion 0.08
 
 ## Key Concepts
 
@@ -13,6 +13,7 @@
 - **._updateContainerHeight()** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.updateOptions()** (13 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.resizeToContentCheck()** (13 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.makeSubGrid()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.batchUpdate()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.find()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._triggerChangeEvent()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
@@ -28,17 +29,16 @@
 - **.getElements()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.addWidget()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.checkDynamicColumn()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._triggerEvent()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 52 more nodes in this community*
+- *... and 55 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (35 shared connections)
-- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (28 shared connections)
+- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (42 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (20 shared connections)
+- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (19 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (10 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (8 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (7 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (3 shared connections)
 - [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
 
 ## Source Files
@@ -47,7 +47,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 585 (99%)
+- EXTRACTED: 610 (99%)
 - INFERRED: 4 (1%)
 - AMBIGUOUS: 0 (0%)
 

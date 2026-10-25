@@ -365,11 +365,23 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     const db = getSdeDb();
     if (!db) throw new Error('SDE database not available — check Settings > Database');
 
+    // x2d/y2d are CCP's own schematic positions. They only exist in databases
+    // built after the converter learned to carry position2D through, and an
+    // install that has not refreshed its SDE still has the old schema — so the
+    // columns are probed rather than assumed. Selecting a missing column throws
+    // and would take the whole map down with it.
+    let has2d = false;
+    try {
+      const cols = await db.all('PRAGMA table_info(mapSolarSystems)');
+      has2d = cols.some(c => c.name === 'x2d') && cols.some(c => c.name === 'y2d');
+    } catch { has2d = false; }
+
     const [systems, jumps, regRows, conRows] = await Promise.all([
       db.all(
         `SELECT solarSystemID   AS id,
                 solarSystemName AS name,
                 x, y, z,
+                ${has2d ? 'x2d, y2d,' : ''}
                 security        AS sec,
                 regionID        AS regionId,
                 constellationID AS constellationId,
@@ -400,7 +412,13 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     const constellations = {};
     for (const c of conRows) constellations[c.id] = c.name;
 
-    _galaxyCache = { systems, jumps, regions, constellations };
+    _galaxyCache = { systems, jumps, regions, constellations, has2d };
+    if (has2d) {
+      const n = systems.filter(sy => sy.x2d !== null && sy.x2d !== undefined).length;
+      console.log(`[map] SDE carries CCP schematic positions for ${n} systems`);
+    } else {
+      console.log('[map] SDE predates position2D — flat map falls back to the reconstructed layout');
+    }
     return _galaxyCache;
   });
 

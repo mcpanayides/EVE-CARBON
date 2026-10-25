@@ -2113,6 +2113,17 @@ function _buildGalaxyModern() {
   // Deliberately not memoised into _galaxyModern: the map is still in its
   // loading state, and the next call rebuilds properly.
   if (_layoutPending) return { gpos: new Map(), labels: [], pitch: 22 };
+  // CCP's own schematic positions beat everything below: the bundled layout and
+  // the algorithm are both reconstructions of exactly this, and this is the
+  // real thing. Deliberately NOT persisted - it is rebuilt from the SDE in a
+  // few milliseconds, and a cache of it would shadow the next SDE update.
+  const ccp = _ccpGalaxyModern();
+  if (ccp) {
+    _galaxyModern = ccp;
+    console.log(`[map] modern layout from CCP position2D (${ccp.gpos.size} systems, ` +
+                `pitch ${ccp.pitch.toFixed(1)})`);
+    return _galaxyModern;
+  }
   // A hand-curated saved layout (the in-app editor) beats the algorithm.
   const custom = _modernLayoutFromSaved(_savedModernLayout);
   if (custom) { _galaxyModern = custom; return _galaxyModern; }
@@ -3068,9 +3079,14 @@ const REGION_SPREAD = 1.15;
  * measured across the galaxy layout, 65 of its 66 regions agree on it to within
  * 10% (the exception is Pochven, which is deliberately laid out as a triangle).
  */
-function _nnPitch(pts) {
+function _nnPitch(pts, sample = 0) {
   const d = [];
-  for (let i = 0; i < pts.length; i++) {
+  // With a cap, every SAMPLED point still gets its true nearest neighbour
+  // (searched against all points) - only the number of points asked is reduced.
+  // The median over a few hundred of those is a sound estimate and turns an
+  // O(n^2) pass over the galaxy into a fraction of a second.
+  const step = sample && pts.length > sample ? Math.ceil(pts.length / sample) : 1;
+  for (let i = 0; i < pts.length; i += step) {
     let best = Infinity;
     for (let k = 0; k < pts.length; k++) {
       if (k === i) continue;
@@ -3084,8 +3100,118 @@ function _nnPitch(pts) {
   return d[Math.floor(d.length / 2)] || 0;
 }
 
+/**
+ * Does the in-game 2D map show this system at all?
+ *
+ * CCP's map-data guide: only solar systems with IDs 30,000,000-30,999,999
+ * appear on it. Wormhole and abyssal space carry no position2D, and that is
+ * correct rather than missing data - so coverage has to be judged against the
+ * systems that SHOULD have one, not against every row in the table.
+ */
+function _onGameMap(id) {
+  return id >= 30000000 && id <= 30999999;
+}
+
+/** CCP's schematic position for a system, or null when it genuinely has none. */
+function _pos2d(sy) {
+  // Not Number(): Number(null) is 0 and Number.isFinite(0) is true, so a null
+  // column reads as a valid position at the origin. That piled every wormhole
+  // system onto one point in the middle of the galaxy.
+  if (sy.x2d === null || sy.x2d === undefined || sy.y2d === null || sy.y2d === undefined) return null;
+  const x = Number(sy.x2d), y = Number(sy.y2d);
+  return (Number.isFinite(x) && Number.isFinite(y)) ? [x, y] : null;
+}
+
+/**
+ * The galaxy schematic, straight from CCP's own position2D.
+ *
+ * Same source and same axis convention as _ccpSchematicFlat; this one lands it
+ * in the world box the Schematic view draws in, and derives the region labels
+ * and the dot pitch the renderer sizes from.
+ *
+ * Returns null when the SDE predates position2D, in which case the caller falls
+ * through to the bundled layout exactly as before.
+ */
+function _ccpGalaxyModern() {
+  const pts = [];
+  let want = 0, missing = 0;
+  for (const sy of _systems) {
+    const p = _pos2d(sy);
+    if (_onGameMap(sy.id)) { want++; if (!p) missing++; }
+    if (!p) continue;
+    pts.push([sy.id, sy.regionId, p[0], -p[1]]);    // -> z grows downward, as the view expects
+  }
+  if (!pts.length || !want || missing > want * 0.02) return null;
+
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of pts) {
+    if (p[2] < minX) minX = p[2];
+    if (p[2] > maxX) maxX = p[2];
+    if (p[3] < minZ) minZ = p[3];
+    if (p[3] > maxZ) maxZ = p[3];
+  }
+  // One scale for both axes - a per-axis fit would square the galaxy up and
+  // quietly distort the very layout this exists to reproduce.
+  const sc = Math.min(_MAP_WORLD / ((maxX - minX) || 1), _MAP_WORLD / ((maxZ - minZ) || 1));
+
+  const gpos = new Map();
+  const acc = new Map();
+  const flat = [];
+  for (const [id, r, x, z] of pts) {
+    const X = (x - minX) * sc, Z = (z - minZ) * sc;
+    gpos.set(id, { x: X, z: Z });
+    flat.push([X, Z]);
+    let a = acc.get(r);
+    if (!a) acc.set(r, a = [0, 0, 0]);
+    a[0] += X; a[1] += Z; a[2]++;
+  }
+  const labels = [];
+  for (const [r, a] of acc) labels.push({ regionId: r, name: _regions[r], x: a[0] / a[2], z: a[1] / a[2] });
+
+  return { gpos, labels, pitch: _nnPitch(flat, 600) || 22 };
+}
+
+/**
+ * The flat map, straight from CCP's own schematic positions.
+ *
+ * mapSolarSystems.position2D IS the arrangement the in-game 2D map draws. It is
+ * not a projection of the 3-D position and cannot be derived from one — which
+ * is why this used to be reconstructed by hand from screenshots, region by
+ * region. CCP documented and shipped it, so the reconstruction is no longer the
+ * best available answer for any system it covers.
+ *
+ * Axis convention, per developers.eveonline.com/docs/guides/map-data: for a
+ * schematic image with Y running DOWN, X_img = position2D.x and
+ * Y_img = -position2D.y. Fitting the 13 hand-traced regions against it agreed
+ * to 0.06-2.30% RMS at 0 degrees with no mirror, so the traces and this
+ * convention independently confirm each other.
+ *
+ * Returns null unless effectively every system has one, because a partial
+ * layout would mix two incompatible coordinate systems on one canvas.
+ */
+function _ccpSchematicFlat() {
+  const pts = [];
+  let want = 0, missing = 0;
+  for (const sy of _systems) {
+    const p = _pos2d(sy);
+    if (_onGameMap(sy.id)) { want++; if (!p) missing++; }
+    if (!p) continue;
+    pts.push([sy.id, p[0], -p[1]]);                 // -> image convention, Y down
+  }
+  if (!pts.length || !want || missing > want * 0.02) return null;
+  if (missing) console.log(`[map] ${missing} on-map system(s) have no CCP schematic position`);
+  return pts;
+}
+
 function _buildComposedFlat() {
   if (_composedFlat) return _composedFlat;
+
+  const ccp = _ccpSchematicFlat();
+  if (ccp) {
+    _composedFlat = _flatIntoBox(ccp.map(p => [p[1], p[2]]), ccp.map(p => p[0]));
+    console.log(`[map] flat map: ${_composedFlat.size} systems from CCP position2D`);
+    return _composedFlat;
+  }
 
   const g = _buildGalaxyModern();
   if (!g || !g.gpos || !g.gpos.size) return null;
@@ -3172,10 +3298,24 @@ function _buildComposedFlat() {
     }
   }
 
-  // Into the same normalised box the true coordinates use, so the camera, the
-  // fit and the hit test all carry over untouched.
+  _composedFlat = _flatIntoBox([...pos.values()], [...pos.keys()]);
+  console.log(`[map] composed flat map: ${_composedFlat.size} systems, ` +
+              `${swapped} traced region(s) swapped in at pitch ${TARGET.toFixed(1)}, ` +
+              `regions spread ${REGION_SPREAD}x`);
+  return _composedFlat;
+}
+
+/**
+ * Centre and scale flat positions into the same normalised box the true
+ * coordinates use, so the camera, the fit and the hit test carry over untouched.
+ *
+ * Input is image convention (Y down); tz comes out +up. Without that flip the
+ * whole map arrives mirrored — the trap the canonical orientation fix walked
+ * into.
+ */
+function _flatIntoBox(pts, ids) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const [, p] of pos) {
+  for (const p of pts) {
     if (p[0] < minX) minX = p[0];
     if (p[0] > maxX) maxX = p[0];
     if (p[1] < minZ) minZ = p[1];
@@ -3183,17 +3323,9 @@ function _buildComposedFlat() {
   }
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
   const sc = 2 / (Math.max(maxX - minX, maxZ - minZ) || 1);
-
-  _composedFlat = new Map();
-  // z is negated: the schematic's z grows DOWNWARD (screen convention) while
-  // spatial's tz is +up. Without this the whole map arrives mirrored — the same
-  // trap the canonical orientation fix walked into.
-  for (const [id, p] of pos) _composedFlat.set(id, { tx: (p[0] - cx) * sc, tz: -(p[1] - cz) * sc });
-
-  console.log(`[map] composed flat map: ${_composedFlat.size} systems, ` +
-              `${swapped} traced region(s) swapped in at pitch ${TARGET.toFixed(1)}, ` +
-              `regions spread ${REGION_SPREAD}x`);
-  return _composedFlat;
+  const out = new Map();
+  pts.forEach((p, i) => out.set(ids[i], { tx: (p[0] - cx) * sc, tz: -(p[1] - cz) * sc }));
+  return out;
 }
 
 /**

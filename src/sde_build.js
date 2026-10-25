@@ -106,7 +106,7 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE TABLE dgmEffects (effectID INTEGER, effectName TEXT, effectCategory INTEGER);
     CREATE TABLE mapRegions (regionID INTEGER, regionName TEXT, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, factionID INTEGER);
     CREATE TABLE mapConstellations (regionID INTEGER, constellationID INTEGER, constellationName TEXT, x FLOAT, y FLOAT, z FLOAT, factionID INTEGER, radius FLOAT);
-    CREATE TABLE mapSolarSystems (regionID INTEGER, constellationID INTEGER, solarSystemID INTEGER, solarSystemName TEXT, x FLOAT, y FLOAT, z FLOAT, luminosity FLOAT, border BOOLEAN, fringe BOOLEAN, corridor BOOLEAN, hub BOOLEAN, international BOOLEAN, regional BOOLEAN, security FLOAT, factionID INTEGER, radius FLOAT, sunTypeID INTEGER, securityClass VARCHAR(2));
+    CREATE TABLE mapSolarSystems (regionID INTEGER, constellationID INTEGER, solarSystemID INTEGER, solarSystemName TEXT, x FLOAT, y FLOAT, z FLOAT, luminosity FLOAT, border BOOLEAN, fringe BOOLEAN, corridor BOOLEAN, hub BOOLEAN, international BOOLEAN, regional BOOLEAN, security FLOAT, factionID INTEGER, radius FLOAT, sunTypeID INTEGER, securityClass VARCHAR(2), x2d FLOAT, y2d FLOAT);
     CREATE TABLE mapDenormalize (itemID INTEGER, typeID INTEGER, groupID INTEGER, solarSystemID INTEGER, constellationID INTEGER, regionID INTEGER, orbitID INTEGER, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, itemName VARCHAR(100), security FLOAT, celestialIndex INTEGER, orbitIndex INTEGER);
     CREATE TABLE mapSolarSystemJumps (fromRegionID INTEGER, fromConstellationID INTEGER, fromSolarSystemID INTEGER, toSolarSystemID INTEGER, toConstellationID INTEGER, toRegionID INTEGER);
     CREATE TABLE staStations (stationID BIGINT, security FLOAT, dockingCostPerVolume FLOAT, maxShipVolumeDockable FLOAT, officeRentalCost INTEGER, operationID INTEGER, stationTypeID INTEGER, corporationID INTEGER, solarSystemID INTEGER, constellationID INTEGER, regionID INTEGER, stationName VARCHAR(100), x FLOAT, y FLOAT, z FLOAT, reprocessingEfficiency FLOAT, reprocessingStationsTake FLOAT, reprocessingHangarFlag INTEGER);
@@ -261,15 +261,20 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
 
   const jumpRows = [];
   await forEachLine(f('mapSolarSystems.jsonl'), o => systemName.set(o._key, en(o.name)));
-  await bulkInsert('mapSolarSystems', ['regionID', 'constellationID', 'solarSystemID', 'solarSystemName', 'x', 'y', 'z', 'luminosity', 'border', 'fringe', 'corridor', 'hub', 'international', 'regional', 'security', 'factionID', 'radius', 'sunTypeID', 'securityClass'],
+  await bulkInsert('mapSolarSystems', ['regionID', 'constellationID', 'solarSystemID', 'solarSystemName', 'x', 'y', 'z', 'luminosity', 'border', 'fringe', 'corridor', 'hub', 'international', 'regional', 'security', 'factionID', 'radius', 'sunTypeID', 'securityClass', 'x2d', 'y2d'],
     rowsFrom(async push => forEachLine(f('mapSolarSystems.jsonl'), o => {
       const p = o.position || {};
+      // position2D is CCP's own SCHEMATIC layout — the arrangement the in-game
+      // 2D map draws, which is not a projection of `position` and cannot be
+      // derived from it. Carried through so the flat map can use the real
+      // thing instead of reconstructing it.
+      const p2 = o.position2D || {};
       // Stargate-derived jump edges — need each system's region/constellation,
       // so build this alongside the main system row (single pass over the file).
       for (const sgId of (o.stargateIDs || [])) jumpRows.push({ from: o._key, sgId });
       push([o.regionID ?? null, o.constellationID ?? null, o._key, en(o.name), p.x ?? null, p.y ?? null, p.z ?? null,
         o.luminosity ?? null, b01(o.border), b01(o.fringe), b01(o.corridor), b01(o.hub), b01(o.international),
-        b01(o.regional), o.securityStatus ?? null, o.factionID ?? null, o.radius ?? null, o.starID ?? null, o.securityClass ?? null]);
+        b01(o.regional), o.securityStatus ?? null, o.factionID ?? null, o.radius ?? null, o.starID ?? null, o.securityClass ?? null, p2.x ?? null, p2.y ?? null]);
     })));
 
   report('Deriving mapSolarSystemJumps from stargate destinations...');

@@ -44,23 +44,30 @@ test('map page opens and stays error-free', async ({ window }) => {
   expect(errors, `console/page errors on map: ${errors.join(' | ')}`).toEqual([]);
 });
 
-test('the shipped curated layout is what gets drawn', async ({ window }) => {
-  // The curated layout used to live only in one machine's user-data directory,
-  // so every other install fell back to the algorithm and drew a noticeably
-  // more spread-out galaxy. It now ships with the app and outranks both the
-  // auto-cache and the algorithm, which is what makes every install identical.
+// What this has always guarded is that every install draws the SAME galaxy
+// from a shipped source, rather than each one running the algorithm and
+// landing somewhere slightly different.
+//
+// The source changed. CCP publishes the schematic layout itself
+// (mapSolarSystems.position2D) and the map now prefers it, so the bundled
+// curated file has become the fallback for an install whose SDE predates it.
+// Either is acceptable here; the algorithm is not.
+const LAYOUT_SOURCE = /modern layout from CCP position2D \((\d+) systems|using CUSTOM saved layout.*?\((\d+) systems/;
+
+test('the galaxy is drawn from a shipped layout, not computed', async ({ window }) => {
   const logs = [];
   window.on('console', (msg) => logs.push(msg.text()));
 
   await openMap(window);
   await expect
-    .poll(() => logs.some(l => /using CUSTOM saved layout/.test(l)), { timeout: 25_000 })
+    .poll(() => logs.some(l => LAYOUT_SOURCE.test(l)), { timeout: 25_000 })
     .toBe(true);
 
-  // …and it is the whole galaxy, not a partial file that happened to load.
-  const line = logs.find(l => /using CUSTOM saved layout/.test(l)) || '';
-  const n = Number((/\((\d+) systems/.exec(line) || [])[1] || 0);
-  expect(n, `curated layout should cover k-space, got: ${line}`).toBeGreaterThan(5000);
+  // …and it is the whole galaxy, not a partial source that happened to load.
+  const line = logs.find(l => LAYOUT_SOURCE.test(l)) || '';
+  const m = LAYOUT_SOURCE.exec(line) || [];
+  const n = Number(m[1] || m[2] || 0);
+  expect(n, `layout should cover k-space, got: ${line}`).toBeGreaterThan(5000);
 });
 
 test('the algorithm does not run when a curated layout is present', async ({ window }) => {

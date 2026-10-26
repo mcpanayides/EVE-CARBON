@@ -25,8 +25,8 @@
 
 - [Galaxy Map State](Galaxy_Map_State.md) (18 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (3 shared connections)
-- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
 - [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (1 shared connections)
 

@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (4 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (4 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)

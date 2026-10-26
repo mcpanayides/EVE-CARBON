@@ -1,6 +1,6 @@
 # Galaxy Map Layout & Drawing
 
-> 41 nodes · cohesion 0.09
+> 44 nodes · cohesion 0.08
 
 ## Key Concepts
 
@@ -17,29 +17,29 @@
 - **_fitGalaxyModern()** (6 connections) — `src/func/map.js`
 - **_backToOverview()** (6 connections) — `src/func/map.js`
 - **_camCancelTween()** (6 connections) — `src/func/map.js`
+- **_enterRegion()** (5 connections) — `src/func/map.js`
 - **_startLivePolling()** (5 connections) — `src/func/map.js`
 - **_loadWormholes()** (5 connections) — `src/func/map.js`
 - **_fitGalaxy()** (4 connections) — `src/func/map.js`
 - **_fetchDomTickers()** (4 connections) — `src/func/map.js`
 - **_ensureLayer()** (4 connections) — `src/func/map.js`
+- **_fitRegion()** (4 connections) — `src/func/map.js`
 - **_spatialFocusOn()** (4 connections) — `src/func/map.js`
 - **_loadSavedBridges()** (4 connections) — `src/func/map.js`
 - **_computeRegionDomSov()** (3 connections) — `src/func/map.js`
 - **_fetchAllianceIdents()** (3 connections) — `src/func/map.js`
 - **_heat()** (3 connections) — `src/func/map.js`
-- **_populateRegionSelect()** (3 connections) — `src/func/map.js`
-- **_syncLayoutControls()** (3 connections) — `src/func/map.js`
-- *... and 16 more nodes in this community*
+- *... and 19 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (45 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (47 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (6 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (6 shared connections)
 - [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (5 shared connections)
 - [Galaxy Map (_ccpRegionPositions)](Galaxy_Map_%28_ccpRegionPositions%29.md) (5 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (5 shared connections)
-- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (4 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (3 shared connections)
+- [Galaxy Map (_detailBars)](Galaxy_Map_%28_detailBars%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -48,7 +48,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 220 (100%)
+- EXTRACTED: 232 (100%)
 - INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -37,7 +37,7 @@
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (25 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (6 shared connections)
 - [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (4 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (3 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (3 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (2 shared connections)
 - [Market Trading](Market_Trading.md) (1 shared connections)

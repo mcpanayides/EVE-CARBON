@@ -9,21 +9,21 @@
 ## Communities
 (sorted by size, largest first)
 
-- [Chart Umd](Chart_Umd.md) — 114 nodes
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) — 95 nodes
+- [Chart Umd](Chart_Umd.md) — 106 nodes
+- [Chart Umd (rt)](Chart_Umd_%28rt%29.md) — 106 nodes
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) — 98 nodes
 - [Electron Main Process](Electron_Main_Process.md) — 93 nodes
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) — 78 nodes
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) — 77 nodes
+- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) — 80 nodes
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) — 77 nodes
+- [Chart Umd (f)](Chart_Umd_%28f%29.md) — 73 nodes
 - [UI Shell & Theming](UI_Shell_%26_Theming.md) — 71 nodes
-- [Chart Umd (f)](Chart_Umd_%28f%29.md) — 70 nodes
-- [Chart Umd (w)](Chart_Umd_%28w%29.md) — 69 nodes
 - [Assets Table & Virtualisation](Assets_Table_%26_Virtualisation.md) — 68 nodes
 - [Skills & Training Queue](Skills_%26_Training_Queue.md) — 68 nodes
 - [Jabber Chat Client](Jabber_Chat_Client.md) — 66 nodes
 - [Market Trading](Market_Trading.md) — 64 nodes
 - [Jump Route Planner](Jump_Route_Planner.md) — 61 nodes
-- [Galaxy Map State](Galaxy_Map_State.md) — 60 nodes
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) — 57 nodes
+- [Galaxy Map State](Galaxy_Map_State.md) — 58 nodes
+- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) — 55 nodes
 - [Fitting Simulator Tests](Fitting_Simulator_Tests.md) — 54 nodes
 - [Fleet After-Action Report](Fleet_After-Action_Report.md) — 53 nodes
 - [Fitting Simulator](Fitting_Simulator.md) — 53 nodes
@@ -31,14 +31,16 @@
 - [Planetary Interaction](Planetary_Interaction.md) — 52 nodes
 - [Dashboard FW](Dashboard_FW.md) — 50 nodes
 - [Calendar & Events](Calendar_%26_Events.md) — 49 nodes
-- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) — 49 nodes
 - [SDE Fetch & Build](SDE_Fetch_%26_Build.md) — 48 nodes
-- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) — 48 nodes
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) — 48 nodes
 - [Blueprint Library](Blueprint_Library.md) — 46 nodes
+- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) — 46 nodes
 - [Fleet Commander Core](Fleet_Commander_Core.md) — 44 nodes
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) — 44 nodes
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) — 44 nodes
 - [Dashboard Widgets](Dashboard_Widgets.md) — 43 nodes
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) — 41 nodes
+- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) — 43 nodes
+- [Chart Umd (n)](Chart_Umd_%28n%29.md) — 41 nodes
 - [HTTP Request Broker](HTTP_Request_Broker.md) — 39 nodes
 - [Character Database](Character_Database.md) — 38 nodes
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) — 38 nodes
@@ -48,24 +50,19 @@
 - [Intel Test](Intel_Test.md) — 37 nodes
 - [Jabber Message Store](Jabber_Message_Store.md) — 36 nodes
 - [PI Model](PI_Model.md) — 36 nodes
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) — 36 nodes
 - [Chatlog Reader](Chatlog_Reader.md) — 34 nodes
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) — 34 nodes
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) — 34 nodes
 - [Seed Stress](Seed_Stress.md) — 33 nodes
 - [Jabber Chat Rooms](Jabber_Chat_Rooms.md) — 33 nodes
-- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) — 33 nodes
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) — 33 nodes
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) — 32 nodes
 - [Eve Status Watch Test](Eve_Status_Watch_Test.md) — 32 nodes
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) — 32 nodes
-- [Chart Umd (q)](Chart_Umd_%28q%29.md) — 32 nodes
+- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) — 32 nodes
 - [Electron Builder Config](Electron_Builder_Config.md) — 31 nodes
 - [FC Intel](FC_Intel.md) — 31 nodes
-- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) — 30 nodes
+- [Chart Umd (ct)](Chart_Umd_%28ct%29.md) — 31 nodes
 - [File Logging](File_Logging.md) — 29 nodes
 - [Galaxy Map](Galaxy_Map.md) — 29 nodes
-- [Chart Umd (getParsed)](Chart_Umd_%28getParsed%29.md) — 29 nodes
 - [Map IPC](Map_IPC.md) — 28 nodes
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) — 28 nodes
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) — 27 nodes
@@ -73,15 +70,16 @@
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) — 26 nodes
 - [Asset Index Schema](Asset_Index_Schema.md) — 26 nodes
 - [Killboard](Killboard.md) — 26 nodes
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) — 26 nodes
 - [Mining Ledger](Mining_Ledger.md) — 26 nodes
 - [Palette](Palette.md) — 26 nodes
 - [Demo Mode](Demo_Mode.md) — 25 nodes
 - [Industry Math](Industry_Math.md) — 25 nodes
-- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) — 25 nodes
 - [Moon & Ore Calculators](Moon_%26_Ore_Calculators.md) — 24 nodes
 - [Package Manifest](Package_Manifest.md) — 23 nodes
 - [Fleet Op Records](Fleet_Op_Records.md) — 23 nodes
 - [Resfile Backgrounds](Resfile_Backgrounds.md) — 23 nodes
+- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) — 23 nodes
 - [Character Sheets](Character_Sheets.md) — 22 nodes
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) — 22 nodes
 - [Chart Umd (isForType)](Chart_Umd_%28isForType%29.md) — 22 nodes
@@ -89,7 +87,6 @@
 - [Alliance Tournament](Alliance_Tournament.md) — 21 nodes
 - [Lusoswarm](Lusoswarm.md) — 21 nodes
 - [Fleet Teams Test](Fleet_Teams_Test.md) — 20 nodes
-- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) — 20 nodes
 - [Shopping Lists](Shopping_Lists.md) — 20 nodes
 - [Alert Rules](Alert_Rules.md) — 20 nodes
 - [Asset Index Test](Asset_Index_Test.md) — 20 nodes
@@ -97,6 +94,7 @@
 - [Lint](Lint.md) — 19 nodes
 - [Dashboard Widgets (_activeJobsShared)](Dashboard_Widgets_%28_activeJobsShared%29.md) — 19 nodes
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) — 19 nodes
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) — 19 nodes
 - [Beehive 96](Beehive_96.md) — 19 nodes
 - [Electron App](Electron_App.md) — 18 nodes
 - [Industry Cost Index](Industry_Cost_Index.md) — 18 nodes
@@ -109,6 +107,7 @@
 - [Blueprint Economics & Sorting](Blueprint_Economics_%26_Sorting.md) — 17 nodes
 - [Contracts](Contracts.md) — 17 nodes
 - [Intel Row](Intel_Row.md) — 17 nodes
+- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) — 17 nodes
 - [Galaxy Map (_ccpRegionPositions)](Galaxy_Map_%28_ccpRegionPositions%29.md) — 16 nodes
 - [Intel Service](Intel_Service.md) — 16 nodes
 - [Auto Updater](Auto_Updater.md) — 16 nodes
@@ -122,9 +121,9 @@
 - [Blueprint Library UI](Blueprint_Library_UI.md) — 14 nodes
 - [Industry Settings & Structures](Industry_Settings_%26_Structures.md) — 14 nodes
 - [Dashboard Auto-Sync & Live Widgets](Dashboard_Auto-Sync_%26_Live_Widgets.md) — 14 nodes
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) — 14 nodes
 - [ESI IPC](ESI_IPC.md) — 14 nodes
 - [Net Log](Net_Log.md) — 14 nodes
+- [Chart Umd (jn)](Chart_Umd_%28jn%29.md) — 14 nodes
 - [PRODUCT](PRODUCT.md) — 14 nodes
 - [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) — 13 nodes
 - [Asset Valuation](Asset_Valuation.md) — 13 nodes
@@ -189,6 +188,7 @@
 - [Demo Shots](Demo_Shots.md) — 7 nodes
 - [Repair Jabber Feed](Repair_Jabber_Feed.md) — 7 nodes
 - [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) — 7 nodes
+- [Galaxy Map (_detailBars)](Galaxy_Map_%28_detailBars%29.md) — 7 nodes
 - [State](State.md) — 7 nodes
 - [FC Poll Cadence Test](FC_Poll_Cadence_Test.md) — 7 nodes
 - [Mail Poll Test](Mail_Poll_Test.md) — 7 nodes

@@ -18,8 +18,8 @@
 - **{ ESI_BASE }** (1 connections) — `src/intel/kill_watch.js`
 - **test** (1 connections) — `test/intel_zkill_stream.test.js`
 - **assert** (1 connections) — `test/intel_zkill_stream.test.js`
-- **{
-  createZkillStream, STEP_MS, IDLE_MS, STALL_ROUNDS, MAX_CATCHUP, FRONT_CHECK_EVERY,
+- **{
+  createZkillStream, STEP_MS, IDLE_MS, STALL_ROUNDS, MAX_CATCHUP, FRONT_CHECK_EVERY,
 }** (1 connections) — `test/intel_zkill_stream.test.js`
 - **{ createKillWatch, normalisePackage }** (1 connections) — `test/intel_zkill_stream.test.js`
 - **SHIPS** (1 connections) — `test/intel_zkill_stream.test.js`

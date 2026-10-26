@@ -20,8 +20,7 @@
 
 - [Galaxy Map State](Galaxy_Map_State.md) (11 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
-- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (3 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (2 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (5 shared connections)
 - [Galaxy Map (_ccpRegionPositions)](Galaxy_Map_%28_ccpRegionPositions%29.md) (1 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 

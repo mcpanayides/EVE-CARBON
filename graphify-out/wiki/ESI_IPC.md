@@ -24,7 +24,7 @@
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
-- [Chart Umd (q)](Chart_Umd_%28q%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

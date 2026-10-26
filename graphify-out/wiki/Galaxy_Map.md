@@ -35,13 +35,12 @@
 
 - [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
-- [Galaxy Map (_w2c)](Galaxy_Map_%28_w2c%29.md) (1 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (2 shared connections)
 - [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (1 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
 - [Chart Umd (f)](Chart_Umd_%28f%29.md) (1 shared connections)
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
 
 ## Source Files
 

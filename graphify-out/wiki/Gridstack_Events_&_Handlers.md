@@ -39,8 +39,8 @@
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (4 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (4 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (2 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
+- [Galaxy Map (_secColor)](Galaxy_Map_%28_secColor%29.md) (1 shared connections)
 
 ## Source Files
 

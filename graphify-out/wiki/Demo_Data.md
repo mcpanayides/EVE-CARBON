@@ -29,8 +29,8 @@
 ## Relationships
 
 - [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
-- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 - [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
 
 ## Source Files

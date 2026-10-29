@@ -39,7 +39,7 @@
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (7 shared connections)
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (3 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (3 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
+- [Galaxy Map (_secColor)](Galaxy_Map_%28_secColor%29.md) (1 shared connections)
 
 ## Source Files
 

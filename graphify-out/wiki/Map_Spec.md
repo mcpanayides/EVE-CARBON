@@ -12,8 +12,7 @@
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (1 shared connections)
-- [Calendar Spec](Calendar_Spec.md) (1 shared connections)
+- [Electron App](Electron_App.md) (2 shared connections)
 
 ## Source Files
 

@@ -40,7 +40,7 @@
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
 - [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (3 shared connections)
 - [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (2 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 
 ## Source Files
 

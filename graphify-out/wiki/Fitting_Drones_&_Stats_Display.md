@@ -35,7 +35,7 @@
 - [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (7 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (6 shared connections)
 - [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (3 shared connections)
-- [Market Trading](Market_Trading.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files

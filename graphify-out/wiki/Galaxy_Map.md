@@ -1,57 +1,54 @@
 # Galaxy Map
 
-> 29 nodes · cohesion 0.11
+> 36 nodes · cohesion 0.10
 
 ## Key Concepts
 
-- **_sgPlot()** (10 connections) — `src/func/map.js`
-- **_routeDijkstra()** (8 connections) — `src/func/map.js`
-- **_sgBuildModal()** (8 connections) — `src/func/map.js`
-- **_sgShowAlternatives()** (8 connections) — `src/func/map.js`
-- **_showMapMenu()** (7 connections) — `src/func/map.js`
-- **_sgRenderRoute()** (7 connections) — `src/func/map.js`
-- **_loadFnfStandings()** (6 connections) — `src/func/map.js`
-- **_kShortestRoutes()** (6 connections) — `src/func/map.js`
-- **openStargatePlanner()** (6 connections) — `src/func/map.js`
-- **_secColor()** (5 connections) — `src/func/map.js`
-- **_sgMinimize()** (5 connections) — `src/func/map.js`
-- **_sgResolve()** (5 connections) — `src/func/map.js`
-- **_travelSafetyCost()** (4 connections) — `src/func/map.js`
-- **_travelRoutePath()** (4 connections) — `src/func/map.js`
-- **_computeTravelRoute()** (4 connections) — `src/func/map.js`
-- **_sgMaybeReplot()** (4 connections) — `src/func/map.js`
-- **_sgPlotAndShow()** (4 connections) — `src/func/map.js`
-- **_pathCost()** (3 connections) — `src/func/map.js`
-- **_pushEndpointsToPlanners()** (3 connections) — `src/func/map.js`
-- **_closeMapMenu()** (3 connections) — `src/func/map.js`
-- **_mapMenuOutside()** (3 connections) — `src/func/map.js`
-- **_sgPopulateDatalist()** (3 connections) — `src/func/map.js`
-- **_sgRenderAlternatives()** (3 connections) — `src/func/map.js`
-- **_buildBridgeAdj()** (2 connections) — `src/func/map.js`
-- **_mapHeap()** (2 connections) — `src/func/map.js`
-- *... and 4 more nodes in this community*
+- **_renderSpatial()** (22 connections) — `src/func/map.js`
+- **_fpDrawSpheres()** (10 connections) — `src/func/map.js`
+- **_spatialScale()** (9 connections) — `src/func/map.js`
+- **_spatialProject()** (9 connections) — `src/func/map.js`
+- **_hitTest()** (8 connections) — `src/func/map.js`
+- **_orbitPivotAt()** (8 connections) — `src/func/map.js`
+- **_spatialToCanvas()** (8 connections) — `src/func/map.js`
+- **_fitSpatialTo()** (8 connections) — `src/func/map.js`
+- **_spatialPoint()** (7 connections) — `src/func/map.js`
+- **_spatialSystems()** (7 connections) — `src/func/map.js`
+- **_fpCol()** (6 connections) — `src/func/map.js`
+- **_fpCapitalOf()** (6 connections) — `src/func/map.js`
+- **_spatialCanvasOf()** (6 connections) — `src/func/map.js`
+- **_fpReach()** (5 connections) — `src/func/map.js`
+- **_fpRing()** (5 connections) — `src/func/map.js`
+- **_drawArcs()** (5 connections) — `src/func/map.js`
+- **_drawSpatialArcs()** (5 connections) — `src/func/map.js`
+- **_medianGateLen()** (5 connections) — `src/func/map.js`
+- **_zoomScale()** (5 connections) — `src/func/map.js`
+- **_rgba()** (5 connections) — `src/func/map.js`
+- **_aggLayerColor()** (5 connections) — `src/func/map.js`
+- **_spatialPxPerUnit()** (4 connections) — `src/func/map.js`
+- **_drawModernSystemMarkers()** (4 connections) — `src/func/map.js`
+- **_spatialNodes()** (4 connections) — `src/func/map.js`
+- **_aggStarHex()** (3 connections) — `src/func/map.js`
+- *... and 11 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (2 shared connections)
-- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (1 shared connections)
-- [Chart Umd (f)](Chart_Umd_%28f%29.md) (1 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (1 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (40 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (11 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (9 shared connections)
+- [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (5 shared connections)
+- [Galaxy Map (_secColor)](Galaxy_Map_%28_secColor%29.md) (3 shared connections)
+- [Galaxy Map (_loadFnfStandings)](Galaxy_Map_%28_loadFnfStandings%29.md) (2 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/map.js`
-- `src/html/page-map.html`
-- `src/vendor/gridstack/gridstack-all.js`
 
 ## Audit Trail
 
-- EXTRACTED: 117 (90%)
-- INFERRED: 13 (10%)
+- EXTRACTED: 190 (95%)
+- INFERRED: 9 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

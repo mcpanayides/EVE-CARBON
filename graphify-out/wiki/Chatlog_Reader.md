@@ -36,7 +36,7 @@
 - [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
 - [Intel Service](Intel_Service.md) (1 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (1 shared connections)
+- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
 - [Ics Parse](Ics_Parse.md) (1 shared connections)
 - [Intel Test](Intel_Test.md) (1 shared connections)
 

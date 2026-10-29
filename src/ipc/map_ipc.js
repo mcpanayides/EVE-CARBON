@@ -29,7 +29,14 @@ const SOV_TTL_DAYS    = 1 / 288;   // 5 min — the endpoint's own x-client-cach
 let _galaxyCache = null;
 
 // Fetch + normalise /sovereignty/systems into the shape the map renderer has
-// always consumed: { systemId: { allianceId, corporationId, factionId } }.
+// always consumed: { systemId: { allianceId, corporationId, factionId, isCapital } }.
+//
+// isCapital is the alliance's SOVEREIGNTY CAPITAL — the system an Ansiblex's
+// capacitor fare is measured from. It was in this response all along and was
+// being thrown away with everything else this normaliser does not copy; it
+// costs no extra request, since this endpoint is already polled for the sov
+// overlay. Exactly one system per capital-holding alliance carries it (67 of
+// the 71 sov-holding alliances when checked live; the other 4 have none set).
 async function _fetchSovSystems({ httpGet, writeCache }) {
   const body   = await httpGet(SOV_SYSTEMS_URL);
   const sovMap = {};
@@ -40,6 +47,7 @@ async function _fetchSovSystems({ httpGet, writeCache }) {
       allianceId:    a?.alliance_id            || null,
       corporationId: a?.corporation_id         || null,
       factionId:     claim.faction?.faction_id || null,
+      isCapital:     a?.is_capital_system === true,
     };
   }
   writeCache(SOV_CACHE_KEY, sovMap, SOV_TTL_DAYS);
@@ -375,8 +383,13 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       const cols = await db.all('PRAGMA table_info(mapSolarSystems)');
       has2d = cols.some(c => c.name === 'x2d') && cols.some(c => c.name === 'y2d');
     } catch { has2d = false; }
+    // Same story for each region's skybox file, added to the builder later still.
+    let hasNebula = false;
+    try {
+      hasNebula = (await db.all('PRAGMA table_info(mapRegions)')).some(c => c.name === 'nebulaFile');
+    } catch { hasNebula = false; }
 
-    const [systems, jumps, regRows, conRows] = await Promise.all([
+    const [systems, jumps, regRows, conRows, starRows] = await Promise.all([
       db.all(
         `SELECT solarSystemID   AS id,
                 solarSystemName AS name,
@@ -395,6 +408,7 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
       ),
       db.all(
         `SELECT regionID   AS id,
+                ${hasNebula ? 'nebulaFile,' : ''}
                 regionName AS name
          FROM   mapRegions`
       ),
@@ -405,14 +419,38 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
                 constellationName AS name
          FROM   mapConstellations`
       ),
+      // Each system's star, for the map's Natural overlay: its own row in
+      // mapDenormalize, group 6 (Sun). Not via mapSolarSystems.sunTypeID - that
+      // column means different things by SDE vintage: our builder stores CCP's
+      // starID there (an ITEM id), the old Fuzzwork dump a real type id. The
+      // group-6 row is the same in both. Its own query, and allowed to fail:
+      // without it the map still loads, and Natural draws every star plain white.
+      db.all(
+        `SELECT d.solarSystemID AS id,
+                t.typeName      AS star,
+                d.radius        AS starRadius
+         FROM   mapDenormalize d
+         LEFT JOIN invTypes t ON t.typeID = d.typeID
+         WHERE  d.groupID = 6`
+      ).catch(() => []),
     ]);
 
     const regions = {};
-    for (const r of regRows) regions[r.id] = r.name;
+    const regionNebulae = {};
+    for (const r of regRows) {
+      regions[r.id] = r.name;
+      if (r.nebulaFile) regionNebulae[r.id] = r.nebulaFile;
+    }
     const constellations = {};
     for (const c of conRows) constellations[c.id] = c.name;
+    const starOf = new Map(starRows.map(r => [r.id, r]));
+    for (const sy of systems) {
+      const st = starOf.get(sy.id);
+      if (st) { sy.star = st.star; sy.starRadius = st.starRadius; }
+    }
 
-    _galaxyCache = { systems, jumps, regions, constellations, has2d };
+    _galaxyCache = { systems, jumps, regions, constellations, has2d, regionNebulae };
+    if (!hasNebula) console.log('[map] SDE predates region skyboxes — the map draws its backdrop without region nebulae');
     if (has2d) {
       const n = systems.filter(sy => sy.x2d !== null && sy.x2d !== undefined).length;
       console.log(`[map] SDE carries CCP schematic positions for ${n} systems`);
@@ -669,4 +707,6 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
 
 }
 
-module.exports = { registerMapHandlers };
+// _fetchSovSystems is exported for its test: the field it maps (is_capital_system)
+// is the one that was silently dropped, and only a real-shape response pins it.
+module.exports = { registerMapHandlers, _fetchSovSystems };

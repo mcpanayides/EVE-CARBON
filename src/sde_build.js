@@ -104,7 +104,7 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE TABLE dgmTypeAttributes (typeID INTEGER, attributeID INTEGER, valueInt INTEGER, valueFloat FLOAT);
     CREATE TABLE dgmTypeEffects (typeID INTEGER, effectID INTEGER, isDefault BOOLEAN);
     CREATE TABLE dgmEffects (effectID INTEGER, effectName TEXT, effectCategory INTEGER);
-    CREATE TABLE mapRegions (regionID INTEGER, regionName TEXT, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, factionID INTEGER);
+    CREATE TABLE mapRegions (regionID INTEGER, regionName TEXT, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, factionID INTEGER, nebulaFile TEXT);
     CREATE TABLE mapConstellations (regionID INTEGER, constellationID INTEGER, constellationName TEXT, x FLOAT, y FLOAT, z FLOAT, factionID INTEGER, radius FLOAT);
     CREATE TABLE mapSolarSystems (regionID INTEGER, constellationID INTEGER, solarSystemID INTEGER, solarSystemName TEXT, x FLOAT, y FLOAT, z FLOAT, luminosity FLOAT, border BOOLEAN, fringe BOOLEAN, corridor BOOLEAN, hub BOOLEAN, international BOOLEAN, regional BOOLEAN, security FLOAT, factionID INTEGER, radius FLOAT, sunTypeID INTEGER, securityClass VARCHAR(2), x2d FLOAT, y2d FLOAT);
     CREATE TABLE mapDenormalize (itemID INTEGER, typeID INTEGER, groupID INTEGER, solarSystemID INTEGER, constellationID INTEGER, regionID INTEGER, orbitID INTEGER, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, itemName VARCHAR(100), security FLOAT, celestialIndex INTEGER, orbitIndex INTEGER);
@@ -247,10 +247,19 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
   }
 
   report('Populating mapRegions, mapConstellations, mapSolarSystems, mapSolarSystemJumps...');
-  await bulkInsert('mapRegions', ['regionID', 'regionName', 'x', 'y', 'z', 'radius', 'factionID'],
+  // A region's nebulaID is a graphics.jsonl row whose one field is the client
+  // resource path of the region's skybox ("res:/dx9/scene/Universe/a03_cube.red").
+  // Kept as the path: it names the family (a/c/g/m/j/y, wormhole class, abyssal)
+  // the map's own generated nebulae are drawn from.
+  const graphicFiles = new Map();
+  if (fs.existsSync(f('graphics.jsonl'))) {
+    await forEachLine(f('graphics.jsonl'), o => { if (o.graphicFile) graphicFiles.set(o._key, o.graphicFile); });
+  }
+  await bulkInsert('mapRegions', ['regionID', 'regionName', 'x', 'y', 'z', 'radius', 'factionID', 'nebulaFile'],
     rowsFrom(async push => forEachLine(f('mapRegions.jsonl'), o => {
       const p = o.position || {};
-      push([o._key, en(o.name), p.x ?? null, p.y ?? null, p.z ?? null, o.radius ?? null, o.factionID ?? null]);
+      push([o._key, en(o.name), p.x ?? null, p.y ?? null, p.z ?? null, o.radius ?? null, o.factionID ?? null,
+        graphicFiles.get(o.nebulaID) ?? null]);
     })));
 
   await bulkInsert('mapConstellations', ['regionID', 'constellationID', 'constellationName', 'x', 'y', 'z', 'factionID', 'radius'],

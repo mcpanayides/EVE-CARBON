@@ -1,0 +1,90 @@
+{
+ "solar_systems": [
+  {
+   "solar_system_id": 30000239,
+   "claim": {
+    "alliance": {
+     "alliance_id": 99003581,
+     "corporation_id": 98599770,
+     "claimed_since": "2020-10-10T00:37:21Z",
+     "sovereignty_hub": {
+      "id": 1034527137675,
+      "vulnerability_window": {
+       "start": "2026-10-28T09:30:00Z",
+       "end": "2026-10-28T12:30:00Z"
+      }
+     },
+     "is_capital_system": true,
+     "development": {
+      "activity_defense_multiplier": 6,
+      "military_level": 5,
+      "industrial_level": 0,
+      "strategic_level": 5
+     }
+    }
+   }
+  },
+  {
+   "solar_system_id": 30000208,
+   "claim": {
+    "alliance": {
+     "alliance_id": 99003581,
+     "corporation_id": 98599770,
+     "claimed_since": "2020-10-08T00:38:16Z",
+     "sovereignty_hub": {
+      "id": 1034510825648,
+      "vulnerability_window": {
+       "start": "2026-10-28T09:30:00Z",
+       "end": "2026-10-28T12:30:00Z"
+      }
+     },
+     "is_capital_system": false,
+     "development": {
+      "activity_defense_multiplier": 6,
+      "military_level": 5,
+      "industrial_level": 5,
+      "strategic_level": 5
+     }
+    }
+   }
+  },
+  {
+   "solar_system_id": 30001574,
+   "claim": {
+    "alliance": {
+     "alliance_id": 99013739,
+     "corporation_id": 98746891,
+     "claimed_since": "2026-08-21T19:30:43Z",
+     "sovereignty_hub": {
+      "id": 1055321449118,
+      "vulnerability_window": {
+       "start": "2026-10-28T15:30:00Z",
+       "end": "2026-10-28T18:30:00Z"
+      }
+     },
+     "is_capital_system": false,
+     "development": {
+      "activity_defense_multiplier": 6,
+      "military_level": 5,
+      "industrial_level": 4,
+      "strategic_level": 4
+     }
+    }
+   }
+  },
+  {
+   "solar_system_id": 30000001,
+   "claim": {
+    "faction": {
+     "faction_id": 500007
+    }
+   }
+  },
+  {
+   "solar_system_id": 30000326,
+   "claim": {
+    "unclaimed": true
+   }
+  }
+ ]
+}

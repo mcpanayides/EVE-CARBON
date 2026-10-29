@@ -9,7 +9,8 @@
       <!-- Overlay selector -->
       <div class="map-overlay-group" role="group" aria-label="Map overlay">
         <span class="map-group-label">OVERLAY</span>
-        <button type="button" class="map-overlay-btn active" data-overlay="security" aria-pressed="true">Security</button>
+        <button type="button" class="map-overlay-btn active" data-overlay="natural" aria-pressed="true" title="The stars as they are — every system drawn as its own star, coloured and sized by its real star type from the SDE">Natural</button>
+        <button type="button" class="map-overlay-btn" data-overlay="security" aria-pressed="false">Security</button>
         <button type="button" class="map-overlay-btn" data-overlay="sovereignty" aria-pressed="false">Sovereignty</button>
         <button type="button" class="map-overlay-btn" data-overlay="fnf" aria-pressed="false" title="Colour sov by your alliance's standings — blue (+5/+10), orange (−5), red (−10), NPC grey">Friends &amp; Foes</button>
         <button type="button" class="map-overlay-btn" data-overlay="incursions" aria-pressed="false">Incursions</button>
@@ -32,7 +33,7 @@
              for reading either. Its renderer is still in map.js (see _render)
              and can be brought back by restoring a button with data-view="classic";
              nothing else was removed. -->
-        <button type="button" class="map-view-btn active" data-view="spatial" aria-pressed="true" title="Where things actually are — the SDE's own 3D coordinates through a real camera. Drag to orbit, shift-drag to pan, scroll to fly in.">Spatial</button>
+        <button type="button" class="map-view-btn active" data-view="spatial" aria-pressed="true" title="Where things actually are — the SDE's own 3D coordinates through a real camera. Drag to orbit the selected system, or Rens in the middle of New Eden when nothing is selected (the point under the cursor once Rens is out of view). Right-drag, or hold Space and drag, to pan; scroll to fly in; F to refit.">Spatial</button>
         <button type="button" class="map-view-btn" data-view="modern" aria-pressed="false" title="Schematic — every region as a tidy cluster, stars moved onto a grid so the data is easy to read; pick a region for the detailed layout">Schematic</button>
       </div>
 
@@ -66,6 +67,13 @@
       <button type="button" class="map-toggle-btn" id="mapInfToggle" aria-pressed="false"
               title="Glowing territory field — sov influence spreads out along gates and neighbours merge into one shape. Follows the active overlay: alliance colours normally, your standings under Friends &amp; Foes. Galaxy views only (not inside a region)">
         <span class="material-symbols-outlined" aria-hidden="true">blur_on</span>Influence
+      </button>
+
+      <!-- Force projection: Ansiblex fare zones around an alliance's sov capital.
+           A layer, so it stays on alongside any overlay and the other layers. -->
+      <button type="button" class="map-toggle-btn" id="mapFpToggle" aria-pressed="false"
+              title="Force projection — ring every system within 20 LY of an alliance's sov capital by Ansiblex fare zone, with spheres of influence in the 3-D view. Capitals come from ESI; pick alliances in the panel top-left. Works with any overlay.">
+        <span class="material-symbols-outlined" aria-hidden="true">radar</span>Force Projection
       </button>
 
       <!-- Route planners. These open a modal rather than toggling a layer, so they
@@ -127,8 +135,15 @@
       </div>
     </div>
 
+    <!-- Spatial backdrop — skybox and drifting region nebulae — under the map, so
+         the clouds move without the map redrawing. Never takes the mouse. -->
+    <canvas id="mapBgCanvas" class="is-hidden" aria-hidden="true"></canvas>
+
     <!-- Main canvas — sized to parent by ResizeObserver in map.js -->
     <canvas id="mapCanvas"></canvas>
+    <!-- Bridge shimmer: the one animated layer, kept off the map canvas so the
+         map itself never has to redraw to move it. Never takes the mouse. -->
+    <canvas id="mapFxCanvas" aria-hidden="true"></canvas>
 
     <!-- Floating tooltip (system name on hover) -->
     <div id="mapTooltip"></div>

@@ -349,10 +349,33 @@
   min-height: 0;
 }
 
+/* Positioned so that, with the backdrop and shimmer canvases, the three stack
+   in DOM order: backdrop, map, shimmer - and every overlay after them on top. */
 #mapCanvas {
   display: block;
+  position: relative;
   width: 100%;
   height: 100%;
+}
+
+/* The Spatial backdrop: black space, the skybox and the region nebulae, all
+   painted by map.js. The map draws over it with a clear background, so only
+   this layer redraws to drift. */
+#mapBgCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Sized to the map canvas pixel for pixel by _onResize; clicks go straight through. */
+#mapFxCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 /* ── Loading overlay ─────────────────────────────────────────────────────── */
@@ -706,6 +729,17 @@
   flex-shrink: 0;
 }
 
+/* Natural overlay: the swatch is a small star - a white-hot core in a glow of
+   the star's colour, as the canvas draws it. The colour is data (--orb, set
+   inline per swatch), and the core is white in every theme, like a real star. */
+.map-legend-orb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: radial-gradient(circle, #fff 0 16%, var(--orb) 34%, transparent 72%);
+}
+
 /* A stroke sample, so a line on the canvas is legible as a line in the legend
    rather than being flattened into another dot. */
 .map-legend-line {
@@ -890,3 +924,104 @@
 .jp-route-table .jp-dim { color: var(--text-3); }
 .jp-origin td { background: var(--bg-hover-subtle); }
 .jp-secdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+
+/* ─── Force Projection widget ─────────────────────────────────────────────── */
+/* Top-left of the map, mirroring the legend in the bottom-left: same surface,
+   border and blur, so the two read as one family. Shown only while the Force
+   Projection overlay is active (.is-hidden is toggled by force-panel.js). */
+.map-fp-widget {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-card-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(4px);
+}
+.map-fp-widget .map-legend-title { margin: 0; }
+
+/* The legend's force-projection key draws a RING, because that is what the map
+   draws on each system — a filled dot would describe a colour the canvas never
+   paints. border-color is the resolved zone token, set inline as data. */
+.map-legend-ring {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid;
+  border-radius: 50%;
+  flex: none;
+}
+
+.fp-picked { display: flex; flex-direction: column; gap: 4px; }
+.fp-picked:empty { display: none; }
+
+.fp-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .04);
+}
+.fp-pick-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fp-pick-name {
+  font-size: 12px;
+  color: var(--value-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-pick-cap { font-size: 11px; color: var(--label-muted); }
+/* The capital-less case is the violet "zone unknown" in the legend, so it
+   wears the same colour here. */
+.fp-nocap { color: var(--pal-purple); }
+.fp-remove { flex: none; font-size: 12px; line-height: 1; }
+
+.fp-search { width: 100%; box-sizing: border-box; }
+.fp-search.fp-bad { border-color: var(--pal-red); }
+
+.fp-hint { font-size: 11px; line-height: 1.45; color: var(--label-muted); }
+.fp-hint:empty { display: none; }
+
+/* ─── Stargate planner: Ansiblex fares ─────────────────────────────────────── */
+/* The zone colour is data - the resolved --pal-* token for that zone - set on
+   --sg-zone by the renderer, so a theme recolours these with everything else. */
+.sg-home {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+/* Material Symbols default to 24px; at 11px text that read as a stray icon. */
+.sg-home .material-symbols-outlined { font-size: 15px; }
+.sg-bridge-row td { padding-top: 0; padding-bottom: 6px; font-size: 11px; }
+.sg-zone {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--sg-zone, var(--text-3));
+  border: 1px solid var(--sg-zone, var(--border));
+  background: color-mix(in srgb, var(--sg-zone, transparent) 14%, transparent);
+}
+.sg-fare { color: var(--value-bright); }
+.sg-down, .sg-up { padding: 1px 7px; font-size: 10px; margin-left: 4px; }
+.sg-note {
+  margin: 0 0 8px;
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+  border-left: 2px solid var(--pal-gold);
+  background: var(--bg-card);
+}

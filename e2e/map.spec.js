@@ -124,3 +124,24 @@ test('the system-search dropdown is not clipped or covered by the map', async ({
   expect(probe.extendsBelowHeader, 'the dropdown should hang below the header').toBe(true);
   expect(probe.hitId, 'a point inside the dropdown must hit the dropdown, not the canvas').toBe('mapSearchResults');
 });
+
+test('a slow sovereignty answer never paints over newer data', async ({ electronApp, window }) => {
+  // ESI can drag. The map's first load can then land after a poll that started
+  // later - or after data a test has put in place - and must not paint the
+  // older picture back over it. Staged exactly: the main process holds its
+  // answer until newer data is already in.
+  await openMap(window);
+  await electronApp.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('map-get-sovereignty');
+    ipcMain.handle('map-get-sovereignty', () => new Promise(res => { global.__sovAnswer = res; }));
+  });
+  await window.evaluate(() => { window.__pending = _loadLiveData({ sov: true, inc: false }); });
+  await window.waitForTimeout(20);
+  await window.evaluate(() => {
+    window.__newer = { 30000142: { allianceId: 7, isCapital: false } };
+    _sovMap = window.__newer; _sovAt = Date.now();
+  });
+  await electronApp.evaluate(() => global.__sovAnswer({ 30000142: { allianceId: 1, isCapital: false } }));
+  const kept = await window.evaluate(async () => { await window.__pending; return _sovMap === window.__newer; });
+  expect(kept, 'the newer sovereignty survives the late answer').toBe(true);
+});

@@ -8,7 +8,9 @@
 // Toggle
 //   jump bridges – yellow diamond on systems with IHUB (jump-bridge precondition)
 //
-// Interaction: drag to pan, scroll-wheel to zoom, click to open info panel.
+// Interaction: drag or right-drag to pan, scroll-wheel to zoom, click to open
+// the info panel, right-click a system for its menu. Spatial orbits on a plain
+// drag instead - see the canvas mouse handlers.
 
 'use strict';
 
@@ -23,6 +25,11 @@ const _MAX_ZOOM  = 8;
 // Avoided by default in the Stargate Planner and the map's right-click route.
 const _ZARZAKH_ID = 30100000;
 
+// Rens (Ortner, Heimatar) - the middle of New Eden: 1.1 LY from the mean
+// position of the 5,485 systems on the in-game map, third-closest of them all.
+// With nothing selected, the Spatial view turns about it.
+const _RENS_ID = 30002510;
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let _canvas      = null;
 let _ctx         = null;
@@ -31,9 +38,11 @@ let _zoom        = 1;
 let _dragging    = false;
 let _dragSX      = 0, _dragSY  = 0;
 let _dragPX      = 0, _dragPY  = 0;
+let _dragButton  = 0;          // what started the drag: 0 left, 2 right
+let _rightUpAt   = -Infinity;  // when the right button last came up over the map
 let _hovered     = null;
 let _selected    = null;
-let _overlay     = 'security';
+let _overlay     = 'natural';   // the stars as they are; the data overlays are a click away
 let _showJb      = true;   // Jump Bridges overlay (saved-bridge arcs + endpoint diamonds) on by default
 let _showWh      = true;   // Wormhole connections overlay (EvE-Scout public API) as purple arcs
 // 'spatial'  — true 3-D coordinates through a camera. The default: it is the
@@ -170,6 +179,91 @@ function _secColorModern(sec) {
   if (sec <  0.85) return '#54c8f0';
   if (sec <  0.95) return '#4a9be0';
   return '#3a7bd5';
+}
+
+// ── Natural overlay: every system as its own star ─────────────────────────────
+//
+// Colour and size come from the system's star type in the SDE, read from the
+// words CCP put in its name - "Sun K5 (Red Giant)", "Sun B5 (White Dwarf)" -
+// which is how the game itself describes the star. Like the security ramp
+// these are physical colours, not theme decisions: a red giant is red in every
+// theme.
+//
+// The SDE's stored radii cannot carry giant-versus-dwarf on their own - red
+// giants average 3.4e8 m and white dwarfs 2.7e8 m, near enough the same - so
+// the name sets the size class and the radius only adds a little variety.
+
+const _STAR_HEX = {
+  'red giant':   '#c53f21',
+  'white dwarf': '#dde7ff',
+  'bright blue': '#5b83da',
+  blue:          '#a6c1ff',
+  white:         '#f4f2ff',
+  pink:          '#e77f9d',
+  gold:          '#ffd36e',
+  yellow:        '#ffe79a',
+  orange:        '#ffa654',
+};
+// Two-word colours first, so "White Dwarf" is not just "white".
+const _STAR_HEX_ORDER = ['red giant', 'white dwarf', 'bright blue', 'blue', 'white', 'pink', 'gold', 'yellow', 'orange'];
+// By spectral class, for the few names with no colour word - Pochven's
+// "Divine", "Glory" and "Fruitful Immanence" suns.
+const _STAR_CLASS_HEX = { O: '#8fb3ff', B: '#a6c1ff', A: '#c8d8ff', F: '#f4f2ff', G: '#ffe08e', K: '#ffa654', M: '#ff7d55' };
+const _STAR_SIZE = [['giant', 1.7], ['bright', 1.3], ['radiant', 1.3], ['dwarf', 0.6], ['small', 0.75]];
+const _STAR_FALLBACK = '#e8ecf8';   // no star data (an SDE without mapDenormalize): plain white
+const _STAR_GLOW_AT  = 60;          // px a median gate spans when the stars glow full - where the bridge lights do too
+
+/** Give every system its star's colour, size class and a short label, once, at load. */
+function _classifyStars(systems) {
+  const radii = systems.map(s => s.starRadius).filter(r => r > 0).sort((a, b) => a - b);
+  const mid = radii.length ? radii[radii.length >> 1] : 0;
+  for (const s of systems) {
+    const m = /^Sun\s+([OBAFGKM])(\S*)\s*\(([^)]*)\)/i.exec(s.star || '');
+    if (!m) { s.starHex = _STAR_FALLBACK; s.starSize = 1; s.starLabel = null; continue; }
+    const desc = m[3].toLowerCase();
+    const word = _STAR_HEX_ORDER.find(w => desc.includes(w));
+    s.starHex = word ? _STAR_HEX[word] : (_STAR_CLASS_HEX[m[1].toUpperCase()] || _STAR_FALLBACK);
+    const cls = _STAR_SIZE.find(([w]) => desc.includes(w));
+    const vary = (mid && s.starRadius > 0) ? Math.min(1.25, Math.max(0.8, (s.starRadius / mid) ** 0.15)) : 1;
+    s.starSize = (cls ? cls[1] : 1) * vary;
+    s.starLabel = `${m[1].toUpperCase()}${m[2]} ${m[3]}`;       // "K5 Red Giant"
+  }
+}
+
+/** A constellation or region glows with its commonest star - the dominant member, as elsewhere. */
+function _aggStarHex(node) {
+  if (node._starHex) return node._starHex;
+  const n = new Map();
+  for (const m of node.members) n.set(m.starHex, (n.get(m.starHex) || 0) + 1);
+  let best = _STAR_FALLBACK, most = 0;
+  for (const [hex, c] of n) if (c > most) { most = c; best = hex; }
+  return (node._starHex = best);
+}
+
+const _orbSprites = new Map();
+
+/**
+ * One pre-drawn glow per star colour: a white-hot core in a halo of the
+ * colour, the same anatomy as the bridge shimmer's head. Scaled per star with
+ * drawImage, because a gradient built for each of 5,500 stars every frame
+ * would cost more than the rest of the map.
+ */
+function _orbSprite(hex) {
+  let c = _orbSprites.get(hex);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0,    'rgba(255,255,255,1)');
+  grad.addColorStop(0.1,  _rgba(hex, 1));
+  grad.addColorStop(0.28, _rgba(hex, 0.42));
+  grad.addColorStop(0.55, _rgba(hex, 0.12));
+  grad.addColorStop(1,    _rgba(hex, 0));
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  _orbSprites.set(hex, c);
+  return c;
 }
 
 // ── Faction palette for sovereignty overlay ───────────────────────────────────
@@ -316,6 +410,10 @@ function _normalise(raw) {
   // One scale for all three axes, sized off the widest, so the result lands in
   // about [-1, 1] with the real proportions intact.
   const s3 = 2 / (Math.max(maxX - minX, maxY3 - minY3, maxZ - minZ) || 1);
+  // Metres -> tx/ty/tz units. The force-projection rings are quoted in
+  // light-years, which only mean anything against the TRUE coordinates, so the
+  // factor that produced them has to be kept rather than re-derived.
+  _trueScale = s3;
 
   const ksOut = ks.map(s => {
     const fx = ox + (s.x - minX) * scale;
@@ -851,6 +949,230 @@ function _mixHex(a, b, f) {
   return `rgb(${m(r1, r2)},${m(g1, g2)},${m(b1, b2)})`;
 }
 
+// ─── Force projection ─ Ansiblex fare zoning ───────────────────────────
+//
+// An Ansiblex's capacitor fare scales with how far the gate sits from its
+// owning alliance's sovereignty CAPITAL, in light-years. The bands and the
+// arithmetic live in force-projection.js; this is where the capitals come from
+// and how the result is drawn.
+//
+// It is a LAYER, like Jump Bridges or Influence, not an overlay: it draws on top
+// of whatever the overlay is colouring the systems by. So Sovereignty, the
+// influence field, bridges, wormholes and force projection can all be on at
+// once - which is the point, since "where can I project to" is only half an
+// answer without "and who holds it".
+//
+// Capitals come free with the sov data the map already loads: /sovereignty/
+// systems marks each alliance's capital with is_capital_system, and
+// capitalsFromSov() reads it out. No extra request, no manual entry.
+const _FP_SELECTED_KEY = 'force_projection_alliances';
+let _showFp      = false; // toolbar toggle
+let _trueScale   = 0;     // metres -> tx/tz units, set by _normalise
+let _fpSelected  = _fpLoadSelected();
+let _fpCache     = null;  // { capitals }, rebuilt when sov reloads
+let _fpReachMemo = null;  // { key, map } - systems each chosen capital reaches
+let _fpPalette   = null;  // token -> resolved colour, per theme read
+
+function _fpLoadSelected() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(_FP_SELECTED_KEY) || '[]');
+    return new Set((Array.isArray(arr) ? arr : []).map(Number).filter(n => n > 0));
+  } catch { return new Set(); }
+}
+
+function _fpSaveSelected() {
+  try { localStorage.setItem(_FP_SELECTED_KEY, JSON.stringify([..._fpSelected])); } catch { /* private mode */ }
+}
+
+/** Resolve a theme token to a literal. Canvas silently drops var(). */
+function _fpCol(token) {
+  if (!_fpPalette) {
+    const cs = getComputedStyle(document.documentElement);
+    _fpPalette = {};
+    for (const t of ForceProjection.ZONES.concat([ForceProjection.UNKNOWN]).map(z => z.token)) {
+      _fpPalette[t] = cs.getPropertyValue(t).trim() || '#888888';
+    }
+  }
+  return _fpPalette[token] || '#888888';
+}
+
+/**
+ * Every alliance's capital, derived from the current sov snapshot.
+ *
+ * Re-derived whenever sov reloads, so a capital that MOVED is picked up. The
+ * check is O(1) on purpose: an earlier key built with Object.keys(_sovMap) ran
+ * once per system per frame and froze the renderer for about five seconds a
+ * redraw. Identity plus _sovAt is enough - the only writer replaces _sovMap
+ * and stamps _sovAt on the same line.
+ */
+function _fpState() {
+  if (_fpCache && _fpCache.sov === _sovMap && _fpCache.at === _sovAt) return _fpCache;
+  _fpCache = { sov: _sovMap, at: _sovAt, capitals: ForceProjection.capitalsFromSov(_sovMap) };
+  return _fpCache;
+}
+
+/** Capital system of an alliance, or null when it has none designated. */
+function _fpCapitalOf(allianceId) {
+  const sid = _fpState().capitals[allianceId];
+  return sid ? (_sysById[sid] || null) : null;
+}
+
+/**
+ * The systems the chosen alliances can project to: within 20 LY of the nearest
+ * chosen capital, by TRUE distance, whoever holds them.
+ *
+ * This is what the rings mark, and it is the same geometry the spheres draw. In
+ * the 3-D view that matters more than it looks: a star drawn inside a sphere's
+ * disc can be far in front of it or behind it, and the ring is what tells you
+ * its actual zone.
+ */
+function _fpReach() {
+  const st = _fpState();
+  const key = [st.at, _systems.length, [..._fpSelected].sort().join(',')].join('|');
+  if (_fpReachMemo && _fpReachMemo.key === key && _fpReachMemo.sov === _sovMap) return _fpReachMemo.map;
+  const caps = [..._fpSelected].map(_fpCapitalOf).filter(Boolean);
+  const map = ForceProjection.reachZones(_systems, caps);
+  _fpReachMemo = { key, sov: _sovMap, map };
+  return map;
+}
+
+/** Stroke a system's zone ring. Shared by both views so they cannot drift. */
+function _fpRing(ctx, cx, cy, r, z, alpha) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = _rgba(_fpCol(z.token), alpha);
+  ctx.stroke();
+}
+
+/** A resolved hex / rgb() colour as [r, g, b], for building gradients. */
+function _fpRgb(col) {
+  const c = String(col || '').trim();
+  if (c[0] === '#') {
+    let h = c.slice(1);
+    if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    const n = parseInt(h, 16);
+    if (Number.isFinite(n)) return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(c);
+  return m ? [+m[1], +m[2], +m[3]] : [200, 210, 230];
+}
+
+/** `a` blended toward `b` by t (0 = a, 1 = b), as an rgba() string. */
+function _fpMix(a, b, t, alpha) {
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgba(${r},${g},${bl},${alpha})`;
+}
+
+/**
+ * Screen radius, in canvas pixels, of a sphere of `ly` light-years whose centre
+ * projected to `pr`.
+ *
+ * Taken from the focal factor at the sphere's own depth. The first version
+ * projected a point R light-years along a fixed WORLD axis and measured the gap,
+ * which is foreshortened the moment the camera orbits: the default view is
+ * tilted 57 degrees, so a quarter-turn of yaw shrank every sphere, and they
+ * visibly breathed while you rotated — edge-on they would have collapsed to a
+ * line. A sphere is the same size from every direction; this is too.
+ */
+function _fpScreenRadius(pr, ly) {
+  const R = ly * ForceProjection.LY_METRES * _trueScale;
+  const d = pr.depth;
+  // The silhouette, not the equator: tangent rays from the eye graze the sphere
+  // slightly outside its equatorial circle. Clamped so a sphere the camera sits
+  // close to cannot run off to infinity.
+  const k = _camFlat ? 1 : d / Math.sqrt(Math.max(d * d - R * R, 0.04 * d * d));
+  return R * pr.f * _spatialScale() * k;
+}
+
+/**
+ * One zone, drawn as a glowing band of a sphere rather than a line around it.
+ *
+ * A translucent sphere seen from outside is brightest at its rim: a sight line
+ * near the edge passes through far more of it than one through the middle, in
+ * proportion to 1/sqrt(1 - u^2) at fraction u of the radius. That
+ * limb-brightening is what makes a disc read as a SPHERE instead of a flat
+ * circle, so the fill follows that curve and the rim peaks.
+ *
+ * Each zone owns only its own band, from the sphere inside it out to its own
+ * rim. Nesting translucent discs instead let every outer zone's tint pile up
+ * under the inner ones, and the core came out a muddy blend of all five
+ * colours rather than the colour of the zone you are actually in.
+ */
+function _fpBand(ctx, cx, cy, rIn, rOut, col, next) {
+  const glow = Math.max(rOut * 0.09, 8);
+  const R = rOut + glow;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  const base = 0.2, peak = 0.5, rim = 0.72;
+  const uIn = rIn / rOut;
+  const at = (rad) => Math.min(Math.max(rad / R, 0), 1);
+
+  // Inside the sphere within: clear, so that zone's own colour shows through.
+  if (rIn > 2) {
+    g.addColorStop(0, _fpMix(col, col, 0, 0));
+    g.addColorStop(at(rIn - 2), _fpMix(col, col, 0, 0));
+  }
+  // Across the band, denser toward the rim where the curve is steep.
+  for (const t of [0, 0.3, 0.55, 0.72, 0.84, 0.92, 0.965, 0.99]) {
+    const u = uIn + (1 - uIn) * t;
+    const a = Math.min(base / Math.sqrt(1 - u * u), peak);
+    g.addColorStop(at(u * rOut), _fpMix(col, col, 0, a.toFixed(3)));
+  }
+  // The rim, lifted a little toward white so it reads as light, not paint.
+  g.addColorStop(at(rOut), _fpMix(col, [255, 255, 255], 0.22, rim));
+  // The halo: a boundary sits between two zones, so it glows with both.
+  g.addColorStop(at(rOut + glow * 0.3), _fpMix(col, next, 0.5, (rim * 0.5).toFixed(3)));
+  g.addColorStop(at(rOut + glow * 0.65), _fpMix(next, next, 0, (rim * 0.18).toFixed(3)));
+  g.addColorStop(1, _fpMix(next, next, 0, 0));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/**
+ * The spheres of influence: one glowing band per zone around each SELECTED
+ * alliance's capital.
+ *
+ * ONLY in the true-coordinate spatial view. Light-years are a real distance and
+ * the flat map is a SCHEMATIC — it does not preserve distance, so a sphere drawn
+ * on it would be a confident lie. On flat the zones still read correctly as
+ * colour, because each zone is computed from true coordinates however the map
+ * chooses to draw them.
+ */
+function _fpDrawSpheres(ctx) {
+  if (!_showFp || _camFlat || !_trueScale || !_fpSelected.size) return;
+  const radii = ForceProjection.zoneRadiiLy();                       // [5, 10, 15, 20]
+  const Z = ForceProjection.ZONES;
+  const rgb = Z.map(z => _fpRgb(_fpCol(z.token)));                    // zone 1..5
+  const maxR = Math.hypot(_canvas.width, _canvas.height);
+  ctx.save();
+  for (const al of _fpSelected) {
+    const cap = _fpCapitalOf(al);
+    if (!cap || cap.tx === undefined) continue;
+    const pr = _spatialProject(cap);
+    if (!pr) continue;                                                // behind the lens
+    const [cx, cy] = _spatialToCanvas(pr);
+    // Outermost first, so each inner zone's halo lands on top of the band
+    // outside it and every boundary glows on both sides.
+    const px = radii.map(ly => _fpScreenRadius(pr, ly));
+    for (let i = radii.length - 1; i >= 0; i--) {
+      const rOut = px[i], rIn = i ? px[i - 1] : 0;
+      if (!(rOut > 2)) continue;
+      // Off-screen entirely: a disc this far out cannot touch the canvas.
+      if (Math.hypot(cx - _canvas.width / 2, cy - _canvas.height / 2) - rOut > maxR) continue;
+      // Band i is zone i+1; its halo bleeds into zone i+2, the one beyond.
+      _fpBand(ctx, cx, cy, Math.min(rIn, maxR * 2), Math.min(rOut, maxR * 2), rgb[i], rgb[i + 1]);
+    }
+    ctx.fillStyle = _rgba(_fpCol('--pal-green'), 0.95);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 /** Which overlays need a fetch, and what to do with it. */
 const _LAYER_LOADERS = {
   traffic: async () => {
@@ -912,6 +1234,7 @@ function _systemColor(s) {
     if (col) return _infLighten(col);
   }
   switch (_overlay) {
+    case 'natural':     return s.starHex || _STAR_FALLBACK;
     case 'sovereignty': return _sovColor(s.id);
     case 'fnf':         return _fnfColor(s);
     case 'incursions':  return _incSet.has(s.id) ? '#dd44aa' : '#1c1c28';
@@ -1001,6 +1324,14 @@ let _infSysCol = null;   // systemId → its territory's colour (tints the dots)
 // dot tints, titles, hiding region names — has to agree with that, or a region
 // would show influence-tinted dots floating over no territory at all.
 function _infActive() {
+  // Not in the spatial view. The influence field is a hex grid laid over the
+  // schematic's flat world coordinates; the 3-D view has no plane to lay it on,
+  // so it was never drawn there. It still counted as "active", though, which
+  // left two problems: the legend told you dots carried their territory's
+  // colour when the canvas was not doing so, and they would or would not be
+  // tinted depending on whether you had visited the Schematic first and left a
+  // stale colour table behind.
+  if (_viewMode === 'spatial') return false;
   return _showInf && !(_viewMode === 'modern' && _regionView != null);
 }
 
@@ -1043,14 +1374,15 @@ function _infHolders() {
 // Median gate length in whatever position space we're drawing. Everything else
 // is expressed as a multiple of this, so the field keeps the same visual density
 // in Classic, the Modern galaxy overview and a Modern region — three coordinate
-// spaces with wildly different scales.
+// spaces with wildly different scales. The Spatial view uses it too, with a y,
+// as its yardstick for how far in the camera is (_medianGateLen).
 function _infMedianGate(posOf) {
   const lens = [];
   for (const j of _jumps) {
     if (j.from > j.to) continue;               // each edge once
     const a = posOf(j.from), b = posOf(j.to);
     if (!a || !b) continue;
-    lens.push(Math.hypot(a.x - b.x, a.z - b.z));
+    lens.push(Math.hypot(a.x - b.x, (a.y || 0) - (b.y || 0), a.z - b.z));
   }
   if (!lens.length) return 0;
   lens.sort((x, y) => x - y);
@@ -2375,93 +2707,410 @@ function _backToOverview() {
 // with Modern's flattened coordinates instead of true positions. A system with
 // no entry in posMap (off in another region, or w-space not part of the current
 // layout) is simply skipped — same net effect as classic's explicit ID checks.
-function _drawModernWormholeArcs(ctx, W, H, posMap) {
-  if (!(_showWh && _whArcEdges && _whArcEdges.length)) return;
+/**
+ * Curved arcs between pairs of systems - jump bridges and wormholes.
+ *
+ * Shared by the Schematic and Spatial views. They place systems in unrelated
+ * coordinate systems, so each passes its own `toCanvas(id) -> [x, y] | null`;
+ * the drawing is identical. The Spatial view used to have no copy of this at
+ * all, so turning on Force Projection - which only draws spheres there - took
+ * you to a map with no bridges on it.
+ */
+function _drawArcs(ctx, W, H, edges, toCanvas, st) {
+  ctx.save();
   ctx.lineCap = 'round';
-  ctx.lineWidth = Math.max(0.8, Math.min(2.4, _zoom * 2.4));
-  ctx.strokeStyle = 'rgba(138,43,196,0.7)';
-  ctx.shadowColor = 'rgba(138,43,196,0.45)';
-  ctx.shadowBlur  = 4;
-  for (const [ida, idb] of _whArcEdges) {
-    const a = posMap.get(ida), b = posMap.get(idb);
+  ctx.lineWidth = st.width;
+  ctx.strokeStyle = st.stroke;
+  for (const [ida, idb] of edges) {
+    const a = toCanvas(ida), b = toCanvas(idb);
     if (!a || !b) continue;
-    const [ax, ay] = _w2c(a.x, a.z);
-    const [bx, by] = _w2c(b.x, b.z);
+    const [ax, ay] = a, [bx, by] = b;
     if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
         (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
     const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
-    const arcH = Math.min(len * 0.16, 120);
+    const arcH = Math.min(len * st.bow, st.bowMax);
     const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
     const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+    ctx.shadowColor = st.glow;
+    ctx.shadowBlur  = st.blur;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.quadraticCurveTo(cpx, cpy, bx, by);
     ctx.stroke();
+    if (st.record) st.record.push({ ax, ay, cpx, cpy, bx, by, len, w: st.width, seed: _arcSeed(ida, idb) });
+    if (st.nub) {
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = st.nubFill;
+      for (const [ex, ey] of [[ax, ay], [bx, by]]) {
+        ctx.beginPath(); ctx.arc(ex, ey, st.nub, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
-  ctx.shadowBlur = 0;
-  ctx.lineCap = 'butt';
+  ctx.restore();
 }
+
+const _JB_RGB = '64,220,130';   // bridge green: the arcs, their end nubs, and the light that runs along them
+const _ARC_JB = { stroke: `rgba(${_JB_RGB},0.85)`, glow: `rgba(${_JB_RGB},0.55)`, blur: 6,
+                  bow: 0.18, bowMax: 140, nubFill: `rgb(${_JB_RGB})` };
+const _ARC_WH = { stroke: 'rgba(138,43,196,0.7)',  glow: 'rgba(138,43,196,0.45)', blur: 4,
+                  bow: 0.16, bowMax: 120 };
 
 function _drawModernJumpBridgeArcs(ctx, W, H, posMap) {
   if (!(_showJb && _savedBridges.length)) return;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = Math.max(1, Math.min(3, _zoom * 3));
-  for (const [ida, idb] of _savedBridges) {
-    const a = posMap.get(ida), b = posMap.get(idb);
-    if (!a || !b) continue;
-    const [ax, ay] = _w2c(a.x, a.z);
-    const [bx, by] = _w2c(b.x, b.z);
-    if ((ax < -50 && bx < -50) || (ax > W + 50 && bx > W + 50) ||
-        (ay < -50 && by < -50) || (ay > H + 50 && by > H + 50)) continue;
-    const dx = bx - ax, dy = by - ay;
-    const len = Math.hypot(dx, dy) || 1;
-    const arcH = Math.min(len * 0.18, 140);
-    const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
-    const cpy = (ay + by) / 2 + ( dx / len) * arcH;
-    ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    ctx.quadraticCurveTo(cpx, cpy, bx, by);
-    ctx.strokeStyle = 'rgba(64,220,130,0.85)';
-    ctx.shadowColor = 'rgba(64,220,130,0.55)';
-    ctx.shadowBlur  = 6;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#40dc82';
-    const nub = Math.max(1.5, _zoom * 2.5);
-    for (const [ex, ey] of [[ax, ay], [bx, by]]) {
-      ctx.beginPath(); ctx.arc(ex, ey, nub, 0, Math.PI * 2); ctx.fill();
-    }
-  }
-  ctx.lineCap = 'butt';
+  const toCanvas = (id) => { const p = posMap.get(id); return p ? _w2c(p.x, p.z) : null; };
+  _drawArcs(ctx, W, H, _savedBridges, toCanvas, Object.assign({}, _ARC_JB, {
+    width: Math.max(1, Math.min(3, _zoom * 3)), nub: Math.max(1.5, _zoom * 2.5) }));
 }
+
+function _drawModernWormholeArcs(ctx, W, H, posMap) {
+  if (!(_showWh && _whArcEdges && _whArcEdges.length)) return;
+  const toCanvas = (id) => { const p = posMap.get(id); return p ? _w2c(p.x, p.z) : null; };
+  _drawArcs(ctx, W, H, _whArcEdges, toCanvas, Object.assign({}, _ARC_WH, {
+    width: Math.max(0.8, Math.min(2.4, _zoom * 2.4)) }));
+}
+
+/** A world offset as camera-space [x, y, z]: the rotation half of _spatialProject. */
+function _camToView(dx, dy, dz, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const x1 = dx * cy + dz * sy;
+  const z1 = -dx * sy + dz * cy;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return [x1, dy * cp - z1 * sp, dy * sp + z1 * cp];
+}
+
+/** Camera-space [x, y, z] back to a world offset - the inverse of _camToView. */
+function _camFromView(x1, y2, z2, yaw, pitch) {
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const dy = y2 * cp + z2 * sp;
+  const z1 = -y2 * sp + z2 * cp;
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  return [cy * x1 - sy * z1, dy, sy * x1 + cy * z1];
+}
+
+/** A system's position in the spatial view right now - true, or composed flat. */
+function _spatialPoint(id) {
+  if (_camFlat) {
+    const c = _buildComposedFlat();
+    const q = c && c.get(id);
+    return q ? { tx: q.tx, ty: 0, tz: q.tz } : null;
+  }
+  const s = _sysById[id];
+  return (s && s.tx !== undefined) ? { tx: s.tx, ty: s.ty, tz: s.tz } : null;
+}
+
+/**
+ * What a drag that starts at canvas (cx, cy) should turn about.
+ *
+ * The selected system, if it is on screen - you picked it, so it is what you
+ * are looking at. Otherwise Rens, if it is on screen: it sits in the middle of
+ * New Eden, so with nothing picked the galaxy turns about its own centre, like
+ * a globe. Otherwise - flown out somewhere Rens is not in view - the star
+ * nearest the cursor, if one is close enough to mean it, and failing that the
+ * empty point under the cursor, at the depth of the current focus.
+ *
+ * It used to always be the camera's focus, which after any pan is wherever the
+ * original centre of the galaxy has drifted to - often off screen - so a drag
+ * swung the whole map around a point nobody was looking at. The on-screen test
+ * is what keeps Rens from bringing that back once you have flown elsewhere.
+ */
+function _orbitPivotAt(cx, cy) {
+  const W = _canvas.width, H = _canvas.height;
+  const inView = (id) => {
+    const p = _spatialPoint(id);
+    const pr = p && _spatialProject(p);
+    if (!pr) return null;
+    const [x, y] = _spatialToCanvas(pr);
+    return (x >= 0 && x <= W && y >= 0 && y <= H) ? p : null;
+  };
+  const anchor = (_selected && inView(_selected.id)) || inView(_RENS_ID);
+  if (anchor) return anchor;
+  let best = null, bestD = 30 * 30;
+  for (const n of _spatialNodes().nodes) {
+    const pr = _spatialProject(n);
+    if (!pr) continue;
+    const [x, y] = _spatialToCanvas(pr);
+    const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  if (best) return { tx: best.tx, ty: best.ty, tz: best.tz };
+  // Empty space: unproject the cursor onto the plane through the focus that
+  // faces the camera, so the pivot sits under the cursor at a sensible depth.
+  const f = (_camFlat ? _SPATIAL_ORTHO : _SPATIAL_FOV / _SPATIAL_DIST) * _camZoom * _spatialScale();
+  const pitch = _camFlat ? Math.PI / 2 : _camPitch;
+  const [ox, oy, oz] = _camFromView((cx - W / 2 - _camPanX) / f, (cy - H / 2 - _camPanY) / f, 0, _camYaw, pitch);
+  return { tx: _camFocusX + ox, ty: _camFocusY + oy, tz: _camFocusZ + oz };
+}
+
+/** Remember where the pivot sits in camera space as the drag begins. */
+function _orbitBegin(pivot) {
+  const pitch = _camFlat ? Math.PI / 2 : _camPitch;
+  _orbitPivot = pivot;
+  _orbitView0 = _camToView(pivot.tx - _camFocusX, pivot.ty - _camFocusY, pivot.tz - _camFocusZ, _camYaw, pitch);
+}
+
+/**
+ * After the angles change, move the focus so the pivot is back exactly where
+ * it was in camera space.
+ *
+ * That is what orbiting about a point MEANS - the point stays put while the
+ * view turns around it - and it is exact: same camera-space position, so the
+ * same depth and the same pixel. Simply re-seating the focus on the pivot
+ * would not be. This camera sits a fixed distance from its focus, so moving
+ * the focus moves the camera, and in perspective every star would jump.
+ * Computed from the drag's starting state each move, so it cannot drift.
+ */
+function _orbitHold() {
+  if (!_orbitPivot || !_orbitView0) return;
+  const pitch = _camFlat ? Math.PI / 2 : _camPitch;
+  const [ox, oy, oz] = _camFromView(_orbitView0[0], _orbitView0[1], _orbitView0[2], _camYaw, pitch);
+  _camFocusX = _orbitPivot.tx - ox;
+  _camFocusY = _orbitPivot.ty - oy;
+  _camFocusZ = _orbitPivot.tz - oz;
+}
+
+/** Where a system sits in the spatial view right now - true or composed flat. */
+function _spatialCanvasOf(id) {
+  const p = _spatialPoint(id);
+  if (!p) return null;
+  const pr = _spatialProject(p);
+  return pr ? _spatialToCanvas(pr) : null;
+}
+
+/** Jump bridges and wormholes in the spatial view, at system level. */
+function _drawSpatialArcs(ctx, W, H) {
+  // At constellation or region level the nodes are aggregates; an arc between
+  // two systems has no node to land on, so these are drawn per system only.
+  if (_spatialLayout !== 'system') return;
+  if (_showWh && _whArcEdges && _whArcEdges.length) {
+    _drawArcs(ctx, W, H, _whArcEdges, _spatialCanvasOf, Object.assign({}, _ARC_WH, { width: 1.2 }));
+  }
+  if (_showJb && _savedBridges.length) {
+    _jbFxScale = _jbFxScaleNow();
+    _drawArcs(ctx, W, H, _savedBridges, _spatialCanvasOf,
+      Object.assign({}, _ARC_JB, { width: 1.6, nub: 2, record: _jbArcs }));
+  }
+}
+
+let _gateLenCache = { key: null, len: 0 };
+
+/**
+ * The median stargate jump in the spatial view's own units - 3-D or Flat. A
+ * yardstick for how far in you are: how long a typical gate looks on screen.
+ */
+function _medianGateLen() {
+  const key = (_camFlat ? 'flat:' : '3d:') + _jumps.length;
+  if (_gateLenCache.key !== key) {
+    _gateLenCache = { key, len: _infMedianGate((id) => {
+      const p = _spatialPoint(id);
+      return p && { x: p.tx, y: p.ty, z: p.tz };
+    }) };
+  }
+  return _gateLenCache.len;
+}
+
+/** Screen pixels per spatial unit at the camera's focus, right now. */
+function _spatialPxPerUnit() {
+  return (_camFlat ? _SPATIAL_ORTHO : _SPATIAL_FOV / _SPATIAL_DIST) * _camZoom * _spatialScale();
+}
+
+/**
+ * 1 once a typical gate jump spans `fullAtPx` on screen, less as you pull out.
+ * What sizes everything that glows - bridge lights, natural stars - so they
+ * shrink with the map instead of swamping a zoomed-out galaxy.
+ */
+function _zoomScale(fullAtPx) {
+  return Math.min(1, _medianGateLen() * _spatialPxPerUnit() / fullAtPx);
+}
+
+// ── Jump-bridge shimmer (Spatial only) ────────────────────────────────────────
+//
+// A light runs along every bridge from its first system to its second - the
+// order the gate list gives them - so the two ends of an arc can be told
+// apart: it leaves one with a bright head and a fading tail, and lands on the
+// other with a brief flare. The Schematic view keeps its arcs still.
+//
+// It is the only thing on the map that moves by itself, so it gets a canvas of
+// its own, laid over the map. The map still redraws only when something
+// changes; a frame here just re-strokes a few short comets along arcs the last
+// map frame already placed (_jbArcs). And it keeps the Nothing-Animates-
+// Unwatched rule (DESIGN.md): with the window unfocused, or the map not
+// showing, the loop stops and the last frame stays up - frozen comets still
+// point the way. Reduced motion gets a still frame from the start, with a
+// comet parked on every bridge.
+//
+// The lights are sized with the map, not the screen: full size once a typical
+// gate jump spans `fullAt` px - the zoom they were judged right at - never
+// bigger flying further in, and shrinking as you pull out. A fixed size made
+// them glowing orbs over a zoomed-out galaxy whose systems sit a few px apart.
+
+const _JB_FX = {
+  fullAt:   60,   // px a median gate spans when the lights reach full size
+  minScale: 0.25, // below this they are specks: not drawn, and the loop stops...
+  fadeOver: 0.15, // ...fading in over this much scale above it, so they never pop
+  cycle:  3200,   // ms between departures on one bridge
+  travel: 1700,   // ms to cross - the same for every arc, so zooming never makes a comet jump
+  flare:   420,   // ms the landing glow takes to fade
+  tail:    0.3,   // of the arc behind the head, at most...
+  tailPx:   90,   // ...and at most this long, so a long bridge does not trail a streak
+  frame:    33,   // ms between frames: ~30 fps is plenty for a light this size
+  still:  0.68,   // where reduced motion parks every comet - past halfway, pointing on
+};
+let _jbArcs    = [];     // the bridge arcs the last map frame drew: {ax,ay,cpx,cpy,bx,by,len,w,seed}
+let _jbFx      = null;   // the overlay canvas, and its context
+let _jbFxCtx   = null;
+let _jbFxRaf   = 0;      // the pending frame; 0 while stopped
+let _jbFxClock = 0;      // animation time in ms - stands still while stopped
+let _jbFxLast  = 0;
+let _jbFxReduce = null;  // matchMedia('(prefers-reduced-motion: reduce)'), made on first use
+let _jbFxScale  = 1;     // the lights' size this frame, 0..1 - set as the arcs are drawn
+
+/** How big the lights are at the current zoom: 1 at `fullAt` and beyond, less pulled out. */
+function _jbFxScaleNow() {
+  return _zoomScale(_JB_FX.fullAt);
+}
+
+/** A stable 0..1 per bridge, so each keeps its own place in the rhythm. */
+function _arcSeed(a, b) {
+  return ((Math.imul(a, 2654435761) ^ Math.imul(b, 40503)) >>> 0) / 4294967296;
+}
+
+/** A point on a recorded arc, t from 0 (its first system) to 1 (its second). */
+function _arcPoint(arc, t) {
+  const u = 1 - t;
+  return [u * u * arc.ax + 2 * u * t * arc.cpx + t * t * arc.bx,
+          u * u * arc.ay + 2 * u * t * arc.cpy + t * t * arc.by];
+}
+
+function _jbFxStill() {
+  if (!_jbFxReduce && window.matchMedia) _jbFxReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  return !!(_jbFxReduce && _jbFxReduce.matches);
+}
+
+/** Where a bridge is in its cycle, in crossing-times: 0..1 crossing, then the flare, then rest. */
+function _jbFxPhase(arc) {
+  if (_jbFxStill()) return _JB_FX.still;
+  const c = _JB_FX.cycle;
+  return ((_jbFxClock + arc.seed * c) % c) / _JB_FX.travel;
+}
+
+/** The light in flight: a white-hot head in a green halo, the tail clearing behind it. */
+function _jbComet(ctx, arc, t) {
+  const k = _jbFxScale;
+  const fade = Math.min(1, t / 0.12);            // eases out of the first system, no pop
+  const t0 = Math.max(0, t - Math.min(_JB_FX.tail, _JB_FX.tailPx * k / arc.len));
+  const [hx, hy] = _arcPoint(arc, t);
+  const [sx, sy] = _arcPoint(arc, t0);
+  const tail = ctx.createLinearGradient(sx, sy, hx, hy);
+  tail.addColorStop(0, `rgba(${_JB_RGB},0)`);
+  tail.addColorStop(1, `rgba(${_JB_RGB},${(0.9 * fade).toFixed(3)})`);
+  ctx.strokeStyle = tail;
+  ctx.lineWidth = (arc.w + 1.4) * k;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  for (let i = 1; i <= 6; i++) {
+    const [x, y] = _arcPoint(arc, t0 + (t - t0) * i / 6);
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  const r = (3 + arc.w * 1.6) * k;
+  const head = ctx.createRadialGradient(hx, hy, 0, hx, hy, r);
+  head.addColorStop(0,   `rgba(255,255,255,${(0.95 * fade).toFixed(3)})`);
+  head.addColorStop(0.3, `rgba(${_JB_RGB},${(0.8 * fade).toFixed(3)})`);
+  head.addColorStop(1,   `rgba(${_JB_RGB},0)`);
+  ctx.fillStyle = head;
+  ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill();
+}
+
+/** The landing: a glow on the second system that swells and fades as q runs 0..1. */
+function _jbFlare(ctx, arc, q) {
+  if (q >= 1) return;
+  const a = (1 - q) * (1 - q);
+  const r = (4 + arc.w * 2 + q * 6) * _jbFxScale;
+  const g = ctx.createRadialGradient(arc.bx, arc.by, 0, arc.bx, arc.by, r);
+  g.addColorStop(0,    `rgba(255,255,255,${(0.7 * a).toFixed(3)})`);
+  g.addColorStop(0.35, `rgba(${_JB_RGB},${(0.6 * a).toFixed(3)})`);
+  g.addColorStop(1,    `rgba(${_JB_RGB},0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(arc.bx, arc.by, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function _jbFxDraw() {
+  const ctx = _jbFxCtx;
+  if (!ctx) return;
+  ctx.clearRect(0, 0, _jbFx.width, _jbFx.height);
+  if (!_jbArcs.length || _jbFxScale < _JB_FX.minScale) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, (_jbFxScale - _JB_FX.minScale) / _JB_FX.fadeOver);
+  ctx.globalCompositeOperation = 'lighter';      // where two lights cross, they add
+  ctx.lineCap = 'round';
+  for (const arc of _jbArcs) {
+    if (arc.len < 14) continue;                  // a dot-sized arc has no direction to show
+    const p = _jbFxPhase(arc);
+    if (p <= 1) _jbComet(ctx, arc, p);
+    else _jbFlare(ctx, arc, (p - 1) * _JB_FX.travel / _JB_FX.flare);
+  }
+  ctx.restore();
+}
+
+function _jbFxMayRun() {
+  return _jbArcs.length > 0 && _jbFxScale >= _JB_FX.minScale && !_jbFxStill() && _mapVisible()
+    && !document.body.classList.contains('app-unfocused');
+}
+
+function _jbFxTick(now) {
+  _jbFxRaf = 0;
+  // Stopping, it draws one last frame and leaves it up: frozen where it was, or
+  // - if motion has just been turned down - with every light parked. The OS's
+  // change event for that arrives a moment later, not first.
+  if (!_jbFxMayRun()) { _jbFxDraw(); return; }
+  const dt = now - _jbFxLast;
+  if (dt >= _JB_FX.frame) {
+    _jbFxClock += Math.min(dt, 100);             // after a stall, carry on - never leap ahead
+    _jbFxLast = now;
+    _jbFxDraw();
+  }
+  _jbFxRaf = requestAnimationFrame(_jbFxTick);
+}
+
+/** After every map frame, and whenever focus or the motion setting changes. */
+function _jbFxSync() {
+  _jbFxDraw();                                   // the arcs may have moved: put the lights back on them
+  if (!_jbFxRaf && _jbFxMayRun()) {
+    _jbFxLast = performance.now();
+    _jbFxRaf = requestAnimationFrame(_jbFxTick);
+  }
+}
+
+
 
 // Stargate route (light blue) + capital jump route (pink arcs) — whichever
 // planner last produced a result, drawn exactly like classic's version.
-function _drawModernRoutes(ctx, W, H, posMap) {
+//
+// Shared by the Schematic and Spatial views the way _drawArcs is: each passes
+// its own toCanvas(id) -> [x, y] | null. Spatial used to draw no route at all,
+// so a plotted route simply was not on that map.
+function _drawRoutes(ctx, toCanvas, width) {
   if (_routeIds && _routeIds.length > 1) {
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(96,200,255,0.95)';
-    ctx.lineWidth   = Math.max(1.5, Math.min(4, _zoom * 4));
+    ctx.lineWidth   = width;
     ctx.lineCap     = 'round';
     for (let i = 1; i < _routeIds.length; i++) {
-      const a = posMap.get(_routeIds[i - 1]), b = posMap.get(_routeIds[i]);
+      const a = toCanvas(_routeIds[i - 1]), b = toCanvas(_routeIds[i]);
       if (!a || !b) continue;
-      const [ax, ay] = _w2c(a.x, a.z);
-      const [bx, by] = _w2c(b.x, b.z);
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
     }
     ctx.stroke();
     ctx.lineCap = 'butt';
   }
   if (_jumpRouteIds && _jumpRouteIds.length > 1) {
     ctx.lineCap   = 'round';
-    ctx.lineWidth = Math.max(1.5, Math.min(4, _zoom * 4));
+    ctx.lineWidth = width;
     for (let i = 1; i < _jumpRouteIds.length; i++) {
-      const a = posMap.get(_jumpRouteIds[i - 1]), b = posMap.get(_jumpRouteIds[i]);
+      const a = toCanvas(_jumpRouteIds[i - 1]), b = toCanvas(_jumpRouteIds[i]);
       if (!a || !b) continue;
-      const [ax, ay] = _w2c(a.x, a.z);
-      const [bx, by] = _w2c(b.x, b.z);
+      const [ax, ay] = a, [bx, by] = b;
       const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
       const arcH = Math.min(len * 0.18, 140);
       const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
@@ -2476,9 +3125,25 @@ function _drawModernRoutes(ctx, W, H, posMap) {
   }
 }
 
+function _drawModernRoutes(ctx, W, H, posMap) {
+  _drawRoutes(ctx, (id) => { const p = posMap.get(id); return p ? _w2c(p.x, p.z) : null; },
+    Math.max(1.5, Math.min(4, _zoom * 4)));
+}
+
 // Per-system markers drawn inline in the dot-drawing loop of both Modern
 // sub-views: the gold IHUB/jump-bridge diamond outline and the incursion ring.
 function _drawModernSystemMarkers(ctx, cx, cy, dotR, sysId) {
+  // Force projection zone, inside the incursion ring (2.4x) and the jump-bridge
+  // diamond (3x) so all three can sit on one system without colliding. There
+  // are no spheres here: this map is a schematic and does not preserve
+  // distance, so the ring is the whole of force projection on it.
+  if (_showFp) {
+    const z = _fpReach().get(sysId);
+    if (z) {
+      ctx.lineWidth = Math.max(0.6, dotR * 0.6);
+      _fpRing(ctx, cx, cy, dotR * 1.75, z, 0.95);
+    }
+  }
   if (_showJb && _jbSet.has(sysId)) {
     const d = dotR * 3;
     ctx.beginPath();
@@ -2500,22 +3165,28 @@ function _drawModernSystemMarkers(ctx, cx, cy, dotR, sysId) {
   }
 }
 
-// Route start/end/waypoint markers (reuses _drawRouteMarkers with a Modern
-// posOf), pending travel endpoints (start/destination set but no route
-// computed yet), and the "you are here" indicator — fresh code rather than
-// extracted from classic's _render(), so classic's existing block is never
-// touched. posMap is the caller's gp (overview) or layout (region).
+// Route start/end/waypoint markers (via _drawRouteMarkers), pending travel
+// endpoints (start/destination set but no route computed yet), and the "you
+// are here" indicator — fresh code rather than extracted from classic's
+// _render(), so classic's existing block is never touched. `place(s)` puts a
+// system on the canvas in whichever view is drawing: the Schematic's layouts,
+// or the Spatial camera.
 function _drawModernRouteExtras(ctx, W, H, posMap) {
-  const posOf = (s) => { const p = posMap.get(s.id); return p ? [p.x, p.z] : [s.wx, s.wz]; };
+  _drawRouteExtras(ctx, W, H, (s) => {
+    const p = posMap.get(s.id);
+    return p ? _w2c(p.x, p.z) : _w2c(s.wx, s.wz);
+  });
+}
 
-  _drawRouteMarkers(ctx, W, H, _routeIds,     _routeWaypointIds,     '#60c8ff', '#9fd4ff', 7, -14, posOf);
-  _drawRouteMarkers(ctx, W, H, _jumpRouteIds, _jumpRouteWaypointIds, '#f078c8', '#ffb0e0', 9,  18, posOf);
+function _drawRouteExtras(ctx, W, H, place) {
+  _drawRouteMarkers(ctx, W, H, _routeIds,     _routeWaypointIds,     '#60c8ff', '#9fd4ff', 7, -14, place);
+  _drawRouteMarkers(ctx, W, H, _jumpRouteIds, _jumpRouteWaypointIds, '#f078c8', '#ffb0e0', 9,  18, place);
 
   for (const [pid, label, col] of [[_travelStart, 'start', '#4ee37a'], [_travelEnd, 'destination', '#e3a84d']]) {
     if (!pid || (_routeIds && _routeIds.includes(pid)) || (_jumpRouteIds && _jumpRouteIds.includes(pid))) continue;
     const s = _sysById[pid]; if (!s) continue;
-    const [wx, wz] = posOf(s);
-    const [cx, cy] = _w2c(wx, wz);
+    const c = place(s); if (!c) continue;
+    const [cx, cy] = c;
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) continue;
     ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2);
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
@@ -2525,10 +3196,9 @@ function _drawModernRouteExtras(ctx, W, H, posMap) {
     ctx.shadowBlur = 0; ctx.textAlign = 'left';
   }
 
-  if (_youHereId && _sysById[_youHereId]) {
-    const s = _sysById[_youHereId];
-    const [wx, wz] = posOf(s);
-    const [cx, cy] = _w2c(wx, wz);
+  const you = _youHereId && _sysById[_youHereId] && place(_sysById[_youHereId]);
+  if (you) {
+    const [cx, cy] = you;
     if (cx > -30 && cx < W + 30 && cy > -30 && cy < H + 30) {
       ctx.beginPath();
       ctx.arc(cx, cy, 8, 0, Math.PI * 2);
@@ -2934,7 +3604,10 @@ let _camZoom  = 1;
 let _camPanX  = 0, _camPanY = 0;
 // Drag start, so an orbit is absolute against where the drag began rather than
 // accumulating rounding error frame by frame.
-let _camDragPan = false;
+let _camGesture = 'orbit';   // what the current drag does: 'orbit' | 'rotate' | 'pan'
+let _spaceHeld  = false;     // Space down: the next drag pans
+let _orbitPivot = null;      // {tx,ty,tz} the current drag turns about
+let _orbitView0 = null;      // the pivot's camera-space position when the drag began
 let _camSY0 = 0, _camSP0 = 0, _camSPX = 0, _camSPY = 0;
 
 // ── What the camera orbits ───────────────────────────────────────────────────
@@ -3465,6 +4138,39 @@ function _fitSpatial() {
   _camPanY = -((minY + maxY) / 2) * S * _camZoom;
 }
 
+/**
+ * Frame a set of systems - a plotted route - in the spatial camera: focus on
+ * their middle, then zoom until they fill most of the view, in the current
+ * orientation. Never so close that a typical gate spans more than 140 px, so a
+ * three-jump route still shows where it is.
+ */
+function _fitSpatialTo(ids) {
+  const pts = (ids || []).map(_spatialPoint).filter(Boolean);
+  if (!pts.length) return;
+  _camCancelTween();
+  _camFocusX = pts.reduce((a, p) => a + p.tx, 0) / pts.length;
+  _camFocusY = pts.reduce((a, p) => a + p.ty, 0) / pts.length;
+  _camFocusZ = pts.reduce((a, p) => a + p.tz, 0) / pts.length;
+  _camZoom = 1; _camPanX = 0; _camPanY = 0;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    const pr = _spatialProject(p);
+    if (!pr) continue;
+    if (pr.x < minX) minX = pr.x;
+    if (pr.x > maxX) maxX = pr.x;
+    if (pr.y < minY) minY = pr.y;
+    if (pr.y > maxY) maxY = pr.y;
+  }
+  if (!Number.isFinite(minX)) return;
+  const S = _spatialScale();
+  const closest = 140 / ((_medianGateLen() * _spatialPxPerUnit()) || 1);   // at zoom 1, so a factor
+  _camZoom = Math.min(closest,
+    _canvas.width  * 0.7 / (((maxX - minX) * S) || 1),
+    _canvas.height * 0.7 / (((maxY - minY) * S) || 1));
+  _camPanX = -((minX + maxX) / 2) * S * _camZoom;
+  _camPanY = -((minY + maxY) / 2) * S * _camZoom;
+}
+
 // Below this zoom the galaxy is a shape, not a list of places: region names are
 // the only labels that can be read, and the only ones worth reading. The
 // in-game map behaves the same way - system names arrive as you fly in.
@@ -3557,6 +4263,7 @@ function _aggLayerColor(node) {
     for (const m of node.members) { const x = _indIdxData[m.id]; if (x != null) { v += x; n++; } }
     return _heatFor(n ? v / n : undefined, 'industry');
   }
+  if (_overlay === 'natural') return _aggStarHex(node);
   // Everything else is categorical; the dominant member already carries it.
   return _systemColor(node);
 }
@@ -3567,15 +4274,378 @@ function _syncLayoutControls() {
   if (g) g.style.display = (_viewMode === 'spatial') ? '' : 'none';
 }
 
+// ── Skybox and region nebulae (Spatial) ───────────────────────────────────────
+//
+// Behind the Spatial map: one skybox for the whole cluster, and every region's
+// own nebula over it, drawn behind that region wherever the camera goes.
+//
+// Our own art, not CCP's. The SDE names each region's skybox - a file in the
+// game client - and the map keeps only that naming: which family a region's
+// sky comes from (nebula.js paints the clouds). So Genesis, Kador and Domain
+// all glow gold, the Caldari side blue, Metropolis and its neighbours rust.
+//
+// A region's nebula is laid down constellation by constellation, each cloud
+// reaching past its constellation and screen-blended, so it follows the
+// region's real outline and neighbours fade into one another only where they
+// meet. One circle per region could not: a big region's cloud reached right
+// across a compact neighbour - The Citadel came out Gallente teal. The skybox
+// is infinitely far: orbiting turns it, zooming and panning never move it.
+//
+// Painting a cloud costs ~6 ms, seventy of them a visible freeze, so they are
+// painted a few at a time between frames and each fades in as it lands.
+//
+// The clouds drift: each turns a few degrees a minute and breathes a little in
+// size and strength, out of step with its neighbours. A full map frame costs
+// ~40 ms, far too much to animate, so all of this lives on its own canvas
+// under the map (#mapBgCanvas) and only that redraws - at ~12 fps, the clouds
+// at half resolution (zoomed in they overlap twenty deep, and a cloud is soft
+// at any resolution). It keeps the Nothing-Animates-Unwatched rule like the
+// bridge shimmer: unfocused, off the map, or with reduced motion, it holds still.
+
+let _skyOn = true;                     // tests turn it off to measure stars alone
+let _regionNebulae = {};               // regionId -> skybox file, from the SDE
+const _NEB_PX = 128;                   // a cloud's texture; drawn large, it is soft by nature
+// Measured, not guessed: at 2.8 constellation radii, 57 of 63 regions on screen
+// show their own family's colour at their middle - the rest are regions another
+// stands in front of in 3-D - and few neighbours leave a dark seam between them.
+const _NEB = {
+  spread: 2.8,                         // a cloud's reach, in its constellation's radii
+  natural: 0.425, data: 0.187,         // the cloud layer's strength, under Natural / the data overlays
+  breathe: 0.035, glimmer: 0.07,       // how far a cloud swells, and brightens, at the top of a breath
+  frame: 80,                           // ms between drift frames: ~12 fps for motion this slow
+  grain: 0.5,                          // film grain over the gas, 0..1
+};
+let _grainTileCanvas = null;           // the grain tile, made on first use
+let _grainLayer = null;                // full-size: the grain, cut to the clouds' shape
+let _bg = null, _bgCtx = null;         // the backdrop canvas under the map
+let _nebBuf = null;                    // the clouds' half-resolution buffer
+let _bgRaf = 0, _bgReq = 0;            // the drift loop's pending frame; a one-off redraw
+let _bgClock = 0, _bgLast = 0;         // drift time in ms - stands still while paused
+const _nebSprites = new Map();         // key -> { canvas, at }  (painted, and when)
+const _nebQueue = [];                  // { key, paint } waiting their turn
+let _nebTimer = 0;
+
+/** A painted texture, or null while it waits in the queue - asked for again next frame. */
+function _nebGet(key, paint) {
+  const got = _nebSprites.get(key);
+  if (got) return got;
+  if (!_nebQueue.some(q => q.key === key)) _nebQueue.push({ key, paint });
+  if (!_nebTimer) _nebTimer = setTimeout(_nebPump, 0);
+  return null;
+}
+
+/** Paint queued textures for up to ~10 ms, then yield, and redraw to show them. */
+function _nebPump() {
+  _nebTimer = 0;
+  const t0 = performance.now();
+  while (_nebQueue.length && performance.now() - t0 < 10) {
+    const { key, paint } = _nebQueue.shift();
+    _nebSprites.set(key, { canvas: paint(), at: performance.now() });
+  }
+  _bgRequest();
+  if (_nebQueue.length) _nebTimer = setTimeout(_nebPump, 0);
+}
+
+/** Colour a density grid into a canvas: deep edge colour to bright core. */
+function _nebCanvas(density, size, core, edge, alphaScale) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d'), img = g.createImageData(size, size), px = img.data;
+  for (let i = 0; i < density.length; i++) {
+    const t = density[i];
+    if (!t) continue;
+    const k = Math.pow(t, 0.7);                    // the dense heart takes the core colour
+    px[i * 4]     = edge[0] + (core[0] - edge[0]) * k;
+    px[i * 4 + 1] = edge[1] + (core[1] - edge[1]) * k;
+    px[i * 4 + 2] = edge[2] + (core[2] - edge[2]) * k;
+    px[i * 4 + 3] = Math.min(255, t * alphaScale);
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
+function _paintRegionNebula(neb) {
+  const { core, edge } = Nebula.paletteFor(neb);
+  return _nebCanvas(Nebula.nebulaDensity(neb.key, _NEB_PX), _NEB_PX, core, edge, 300);
+}
+
+/** The skybox: faint indigo dust that wraps round, and a scatter of distant stars. */
+function _paintSky() {
+  const DW = 512, DH = 256, W = 2048, H = 1024;
+  const dust = Nebula.skyDust(7, DW, DH);
+  const dc = document.createElement('canvas');
+  dc.width = DW; dc.height = DH;
+  const dg = dc.getContext('2d'), img = dg.createImageData(DW, DH), px = img.data;
+  const deep = Nebula.hslToRgb(236, 0.35, 0.16), lit = Nebula.hslToRgb(224, 0.30, 0.34);
+  for (let i = 0; i < dust.length; i++) {
+    const t = dust[i];
+    if (!t) continue;
+    px[i * 4]     = deep[0] + (lit[0] - deep[0]) * t;
+    px[i * 4 + 1] = deep[1] + (lit[1] - deep[1]) * t;
+    px[i * 4 + 2] = deep[2] + (lit[2] - deep[2]) * t;
+    px[i * 4 + 3] = t * 150;
+  }
+  dg.putImageData(img, 0, 0);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(dc, 0, 0, W, H);
+  // Distant, dim and small: they must never be mistaken for systems.
+  for (const s of Nebula.skyStars(11, 1400)) {
+    g.fillStyle = `rgba(214,222,255,${s.b.toFixed(2)})`;
+    g.fillRect(s.u * W, s.v * H, s.big ? 2 : 1, s.big ? 2 : 1);
+  }
+  return c;
+}
+
+/** How far a just-painted texture has faded in: 0..1 over 400 ms, redrawing until it is done. */
+function _nebFade(sprite) {
+  const k = (performance.now() - sprite.at) / 400;
+  if (k >= 1) return 1;
+  _bgRequest();
+  return Math.max(0, k);
+}
+
+function _drawSkybox(ctx, W, H) {
+  const sky = _nebGet('sky', _paintSky);
+  if (!sky) return;
+  // A sky 1.6 viewports tall, so tilting has room; one full turn of yaw slides
+  // it its whole width, and it wraps.
+  const sh = H * 1.6, sw = sh * (sky.canvas.width / sky.canvas.height);
+  const pitch = _camFlat ? Math.PI / 2 : _camPitch;
+  let x0 = -((_camYaw / (Math.PI * 2)) * sw) % sw;
+  if (x0 > 0) x0 -= sw;
+  const y0 = Math.min(0, Math.max(H - sh, -(sh - H) / 2 + pitch * H * 0.18));
+  ctx.globalAlpha = (_overlay === 'natural' ? 1 : 0.55) * _nebFade(sky);
+  for (let x = x0; x < W; x += sw) ctx.drawImage(sky.canvas, x, y0, sw, sh);
+  ctx.globalAlpha = 1;
+}
+
+let _regionGeoCache = { key: null, list: [], patches: [] };
+
+/** Group the view's systems' positions by a key - region or constellation. */
+function _pointsBy(keyOf) {
+  const by = new Map();
+  for (const s of _spatialSystems()) {
+    const p = _spatialPoint(s.id);
+    if (!p) continue;
+    const k = keyOf(s);
+    let a = by.get(k);
+    if (!a) by.set(k, a = { regionId: s.regionId, pts: [] });
+    a.pts.push({ x: p.tx, y: p.ty, z: p.tz });
+  }
+  return by;
+}
+
+function _nebGeometryNow() {
+  const key = (_camFlat ? 'flat:' : '3d:') + _systems.length + ':' + Object.keys(_regionNebulae).length;
+  if (_regionGeoCache.key === key) return _regionGeoCache;
+  // Regions: where each sits and its family - what the nebulae are about.
+  const list = [];
+  for (const [id, { pts }] of _pointsBy(s => s.regionId)) {
+    const neb = Nebula.familyOf(_regionNebulae[id]);
+    if (neb) list.push(Object.assign({ id, neb }, Nebula.regionExtent(pts)));
+  }
+  // Patches: one cloud per constellation, in its region's family. A lone-system
+  // constellation has no spread of its own, so none is smaller than a fraction
+  // of a typical constellation.
+  const cons = [..._pointsBy(s => s.constellationId)]
+    .map(([id, c]) => ({ id, regionId: c.regionId, pts: c.pts, e: Nebula.regionExtent(c.pts) }));
+  const radii = cons.filter(c => c.e.r > 0).map(c => c.e.r).sort((a, b) => a - b);
+  const typical = radii[radii.length >> 1] || 0;
+  const floor = typical * 0.6;
+  const patches = [];
+  // Each cloud turned its own way, drifting round at its own pace and
+  // breathing on its own slow cycle, so nothing moves in step.
+  const motion = (seed) => {
+    const r = Nebula.rng(seed);
+    return {
+      spin:   r() * Math.PI * 2,
+      w:      (r() < 0.5 ? -1 : 1) * (0.006 + r() * 0.012),   // rad/s: a full turn in 6-17 minutes
+      period: 26 + r() * 22,                                  // s per breath
+      phase:  r() * Math.PI * 2,
+    };
+  };
+  for (const c of cons) {
+    const neb = Nebula.familyOf(_regionNebulae[c.regionId]);
+    if (!neb) continue;
+    const seed = Nebula.seedOf(String(c.id));
+    if (c.e.r > typical * 3) {
+      // Scattered: Pochven's constellations are strewn across the cluster, so
+      // their middle is open space and their spread enormous - one cloud each
+      // smothered the whole core in Aridia's colours (Pochven shares its sky).
+      // Each system gets a small cloud of its own instead.
+      c.pts.forEach((p, i) => patches.push(Object.assign({ neb, x: p.x, y: p.y, z: p.z, r: floor }, motion(seed + i))));
+      continue;
+    }
+    patches.push(Object.assign({ neb, x: c.e.x, y: c.e.y, z: c.e.z, r: Math.max(c.e.r, floor) }, motion(seed)));
+  }
+  _regionGeoCache = { key, list, patches };
+  return _regionGeoCache;
+}
+
+/** Each region with a skybox: its family, its middle and its reach, in the view's own space. */
+function _regionGeometry() { return _nebGeometryNow().list; }
+
+/**
+ * The region nebulae at drift time `t` (seconds), on a canvas `scale` times the
+ * map's size - the backdrop draws them into a half-size buffer, then lays that
+ * down at the layer's strength.
+ *
+ * Each cloud goes in at full opacity and the strength is applied once, to the
+ * whole layer. Applied per cloud, overlapping clouds stacked: where dozens
+ * overlap - Exordium's tiny packed constellations, the high-sec core - they
+ * built up to the texture's bright core colour and blew the view out to a flat
+ * pale wash. Now no pile of clouds is brighter than one.
+ */
+function _drawRegionNebulae(ctx, W, H, t = _bgClock / 1000, scale = 1) {
+  const S = _spatialScale();
+  // Painted far to near, not added: where clouds overlap on screen - and in 3-D
+  // regions do, one behind another - the nearer shows in front. Added together
+  // (screen blending) they summed towards white across the packed high-sec
+  // core and drowned each region's own colour.
+  const vis = [];
+  for (const g of _nebGeometryNow().patches) {
+    const pr = _spatialProject({ tx: g.x, ty: g.y, tz: g.z });
+    if (!pr) continue;
+    const [cx, cy] = _spatialToCanvas(pr);
+    const R = g.r * pr.f * S * _NEB.spread;        // past the constellation, so neighbours blend
+    if (R < 2 || cx + R < 0 || cx - R > W || cy + R < 0 || cy - R > H) continue;
+    vis.push({ g, cx, cy, R, depth: pr.depth });
+  }
+  vis.sort((a, b) => b.depth - a.depth);
+  ctx.save();
+  for (const { g, cx, cy, R } of vis) {
+    const sprite = _nebGet(g.neb.key, () => _paintRegionNebula(g.neb));
+    if (!sprite) continue;
+    const breath = Math.sin((t / g.period) * Math.PI * 2 + g.phase);
+    const r = R * (1 + _NEB.breathe * breath) * scale;
+    ctx.globalAlpha = (1 - _NEB.glimmer * (1 - breath) / 2) * _nebFade(sprite);   // full at the top of a breath
+    ctx.setTransform(1, 0, 0, 1, cx * scale, cy * scale);
+    ctx.rotate(g.spin + g.w * t);
+    ctx.drawImage(sprite.canvas, -r, -r, r * 2, r * 2);
+  }
+  ctx.restore();
+}
+
+/** The clouds' half-size buffer, remade when the map changes size. */
+function _nebBuffer(W, H) {
+  const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
+  if (!_nebBuf || _nebBuf.width !== w || _nebBuf.height !== h) {
+    _nebBuf = document.createElement('canvas');
+    _nebBuf.width = w; _nebBuf.height = h;
+  }
+  return _nebBuf;
+}
+
+/** Black space, the skybox, and the clouds at the current drift time. */
+function _drawBackdrop() {
+  const ctx = _bgCtx;
+  if (!ctx) return;
+  const W = _bg.width, H = _bg.height;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  if (_viewMode !== 'spatial' || !_skyOn || !_systems.length) return;
+  _drawSkybox(ctx, W, H);
+  const buf = _nebBuffer(W, H), b = buf.getContext('2d');
+  b.setTransform(1, 0, 0, 1, 0, 0);
+  b.clearRect(0, 0, buf.width, buf.height);
+  _drawRegionNebulae(b, W, H, _bgClock / 1000, buf.width / W);
+  // The layer's strength, once: a backdrop, and data overlays need their colours.
+  ctx.globalAlpha = _overlay === 'natural' ? _NEB.natural : _NEB.data;
+  ctx.drawImage(buf, 0, 0, W, H);
+  ctx.globalAlpha = 1;
+  _drawGrain(ctx, W, H, buf);
+}
+
+/**
+ * Film grain on the clouds: fine, still, one screen pixel a speck - so it stays
+ * crisp at any zoom instead of swelling with the clouds - and blended in with
+ * soft light. It also breaks up the banding a smooth gradient shows on a dark
+ * screen. Still rather than flickering: twelve-frame-a-second static reads as
+ * noise, not film.
+ *
+ * Cut to the clouds' own shape (`clouds`, their buffer) before it is laid down,
+ * so it lands only on the gas and thins out with it at the edges. Laid over the
+ * whole backdrop, it textured the skybox's faint dust too - which covers nearly
+ * the whole view - and the grain sat across everything.
+ */
+function _drawGrain(ctx, W, H, clouds) {
+  if (!_NEB.grain || !clouds) return;
+  if (!_grainTileCanvas) {
+    const N = 256, tile = Nebula.grainTile(0x5eed, N);
+    const c = document.createElement('canvas');
+    c.width = c.height = N;
+    const g = c.getContext('2d'), img = g.createImageData(N, N), px = img.data;
+    for (let i = 0; i < tile.length; i++) {
+      px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = tile[i];
+      px[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    _grainTileCanvas = c;
+  }
+  if (!_grainLayer || _grainLayer.width !== W || _grainLayer.height !== H) {
+    _grainLayer = document.createElement('canvas');
+    _grainLayer.width = W; _grainLayer.height = H;
+  }
+  const g = _grainLayer.getContext('2d');
+  g.globalCompositeOperation = 'copy';
+  g.fillStyle = g.createPattern(_grainTileCanvas, 'repeat');
+  g.fillRect(0, 0, W, H);                          // grain everywhere...
+  g.globalCompositeOperation = 'destination-in';
+  g.drawImage(clouds, 0, 0, W, H);                 // ...kept only where the clouds are, as dense as they are
+  g.globalCompositeOperation = 'source-over';
+  ctx.save();
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.globalAlpha = _NEB.grain;
+  ctx.drawImage(_grainLayer, 0, 0);
+  ctx.restore();
+}
+
+function _bgMayRun() {
+  return _viewMode === 'spatial' && _skyOn && _mapVisible() && !_jbFxStill()   // _jbFxStill: the OS reduced-motion setting
+    && !document.body.classList.contains('app-unfocused') && _nebGeometryNow().patches.length > 0;
+}
+
+function _bgTick(now) {
+  _bgRaf = 0;
+  if (!_bgMayRun()) return;                      // holds still where it is
+  const dt = now - _bgLast;
+  if (dt >= _NEB.frame) {
+    _bgClock += Math.min(dt, 250);               // after a stall, carry on - never leap ahead
+    _bgLast = now;
+    _drawBackdrop();
+  }
+  _bgRaf = requestAnimationFrame(_bgTick);
+}
+
+/** After every map frame, and whenever focus or the motion setting changes. */
+function _bgSync() {
+  _drawBackdrop();
+  if (!_bgRaf && _bgMayRun()) {
+    _bgLast = performance.now();
+    _bgRaf = requestAnimationFrame(_bgTick);
+  }
+}
+
+/** One redraw on the next frame - a cloud just painted, or fading in - unless the drift loop will. */
+function _bgRequest() {
+  if (_bgRaf || _bgReq) return;
+  _bgReq = requestAnimationFrame(() => { _bgReq = 0; _drawBackdrop(); });
+}
+
 function _renderSpatial() {
   const ctx = _ctx, W = _canvas.width, H = _canvas.height;
 
-  // Black, like the star map. The schematic view's slate panel is right for a
-  // diagram and wrong for something pretending to be space.
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, W, H);
+  // Clear, over the backdrop canvas beneath: black space, the skybox and the
+  // drifting nebulae (_drawBackdrop). The schematic view's slate panel is right
+  // for a diagram and wrong for something pretending to be space.
+  ctx.clearRect(0, 0, W, H);
 
   // ── Project once, reuse everywhere ────────────────────────────────────────
+  _fpDrawSpheres(ctx);
   const { nodes, links, level } = _spatialNodes();
   const agg = level !== 'system';
   const shown = new Map();          // nodeId → { s, cx, cy, depth, f }
@@ -3651,10 +4721,24 @@ function _renderSpatial() {
   }
   ctx.setLineDash([]);        // never leave a dash pattern set for the next caller
 
+  // Bridges and wormholes, then any plotted route: over the gate lines, under
+  // the stars - the route's markers and names go on top, after the labels.
+  _drawSpatialArcs(ctx, W, H);
+  _drawRoutes(ctx, _spatialCanvasOf, 2.4);
+
   // ── Stars ─────────────────────────────────────────────────────────────────
   // Painter's algorithm: far first, so near stars overlap far ones rather than
   // the draw order deciding it arbitrarily.
   const order = [...shown.values()].sort((p, q) => q.depth - p.depth);
+  const reach = (_showFp && !agg) ? _fpReach() : null;
+  // Natural draws each star as a glow, added rather than painted over, so where
+  // stars crowd they light up together the way a real cluster does - and
+  // additive light does not care about draw order. Pulled out, the glow tightens
+  // and dims with the map: at full strength 5,500 overlapping halos summed the
+  // whole galaxy to one white blob.
+  const natural = _overlay === 'natural';
+  const glow = natural ? _zoomScale(_STAR_GLOW_AT) : 0;
+  if (natural) ctx.globalCompositeOperation = 'lighter';
   for (const p of order) {
     const t = near(p.depth);
     // An aggregate stands for many systems, so it is drawn larger — and grows
@@ -3665,23 +4749,43 @@ function _renderSpatial() {
     const r = agg
       ? Math.max(1.6, Math.min(7, base * (1.7 + Math.sqrt(p.s.members.length) * 0.32)))
       : Math.max(0.45, Math.min(3.0, base));
-    const col = agg ? _aggLayerColor(p.s) : _systemColor(p.s);
-    // The halo is the difference between a star field and a heat map. New Eden
-    // has 5 500 systems packed into a disc, so a halo wide or strong enough to
-    // notice on one star merges into a solid wash across the core - the first
-    // cut of this bloomed null-sec into one red blob. It is therefore tight,
-    // faint, and only on stars near enough for it to mean anything.
-    if (t > 0.55 && r > 1.3) {
-      const R = r * 2.3;
-      const g = ctx.createRadialGradient(p.cx, p.cy, 0, p.cx, p.cy, R);
-      g.addColorStop(0, _rgba(col, 0.10 * t));
-      g.addColorStop(1, _rgba(col, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(p.cx, p.cy, R, 0, Math.PI * 2); ctx.fill();
+    if (natural) {
+      // Flown in, the glow reaches ~4x the old dot and its white core is about
+      // the old dot's size; giants and dwarfs scale it by class.
+      const R = r * (agg ? 2.4 : (1.4 + 2.8 * glow) * (p.s.starSize || 1));
+      ctx.globalAlpha = (0.35 + 0.65 * t) * (0.4 + 0.6 * glow);
+      ctx.drawImage(_orbSprite(agg ? _aggStarHex(p.s) : (p.s.starHex || _STAR_FALLBACK)),
+        p.cx - R, p.cy - R, R * 2, R * 2);
+    } else {
+      const col = agg ? _aggLayerColor(p.s) : _systemColor(p.s);
+      // The halo is the difference between a star field and a heat map. New Eden
+      // has 5 500 systems packed into a disc, so a halo wide or strong enough to
+      // notice on one star merges into a solid wash across the core - the first
+      // cut of this bloomed null-sec into one red blob. It is therefore tight,
+      // faint, and only on stars near enough for it to mean anything.
+      if (t > 0.55 && r > 1.3) {
+        const R = r * 2.3;
+        const g = ctx.createRadialGradient(p.cx, p.cy, 0, p.cx, p.cy, R);
+        g.addColorStop(0, _rgba(col, 0.10 * t));
+        g.addColorStop(1, _rgba(col, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.cx, p.cy, R, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = _rgba(col, 0.28 + 0.62 * t);
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = _rgba(col, 0.28 + 0.62 * t);
-    ctx.beginPath(); ctx.arc(p.cx, p.cy, r, 0, Math.PI * 2); ctx.fill();
+    // In depth order with the star, so a nearer star covers a farther ring.
+    if (reach) {
+      const z = reach.get(p.s.id);
+      if (z) {
+        if (natural) { ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+        ctx.lineWidth = Math.max(0.8, r * 0.55);
+        _fpRing(ctx, p.cx, p.cy, Math.max(r * 2.1, r + 2.2), z, 0.35 + 0.6 * t);
+        if (natural) ctx.globalCompositeOperation = 'lighter';
+      }
+    }
   }
+  if (natural) { ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
 
   // ── Labels ────────────────────────────────────────────────────────────────
   // Nearest first, and a coarse occupancy grid drops any label whose cell is
@@ -3797,9 +4901,19 @@ function _renderSpatial() {
   }
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
+
+  _drawRouteExtras(ctx, W, H, (s) => _spatialCanvasOf(s.id));
 }
 
+/** One frame of the map, then the bridge shimmer over it and the backdrop under it. */
 function _render() {
+  _jbArcs = [];          // refilled by whichever view draws the bridges this frame
+  _renderMap();
+  _jbFxSync();
+  _bgSync();
+}
+
+function _renderMap() {
   _rafPending = false;
   if (!_canvas || !_ctx || !_systems.length) return;
   _refreshThemeVars();   // once per frame — every _mono()/_accent() below reads it
@@ -4181,21 +5295,21 @@ function _render() {
 // Draw start/end/waypoint markers for a route overlay in the given colours.
 // endR / labelDy let the two overlays nest (pink ring outside blue) and stagger
 // their labels so a shared start/end isn't an unreadable overlap.
-// posOf(system) -> [wx,wz] defaults to classic's true position, so the
-// existing classic call site (inside _render(), unchanged) behaves exactly as
-// before. Modern's render functions pass their own posMap-backed lookup —
-// see _renderGalaxyModern()/_renderRegion() — to reuse this instead of a
-// second copy of the marker-drawing logic.
-function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, posOf) {
+// place(system) -> canvas [x, y] | null defaults to classic's true position,
+// so the existing classic call site (inside _render(), unchanged) behaves
+// exactly as before. The Schematic and Spatial views pass their own — see
+// _drawRouteExtras() — to reuse this instead of a second copy of the
+// marker-drawing logic.
+function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, place) {
   if (!ids || !ids.length) return;
-  posOf = posOf || ((s) => [s.wx, s.wz]);
+  place = place || ((s) => _w2c(s.wx, s.wz));
   endR = endR || 7;
   labelDy = (labelDy == null) ? -14 : labelDy;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ids.forEach((id, i) => {
     const s = _sysById[id]; if (!s) return;
-    const [wx, wz] = posOf(s);
-    const [cx, cy] = _w2c(wx, wz);
+    const c = place(s); if (!c) return;
+    const [cx, cy] = c;
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
     const isEnd = (i === 0 || i === ids.length - 1);
     const isWaypoint = !isEnd && wpSet && wpSet.has(id);
@@ -4559,6 +5673,9 @@ function mapCloseInfo() {
 // wrong is worse than none, because it turns "I don't know" into confident
 // misreading. Every handler that changes any of those inputs calls this.
 function _updateLegend() {
+  // The Force Projection widget follows the overlay too. Before the early return
+  // below, so it still hides when the legend element is missing.
+  if (typeof _fpSyncWidget === 'function') _fpSyncWidget();
   const el = document.getElementById('mapLegend');
   if (!el) return;
 
@@ -4574,7 +5691,18 @@ function _updateLegend() {
 
   let html = '';
 
-  if (_overlay === 'security') {
+  if (_overlay === 'natural') {
+    // Swatches from the same table the canvas paints with, drawn as small stars.
+    const orb = (hex) => `<span class="map-legend-orb" style="--orb:${hex}"></span>`;
+    html = `<div class="map-legend-title">STARS</div>
+      ${row(orb(_STAR_HEX['bright blue']), 'Blue · O, B, A')}
+      ${row(orb(_STAR_HEX.white),          'White · F, white dwarfs')}
+      ${row(orb(_STAR_HEX.yellow),         'Yellow · G5, K3')}
+      ${row(orb(_STAR_HEX.pink),           'Pink · G')}
+      ${row(orb(_STAR_HEX.orange),         'Orange · K, M')}
+      ${row(orb(_STAR_HEX['red giant']),   'Red giant · K5')}
+      <div class="map-legend-note">Each system's own star, sized by class: dwarfs smallest, giants largest.</div>`;
+  } else if (_overlay === 'security') {
     html = `<div class="map-legend-title">SECURITY STATUS</div>
       ${row(dot(sec(1.0)),  '1.0 High-sec')}
       ${row(dot(sec(0.9)),  '0.9')}
@@ -4653,6 +5781,9 @@ function _updateLegend() {
   // so is the difference between a reading and a misreading.
   if (_infActive()) {
     html += `<div class="map-legend-note">Influence is on: system dots carry their territory's colour, not the ramp above.</div>`;
+  } else if (_showInf && _viewMode === 'spatial') {
+    // Said outright rather than left as a lit button that does nothing here.
+    html += `<div class="map-legend-note">Influence draws on the Schematic view — the 3-D map has no territory field.</div>`;
   }
 
   // Marks: only what is on screen right now, so this section stays short and
@@ -4665,6 +5796,20 @@ function _updateLegend() {
   if (_incSet.size)   marks.push(row(glyph('◎'), 'Incursion'));
   if (_youHereId)     marks.push(row(dot('#4ecbb0'), 'You are here'));
   if (marks.length) html += `<div class="map-legend-title map-legend-sub">MARKS</div>${marks.join('')}`;
+
+  // Force projection: a layer, so it adds a section rather than replacing the
+  // overlay's own key. Rings mark the four bands inside 20 LY; past that is
+  // zone 5, which is most of the galaxy and so left unmarked.
+  if (_showFp) {
+    const Z = ForceProjection.ZONES;
+    const ring = (z) => `<span class="map-legend-ring" style="border-color:${_fpCol(z.token)}"></span>`;
+    const fare = (z) => (z.multiplier === 0 ? 'free' : z.multiplier + '×');
+    const fp = [[0, 5], [5, 10], [10, 15], [15, 20]]
+      .map(([lo, hi], i) => row(ring(Z[i]), `${lo}–${hi} LY · ${fare(Z[i])}`));
+    fp.push(`<div class="map-legend-note">Past 20 LY is 15× and left unmarked.${
+      _fpSelected.size ? '' : ' Pick an alliance top-left.'}</div>`);
+    html += `<div class="map-legend-title map-legend-sub">FORCE PROJECTION</div>${fp.join('')}`;
+  }
 
   const lines = [ row(line('rgba(150,160,176,0.42)'), 'Stargate') ];
   lines.push(row(line('rgba(196,140,64,0.65)'), 'Regional gate'));
@@ -5010,6 +6155,16 @@ function _initToolbar() {
     });
   }
 
+  const fpBtn = document.getElementById('mapFpToggle');
+  if (fpBtn) {
+    fpBtn.addEventListener('click', () => {
+      _showFp = !_showFp;
+      _press(fpBtn, _showFp);
+      _updateLegend();      // adds or removes the section, and shows the widget
+      _scheduleRender();
+    });
+  }
+
   const infBtn = document.getElementById('mapInfToggle');
   if (infBtn) {
     infBtn.addEventListener('click', () => {
@@ -5030,16 +6185,24 @@ function _initToolbar() {
   const zoomFit = document.getElementById('mapZoomFit');
   if (zoomIn)  zoomIn.addEventListener('click',  () => _adjustZoom(1.45, _canvas.width/2, _canvas.height/2));
   if (zoomOut) zoomOut.addEventListener('click', () => _adjustZoom(1/1.45, _canvas.width/2, _canvas.height/2));
-  if (zoomFit) zoomFit.addEventListener('click', () => {
-    if (_viewMode === 'spatial') _fitSpatial();
-    else if (_viewMode === 'modern' && _regionView != null) _fitRegion();
-    else _fitGalaxy();
-    _scheduleRender();
-  });
+  if (zoomFit) zoomFit.addEventListener('click', _fitCurrentView);
 
   // There is deliberately no Refresh control here. Everything the old ⟳ button
   // did now happens on the endpoints' own cadence in _startLivePolling(), and the
   // legend reports the age of the data instead.
+}
+
+/** Refit whichever view is showing. The fit button and the F key share it. */
+function _fitCurrentView() {
+  if (_viewMode === 'spatial') _fitSpatial();
+  else if (_viewMode === 'modern' && _regionView != null) _fitRegion();
+  else _fitGalaxy();
+  _scheduleRender();
+}
+
+/** True while focus is in something you type into, where keys must stay keys. */
+function _isTypingTarget(t) {
+  return !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 }
 
 // ── Canvas setup ──────────────────────────────────────────────────────────────
@@ -5047,23 +6210,46 @@ function _initCanvas() {
   _canvas = document.getElementById('mapCanvas');
   if (!_canvas) return;
   _ctx = _canvas.getContext('2d');
+  _jbFx = document.getElementById('mapFxCanvas');
+  _jbFxCtx = _jbFx && _jbFx.getContext('2d');
+  _bg = document.getElementById('mapBgCanvas');
+  _bgCtx = _bg && _bg.getContext('2d');
+  // The shimmer and the drifting clouds start and stop with focus (ui.js sets
+  // app-unfocused) and with the OS reduced-motion setting.
+  const motionChanged = () => { _jbFxSync(); _bgSync(); };
+  new MutationObserver(motionChanged)
+    .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  _jbFxStill();                         // makes the media query
+  if (_jbFxReduce) _jbFxReduce.addEventListener('change', motionChanged);
 
   const vp = document.getElementById('mapViewport');
   if (vp) new ResizeObserver(() => _onResize()).observe(vp);
 
   // Pan (drag).
   _canvas.addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 2) return;
+    _closeMapMenu();            // a fresh press on the map is done with its menu
     _dragging = true;
+    _dragButton = e.button;
     _dragSX = e.clientX; _dragSY = e.clientY;
     _dragPX = _panX;     _dragPY = _panY;
-    // Spatial drags ORBIT by default and pan on shift. Orbiting is the gesture
-    // that makes a 3-D map legible - it is how you tell a near star from a far
-    // one - so it gets the unmodified drag.
+    // Spatial drags ORBIT by default; holding Space, or dragging with the right
+    // button, pans - the way most tools that have both do it. Orbiting is the
+    // gesture that makes a 3-D map legible - it is how you tell a near star
+    // from a far one - so it gets the unmodified drag. Flat has no tilt, so
+    // there a plain drag pans and Shift turns the map. Space and the right
+    // button pan in both: decided here, explicitly, because swapping Shift for
+    // Space inside the old inverted test would have made Space ROTATE in Flat.
     _camCancelTween();          // a drag takes over from any running glide
-    _camDragPan = e.shiftKey;
+    _camGesture = (_spaceHeld || e.button === 2) ? 'pan'
+      : (_camFlat ? (e.shiftKey ? 'rotate' : 'pan') : 'orbit');
     _camSY0 = _camYaw; _camSP0 = _camPitch;
     _camSPX = _camPanX; _camSPY = _camPanY;
+    _orbitPivot = null;
+    if (_viewMode === 'spatial' && _camGesture !== 'pan') {
+      const r = _canvas.getBoundingClientRect();
+      _orbitBegin(_orbitPivotAt(e.clientX - r.left, e.clientY - r.top));
+    }
     _canvas.style.cursor = 'grabbing';
   });
 
@@ -5074,18 +6260,21 @@ function _initCanvas() {
 
     if (_dragging && _viewMode === 'spatial') {
       const dx = e.clientX - _dragSX, dy = e.clientY - _dragSY;
-      // Flat inverts the gesture: the plain drag pans, because tilting is not
-      // on offer, and shift still rotates the map about its centre.
-      if (_camFlat ? !_camDragPan : _camDragPan) {
+      // Turning follows the hand: drag right and the near side of the map
+      // swings right, as drag down swings it down. A larger yaw carries the
+      // near side LEFT, hence minus dx against plus dy.
+      if (_camGesture === 'pan') {
         _camPanX = _camSPX + dx;
         _camPanY = _camSPY + dy;
-      } else if (_camFlat) {
-        _camYaw = _camSY0 + dx * 0.006;
+      } else if (_camGesture === 'rotate') {
+        _camYaw = _camSY0 - dx * 0.006;
+        _orbitHold();
       } else {
-        _camYaw = _camSY0 + dx * 0.006;
+        _camYaw = _camSY0 - dx * 0.006;
         // Clamped just shy of either pole: at exactly +/-90 degrees the tilt
         // has no horizon left to turn about and the view snaps.
         _camPitch = Math.max(-1.45, Math.min(1.45, _camSP0 + dy * 0.006));
+        _orbitHold();
       }
       _scheduleRender();
       return;
@@ -5133,7 +6322,9 @@ function _initCanvas() {
     // Floating tooltip
     if (tip) {
       if (_hovered) {
-        tip.textContent  = inOverview ? `${_hovered.name} · ${_regions[_hovered.regionId] || ''}` : _hovered.name;
+        // Natural adds the star itself, so a colour can be checked against what it is.
+        const star = (_overlay === 'natural' && _hovered.starLabel) ? ` · ${_hovered.starLabel}` : '';
+        tip.textContent  = (inOverview ? `${_hovered.name} · ${_regions[_hovered.regionId] || ''}` : _hovered.name) + star;
         tip.style.left   = (e.clientX + 14) + 'px';
         tip.style.top    = (e.clientY - 10) + 'px';
         tip.style.display = 'block';
@@ -5144,10 +6335,18 @@ function _initCanvas() {
   });
 
   _canvas.addEventListener('mouseup', e => {
-    if (!_dragging) return;
+    if (e.button === 2) _rightUpAt = performance.now();
+    if (!_dragging || e.button !== _dragButton) return;
     const moved = Math.abs(e.clientX - _dragSX) + Math.abs(e.clientY - _dragSY);
     _dragging = false;
     _canvas.style.cursor = _hovered ? 'pointer' : 'grab';
+
+    // A right press is a pan or a click, and only now can the two be told
+    // apart - which is why the menu opens here and not on 'contextmenu'.
+    if (e.button === 2) {
+      if (moved < 5) _openMapMenuAt(e.clientX, e.clientY);
+      return;
+    }
 
     if (moved < 5) {
       // Treat as click — toggle info panel
@@ -5202,13 +6401,44 @@ function _initCanvas() {
 
   // Right-click a system → map context menu (set travel start/destination; and,
   // when a capital jump route is plotted, an entry into the jump-planner options).
+  //
+  // A mouse right-click opens it from mouseup, above. The browser's own menu
+  // event cannot tell a click from a drag: it arrives on release on Windows,
+  // but on PRESS on macOS and Linux - before anyone knows the button is about
+  // to pan. So for a right press this only swallows the event; anything else
+  // that asks for a menu - a long press on a touch screen - still opens it
+  // here. (Electron has no default menu to keep, empty space or not.)
   _canvas.addEventListener('contextmenu', e => {
-    const rect = _canvas.getBoundingClientRect();
-    const sys  = _hitTest(e.clientX - rect.left, e.clientY - rect.top);
-    if (!sys) return;                       // empty space → keep the default menu
     e.preventDefault();
-    _showMapMenu(sys, e.clientX, e.clientY);
+    const rightPress = (_dragging && _dragButton === 2) || performance.now() - _rightUpAt < 500;
+    if (!rightPress) _openMapMenuAt(e.clientX, e.clientY);
   });
+
+  // Space held = the next drag pans. On the window, not the canvas: a canvas
+  // never has keyboard focus, so it would never hear the key. Only while the
+  // map is showing and nothing is being typed into - Space in the search box
+  // or a planner field is a space.
+  window.addEventListener('keydown', e => {
+    if (!_mapVisible() || _isTypingTarget(e.target)) return;
+    if (e.code === 'Space') {
+      e.preventDefault();               // the page must not scroll
+      if (!_spaceHeld) {
+        _spaceHeld = true;
+        if (!_dragging) _canvas.style.cursor = 'grab';
+      }
+    } else if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // The empty-view message has always said "press F to refit"; nothing
+      // listened for it until now.
+      e.preventDefault();
+      _fitCurrentView();
+    }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'Space') _spaceHeld = false;
+  });
+  // Released while the window was elsewhere, the keyup never arrives: without
+  // this, every drag afterwards would pan until Space was pressed again.
+  window.addEventListener('blur', () => { _spaceHeld = false; });
 
   // Zoom (scroll wheel)
   _canvas.addEventListener('wheel', e => {
@@ -5231,6 +6461,8 @@ function _onResize() {
   const prevW = _canvas.width, prevH = _canvas.height;
   _canvas.width  = Math.floor(rect.width)  || 300;
   _canvas.height = Math.floor(rect.height) || 300;
+  if (_jbFx) { _jbFx.width = _canvas.width; _jbFx.height = _canvas.height; }
+  if (_bg)   { _bg.width   = _canvas.width; _bg.height   = _canvas.height; }
 
   if (!_loaded || prevW === 0 || prevH === 0) {
     if (_viewMode === 'spatial') _fitSpatial();
@@ -5272,6 +6504,7 @@ function _agoLabel(t) {
 }
 
 async function _loadLiveData({ sov = true, inc = true } = {}) {
+  const asked = Date.now();
   const [sovR, incR] = await Promise.allSettled([
     sov ? window.eveAPI.mapGetSovereignty() : Promise.resolve(null),
     inc ? window.eveAPI.mapGetIncursions()  : Promise.resolve(null),
@@ -5279,10 +6512,13 @@ async function _loadLiveData({ sov = true, inc = true } = {}) {
 
   // A rejected fetch must not be mistaken for "the galaxy is unclaimed": keep the
   // last good data and say the overlay is stale rather than repainting it empty.
+  // And a slow answer must not undo a newer one: when ESI drags, the first load
+  // can land after a poll that started later - or after data a test has put in
+  // place - and would paint the older picture over it.
   const sovBad = sov && sovR.status === 'rejected';
   const incBad = inc && incR.status === 'rejected';
-  if (sov && !sovBad) { _sovMap = sovR.value || {};            _sovAt = Date.now(); }
-  if (inc && !incBad) { _incSet = new Set(incR.value || []);   _incAt = Date.now(); }
+  if (sov && !sovBad && _sovAt <= asked) { _sovMap = sovR.value || {};          _sovAt = Date.now(); }
+  if (inc && !incBad && _incAt <= asked) { _incSet = new Set(incR.value || []); _incAt = Date.now(); }
 
   _liveFail = sovBad && incBad ? 'both' : sovBad ? 'sov' : incBad ? 'inc' : null;
   if (_liveFail) {
@@ -5362,6 +6598,80 @@ function _buildBridgeAdj() {
     _bridgeAdj.get(a).push(b);
     _bridgeAdj.get(b).push(a);
   }
+}
+
+// -- Ansiblex fares and capacitor -----------------------------------------
+//
+// Every Ansiblex jump costs capacitor from the structure it leaves: hull base x
+// the zone multiplier of the DESTINATION, measured from the owning alliance's
+// sov capital (force-projection.js has the table and the sources). Each end of
+// a bridge is its own structure with its own 1250 TJ, so A->B and B->A are
+// separate questions: one can be drained while the other is full.
+//
+// A bridge you have seen run dry is marked down by its ORIGIN system and given
+// its capacitor back at CCP's published ~200 TJ an hour, so it returns to the
+// router by itself rather than staying out until someone remembers it. Marks
+// persist across sessions because a drained Ansiblex stays drained whether the
+// app was open or not.
+const _SG_DOWN_KEY = 'sg_ansiblex_down';
+let _sgDown = (() => {
+  try {
+    const o = JSON.parse(localStorage.getItem('sg_ansiblex_down') || '{}');
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch { return {}; }
+})();
+
+function _sgSaveDown() {
+  try { localStorage.setItem(_SG_DOWN_KEY, JSON.stringify(_sgDown)); } catch { /* private mode */ }
+}
+
+/** Forget marks for Ansiblexes that have recharged in full. */
+function _sgPruneDown() {
+  const full = ForceProjection.ANSIBLEX.capacityTJ;
+  let changed = false;
+  for (const [id, at] of Object.entries(_sgDown)) {
+    if (ForceProjection.rechargedTJ((Date.now() - at) / 3600000) >= full) { delete _sgDown[id]; changed = true; }
+  }
+  if (changed) _sgSaveDown();
+}
+
+/** Capacitor an Ansiblex has right now: full, unless it was marked drained. */
+function _ansiblexAvailableTJ(sysId) {
+  const at = _sgDown[sysId];
+  if (!at) return ForceProjection.ANSIBLEX.capacityTJ;
+  return ForceProjection.rechargedTJ((Date.now() - at) / 3600000);
+}
+
+/**
+ * Capital of the alliance that owns the Ansiblex in `sysId`.
+ *
+ * Only the alliance holding sov over a jump's STARTING system can use it, so
+ * the owner is that system's holder and the zones are measured from its
+ * capital. null when it has none - which the game charges as zone 5.
+ */
+function _ansiblexOwnerCapital(sysId) {
+  const h = _sovMap && _sovMap[sysId];
+  const al = h && (h.allianceId || h.alliance_id);
+  return al ? _fpCapitalOf(al) : null;
+}
+
+/**
+ * Everything the planner needs to know about one Ansiblex jump, for a hull and
+ * a fleet size: what it costs, what the origin can spare, how many ships that
+ * moves, and whether the whole fleet fits.
+ */
+function _bridgeHop(from, to, opts) {
+  const cls = opts.shipClass || 'hauler';
+  const fleet = Math.max(1, Math.floor(Number(opts.fleet) || 1));
+  const f = ForceProjection.jumpFare(_sysById[from], _sysById[to], cls, _ansiblexOwnerCapital(from));
+  const available = _ansiblexAvailableTJ(from);
+  const through = ForceProjection.shipsThrough(f.fare, available);
+  const usable = f.fare !== null && through >= fleet;
+  return Object.assign(f, {
+    from, to, fleet, available, through, usable,
+    reason: f.fare === null ? 'barred' : (usable ? null : 'capacitor'),
+    sovKnown: !!(_sovMap && _sovMap[from]),
+  });
 }
 
 // EvE-Scout wormhole connections (Thera/Turnur) as bidirectional 1-jump edges.
@@ -5445,7 +6755,11 @@ function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedE
   if (!_sysById[startId] || !_sysById[endId]) return null;
   _ensureGateAdj();
   const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, avoidZarzakh = false, useBridges = false, useWormholes = false } = opts;
-  if (useBridges) _buildBridgeAdj();
+  // A hull that cannot use an Ansiblex at all (capitals) skips the whole
+  // network up front, rather than being rejected one bridge at a time.
+  const cls = ForceProjection.shipClass(opts.shipClass || 'hauler');
+  const bridgesOk = useBridges && !!cls && cls.allowed;
+  if (bridgesOk) _buildBridgeAdj();
 
   const dist = new Map(), prev = new Map(), done = new Set();
   const heap = _mapHeap();
@@ -5456,11 +6770,19 @@ function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedE
     done.add(id);
     if (id === endId) break;
     // Gates + (optionally) Ansiblex bridges + wormholes form one network — the
-    // router picks the cheapest mix.
-    const neighbours = (_gateAdj.get(id) || [])
-      .concat(useBridges   && _bridgeAdj ? (_bridgeAdj.get(id) || []) : [])
-      .concat(useWormholes && _whAdj     ? (_whAdj.get(id)     || []) : []);
-    for (const to of neighbours) {
+    // router picks the cheapest mix. A bridge is only an edge if this hull may
+    // use it and the origin Ansiblex has the capacitor for the whole fleet;
+    // one that cannot carry everyone is, for this fleet, a bridge that is down.
+    const neighbours = [];
+    for (const to of (_gateAdj.get(id) || [])) neighbours.push([to, null]);
+    if (useWormholes && _whAdj) for (const to of (_whAdj.get(id) || [])) neighbours.push([to, null]);
+    if (bridgesOk && _bridgeAdj) {
+      for (const to of (_bridgeAdj.get(id) || [])) {
+        const hop = _bridgeHop(id, to, opts);
+        if (hop.usable) neighbours.push([to, hop]);
+      }
+    }
+    for (const [to, hop] of neighbours) {
       if (done.has(to)) continue;
       if (removedNodes && removedNodes.has(to)) continue;
       if (removedEdges && removedEdges.has(id + '>' + to)) continue;
@@ -5474,7 +6796,10 @@ function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedE
         // through it (it stays reachable only as an explicit destination).
         if (avoidZarzakh && to === _ZARZAKH_ID) continue;
       }
-      const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys));
+      // Capacitor is a tiebreak, never a detour: at most ~0.03 a hop, so among
+      // equally fast routes the one that drains less wins, and no route is ever
+      // made longer to save capacitor.
+      const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys)) + (hop ? hop.fare * 1e-4 : 0);
       if (nd < (dist.has(to) ? dist.get(to) : Infinity)) {
         dist.set(to, nd); prev.set(to, id); heap.push(nd, to);
       }
@@ -5591,6 +6916,13 @@ function _travelSovLabel(s) {
 
 // ── Map context menu ──────────────────────────────────────────────────────────
 function _closeMapMenu() { const m = document.getElementById('mapCtxMenu'); if (m) m.remove(); }
+
+/** The system menu for whatever is under the pointer, if anything is. */
+function _openMapMenuAt(clientX, clientY) {
+  const rect = _canvas.getBoundingClientRect();
+  const sys  = _hitTest(clientX - rect.left, clientY - rect.top);
+  if (sys) _showMapMenu(sys, clientX, clientY);
+}
 function _mapMenuOutside(e) {
   const m = document.getElementById('mapCtxMenu');
   if (!m) return;
@@ -5718,7 +7050,9 @@ function _sgBuildModal() {
           <div class="jp-field"><label>From</label>
             <input id="sgFrom" class="field-input" autocomplete="off" spellcheck="false" placeholder="Start system…" list="sgSysList"></div>
           <div class="jp-field"><label>To</label>
-            <input id="sgTo" class="field-input" autocomplete="off" spellcheck="false" placeholder="Destination system…" list="sgSysList"></div>
+            <input id="sgTo" class="field-input" autocomplete="off" spellcheck="false" placeholder="Destination system…" list="sgSysList">
+            <button type="button" id="sgHomeBtn" class="icon-btn sg-home" title="Set the destination to your alliance's sov capital">
+              <span class="material-symbols-outlined" aria-hidden="true">home</span> Route home</button></div>
           <datalist id="sgSysList"></datalist>
           <div class="jp-field"><label>Mode</label>
             <select id="sgMode" class="field-input" style="cursor:pointer;">
@@ -5726,6 +7060,15 @@ function _sgBuildModal() {
               <option value="shortest">Shortest (fewest jumps)</option>
             </select>
           </div>
+          <div class="jp-field"><label>Ship</label>
+            <select id="sgShip" class="field-input sg-ship">
+              <optgroup label="Can use jump bridges">${ForceProjection.SHIP_CLASSES.filter(c => c.allowed)
+                .map(c => `<option value="${c.id}">${c.name} · ${c.base} TJ</option>`).join('')}</optgroup>
+              <optgroup label="Capitals — barred from jump bridges">${ForceProjection.SHIP_CLASSES.filter(c => !c.allowed)
+                .map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</optgroup>
+            </select></div>
+          <div class="jp-field"><label>Fleet size</label>
+            <input id="sgFleet" class="field-input" type="number" min="1" step="1" value="1" inputmode="numeric"></div>
           <div class="jp-toggles">
             <label class="jp-check"><input type="checkbox" id="sgUseBridges" checked> Use jump bridges (Ansiblex)</label>
             <label class="jp-check"><input type="checkbox" id="sgUseWh"> Use EvE-Scout connections (Thera/Turnur)</label>
@@ -5755,16 +7098,98 @@ function _sgBuildModal() {
   m.querySelector('#sgAltBtn').addEventListener('click', _sgShowAlternatives);
   m.querySelector('#sgTo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); _sgPlotAndShow(); } });
   // Auto re-plot whenever any option (or From/To) changes.
-  ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgAvoidZarzakh', '#sgFrom', '#sgTo']
+  ['#sgMode', '#sgUseBridges', '#sgUseWh', '#sgAvoidLow', '#sgAvoidNull', '#sgAvoidRed', '#sgAvoidZarzakh', '#sgFrom', '#sgTo', '#sgShip', '#sgFleet']
     .forEach(sel => { const el = m.querySelector(sel); if (el) el.addEventListener('change', _sgMaybeReplot); });
+  m.querySelector('#sgHomeBtn').addEventListener('click', _sgHome);
+
+  // Hull and fleet size are remembered: the ship you fly changes less often
+  // than where you are going.
+  const ship = m.querySelector('#sgShip'), fleet = m.querySelector('#sgFleet');
+  try {
+    const saved = JSON.parse(localStorage.getItem('sg_ship_fleet') || '{}');
+    if (saved.ship && ForceProjection.shipClass(saved.ship)) ship.value = saved.ship;
+    if (saved.fleet > 0) fleet.value = String(Math.floor(saved.fleet));
+  } catch { /* first run */ }
+  const remember = () => {
+    try { localStorage.setItem('sg_ship_fleet', JSON.stringify({ ship: ship.value, fleet: Number(fleet.value) || 1 })); } catch { /* private mode */ }
+  };
+  ship.addEventListener('change', remember);
+  fleet.addEventListener('change', remember);
   return m;
 }
 
 // Re-plot the stargate route if both endpoints are valid (used by option toggles).
+/**
+ * The planner's options, read from the form.
+ *
+ * Built in one place: the plot and the alternatives search each used to make
+ * their own copy, and a field added to one and not the other would have let
+ * the alternatives quietly route a titan across a bridge network.
+ */
+function _sgOptions(useWh) {
+  const ship  = document.getElementById('sgShip');
+  const fleet = document.getElementById('sgFleet');
+  return {
+    mode:         document.getElementById('sgMode').value,
+    avoidLow:     document.getElementById('sgAvoidLow').checked,
+    avoidNull:    document.getElementById('sgAvoidNull').checked,
+    avoidRed:     document.getElementById('sgAvoidRed').checked,
+    avoidZarzakh: document.getElementById('sgAvoidZarzakh').checked,
+    useBridges:   document.getElementById('sgUseBridges').checked,
+    useWormholes: useWh,
+    shipClass:    ship ? ship.value : 'hauler',
+    fleet:        Math.max(1, Math.floor(Number(fleet && fleet.value) || 1)),
+  };
+}
+
+/**
+ * Route home: to your own alliance's sov capital.
+ *
+ * Your character's alliance first. Not whoever holds the system you are in -
+ * out in someone else's space that would route you to THEIR capital. Falls
+ * back to the alliance picked in Force Projection.
+ */
+async function _sgHome() {
+  const status = document.getElementById('sgStatus');
+  if (!_fnfLoaded) { if (status) status.textContent = 'Finding your alliance\u2026'; await _loadFnfStandings(); }
+  let cap = _fnfAllianceId ? _fpCapitalOf(_fnfAllianceId) : null;
+  if (!cap) for (const al of _fpSelected) { cap = _fpCapitalOf(al); if (cap) break; }
+  if (!cap) {
+    if (status) status.textContent = _fnfAllianceId
+      ? 'Your alliance has no sov capital set.'
+      : 'No alliance found \u2014 pick one in the Force Projection panel.';
+    return;
+  }
+  if (status) status.textContent = '';
+  document.getElementById('sgTo').value = cap.name;
+  _sgMaybeReplot();
+}
+
+/** Everything a route depends on, so an unchanged form can be recognised. */
+let _sgLastKey = '';
+function _sgPlotKey() {
+  const from = _sgResolve(document.getElementById('sgFrom').value);
+  const to   = _sgResolve(document.getElementById('sgTo').value);
+  return JSON.stringify([from && from.id, to && to.id, _sgOptions(document.getElementById('sgUseWh').checked)]);
+}
+
+/**
+ * Re-plot after a form change - but only when something the route depends on
+ * actually changed.
+ *
+ * A field you have typed into commits on blur, and pressing the mouse on a
+ * button in the results is what blurs it. That fired a re-plot which rebuilt
+ * the results panel between the button's mousedown and its click, so the
+ * browser never delivered the click: edit the destination, press "Out of cap",
+ * and nothing happened. When the form is unchanged the re-plot would only redraw
+ * the same route, so it is skipped and the button keeps its click.
+ */
 function _sgMaybeReplot() {
   const from = _sgResolve(document.getElementById('sgFrom').value);
   const to   = _sgResolve(document.getElementById('sgTo').value);
-  if (from && to && from.id !== to.id) _sgPlot();
+  if (!(from && to && from.id !== to.id)) return;
+  if (_sgPlotKey() === _sgLastKey) return;
+  _sgPlot();
 }
 
 function _sgPopulateDatalist() {
@@ -5789,24 +7214,18 @@ function _sgResolve(text) {
 }
 
 async function _sgPlot() {
+  _sgPruneDown();
   const result = document.getElementById('sgResult');
   const from = _sgResolve(document.getElementById('sgFrom').value);
   const to   = _sgResolve(document.getElementById('sgTo').value);
   if (!from || !to) { result.innerHTML = `<div class="jp-empty jp-err">Pick valid start and destination systems.</div>`; return null; }
   if (from.id === to.id) { result.innerHTML = `<div class="jp-empty">Start and destination are the same system.</div>`; return null; }
+  _sgLastKey = _sgPlotKey();
 
   if (!_fnfLoaded) { result.innerHTML = `<div class="jp-empty">Loading standings…</div>`; await _loadFnfStandings(); }
   const useWh = document.getElementById('sgUseWh').checked;
   if (useWh && !_whLoaded) { result.innerHTML = `<div class="jp-empty">Loading EvE-Scout connections…</div>`; await _loadWormholes(); }
-  const opts = {
-    mode:         document.getElementById('sgMode').value,
-    avoidLow:     document.getElementById('sgAvoidLow').checked,
-    avoidNull:    document.getElementById('sgAvoidNull').checked,
-    avoidRed:     document.getElementById('sgAvoidRed').checked,
-    avoidZarzakh: document.getElementById('sgAvoidZarzakh').checked,
-    useBridges:   document.getElementById('sgUseBridges').checked,
-    useWormholes: useWh,
-  };
+  const opts = _sgOptions(useWh);
   const path = _travelRoutePath(from.id, to.id, opts);
   if (!path) { result.innerHTML = `<div class="jp-empty jp-err">No gate route found with those constraints. Try removing an avoid filter.</div>`; return null; }
   _sgRenderRoute(path, opts);
@@ -5864,6 +7283,7 @@ async function _sgSendToGame() {
 // "⎇ Alternatives": compute up to 3 shortest distinct routes (Yen's) and show them
 // as selectable chips above the route table.
 async function _sgShowAlternatives() {
+  _sgPruneDown();
   const result = document.getElementById('sgResult');
   const from = _sgResolve(document.getElementById('sgFrom').value);
   const to   = _sgResolve(document.getElementById('sgTo').value);
@@ -5872,15 +7292,7 @@ async function _sgShowAlternatives() {
   if (!_fnfLoaded) await _loadFnfStandings();
   const useWh = document.getElementById('sgUseWh').checked;
   if (useWh && !_whLoaded) await _loadWormholes();
-  const opts = {
-    mode:         document.getElementById('sgMode').value,
-    avoidLow:     document.getElementById('sgAvoidLow').checked,
-    avoidNull:    document.getElementById('sgAvoidNull').checked,
-    avoidRed:     document.getElementById('sgAvoidRed').checked,
-    avoidZarzakh: document.getElementById('sgAvoidZarzakh').checked,
-    useBridges:   document.getElementById('sgUseBridges').checked,
-    useWormholes: useWh,
-  };
+  const opts = _sgOptions(useWh);
   if (result) result.innerHTML = `<div class="jp-empty">Finding alternative routes…</div>`;
   await new Promise(r => setTimeout(r, 20));   // let the message paint
   const routes = _kShortestRoutes(from.id, to.id, opts, 3);
@@ -5911,6 +7323,49 @@ function _sgRenderAlternatives(opts, idx) {
   if (typeof window.mapShowRoute === 'function') window.mapShowRoute(_sgAltRoutes[idx].path, [], false);
 }
 
+/** 247.5 -> "247.5", 1250 -> "1,250". */
+function _fmtTJ(n) {
+  return Number(n).toLocaleString('en-GB', { maximumFractionDigits: 1 });
+}
+
+/** The line under a bridge hop: zone, fare, what the origin can spare, and a way to mark it dry. */
+function _sgBridgeRow(hop) {
+  const band = ForceProjection.ZONES.find(b => b.zone === hop.zone) || ForceProjection.UNKNOWN;
+  const zone = `<span class="sg-zone" style="--sg-zone:${_fpCol(band.token)}">Z${hop.zone} · ${
+    hop.multiplier === 0 ? 'free' : hop.multiplier + '×'}</span>`;
+  const fare = hop.fare === 0 ? 'free'
+    : `${_fmtTJ(hop.fare)} TJ${hop.fleet > 1 ? ` × ${hop.fleet} = ${_fmtTJ(hop.fare * hop.fleet)} TJ` : ''}`;
+  const down = !!_sgDown[hop.from];
+  const where = hop.noCapital
+    ? (hop.sovKnown ? 'owner has no sov capital — charged as zone 5' : 'sov not loaded — charged as zone 5')
+    : `destination ${hop.ly.toFixed(1)} LY from capital`;
+  const avail = down
+    ? `origin ${_fmtTJ(hop.available)} of ${_fmtTJ(ForceProjection.ANSIBLEX.capacityTJ)} TJ, recharging`
+    : `origin full, ${_fmtTJ(ForceProjection.ANSIBLEX.capacityTJ)} TJ`;
+  const btn = down
+    ? `<button type="button" class="icon-btn sg-up" data-origin="${hop.from}" title="Forget the mark: this Ansiblex has its capacitor back">Recharged</button>`
+    : `<button type="button" class="icon-btn sg-down" data-origin="${hop.from}" title="This Ansiblex is out of capacitor: route around it until it recharges">Out of cap</button>`;
+  return `<tr class="sg-bridge-row"><td></td><td colspan="4">${zone} <span class="sg-fare">${fare}</span>
+    <span class="jp-dim">· ${where} · ${avail}</span> ${btn}</td></tr>`;
+}
+
+/**
+ * Bridge jumps in the whole network this fleet cannot take right now - marked
+ * dry, or short of capacitor for this many hulls. Said out loud, so a route that
+ * avoids a bridge does not look like the router forgot it existed.
+ */
+function _sgBlockedJumps(opts) {
+  if (!opts.useBridges || !_savedBridges.length) return 0;
+  let n = 0;
+  for (const [a, b] of _savedBridges) {
+    for (const [from, to] of [[a, b], [b, a]]) {
+      if (!_sysById[from] || !_sysById[to]) continue;
+      if (_bridgeHop(from, to, opts).reason === 'capacitor') n++;
+    }
+  }
+  return n;
+}
+
 function _sgRenderRoute(path, opts) {
   const result = document.getElementById('sgResult');
   _sgLastPath = path;
@@ -5921,15 +7376,22 @@ function _sgRenderRoute(path, opts) {
   const isWh     = (a, b) => opts.useWormholes && _whAdj && (_whAdj.get(a) || []).includes(b);
   const whInfo   = (a, b) => (_whConns || []).find(c =>
     (c.inId === a && c.outId === b) || (c.inId === b && c.outId === a));
-  let red = 0, low = 0, bridges = 0, wormholes = 0;
+  let red = 0, low = 0, bridges = 0, wormholes = 0, perShipTJ = 0;
   const rows = path.map((id, i) => {
+    let detail = '';
     const s = _sysById[id];
     const region = _regions[s.regionId] || '';
     if (_travelSafetyCost(s) >= 50) red++;
     if (s.sec > 0.0 && s.sec < 0.45) low++;
     let hopMark = '';
     if (i > 0 && !isGate(path[i - 1], id)) {
-      if (isBridge(path[i - 1], id)) { bridges++; hopMark = '<span class="map-mark-bridge" title="Jump bridge">◈ </span>'; }
+      if (isBridge(path[i - 1], id)) {
+        bridges++;
+        hopMark = '<span class="map-mark-bridge" title="Jump bridge">◈ </span>';
+        const hop = _bridgeHop(path[i - 1], id, opts);
+        perShipTJ += hop.fare || 0;
+        detail = _sgBridgeRow(hop);
+      }
       else if (isWh(path[i - 1], id)) {
         wormholes++;
         const c = whInfo(path[i - 1], id);
@@ -5947,23 +7409,49 @@ function _sgRenderRoute(path, opts) {
         <td class="jp-dim">${escHtml(region)}</td>
         <td class="jp-right">${s.sec != null ? s.sec.toFixed(1) : '—'}</td>
         <td><span class="jp-secdot" style="background:${sov.color}"></span><span class="jp-dim">${sov.label}</span></td>
-      </tr>`;
+      </tr>${detail}`;
   }).join('');
+
+  // What the hull and fleet mean for this route.
+  const cls = ForceProjection.shipClass(opts.shipClass || 'hauler');
+  const fleet = Math.max(1, Math.floor(Number(opts.fleet) || 1));
+  const notes = [];
+  if (opts.useBridges && cls && !cls.allowed) {
+    notes.push(`${escHtml(cls.name)}s can't use Ansiblex jump bridges \u2014 routed through gates only.`);
+  } else {
+    const blocked = _sgBlockedJumps(opts);
+    if (blocked) notes.push(`${blocked} bridge jump${blocked === 1 ? '' : 's'} can't take ${fleet === 1 ? 'this ship' : `${fleet} ships`}
+      right now \u2014 out of capacitor or marked dry \u2014 so the route goes around ${blocked === 1 ? 'it' : 'them'}.`);
+  }
 
   result.innerHTML = `
     <div class="jp-banner">${opts.mode === 'shortest' ? 'Shortest route — fewest jumps (gates + bridges).' : 'Safest route — prefers your sov, blues &amp; hi-sec; red only as a last resort.'}</div>
     <div class="jp-totals">
       <div><span class="jp-tot-num">${jumps}</span><span class="jp-tot-lbl">jumps</span></div>
       ${bridges ? `<div><span class="jp-tot-num map-mark-bridge">${bridges}</span><span class="jp-tot-lbl">bridges</span></div>` : ''}
+      ${bridges ? `<div><span class="jp-tot-num">${perShipTJ ? _fmtTJ(perShipTJ * fleet) : 'free'}</span><span class="jp-tot-lbl">${
+        perShipTJ ? `TJ${fleet > 1 ? ` \u00b7 ${fleet} ships` : ''}` : 'capacitor'}</span></div>` : ''}
       ${wormholes ? `<div><span class="jp-tot-num map-mark-wormhole">${wormholes}</span><span class="jp-tot-lbl">wormholes</span></div>` : ''}
       ${low ? `<div><span class="jp-tot-num map-mark-lowsec">${low}</span><span class="jp-tot-lbl">low-sec</span></div>` : ''}
       ${red ? `<div><span class="jp-tot-num map-mark-red">${red}</span><span class="jp-tot-lbl">red</span></div>` : ''}
     </div>
+    ${notes.map(n => `<div class="sg-note">${n}</div>`).join('')}
     <button id="sgShowMapBtn" class="icon-btn" style="width:100%;margin:4px 0 8px;padding:6px;font-size:12px;cursor:pointer;"><span class="material-symbols-outlined" aria-hidden="true">map</span> Show / centre on map</button>
     <table class="jp-route-table">
       <thead><tr><th></th><th>System</th><th>Region</th><th class="jp-right">Sec</th><th>Sov</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+
+  result.querySelectorAll('.sg-down').forEach(b => b.addEventListener('click', () => {
+    _sgDown[b.dataset.origin] = Date.now();
+    _sgSaveDown();
+    _sgPlot();
+  }));
+  result.querySelectorAll('.sg-up').forEach(b => b.addEventListener('click', () => {
+    delete _sgDown[b.dataset.origin];
+    _sgSaveDown();
+    _sgPlot();
+  }));
 
   const btn = document.getElementById('sgShowMapBtn');
   if (btn) btn.addEventListener('click', () => {
@@ -5986,6 +7474,7 @@ function _setMapState(state, cause) {
   loadingEl?.classList.toggle('is-hidden', state !== 'loading');
   errorEl?.classList.toggle('is-hidden',   state !== 'error');
   canvasEl?.classList.toggle('is-hidden',  state !== 'ready');
+  document.getElementById('mapBgCanvas')?.classList.toggle('is-hidden', state !== 'ready');
 
   // The raw message is the technical cause, never the headline: it sits under the
   // plain-language explanation, and is dropped entirely when there is none.
@@ -6052,8 +7541,10 @@ async function initMapPage() {
     const galaxy = await window.eveAPI.mapGetGalaxy();
 
     _systems  = _normalise(galaxy.systems);
+    _classifyStars(_systems);
     _jumps    = galaxy.jumps;
     _regions  = galaxy.regions;
+    _regionNebulae = galaxy.regionNebulae || {};   // empty on an SDE that predates them: skybox only
     _constellations = galaxy.constellations || {};
     _sysById  = {};
     for (const s of _systems) _sysById[s.id] = s;
@@ -6148,6 +7639,9 @@ window.mapJumpToSystem = function (systemId) {
 // ── Fit the viewport to a set of systems (used by the route overlay) ──────────
 function _fitToSystems(ids) {
   if (!_canvas) return;
+  // Spatial has its own camera; moving the Schematic's pan and zoom there did
+  // nothing visible, so "show on map" left the route wherever it happened to be.
+  if (_viewMode === 'spatial') { _fitSpatialTo(ids); return; }
   const pts = (ids || []).map(id => _sysById[id]).filter(Boolean);
   if (!pts.length) return;
   const coords = pts.map(_worldPos);

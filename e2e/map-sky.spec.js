@@ -277,6 +277,11 @@ test('it stops when the window loses focus, off the map page and in Schematic', 
 test('the map itself is never redrawn for it, and a frame stays cheap', async ({ window }) => {
   // A full map frame costs ~40 ms; animating that would eat a core. Only the
   // sky layer may redraw while the dust drifts and the stars twinkle.
+  //
+  // Counted in frames, not in a fixed stretch of time, and priced against a map
+  // frame on the same machine rather than in milliseconds: the release runner
+  // draws a fraction as fast as a desktop, and the first cut of this test -
+  // twelve frames in 700 ms - failed there on a sky that was working.
   await openMap(window);
   await judgedView(window);
   const r = await window.evaluate(async () => {
@@ -286,23 +291,28 @@ test('the map itself is never redrawn for it, and a frame stays cheap', async ({
     _skyDraw = function () { frames++; return origSky.apply(this, arguments); };
     document.body.classList.remove('app-unfocused');
     _skySync();
-    const c0 = _skyClock;
-    await new Promise(res => setTimeout(res, 700));
+    const c0 = _skyClock, t0 = performance.now();
+    while (frames < 20 && performance.now() - t0 < 6000) await new Promise(res => setTimeout(res, 50));
     _renderMap = orig; _skyDraw = origSky;
-    // What a frame costs here, and pulled out to all 5,500 stars.
-    const cost = () => { const t0 = performance.now(); for (let i = 0; i < 20; i++) _skyDraw(); return (performance.now() - t0) / 20; };
-    const near = cost();
+    // What a sky frame costs here and pulled out to all 5,500 stars - and what
+    // a map frame of that whole cluster costs, on this same machine.
+    const time = (fn, n) => { const t = performance.now(); for (let i = 0; i < n; i++) fn(); return (performance.now() - t) / n; };
+    const near = time(_skyDraw, 20);
     _fitSpatial(); _render();
-    const far = cost();
-    return { renders, frames, advanced: _skyClock - c0, near, far };
+    const far = time(_skyDraw, 20);
+    const map = time(() => { _jbArcs = []; _skyN = 0; _renderMap(); }, 5);   // as _render() starts a frame
+    return { renders, frames, advanced: _skyClock - c0, near, far, map };
   });
   expect(r.advanced, 'the sky moved').toBeGreaterThan(300);
-  // Twenty-odd sky frames and no map frames for them. A couple of stray map
-  // frames are allowed - the live sov fetch, and the alliance tickers after it,
-  // can land in any window and redraw (map-skybox.spec.js allows the same) -
-  // but a sky that redrew the map would show one per frame.
-  expect(r.frames, 'sky frames drawn').toBeGreaterThanOrEqual(12);
+  // Twenty sky frames and no map frames for them. A couple of stray map frames
+  // are allowed - the live sov fetch, and the alliance tickers after it, can
+  // land in any window and redraw (map-skybox.spec.js allows the same) - but a
+  // sky that redrew the map would show one per frame.
+  expect(r.frames, 'sky frames drawn').toBeGreaterThanOrEqual(20);
   expect(r.renders, `map redraws over ${r.frames} sky frames`).toBeLessThanOrEqual(2);
-  expect(r.near, `ms a frame, flown in: ${r.near.toFixed(2)}`).toBeLessThan(8);
-  expect(r.far, `ms a frame, the whole cluster: ${r.far.toFixed(2)}`).toBeLessThan(8);
+  // Cheap is against the frame it spares: a small fraction of a map frame. On
+  // a desktop that is under a millisecond against ~35.
+  const share = (ms) => `${ms.toFixed(2)} ms a frame against ${r.map.toFixed(1)} ms for the map`;
+  expect(r.near, `flown in: ${share(r.near)}`).toBeLessThan(r.map * 0.25);
+  expect(r.far, `the whole cluster: ${share(r.far)}`).toBeLessThan(r.map * 0.25);
 });

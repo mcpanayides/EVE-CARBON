@@ -5,10 +5,10 @@
 // matters isn't the toggle looking wrong, it's the app deciding a normal launch
 // is a demo launch. So this asserts both directions of the persisted value.
 //
-// It deliberately stops short of actually restarting into demo mode: that would
-// seed <appData>/EVE Carbon Demo, a fixed global path shared with whatever demo
-// profile the developer has set up. The boot-time behaviour behind the flag is
-// covered by test/demo_mode.test.js, which can fake the paths.
+// It deliberately stops short of restarting into demo mode from the toggle. The
+// boot-time behaviour behind the flag is covered by test/demo_mode.test.js, which
+// can fake the paths, and a real demo launch by e2e/demo-data.spec.js, which
+// points the demo profile at a temp folder with EVE_CARBON_DEMO_DIR.
 const fs   = require('fs');
 const path = require('path');
 const { test, expect } = require('./support/electron-app');

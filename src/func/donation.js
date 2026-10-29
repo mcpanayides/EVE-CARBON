@@ -27,7 +27,9 @@ function initDonationPrompts() {
   // 1st of EVERY month and its modal backdrop then swallows clicks for the rest
   // of the suite. That is a hard release gate failing one calendar day in thirty,
   // with a "target closed" timeout that points nowhere near the cause.
-  if (window.eveAPI?.isAutomated) return;
+  // Nor in demo mode, which exists to be recorded: the 30-minute prompt would
+  // land in the middle of a take, and a fresh demo profile opens on the monthly one.
+  if (window.eveAPI?.isAutomated || window.eveAPI?.isDemo) return;
 
   // ── 1) 30-minute usage prompt (max once per calendar day) ──────────────────
   try {

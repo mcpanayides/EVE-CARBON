@@ -46,6 +46,9 @@ const demoPaths = demoMode.redirectPaths(app);
 // Wipe here, at module load, while nothing has opened the files yet — the
 // character DB is opened during app.whenReady() and cannot be deleted after.
 if (demoPaths) demoMode.reset(demoPaths);
+// One id per demo launch: the renderer re-seeds the demo's localStorage when it
+// changes (passed as --demo-seed when the window is created).
+const DEMO_LAUNCH = String(Date.now());
 
 const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE, Esi } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 const resfileBackgrounds      = require('./src/resfile_backgrounds');
@@ -718,7 +721,11 @@ ipcMain.on('log-write', (_e, entry) => {
 });
 
 // The nav light asks for this on load; after that it rides 'eve-status-changed'.
-ipcMain.handle('get-eve-status', () => eveStatusWatch.currentStatus());
+// Demo mode never polls (see startEveStatusWatch below): the light reads a fixed
+// "all operational" through the same classifier a live summary goes through.
+ipcMain.handle('get-eve-status', () => (demoPaths
+  ? require('./src/shared/eve_status').classify({ status: { indicator: 'none', description: 'All Systems Operational' }, components: [] })
+  : eveStatusWatch.currentStatus()));
 
 ipcMain.handle('set-server-alerts', (_, enabled) => {
   const cfg = loadConfig();
@@ -771,6 +778,39 @@ ipcMain.handle('restart-app', () => {
   app.relaunch({ args });
   app.exit(0);
 });
+
+// The demo's alliance forum. The Forums page embeds the configured forum in a
+// <webview> on the persist:forum session; the demo config points it at
+// forum.vaelin.example — a host that can never exist (RFC 2606) — and this
+// answers that one host, on that one session, from src/demo/forum.js. Anything
+// else the page loads (portraits) passes through untouched.
+//
+// The forum's own login cookies are set as well, so the "Logged in" light is
+// the real check (forum-session-status) reading real cookies, not a demo stub.
+function _serveDemoForum() {
+  try {
+    const { net } = require('electron');
+    const forum = require('./src/demo/forum');
+    const ses = session.fromPartition('persist:forum');
+    ses.protocol.handle('https', (req) => {
+      const r = forum.respond(req.url);
+      if (!r) return net.fetch(req, { bypassCustomProtocolHandlers: true });
+      return new Response(r.body, { status: r.status, headers: { 'content-type': r.type } });
+    });
+    _setDemoForumCookies(ses);
+  } catch (e) {
+    console.warn('[demo] forum not served:', e.message);
+  }
+}
+function _setDemoForumCookies(ses = session.fromPartition('persist:forum')) {
+  const url = require('./src/demo/forum').BASE;
+  const expirationDate = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+  const memberId = String(require('./src/demo/cast').CAST.main.id);
+  return Promise.all([
+    ses.cookies.set({ url, name: 'ips4_member_id', value: memberId, expirationDate }),
+    ses.cookies.set({ url, name: 'ips4_login_key', value: 'demo', expirationDate }),
+  ]).catch(() => {});
+}
 
 // ── Anonymous presence counter (status-bar "N online") — see src/presence.js ──
 // Always on when PRESENCE_URL is configured — no user-facing opt-out.
@@ -1111,13 +1151,14 @@ ipcMain.handle('fc-invite-characters', async (_, bossId, fleetId, inviteIds) => 
   const authHdr = _esiAuthHeaders(token, { 'Content-Type': 'application/json' });
   const base    = `${ESI_BASE}/fleets/${fleetId}`;
 
+  // _esiFetch is fetch outside demo mode; inside it, the invites "succeed".
   const esiGet = async (url) => {
-    const r = await fetch(url, { headers: _esiAuthHeaders(token) });
+    const r = await _esiFetch(url, { headers: _esiAuthHeaders(token) });
     if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
     return r.json();
   };
   const esiPost = async (url, body) => {
-    const r = await fetch(url, { method: 'POST', headers: authHdr, body: JSON.stringify(body) });
+    const r = await _esiFetch(url, { method: 'POST', headers: authHdr, body: JSON.stringify(body) });
     if (r.status === 204 || r.ok) { try { return await r.json(); } catch { return {}; } }
     const t = await r.text().catch(() => '');
     const e = new Error(`HTTP ${r.status}${t ? ': ' + t : ''}`); e.status = r.status; throw e;
@@ -1611,8 +1652,12 @@ ipcMain.handle('fit-get-fittings', async (_, characterId) => {
 // handler's own mapping running for real.
 async function _esiFetch(url, init) {
   if (!demoPaths) return fetch(url, init);
-  const canned = require('./src/demo_fixtures').match(url);
+  const fx = require('./src/demo_fixtures');
+  let body;
+  try { body = init && init.body ? JSON.parse(init.body) : undefined; } catch (_) { body = undefined; }
+  const canned = await fx.matchAsync(url, { method: (init && init.method) || 'GET', body, sde: sdeDb });
   if (canned === undefined) {
+    fx.miss(url);
     return { ok: false, status: 404, json: async () => ({}), text: async () => '' };
   }
   return { ok: true, status: 200, json: async () => canned, text: async () => JSON.stringify(canned) };
@@ -1783,7 +1828,9 @@ ipcMain.handle('contracts-get', async (_, characterId) => {
   try {
     const all = [];
     for (let page = 1; page <= 10; page++) {
-      const res = await fetch(
+      // _esiFetch, not fetch: it is the demo seam, and a bare fetch here sent
+      // demo mode to CCP with no token — "ESI 401 on contracts" on camera.
+      const res = await _esiFetch(
         `${ESI_BASE}/characters/${characterId}/contracts/?datasource=tranquility&page=${page}`,
         { headers: auth.hdr });
       if (res.status === 403) {
@@ -1835,7 +1882,7 @@ ipcMain.handle('contracts-get-items', async (_, characterId, contractId) => {
   if (auth.error) return auth.error;
   if (!contractId) return { ok: false, error: 'no contract id' };
   try {
-    const res = await fetch(
+    const res = await _esiFetch(
       `${ESI_BASE}/characters/${characterId}/contracts/${contractId}/items/?datasource=tranquility`,
       { headers: auth.hdr });
     // 404 is normal: courier and loan contracts carry no item list.
@@ -2054,8 +2101,10 @@ app.whenReady().then(async () => {
   } catch (e) { console.warn('[net-log] init failed:', e.message); }
 
   // Anonymous "N online" heartbeat — off unless PRESENCE_URL is configured
-  // (see infra/presence-worker). Always on otherwise, no user opt-out.
-  initPresence({
+  // (see infra/presence-worker). Always on otherwise, no user opt-out. Never in
+  // demo mode: a recording session is not a user, and demo mode stays off the
+  // network.
+  if (!demoPaths) initPresence({
     url: process.env.PRESENCE_URL || '',
     // Reported so the worker can say which releases are actually in use. Read
     // from the app rather than package.json so a packaged build reports the
@@ -2084,7 +2133,8 @@ app.whenReady().then(async () => {
   // Not under e2e. Every spec launches the app, so leaving this on would send a
   // request to CCP's status page for each of ~130 tests on every full run —
   // and a desktop toast could fire mid-suite on a machine nobody is watching.
-  if (!process.env.EVE_CARBON_E2E) eveStatusWatch.startEveStatusWatch({
+  // Nor in demo mode: no network, and no desktop toast over a take.
+  if (!process.env.EVE_CARBON_E2E && !demoPaths) eveStatusWatch.startEveStatusWatch({
     Notification,
     userAgent: APP_USER_AGENT,
     alertsEnabled: () => {
@@ -2150,6 +2200,13 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error('[jabberDataDb] init failed, continuing:', e.message);
   }
+  // The demo's broadcasts and chat rooms — after the Jabber store opens, through
+  // its own insert, which runs the real broadcast parser on every body.
+  if (demoPaths && !demoMode.shouldKeep()) {
+    try { await require('./src/demo_data').seedJabber(jabberDataDb); }
+    catch (e) { console.error('[demo] jabber seed failed, continuing:', e.message); }
+  }
+  if (demoPaths) _serveDemoForum();
   registerAccountHandlers({
     ipcHandle,
     loadDB,
@@ -2323,7 +2380,7 @@ app.whenReady().then(async () => {
   ipcHandle('open-character-info-window', async (_, { characterId, targetId }) => {
     const token = await getValidToken(characterId);
     const url   = `${ESI_BASE}/ui/openwindow/information/?target_id=${targetId}&datasource=tranquility`;
-    const res   = await fetch(url, {
+    const res   = await _esiFetch(url, {
       method:  'POST',
       headers: _esiAuthHeaders(token),
     });
@@ -2413,7 +2470,9 @@ app.whenReady().then(async () => {
       } catch {}
     };
 
-    scanDir(path.join(__dirname, 'yaml'), 'builtin');
+    // Demo mode lists only its own invented pack: the built-in one is a real
+    // alliance's SIG list, and the demo is made to be published.
+    if (!demoPaths) scanDir(path.join(__dirname, 'yaml'), 'builtin');
     scanDir(userPacksDir, 'user');
     return packs;
   });
@@ -2918,7 +2977,9 @@ async function httpGet(url, headers = {}) {
   // Returning null for an unmatched route matches what callers already expect
   // from a failed fetch, so pages degrade the way they always have.
   if (demoPaths) {
-    const canned = require('./src/demo_fixtures').match(url);
+    const fx = require('./src/demo_fixtures');
+    const canned = await fx.matchAsync(url, { sde: sdeDb });
+    if (canned === undefined) fx.miss(url);
     return canned === undefined ? null : canned;
   }
   const r = await requestBroker.get(url, headers, async () => {
@@ -2937,7 +2998,9 @@ async function httpGetFull(url, headers = {}) {
   // the whole answer here, so xPages is 1 and the caller's do/while exits after
   // a single pass instead of asking for page 2 of a canned list.
   if (demoPaths) {
-    const canned = require('./src/demo_fixtures').match(url);
+    const fx = require('./src/demo_fixtures');
+    const canned = await fx.matchAsync(url, { sde: sdeDb });
+    if (canned === undefined) fx.miss(url);
     return { data: canned === undefined ? null : canned, xPages: 1 };
   }
   // Keyed apart from httpGet's entry for the same URL: this one caches the page
@@ -2988,6 +3051,17 @@ async function httpPost(url, body, headers = {}, formEncoded = false) {
   // (bulk name resolution, fittings), which need the same treatment as
   // httpGet/httpGetFull. _esiGateWait/_esiCompatHeader/_esiNoteResponse are
   // all already scoped to esi.evetech.net only, so this is a no-op for SSO.
+  //
+  // Demo mode answers POSTs locally like every other route. This one was missed
+  // at first, so /universe/names/ went to CCP — and the demo's made-up killmail
+  // and mail-sender ids came back as real players' names.
+  if (demoPaths) {
+    const fx = require('./src/demo_fixtures');
+    const canned = await fx.matchAsync(url, { method: 'POST', body, sde: sdeDb });
+    if (canned !== undefined) return canned;
+    fx.miss(url);
+    throw new Error('Not available in demo mode');
+  }
   await _esiGateWait(url);
   return new Promise((resolve, reject) => {
     const postData = formEncoded ? body : JSON.stringify(body);
@@ -3545,8 +3619,12 @@ function createWindow() {
       // its backdrop swallows clicks across the whole suite — a green pipeline
       // that goes red one calendar day in thirty, on a hard release gate, for a
       // reason nothing in the failure points at.
+      // --demo-seed tells the renderer this launch rebuilt the demo profile, so
+      // it re-seeds the demo's localStorage too (skill plans, shopping lists,
+      // structures) — once per launch, and never under --demo-keep.
       additionalArguments: [
         ...(demoPaths ? ['--demo-active'] : []),
+        ...(demoPaths && !demoMode.shouldKeep() ? [`--demo-seed=${DEMO_LAUNCH}`] : []),
         ...(process.env.EVE_CARBON_E2E ? ['--automated'] : []),
       ],
     }
@@ -4460,6 +4538,14 @@ function getSdeMd5Path() {
 // (field names kept as *Md5 for renderer compatibility; the value is now the
 // SDE build number, not an MD5 — see comment above.)
 ipcHandle('sde-check-update', async () => {
+  // Demo mode never checks: the check reaches CCP, and an "out of date" answer
+  // slides a toast over the take and starts rebuilding the SDE — which demo mode
+  // SHARES with the real profile (see demo_mode.js) — mid-recording.
+  if (demoPaths) {
+    let local = null;
+    try { local = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* none yet */ }
+    return { upToDate: true, remoteMd5: local, localMd5: local };
+  }
   try {
     const manifest = await sdeFetch.fetchManifest(APP_USER_AGENT);
     const remoteMd5 = String(manifest.buildNumber);
@@ -4474,6 +4560,7 @@ ipcHandle('sde-check-update', async () => {
 // sde-download-update — downloads CCP's JSONL export, converts it to sde.sql,
 // saves the version token. Sends 'sde-update-progress' push events: { stage, percent }
 ipcHandle('sde-download-update', async (event) => {
+  if (demoPaths) return { success: false, error: 'Not available in demo mode — update the SDE from a normal launch.' };
   const sdePath = getSdePath();
   const md5Path = getSdeMd5Path();
   const win     = BrowserWindow.fromWebContents(event.sender);

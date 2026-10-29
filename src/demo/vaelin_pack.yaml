@@ -1,0 +1,103 @@
+# The demo profile's alliance pack — copied into the demo userData/packs/ by
+# src/demo_data.js and selected in its config. An invented alliance with invented
+# SIGs, so the Jabber page's badges and comms links have something to colour
+# without naming a real organisation. Group names match the SIG and target names
+# the demo broadcasts use (src/demo/pings.js).
+pack_info:
+  id: "vaelin_collective"
+  name: "Vaelin Collective"
+  alliance: "Vaelin Collective"
+  description: "Demo alliance — SIGs, squads and comms channels for the walkthrough profile"
+  author: "EVE-Carbon"
+  version: "1.0"
+
+groups:
+  - name: "all"
+    display_name: "[A] All"
+    type: "ALL"
+    color: "#99B8BA"
+  - name: "opsbot"
+    display_name: "[SIG] Alliance Ops"
+    type: "SIG"
+    color: "#E57373"
+  - name: "roambot"
+    display_name: "[SIG] Roams"
+    type: "SIG"
+    color: "#FFB74D"
+  - name: "homeguard"
+    display_name: "[SIG] Home Guard"
+    type: "SIG"
+    color: "#FDD835"
+  - name: "capbot"
+    display_name: "[SIG] Capital Group"
+    type: "SIG"
+    color: "#BA68C8"
+  - name: "caps"
+    display_name: "[S] Capital Pilots"
+    type: "Squad"
+    color: "#9575CD"
+  - name: "infra"
+    display_name: "[SIG] Infrastructure"
+    type: "SIG"
+    color: "#4DB6AC"
+  - name: "miners"
+    display_name: "[S] Belt Fleet"
+    type: "Squad"
+    color: "#81C784"
+  - name: "scoutbot"
+    display_name: "[SIG] Scouts"
+    type: "SIG"
+    color: "#64B5F6"
+  - name: "scouts"
+    display_name: "[S] Scouts"
+    type: "Squad"
+    color: "#4FC3F7"
+  - name: "relay"
+    display_name: "[SIG] Vaelin TV"
+    type: "SIG"
+    color: "#F06292"
+  - name: "opt-in"
+    display_name: "[A] Opt-in"
+    type: "ALL"
+    color: "#A1887F"
+
+comms_channels:
+  - name: "Op 3"
+    match: ["op 3", "op3"]
+    url: "https://comms.vaelin.example/op3"
+  - name: "Op 4"
+    match: ["op 4", "op4"]
+    url: "https://comms.vaelin.example/op4"
+  - name: "Op 5"
+    match: ["op 5", "op5"]
+    url: "https://comms.vaelin.example/op5"
+  - name: "Op 6"
+    match: ["op 6", "op6"]
+    url: "https://comms.vaelin.example/op6"
+  - name: "Op 7"
+    match: ["op 7", "op7"]
+    url: "https://comms.vaelin.example/op7"
+  - name: "Op 8"
+    match: ["op 8", "op8"]
+    url: "https://comms.vaelin.example/op8"
+  - name: "Op 9"
+    match: ["op 9", "op9"]
+    url: "https://comms.vaelin.example/op9"
+  - name: "Op 10"
+    match: ["op 10", "op10"]
+    url: "https://comms.vaelin.example/op10"
+  - name: "Op 11"
+    match: ["op 11", "op11"]
+    url: "https://comms.vaelin.example/op11"
+  - name: "Op 12"
+    match: ["op 12", "op12"]
+    url: "https://comms.vaelin.example/op12"
+  - name: "Mining"
+    match: ["mining 1", "mining 2", "mining"]
+    url: "https://comms.vaelin.example/mining"
+  - name: "Capital Ops"
+    match: ["capital ops", "capital"]
+    url: "https://comms.vaelin.example/capitals"
+  - name: "Home Guard"
+    match: ["homeguard"]
+    url: "https://comms.vaelin.example/homeguard"

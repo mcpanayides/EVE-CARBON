@@ -247,6 +247,18 @@ function openExternal(url) {
   window.fetch = function (input, init) {
     try {
       const url = typeof input === 'string' ? input : (input && input.url) || '';
+      // Demo mode: the renderer's own ESI calls (FC portrait lookups, planet
+      // names, PI jump counts, the status light) go to the demo fixtures over
+      // IPC like everything else, instead of past them to CCP.
+      if (Esi.isEsi(url) && window.eveAPI && window.eveAPI.isDemo && window.eveAPI.esiFetch) {
+        let body;
+        try { body = init && init.body ? JSON.parse(init.body) : undefined; } catch (_) { body = undefined; }
+        return window.eveAPI.esiFetch(url, { method: (init && init.method) || 'GET', body }).then(
+          (data) => (data == null
+            ? new Response('', { status: 404 })
+            : new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } })),
+          () => new Response('', { status: 503 }));
+      }
       if (Esi.isEsi(url)) {
         init = init || {};
         init.headers = { ...(init.headers || {}), ...Esi.headers({ renderer: true }) };

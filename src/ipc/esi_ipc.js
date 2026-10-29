@@ -124,7 +124,8 @@ function registerEsiHandlers({
     // of the app most worth showing. Answer those routes locally instead.
     // `undefined` means "no fixture", which is distinct from a fixture of null.
     if (demoMode.isEnabled()) {
-      const canned = require('../demo_fixtures').match(url);
+      const canned = await require('../demo_fixtures').matchAsync(url,
+        { method: options?.method || 'GET', body: options?.body, sde: getSdeDb() });
       if (canned !== undefined) return canned;
     }
     if (options?.method === 'POST') return httpPost(url, options.body ?? {});
@@ -135,6 +136,14 @@ function registerEsiHandlers({
   // Used to pull a published Google Sheet as CSV — renderer fetch() is blocked
   // by Google's missing CORS headers, and httpGet() JSON-parses. Only https.
   ipcHandle('http-get-text', async (_, url) => {
+    // Demo mode: the demo's own iCal feeds and GEZ sheet answer locally, and
+    // nothing else is fetched (src/demo/text.js).
+    if (demoMode.isEnabled()) {
+      const txt = require('../demo/text').text(url);
+      if (txt !== null) return txt;
+      require('../demo_fixtures').miss(url);
+      throw new Error('Not available in demo mode');
+    }
     const https = require('https');
     const fetchText = (u, redirects = 0) => new Promise((resolve, reject) => {
       if (redirects > 5) return reject(new Error('Too many redirects'));

@@ -118,6 +118,9 @@ function registerUpdaterHandlers({ ipcHandle, app, loadConfig, saveConfig }) {
   //   { hasUpdate: true, latestVersion, currentVersion, downloadUrl }
   ipcHandle('updater-check', async () => {
     const currentVersion = app.getVersion();
+    // Demo mode is for recording: an "update available" prompt mid-take is the
+    // last thing wanted, and demo mode stays off the network.
+    if (require('../demo_mode').isEnabled()) return { hasUpdate: false, currentVersion };
     try {
       const releases = await fetchJson(GH_RELEASES_API);
       const list = Array.isArray(releases) ? releases : [];

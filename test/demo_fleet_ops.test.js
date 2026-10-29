@@ -68,7 +68,7 @@ test('a refit shows as a second roster row, and one op ends on a handover', asyn
     const roam = list.find((o) => o.name === 'Delve Roam');
     const full = await ops.getOp(h.db, roam.op_id);
 
-    const scout = full.roster.filter((r) => r.character_id === 2118400003);
+    const scout = full.roster.filter((r) => r.character_id === demo.CHARS.scout.id);
     assert.strictEqual(scout.length, 2, 'the scout refitted, so it holds two hull rows');
 
     assert.strictEqual(list.find((o) => o.name === 'Home Defence').end_reason, 'boss-handover');

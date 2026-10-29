@@ -96,6 +96,16 @@ function registerForumHandlers({ ipcHandle }) {
   // the window). Resolves when the window is closed. Cookies persist in
   // FORUM_PARTITION for later authenticated fetches.
   ipcHandle('forum-login', async (_, baseUrl) => {
+    // Demo mode's forum is served locally (main.js _serveDemoForum); "logging
+    // in" is restoring the member cookies a demo logout cleared.
+    if (require('../demo_mode').isEnabled()) {
+      const url = require('../demo/forum').BASE;
+      const exp = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+      const ses = session.fromPartition(FORUM_PARTITION);
+      await ses.cookies.set({ url, name: 'ips4_member_id', value: String(require('../demo/cast').CAST.main.id), expirationDate: exp }).catch(() => {});
+      await ses.cookies.set({ url, name: 'ips4_login_key', value: 'demo', expirationDate: exp }).catch(() => {});
+      return { ok: true };
+    }
     let url = String(baseUrl || '').trim();
     if (!url) throw new Error('No forum URL');
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
@@ -156,6 +166,9 @@ function registerForumHandlers({ ipcHandle }) {
   // an empty result (logged out, blocks absent) is normal, never an error.
   let _scrapeBusy = false;
   ipcHandle('forum-scrape-events', async (_, baseUrl) => {
+    // The scrape reads one specific alliance's forum index; the demo forum's
+    // events reach the calendar as an iCal feed instead.
+    if (require('../demo_mode').isEnabled()) return { events: [], moons: [] };
     if (_scrapeBusy) return { events: [], moons: [], busy: true };
     let url = String(baseUrl || 'https://goonfleet.com/').trim();
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;

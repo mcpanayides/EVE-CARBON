@@ -82,6 +82,9 @@ function registerCharacterHandlers({
   // Requires esi-ui.write_waypoint.v1 scope — character must re-auth if missing.
   // clear_other_waypoints=true sets this as the sole destination.
   ipcHandle('set-autopilot-destination', async (_, { characterId, systemId }) => {
+    // Demo mode has no game client to steer: the button works on camera and
+    // nothing leaves the machine.
+    if (require('../demo_mode').isEnabled()) return { success: true };
     const token = await getValidToken(characterId);
     const url   = `${ESI_BASE}/ui/autopilot/waypoint/?add_to_beginning=false`
                 + `&clear_other_waypoints=true&destination_id=${systemId}&datasource=tranquility`;
@@ -115,6 +118,7 @@ function registerCharacterHandlers({
   // running client. Returns { success, count }.
   ipcHandle('set-autopilot-route', async (_, { characterId, systemIds }) => {
     if (!Array.isArray(systemIds) || !systemIds.length) throw new Error('No route to send.');
+    if (require('../demo_mode').isEnabled()) return { success: true, count: systemIds.length };
     const token   = await getValidToken(characterId);
     const headers = Esi.headers({ token });
     const sleep   = ms => new Promise(r => setTimeout(r, ms));

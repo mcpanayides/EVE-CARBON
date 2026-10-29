@@ -239,6 +239,29 @@ function occupantList(roomJid) {
   return map ? [...map.values()].sort(occupantSort) : [];
 }
 
+// Demo mode's "connection": the state a real session builds from the server —
+// joined rooms, their subjects and occupants — filled from src/demo/pings.js,
+// then announced exactly as an online event would be. No client exists, so
+// every handler that would talk to one checks demo mode first.
+function _demoConnect(jid, loadConfig) {
+  const P = require('./demo/pings');
+  roomNick = P.handle(String(jid || 'kaska.vaelin').split('@')[0]);
+  jabberConnectionActive = true;
+  joinedRooms.clear();
+  roomOccupants.clear();
+  for (const room of readRooms(loadConfig)) {
+    const jidBare = bareJid(room.jid);
+    if (!jidBare) continue;
+    joinedRooms.set(jidBare, { nick: room.nick || roomNick, joinedAt: Date.now() });
+    const def = P.ROOMS.find(r => r.jid === jidBare);
+    if (def) roomSubjects.set(jidBare, { text: def.subject, setBy: 'chanserv', at: new Date(Date.now() - 6 * 3600 * 1000).toISOString() });
+    roomOccupants.set(jidBare, new Map(P.occupants(jidBare).map(o => [o.nick, o])));
+  }
+  broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${jid}` });
+  broadcastToRenderers('jabber-rooms', { joined: [...joinedRooms.keys()] });
+  return { success: true, message: `Connected as ${jid}` };
+}
+
 // ─── Message archives (XEP-0313 MAM) ──────────────────────────────────────────
 // The <history/> element on a join presence only ever buys a handful of recent
 // lines, and many servers cap it far below what is asked for — which is why
@@ -326,6 +349,10 @@ function broadcastToRenderers(channel, payload) {
 function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfig, saveConfig }) {
 
   ipcMain.handle('jabber-connect', async (_, { service, jid, password }) => {
+    // Demo mode never opens a socket: its server is under .example and cannot
+    // exist. It "joins" the saved rooms with the demo's subjects and occupants,
+    // whose history is already in the store (src/demo/pings.js).
+    if (require('./demo_mode').isEnabled()) return _demoConnect(jid, loadConfig);
     try {
       if (!service || !jid || !password) {
         return { success: false, message: 'Service, JID, and password are required.' };
@@ -632,6 +659,16 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
     const roomJid = bareJid(jid);
     const text = String(body || '').trim();
     if (!text) return { ok: false, error: 'Nothing to send.' };
+    // Demo: what you type lands in the room as it would from a server echo.
+    if (require('./demo_mode').isEnabled() && joinedRooms.has(roomJid)) {
+      const nick = joinedRooms.get(roomJid).nick;
+      const stored = await jabberDataDb.insertJabberMessage({
+        from: `${roomJid}/${nick}`, type: 'groupchat', body: text, isDirector: false,
+        roomJid, senderNick: nick, stanzaId: `demo-sent-${Date.now()}`, receivedAt: new Date().toISOString(),
+      }).catch(() => null);
+      if (stored) broadcastToRenderers('jabber-room-message', { ...stored, room_jid: roomJid, sender_nick: nick, self: true });
+      return { ok: true };
+    }
     if (!jabberClient || !jabberConnectionActive) return { ok: false, error: 'Not connected to Jabber.' };
     if (!joinedRooms.has(roomJid)) return { ok: false, error: 'Not in that room.' };
     try {
@@ -661,6 +698,8 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
   ipcMain.handle('jabber-load-room-history', async (_, jid, pageSize = 100) => {
     const roomJid = bareJid(jid);
     if (!roomJid) return { ok: false, error: 'No room.' };
+    // Demo: the whole history is already in the store.
+    if (require('./demo_mode').isEnabled()) return { ok: true, added: 0, complete: true };
     if (!jabberClient || !jabberConnectionActive) {
       return { ok: false, error: 'Connect to Jabber first — history comes from the server.' };
     }
@@ -752,6 +791,15 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
   ipcMain.handle('jabber-discover-rooms', async (_, serverJid) => {
     const host = String(serverJid || '').trim().toLowerCase();
     if (!host) return { ok: false, error: 'Enter a conference server.' };
+    if (require('./demo_mode').isEnabled()) {
+      const P = require('./demo/pings');
+      return { ok: true, host, rooms: [
+        ...P.ROOMS.map(r => ({ jid: r.jid, name: r.name })),
+        { jid: `vaelin-fc@${P.CONF}`, name: 'FC Team' },
+        { jid: `vaelin-capitals@${P.CONF}`, name: 'Capital Group' },
+        { jid: `vaelin-scouts@${P.CONF}`, name: 'Scouts' },
+      ] };
+    }
     if (!jabberClient || !jabberConnectionActive) {
       return { ok: false, error: 'Connect to Jabber first — room lists come from the server.' };
     }
@@ -776,10 +824,9 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
 
   // Latest director broadcast for the dashboard's Latest Ping widget.
   ipcMain.handle('jabber-get-latest-ping', async () => {
-    // Demo mode never connects to XMPP, so the widget would sit on "No director
-    // pings yet" — indistinguishable from a fault. The ping and its cast are
-    // invented; no real alliance, comms link or iconography appears in it.
-    if (require('./demo_mode').isEnabled()) return require('./demo_fixtures').latestPing();
+    // Demo mode reads the same store as a real profile: its broadcasts are
+    // seeded there (src/demo/pings.js), so the widget and the Jabber page show
+    // the same newest ping.
     try {
       return await jabberDataDb.getLatestDirectorMessage();
     } catch (e) {

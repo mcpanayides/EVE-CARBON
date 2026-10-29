@@ -7,9 +7,9 @@
 // demo_mode.js redirects the profile and demo_data.js seeds the local database,
 // which is enough for every page that reads from disk — assets, blueprints,
 // skills, wallet, PI, mining. It is NOT enough for the pages that fetch live:
-// Mail, Notifications, Calendar and Faction Warfare all go to ESI, and the demo
-// cast (2118400001 and friends) are character ids that do not exist. Those pages
-// screenshot empty, which is exactly the half of the app worth showing off.
+// Mail, Notifications, the skill queue, Faction Warfare, the map's layers, cost
+// indices and the rest all go to ESI, and the demo cast exists nowhere. Those
+// pages screenshot empty, which is exactly the half of the app worth showing off.
 //
 // So in demo mode ESI is answered locally. This is the honest way to produce
 // marketing images: the alternative is screenshotting a real account, and a
@@ -17,10 +17,19 @@
 //
 // WHERE IT HOOKS IN
 //
-// One place — the `esi-fetch` IPC in src/ipc/esi_ipc.js — because this project
-// enforces a single ESI client (see src/shared/esi.js and `npm run esi:audit`).
-// That rule was written to stop route drift; it also means demo interception has
-// exactly one seam instead of thirty call sites.
+// The single ESI client's seams — esi-fetch (src/ipc/esi_ipc.js) and httpGet /
+// httpGetFull / _esiFetch / httpPost (main.js) — because this project enforces
+// one ESI client (see src/shared/esi.js and `npm run esi:audit`). That rule was
+// written to stop route drift; it also means demo interception has a handful of
+// seams instead of thirty call sites.
+//
+// WHERE THE DATA COMES FROM
+//
+//   src/demo/cast.js      who exists, and every name an id resolves to
+//   src/demo/world.js     the pilots' belongings — shared with the seeder
+//   src/demo/skills.js    skill sheets and queues, from real ranks
+//   src/demo/universe.js  public data: real snapshots, altered (prices, cost
+//                         indices, sov, FW, incursions, traffic)
 //
 // RULES, INHERITED FROM demo_data.js
 //
@@ -30,44 +39,57 @@
 //     icon and a fake system id as "Unknown", both worse than showing less.
 //   • Nothing here is random. A re-record has to match the last one.
 //
-// Returns `undefined` for an unmatched URL, which means "not ours, let it go to
-// the network" — deliberately distinct from `null`, which is a legitimate body.
+// Returns `undefined` for an unmatched URL, which means "not ours" — distinct
+// from `null`, which is a legitimate body. Unmatched routes never reach the
+// network in demo mode; miss() logs them so an empty page says what it wanted.
+
+const { CAST, VAELIN, VAELIN_CORP, CORP_BASE, ALLIANCE_BASE, pilot, nameOf, corpInfo, allianceInfo, PILOT_BY_ID } = require('./demo/cast');
+const W = require('./demo/world');
+const S = require('./demo/skills');
+const U = require('./demo/universe');
 
 const MIN  = 60 * 1000;
 const HOUR = 60 * MIN;
 const DAY  = 24 * HOUR;
 
-// The demo cast, mirrored from demo_data.js. Duplicated rather than imported
-// because demo_data pulls in the database layer, and this module is loaded on
-// the IPC path where that would be a needless cost.
-const MAIN = 2118400001;
-const INDY = 2118400002;
-const SCOUT = 2118400003;
+const MAIN  = CAST.main.id;
+const INDY  = CAST.indy.id;
+const SCOUT = CAST.scout.id;
 
 const iso = (now, ago) => new Date(now - ago).toISOString();
+const keyOf = (id) => S.keyOf(id);
+
+// The rival the demo's killmails are fought against: the largest invented sov
+// holder, and its holding corporation.
+const RIVAL = { alliance: ALLIANCE_BASE, corp: CORP_BASE };
 
 // ── Mail ─────────────────────────────────────────────────────────────────────
-// A believable inbox: alliance broadcast, a corp logistics thread, one personal
-// reply, one unread ping. Bodies are written out rather than lorem — a reader
-// pausing the video should find real sentences.
-function mailHeaders(now) {
-  return [
-    { mail_id: 4400101, subject: 'FLEET: Strat op 20:00 — Muninn / Scimitar',
-      from: 98000101, is_read: false, timestamp: iso(now, 42 * MIN),
-      labels: [4], recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] },
-    { mail_id: 4400102, subject: 'Re: Ore hauling contracts this week',
-      from: INDY, is_read: false, timestamp: iso(now, 3 * HOUR),
-      labels: [1], recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] },
-    { mail_id: 4400103, subject: 'Structure timer — 1DQ1-A Astrahus',
-      from: 98000101, is_read: true, timestamp: iso(now, 9 * HOUR),
-      labels: [4], recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] },
-    { mail_id: 4400104, subject: 'Thanks for the Machariel fit',
-      from: SCOUT, is_read: true, timestamp: iso(now, 26 * HOUR),
-      labels: [1], recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] },
-    { mail_id: 4400105, subject: 'Corp payout — month end',
-      from: 98000102, is_read: true, timestamp: iso(now, 3 * DAY),
-      labels: [1], recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] },
-  ];
+// A mailbox per pilot. One shared list made every message show three times in
+// the "All characters" view — once per pilot — which reads as a broken sync.
+// Alliance mail is the exception: every member really does receive it.
+// Bodies are written out rather than lorem — a reader pausing the video should
+// find real sentences. Labels are ESI's: 1 Inbox, 4 Corp, 8 Alliance.
+const FC_MAIL = pilot(17).id, DIRECTOR = pilot(2).id, CEO = pilot(9).id;
+const MAILS = [
+  // [mail_id, to, from, subject, ago, read, labels]
+  [4400101, 'all',   FC_MAIL,  'FLEET: Strat op 20:00 — Muninn / Scimitar',      42 * MIN,  false, [8]],
+  [4400102, 'main',  INDY,     'Re: Ore hauling contracts this week',            3 * HOUR,  false, [1]],
+  [4400103, 'main',  DIRECTOR, 'Structure timer — 1DQ1-A Astrahus',              9 * HOUR,  true,  [8]],
+  [4400104, 'main',  SCOUT,    'Thanks for the Machariel fit',                   26 * HOUR, true,  [1]],
+  [4400105, 'main',  CEO,      'Corp payout — month end',                        3 * DAY,   true,  [4]],
+  [4400201, 'indy',  MAIN,     'Ore hauling contracts this week',                5 * HOUR,  true,  [1]],
+  [4400202, 'indy',  CEO,      'Buyback payout — October',                       20 * HOUR, false, [4]],
+  [4400203, 'indy',  DIRECTOR, 'Moon schedule — November',                       2 * DAY,   true,  [8]],
+  [4400301, 'scout', pilot(23).id, 'Welcome to the militia',                     4 * DAY,   true,  [1]],
+  [4400302, 'scout', MAIN,     'Sabre fit for Sunday',                           7 * HOUR,  false, [1]],
+];
+
+function mailHeaders(now, characterId = MAIN) {
+  const key = keyOf(characterId) || 'main';
+  return MAILS.filter(m => m[1] === 'all' || m[1] === key).map(([mail_id, , from, subject, ago, is_read, labels]) => ({
+    mail_id, subject, from, is_read, timestamp: iso(now, ago), labels,
+    recipients: [{ recipient_id: Number(characterId) || MAIN, recipient_type: 'character' }],
+  }));
 }
 
 const MAIL_BODIES = {
@@ -76,32 +98,55 @@ const MAIL_BODIES = {
   4400103: 'Astrahus in 1DQ1-A came out of reinforcement at 03:14.\n\nRepair timer is running now. Anyone in system please keep an eye on d-scan until it finishes.',
   4400104: 'That fit worked perfectly, thanks. Held the field long enough for logi to land.\n\nOwe you a drink next time we are both docked.',
   4400105: 'Monthly payout has been processed. Check your wallet journal for the corporation account withdrawal line.',
+  4400201: 'Can you take the Arkonor run on Thursday? The Orca is in 1DQ1-A and the buyback is at 92% this week.',
+  4400202: 'Your buyback payout for October is in your wallet: 1.31b for 412k units of compressed ore. Thanks for the haul.',
+  4400203: 'November fractures are on the forum calendar. The R64 at 319-3D IV - Moon 1 is the one to be at — bring the Hulks.',
+  4400301: 'Welcome to the Tribal Liberation Force. Plex rotations run every evening from Amamake; join the militia channel in game.\n\nFly what you can afford to lose.',
+  4400302: 'Fit the Sabre from the forum doctrine thread for Sunday. Bubble on the gate, call the point, and stay aligned.',
 };
 
 // ── Notifications ────────────────────────────────────────────────────────────
 // Read-only in the app (ESI exposes no write route), so these only ever render.
-function notifications(now) {
-  return [
-    { notification_id: 5500201, type: 'StructureUnderAttack', sender_id: 1000125, sender_type: 'corporation',
-      timestamp: iso(now, 18 * MIN), is_read: false,
-      text: 'solarsystemID: 30004759\nstructureID: 1035466617946\nstructureShowInfoData:\n- showinfo\n- 35832\n- 1035466617946\n' },
-    { notification_id: 5500202, type: 'MoonminingExtractionFinished', sender_id: 1000125, sender_type: 'corporation',
-      timestamp: iso(now, 5 * HOUR), is_read: false,
-      text: 'autoTime: 133000000000000000\nmoonID: 40000001\nsolarSystemID: 30004759\nstructureID: 1035466617946\n' },
-    { notification_id: 5500203, type: 'InsuranceExpirationMsg', sender_id: 1000132, sender_type: 'corporation',
-      timestamp: iso(now, 2 * DAY), is_read: true,
-      text: 'itemID: 1500000001\nshipTypeID: 17738\n' },
-  ];
+const STG = W.PLACES.STAGING;
+function notifications(now, characterId = MAIN) {
+  const key = keyOf(characterId) || 'main';
+  const n = (notification_id, type, sender_id, sender_type, ago, is_read, text) =>
+    ({ notification_id, type, sender_id, sender_type, timestamp: iso(now, ago), is_read, text });
+  const all = {
+    main: [
+      n(5500201, 'StructureUnderAttack', 1000125, 'corporation', 18 * MIN, false,
+        `solarsystemID: ${STG.systemId}\nstructureID: ${STG.stationId}\nstructureShowInfoData:\n- showinfo\n- 35832\n- ${STG.stationId}\nstructureTypeID: 35832\naggressorAllianceID: ${RIVAL.alliance}\naggressorCorpID: ${RIVAL.corp}\nshieldPercentage: 61.4\narmorPercentage: 100.0\nhullPercentage: 100.0\n`),
+      n(5500202, 'KillReportFinalBlow', MAIN, 'character', 34 * MIN, false,
+        'killMailHash: demo141200301\nkillMailID: 141200301\nvictimShipTypeID: 24688\n'),
+      n(5500203, 'InsurancePayoutMsg', 1000132, 'corporation', 26 * HOUR, true,
+        'amount: 120000000\nitemID: 1500000004\npayout: 1\n'),
+      n(5500204, 'StructureLostShields', 1000125, 'corporation', 2 * DAY, true,
+        `solarsystemID: ${STG.systemId}\nstructureID: ${STG.stationId}\nstructureTypeID: 35832\ntimeLeft: 864000000000\n`),
+      n(5500205, 'InsuranceExpirationMsg', 1000132, 'corporation', 3 * DAY, true,
+        'itemID: 1500000001\nshipTypeID: 17738\n'),
+    ],
+    indy: [
+      n(5500301, 'MoonminingExtractionFinished', 1000125, 'corporation', 5 * HOUR, false,
+        `autoTime: 133000000000000000\nmoonID: 40301373\nsolarSystemID: ${STG.systemId}\nstructureID: ${STG.stationId}\noreVolumeByType:\n  45510: 1840211.6\n  45492: 2210984.1\n`),
+      n(5500302, 'MoonminingAutomaticFracture', 1000125, 'corporation', 2 * DAY, true,
+        `moonID: 40301373\nsolarSystemID: ${STG.systemId}\nstructureID: ${STG.stationId}\n`),
+      n(5500303, 'StructureFuelAlert', 1000125, 'corporation', 3 * DAY, true,
+        `solarsystemID: ${STG.systemId}\nstructureID: ${STG.stationId}\nstructureShowInfoData:\n- showinfo\n- 35832\n- ${STG.stationId}\nlistOfTypesAndQty:\n- - 120\n  - 4247\n`),
+    ],
+    scout: [
+      n(5500401, 'FWCharRankGainMsg', 1000182, 'corporation', 9 * HOUR, false,
+        'factionID: 500002\nnewRank: 4\n'),
+      n(5500402, 'KillReportVictim', SCOUT, 'character', 3 * HOUR, true,
+        'killMailHash: demo141200190\nkillMailID: 141200190\nvictimShipTypeID: 22456\n'),
+    ],
+  };
+  return all[key] || [];
 }
 
-// ── Calendar ─────────────────────────────────────────────────────────────────
-//
-// Spread across the WHOLE month rather than bunched on two days. A calendar with
-// three entries sitting on one square looks like a calendar that does not work;
-// the point of the month view is that it fills.
-//
-// Offsets are in days from today, deliberately uneven — a real corp schedule has
-// clusters around the weekend and gaps mid-week, not one event every third day.
+// ── Calendar (ESI's character calendar) ──────────────────────────────────────
+// The Calendar PAGE reads the forum and iCal feeds (src/demo/calendar.js); this
+// is ESI's own per-character list, which other widgets read. Spread across the
+// month rather than bunched, with clusters round the weekend.
 const CAL_EVENTS = [
   [-12, 19, 'Alliance town hall',              1, 'accepted'],
   [-9,  20, 'Corp mining fleet — Arkonor',     0, 'accepted'],
@@ -128,306 +173,465 @@ function calendar(now) {
     const d = new Date(midnight.getTime() + dayOffset * DAY);
     d.setHours(hour, 30, 0, 0);
     return {
-      event_id: 6600301 + i,
-      title,
-      event_date: d.toISOString(),
-      importance,
-      event_response,
-      duration: 60,
-      owner_name: 'Vaelin Industries',
-      owner_type: 'corporation',
+      event_id: 6600301 + i, title, event_date: d.toISOString(), importance, event_response,
+      duration: 60, owner_name: VAELIN.name, owner_type: 'alliance',
     };
   });
+}
+
+// ── Public character / corporation / alliance sheets ─────────────────────────
+function characterSheet(id, now) {
+  const c = Object.values(CAST).find(x => x.id === Number(id));
+  if (c) {
+    return { name: c.name, corporation_id: c.corpId, alliance_id: c.allianceId || undefined,
+      birthday: iso(now, c.bornDaysAgo * DAY), gender: c.gender, race_id: c.race,
+      bloodline_id: c.bloodline, security_status: c.sec };
+  }
+  const p = PILOT_BY_ID[Number(id)];
+  if (p) {
+    // Everyone else flies for one of the invented corporations, so their sheet,
+    // their killmails and their portrait all agree.
+    return { name: p.name, corporation_id: CORP_BASE + (p.id % 40), alliance_id: ALLIANCE_BASE + (p.id % 12),
+      birthday: iso(now, (900 + (p.id % 2500)) * DAY), gender: p.male ? 'male' : 'female',
+      race_id: p.race, bloodline_id: p.bloodline, security_status: Math.round(((p.id % 100) / 20 - 2) * 10) / 10 };
+  }
+  return undefined;
+}
+function corporationSheet(id, now) {
+  const c = corpInfo(Number(id));
+  if (!c) return undefined;
+  const npc = Number(id) < 2_000_000;
+  return { name: c.name, ticker: c.ticker, member_count: npc ? 412_000 + (id % 9000) : 40 + (id % 900),
+    ceo_id: npc ? 3_000_001 : pilot(id).id, creator_id: npc ? 1 : pilot(id + 1).id,
+    alliance_id: npc ? undefined : (Number(id) === VAELIN_CORP.id ? VAELIN.id : ALLIANCE_BASE + (id % 12)),
+    faction_id: c.factionId, date_founded: iso(now, (npc ? 7000 : 600 + (id % 3000)) * DAY),
+    description: npc ? '' : 'An invented corporation — demo mode.', tax_rate: npc ? 0.11 : 0.1, url: '' };
+}
+function allianceSheet(id, now) {
+  const a = allianceInfo(Number(id));
+  if (!a) return undefined;
+  const exec = Number(id) === VAELIN.id ? VAELIN_CORP.id : CORP_BASE + (id % 69);
+  return { name: a.name, ticker: a.ticker, creator_corporation_id: exec,
+    creator_id: pilot(id).id, executor_corporation_id: exec, date_founded: iso(now, (900 + (id % 3000)) * DAY) };
 }
 
 // ── Route table ──────────────────────────────────────────────────────────────
-// Matched on the PATH only: the query string carries datasource and paging,
-// neither of which changes the shape of the answer.
+// Matched on the PATH: the query string carries datasource and paging, which do
+// not change the shape of the answer (where it does — type ids, page numbers —
+// it is read explicitly).
 function match(url, { now = Date.now() } = {}) {
-  let path, search;
-  try { const u = new URL(url); path = u.pathname; search = u.searchParams; }
+  let host, path, search;
+  try { const u = new URL(url); host = u.hostname; path = u.pathname.replace(/\/+$/, '') || '/'; search = u.searchParams; }
   catch (_) { return undefined; }
 
+  // ── Third-party services ──
   // Market prices (Fuzzwork aggregates). Without these, Asset Value and Wealth
-  // Growth sit on "Calculating…" forever, which is the most visible widget on
-  // the dashboard reading as broken. Every requested type gets a price — a
-  // partial answer would leave the totals wrong rather than merely fake.
-  if (/market\.fuzzwork\.co\.uk$/.test(new URL(url).hostname) || /\/aggregates\/?$/.test(path)) {
-    return fuzzworkAggregates((search.get('types') || '').split(',').filter(Boolean));
+  // Growth sit on "Calculating…" forever. Every requested type gets a price.
+  if (/market\.fuzzwork\.co\.uk$/.test(host) || /\/aggregates$/.test(path)) {
+    return U.fuzzworkAggregates((search.get('types') || '').split(',').filter(Boolean), fallbackPrice);
+  }
+  if (/eve-scout\.com$/.test(host) && /\/signatures$/.test(path)) return U.eveScout(now);
+
+  // ── Public universe data (src/demo/universe.js) ──
+  // CCP's bulk price list, which the asset valuation reads FIRST.
+  if (path === '/markets/prices') return U.marketPrices();
+  let m = path.match(/^\/markets\/(\d+)\/orders$/);
+  if (m) {
+    const t = Number(search.get('type_id'));
+    if (!t) return [];
+    const ours = Object.keys(CAST).flatMap(k => marketOrders(now, CAST[k].id));
+    return U.regionOrders(t, search.get('order_type') || 'all', now, ours);
+  }
+  m = path.match(/^\/markets\/(\d+)\/history$/);
+  if (m) return U.regionHistory(Number(search.get('type_id')), now);
+  if (path === '/industry/systems')        return U.industrySystems();
+  if (path === '/sovereignty/systems')     return U.sovereigntySystems(now);
+  if (path === '/sovereignty/campaigns')   return U.sovCampaigns(now);
+  if (path === '/sovereignty/structures')  return [];
+  if (path === '/fw/systems')              return U.fwSystems();
+  if (path === '/fw/stats')                return U.fwStats();
+  if (path === '/fw/wars')                 return U.fwWars();
+  if (path === '/fw/leaderboards')         return U.fwLeaderboards();
+  m = path.match(/^\/fw\/leaderboards\/(characters|corporations)$/);
+  if (m) return U.fwLeaderboards(m[1]);
+  if (path === '/incursions')              return U.incursions();
+  if (path === '/universe/system_kills')   return U.systemKills();
+  if (path === '/universe/system_jumps')   return U.systemJumps();
+  if (path === '/status')                  return U.status(now);
+  m = path.match(/^\/loyalty\/stores\/(\d+)\/offers$/);
+  if (m) return U.lpOffers(Number(m[1]));
+  m = path.match(/^\/universe\/planets\/(\d+)$/);
+  if (m) return W.planetInfo(m[1]);
+  // The implant slot resolver reads attribute 331 (implantSlot) from here.
+  m = path.match(/^\/universe\/types\/(\d+)$/);
+  if (m && W.IMPLANT_NAMES[Number(m[1])]) {
+    const [name, slot] = W.IMPLANT_NAMES[Number(m[1])];
+    return { type_id: Number(m[1]), name, published: true, dogma_attributes: [{ attribute_id: 331, value: slot }] };
+  }
+  m = path.match(/^\/universe\/structures\/(\d+)$/);
+  if (m && Number(m[1]) === STG.stationId) {
+    return { name: STG.stationName, owner_id: VAELIN.id, solar_system_id: STG.systemId, type_id: STG.typeId,
+             position: { x: 1.2e11, y: -3.4e9, z: 8.8e10 } };
   }
 
-  // CCP's bulk price list, which the asset valuation reads FIRST — it covers
-  // ~91% of held types in one call. Without it the valuation never completes and
-  // the banner sits on "Calculating…" while Wealth Growth waits on asset prices.
-  if (/\/markets\/prices\/?$/.test(path)) return marketPrices();
+  // ── Fleets (the Fleet Tracker's "Start Tracking") ──
+  m = path.match(/^\/fleets\/(\d+)(\/members|\/wings)?$/);
+  if (m) {
+    if (Number(m[1]) !== W.FLEET_ID) return undefined;
+    const f = W.fleet(now);
+    return m[2] === '/members' ? f.members : m[2] === '/wings' ? f.wings : f.info;
+  }
 
-  // Mail body: /characters/{id}/mail/{mail_id}
-  const body = path.match(/\/characters\/\d+\/mail\/(\d+)\/?$/);
+  // ── Public sheets ──
+  m = path.match(/^\/characters\/(\d+)$/);
+  if (m) return characterSheet(m[1], now);
+  m = path.match(/^\/corporations\/(\d+)$/);
+  if (m) return corporationSheet(Number(m[1]), now);
+  m = path.match(/^\/alliances\/(\d+)$/);
+  if (m) return allianceSheet(Number(m[1]), now);
+  if (/^\/characters\/\d+\/corporationhistory$/.test(path)) {
+    const id = Number(path.split('/')[2]), c = characterSheet(id, now);
+    return c ? [{ record_id: 1, corporation_id: c.corporation_id, start_date: iso(now, 400 * DAY) },
+                { record_id: 0, corporation_id: 1_000_045, start_date: c.birthday }] : [];
+  }
+  m = path.match(/^\/corporations\/(\d+)\/industry\/jobs$/);
+  if (m) return corpIndustryJobs(now);
+  m = path.match(/^\/corporations\/(\d+)\/fw\/stats$/);
+  if (m) return Number(m[1]) === 1_000_182
+    ? { enlisted_on: iso(now, 7000 * DAY), faction_id: 500_002, pilots: 18_402,
+        kills: { last_week: 9_310, total: 2_120_000, yesterday: 1_204 },
+        victory_points: { last_week: 7_400_000, total: 1_610_000_000, yesterday: 980_000 } }
+    : { kills: { last_week: 0, total: 0, yesterday: 0 }, victory_points: { last_week: 0, total: 0, yesterday: 0 } };
+
+  // ── One of the cast ──
+  m = path.match(/^\/characters\/(\d+)\/(.+)$/);
+  if (m) return characterRoute(Number(m[1]), m[2], search, now);
+
+  return undefined;   // not ours
+}
+
+function characterRoute(id, rest, search, now) {
+  const key = keyOf(id);
+  // Mail body: mail/{mail_id}
+  const body = rest.match(/^mail\/(\d+)$/);
   if (body) {
-    const id = Number(body[1]);
-    return { from: MAIN, subject: (mailHeaders(now).find((m) => m.mail_id === id) || {}).subject || '',
-             body: MAIL_BODIES[id] || '', labels: [1], read: true,
-             recipients: [{ recipient_id: MAIN, recipient_type: 'character' }] };
+    const mailId = Number(body[1]);
+    const h = MAILS.find(x => x[0] === mailId);
+    return { from: h ? h[2] : MAIN, subject: h ? h[3] : '', body: MAIL_BODIES[mailId] || '',
+             labels: h ? h[6] : [1], read: true, timestamp: h ? iso(now, h[4]) : undefined,
+             recipients: [{ recipient_id: id, recipient_type: 'character' }] };
   }
-  if (/\/characters\/\d+\/mail\/?$/.test(path))          return mailHeaders(now);
-  if (/\/characters\/\d+\/mail\/labels\/?$/.test(path))  {
-    return { labels: [
-      { label_id: 1, name: 'Inbox',    color: '#ffffff', unread_count: 1 },
-      { label_id: 4, name: 'Alliance', color: '#6666ff', unread_count: 1 },
-    ], total_unread_count: 2 };
-  }
-  if (/\/characters\/\d+\/mail\/lists\/?$/.test(path))   return [];
-  // Public character sheet. Corp industry jobs resolve the corporation id from
-  // here FIRST; with no fixture that lookup returned null and the widget bailed
-  // out before it ever asked for jobs.
-  const who = path.match(/\/characters\/(\d+)\/?$/);
-  if (who) {
-    const id = Number(who[1]);
-    const names = { [MAIN]: 'Kaska Vaelin', [INDY]: 'Sirene Vaelin', [SCOUT]: 'Tovan Kesh' };
-    return {
-      name: names[id] || 'Demo Pilot',
-      corporation_id: 1000167, alliance_id: null,
-      birthday: iso(now, 3210 * DAY), gender: 'female',
-      race_id: 1, bloodline_id: 1, security_status: 4.8,
-    };
-  }
-
-  if (/\/characters\/\d+\/notifications\/?$/.test(path)) return notifications(now);
-  if (/\/characters\/\d+\/calendar\/?$/.test(path))      return calendar(now);
-
-  // Dashboard widgets. Each of these renders an explicit "nothing here" state
-  // when empty, so an unfixtured route does not look like missing data — it
-  // looks like the feature does not work.
-  if (/\/characters\/\d+\/skillqueue\/?$/.test(path))    return skillQueue(now);
-  if (/\/characters\/\d+\/industry\/jobs\/?$/.test(path)) return industryJobs(now);
-  if (/\/corporations\/\d+\/industry\/jobs\/?$/.test(path)) return corpIndustryJobs(now);
-  if (/\/characters\/\d+\/orders\/?$/.test(path))        return marketOrders(now);
-  if (/\/characters\/\d+\/attributes\/?$/.test(path)) {
-    return { charisma: 20, intelligence: 27, memory: 21, perception: 24, willpower: 24,
-             bonus_remaps: 2, last_remap_date: iso(now, 200 * DAY) };
-  }
-
-  return undefined;   // not ours — fall through to the real network
-}
-
-// ── Market prices ────────────────────────────────────────────────────────────
-//
-// Fuzzwork's aggregates shape, keyed by type id. Prices are DERIVED from the id
-// rather than random, so a re-record produces identical net-worth figures — the
-// headline number on the dashboard must not change between takes.
-//
-// Well-known items are hand-set. Everything else lands in a plausible band by
-// magnitude: minerals are single ISK, modules are millions, hulls are hundreds
-// of millions. A flat price for everything would make the asset breakdown
-// nonsense (a hold of Tritanium worth more than a Machariel).
-const HAND_PRICED = {
-  34: 4.85, 35: 18.2, 36: 54.6, 37: 194.0, 38: 705.0, 39: 1201.0, 40: 2646.0,   // minerals
-  11399: 6_950_000,          // Morphite
-  44992: 6_120_000,          // PLEX
-  40520: 742_800_000,        // Large Skill Injector
-  17738: 412_600_000,        // Machariel
-  12015: 214_500_000,        // Muninn
-  11978: 268_900_000,        // Scimitar
-  22456: 58_400_000,         // Sabre
-  32880: 1_240_000,          // Venture
-  17478: 24_800_000,         // Retriever
-};
-
-// Every type the demo profile actually touches: the 20 distinct ids across the
-// three characters' asset tables, plus the hulls, ores, blueprints and market
-// items the other fixtures reference. Enumerated rather than swept over a range
-// because /markets/prices/ is what the valuation trusts for coverage — a type
-// missing here is a type that silently values at zero, and the net-worth figure
-// is the headline number on the dashboard.
-const DEMO_TYPE_IDS = [
-  // minerals + ice products
-  34, 35, 36, 37, 38, 39, 40, 16272, 16273, 16274, 17887, 17888, 17889,
-  // ores
-  22, 1223, 1225, 1230, 11396, 19,
-  // moon ores (R4 → R64)
-  45490, 45491, 45492, 45493, 45494, 45495, 45496, 45497,
-  45498, 45499, 45500, 45501, 45502, 45503, 45504, 45506,
-  45510, 45511, 45512, 45513,
-  // assets held by the demo cast
-  587, 621, 638, 691, 2389, 3689, 9832, 12005, 17738, 17739, 24698, 24699, 28606,
-  // hulls used by fleet ops, killmails and market orders
-  12015, 11978, 22456, 29990, 24688, 24702, 34828, 670, 32880, 17478, 17476, 626, 640,
-  // blueprints referenced by industry jobs
-  1178, 1179, 1180, 1181, 627, 628, 629,
-  // market staples
-  44992, 40520, 11399,
-];
-
-/** CCP /markets/prices/ — one row per type, adjusted and average. */
-function marketPrices() {
-  return DEMO_TYPE_IDS.map((type_id) => {
-    const agg = fuzzworkAggregates([type_id])[String(type_id)];
-    const sell = Number(agg.sell.percentile);
-    return {
-      type_id,
-      // CCP's adjusted price runs a little under Jita sell, which is the
-      // relationship the valuation's source-picking logic expects to see.
-      adjusted_price: Math.round(sell * 0.97 * 100) / 100,
-      average_price:  Math.round(sell * 0.99 * 100) / 100,
-    };
-  });
-}
-
-function fuzzworkAggregates(typeIds) {
-  const out = {};
-  for (const raw of typeIds) {
-    const id = Number(raw);
-    if (!Number.isFinite(id)) continue;
-    let sell = HAND_PRICED[id];
-    if (sell === undefined) {
-      // Deterministic band from the id itself. Larger ids skew to larger items
-      // only loosely, so the spread reads as a real market rather than a ramp.
-      const h = (id * 2654435761) % 1000;
-      sell = id < 1000 ? 20 + h / 10                 // ores and minerals
-           : id < 20000 ? 1_000_000 + h * 41_000     // modules and small hulls
-           : 12_000_000 + h * 380_000;               // everything heavier
+  switch (rest) {
+    case 'mail':          return mailHeaders(now, id);
+    case 'mail/labels': {
+      const mine = mailHeaders(now, id), unread = (l) => mine.filter(x => !x.is_read && x.labels.includes(l)).length;
+      return { labels: [
+        { label_id: 1, name: 'Inbox',       color: '#ffffff', unread_count: unread(1) },
+        { label_id: 4, name: 'Corporation', color: '#ffffff', unread_count: unread(4) },
+        { label_id: 8, name: 'Alliance',    color: '#6666ff', unread_count: unread(8) },
+      ], total_unread_count: mine.filter(x => !x.is_read).length };
     }
-    const buy = sell * 0.92;
-    const f = (n) => String(Math.round(n * 100) / 100);
-    out[String(id)] = {
-      buy:  { weightedAverage: f(buy),  max: f(buy),  min: f(buy * 0.85),
-              stddev: '0', median: f(buy), volume: '412000', orderCount: '180', percentile: f(buy) },
-      sell: { weightedAverage: f(sell), max: f(sell * 1.2), min: f(sell),
-              stddev: '0', median: f(sell), volume: '388000', orderCount: '164', percentile: f(sell) },
+    case 'mail/lists':    return [];
+    case 'notifications': return notifications(now, id);
+    case 'calendar':      return calendar(now);
+  }
+  if (!key) return undefined;
+  switch (rest) {
+    case 'skills':        return S.skills(key);
+    case 'skillqueue':    return S.skillQueue(key, now);
+    case 'attributes':    return S.attributes(key, now);
+    case 'implants':      return S.implants(key);
+    case 'clones':        return W.clones(key, now);
+    case 'location':      return W.location(key);
+    case 'ship': { const { typeName, ...ship } = W.SHIPS[key]; return ship; }
+    case 'online':        return W.online(key, now);
+    case 'standings':     return W.standings(key);
+    case 'loyalty/points': return W.loyaltyEsi(key);
+    case 'fw/stats':      return W.fwStats(key, now);
+    case 'fittings':      return W.fittings(key);
+    case 'contracts':     return Number(search.get('page') || 1) > 1 ? [] : W.contracts(key, now);
+    case 'planets':       return W.planetsEsi(key, now);
+    case 'mining':        return W.miningLedger(key, now);
+    case 'wallet':        return CAST[key].balance;
+    case 'industry/jobs': return industryJobs(now, id);
+    case 'orders':        return marketOrders(now, id);
+    case 'fleet': {
+      const f = W.fleet(now).members.find(x => x.character_id === id);
+      return f ? { fleet_id: W.FLEET_ID, fleet_boss_id: MAIN, role: f.role, squad_id: f.squad_id, wing_id: f.wing_id } : undefined;
+    }
+  }
+  let m = rest.match(/^contracts\/(\d+)\/items$/);
+  if (m) return W.contractItems(Number(m[1]));
+  m = rest.match(/^planets\/(\d+)$/);
+  if (m) return W.planetDetail(key, m[1], now);
+  return undefined;
+}
+
+// Writes the demo answers with success and nothing more — setting a waypoint,
+// opening an info window, inviting to fleet, sending mail, saving a fit. On
+// camera the button works; nothing leaves the machine.
+function isDemoWrite(url) {
+  try {
+    const p = new URL(url).pathname;
+    return /^\/ui\//.test(p) || /^\/fleets\/\d+\/(members|wings|squads)/.test(p) ||
+           /^\/characters\/\d+\/(mail|fittings|contacts)\/?$/.test(p) ||
+           /^\/characters\/\d+\/mail\/\d+\/?$/.test(p);
+  } catch (_) { return false; }
+}
+
+// ── Names, ids and routes (POST, and anything needing the SDE) ───────────────
+// Static data — systems, types, stations — resolves from the local SDE; every id
+// the demo hands out resolves from cast.js. Nothing reaches /universe/names/ on
+// the network: the first demo did, and its fake killmail ids came back as real
+// players' names.
+async function resolveNames(ids, sde) {
+  const out = new Map();
+  const rest = [];
+  for (const raw of ids || []) {
+    const id = Number(raw);
+    const n = nameOf(id);
+    if (n) out.set(id, { id, ...n }); else rest.push(id);
+  }
+  if (rest.length && sde) {
+    const list = rest.filter(Number.isFinite).join(',') || '0';
+    const q = async (sql, category) => {
+      try { for (const r of await sde.all(sql)) out.set(r.id, { id: r.id, name: r.name, category }); } catch (_) {}
     };
+    await q(`SELECT solarSystemID id, solarSystemName name FROM mapSolarSystems WHERE solarSystemID IN (${list})`, 'solar_system');
+    await q(`SELECT constellationID id, constellationName name FROM mapConstellations WHERE constellationID IN (${list})`, 'constellation');
+    await q(`SELECT regionID id, regionName name FROM mapRegions WHERE regionID IN (${list})`, 'region');
+    await q(`SELECT stationID id, stationName name FROM staStations WHERE stationID IN (${list})`, 'station');
+    await q(`SELECT typeID id, typeName name FROM invTypes WHERE typeID IN (${list})`, 'inventory_type');
+  }
+  return [...out.values()];
+}
+
+async function resolveIds(names, sde) {
+  const out = {};
+  const add = (k, row) => { (out[k] = out[k] || []).push(row); };
+  const byName = new Map();
+  for (const c of Object.values(CAST)) byName.set(c.name.toLowerCase(), { id: c.id, name: c.name, k: 'characters' });
+  for (const p of Object.values(PILOT_BY_ID)) byName.set(p.name.toLowerCase(), { id: p.id, name: p.name, k: 'characters' });
+  const rest = [];
+  for (const raw of names || []) {
+    const hit = byName.get(String(raw).toLowerCase());
+    if (hit) add(hit.k, { id: hit.id, name: hit.name }); else rest.push(String(raw));
+  }
+  if (rest.length && sde) {
+    const ph = rest.map(() => '?').join(',');
+    const q = async (sql, k) => { try { for (const r of await sde.all(sql, rest)) add(k, { id: r.id, name: r.name }); } catch (_) {} };
+    await q(`SELECT solarSystemID id, solarSystemName name FROM mapSolarSystems WHERE solarSystemName IN (${ph})`, 'systems');
+    await q(`SELECT regionID id, regionName name FROM mapRegions WHERE regionName IN (${ph})`, 'regions');
+    await q(`SELECT typeID id, typeName name FROM invTypes WHERE typeName IN (${ph}) AND published = 1`, 'inventory_types');
   }
   return out;
 }
 
-// ── Skill queue ──────────────────────────────────────────────────────────────
-// Real skill type ids, ordered as a queue is: the one training now first. The
-// finish dates step outward so the widget's countdown column has a spread rather
-// than a wall of identical times.
-const QUEUE = [
-  [3327, 'Spaceship Command',       5, 0.4],   // finished_level, days out
-  [3413, 'Weapon Upgrades',         5, 2.1],
-  [3436, 'Advanced Weapon Upgrades',4, 6.8],
-  [12209, 'Heavy Assault Cruisers', 4, 14.2],
-  [22761, 'Capital Ships',          3, 31.5],
-  [3402, 'Shield Management',       5, 48.0],
-  [11207, 'Advanced Spaceship Command', 4, 79.3],
-];
-
-function skillQueue(now) {
-  return QUEUE.map(([skill_id, , finished_level, days], i) => ({
-    skill_id,
-    finished_level,
-    queue_position: i,
-    // The head of the queue is already part-trained, which is what a live queue
-    // looks like; a queue that starts at 0% reads as one nobody is training.
-    level_start_sp: 45255,
-    level_end_sp: 256000,
-    training_start_sp: i === 0 ? 138400 : 45255,
-    start_date:  iso(now, i === 0 ? 2 * DAY : -(QUEUE[i - 1] ? QUEUE[i - 1][3] : 0) * DAY),
-    finish_date: iso(now, -days * DAY),
-  }));
+// Static universe sheets — systems, constellations, regions — the locator and
+// the maps ask ESI for. The SDE holds the same facts, so they come from there.
+async function staticUniverse(path, sde) {
+  try {
+    let m = path.match(/^\/universe\/systems\/(\d+)$/);
+    if (m) {
+      const r = await sde.get(`SELECT solarSystemID id, solarSystemName name, constellationID c, security s, x, y, z
+                                 FROM mapSolarSystems WHERE solarSystemID = ?`, [Number(m[1])]);
+      return r ? { system_id: r.id, name: r.name, constellation_id: r.c, security_status: r.s,
+                   position: { x: r.x, y: r.y, z: r.z } } : undefined;
+    }
+    m = path.match(/^\/universe\/constellations\/(\d+)$/);
+    if (m) {
+      const r = await sde.get('SELECT constellationID id, constellationName name, regionID rg FROM mapConstellations WHERE constellationID = ?', [Number(m[1])]);
+      if (!r) return undefined;
+      const sys = await sde.all('SELECT solarSystemID id FROM mapSolarSystems WHERE constellationID = ?', [r.id]);
+      return { constellation_id: r.id, name: r.name, region_id: r.rg, systems: sys.map(s => s.id) };
+    }
+    m = path.match(/^\/universe\/regions\/(\d+)$/);
+    if (m) {
+      const r = await sde.get('SELECT regionID id, regionName name FROM mapRegions WHERE regionID = ?', [Number(m[1])]);
+      if (!r) return undefined;
+      const cons = await sde.all('SELECT constellationID id FROM mapConstellations WHERE regionID = ?', [r.id]);
+      return { region_id: r.id, name: r.name, constellations: cons.map(c => c.id) };
+    }
+  } catch (_) { /* fall through to the route table */ }
+  return undefined;
 }
 
+// Shortest gate route on the SDE's own jump graph — the cost index's "within N
+// jumps" filter asks ESI's POST /route/ for every candidate system.
+let _jumps = null;
+async function route(from, to, sde) {
+  if (!_jumps) {
+    _jumps = new Map();
+    for (const r of await sde.all('SELECT fromSolarSystemID a, toSolarSystemID b FROM mapSolarSystemJumps')) {
+      if (!_jumps.has(r.a)) _jumps.set(r.a, []);
+      _jumps.get(r.a).push(r.b);
+    }
+  }
+  if (from === to) return [from];
+  const prev = new Map([[from, null]]);
+  const queue = [from];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const nb of _jumps.get(cur) || []) {
+      if (prev.has(nb)) continue;
+      prev.set(nb, cur);
+      if (nb === to) {
+        const path = [to];
+        for (let p = cur; p !== null; p = prev.get(p)) path.unshift(p);
+        return path;
+      }
+      queue.push(nb);
+    }
+  }
+  return null;
+}
+
+/**
+ * The async half of the router: POSTs (names, ids, routes, writes), and any GET
+ * match() answers. `sde` is the app's open SDE handle, used for static names.
+ * Returns `undefined` when the request is not ours.
+ */
+async function matchAsync(url, { method = 'GET', body, sde, now = Date.now() } = {}) {
+  let path;
+  try { path = new URL(url).pathname.replace(/\/+$/, ''); } catch (_) { return undefined; }
+  if (String(method).toUpperCase() === 'GET' && sde) {
+    const st = await staticUniverse(path, sde);
+    if (st !== undefined) return st;
+  }
+  if (String(method).toUpperCase() !== 'GET') {
+    if (path === '/universe/names') return resolveNames(Array.isArray(body) ? body : [], sde);
+    if (path === '/universe/ids')   return resolveIds(Array.isArray(body) ? body : [], sde);
+    const r = path.match(/^\/route\/(\d+)\/(\d+)$/);
+    if (r && sde) { const p = await route(Number(r[1]), Number(r[2]), sde); return p ? { route: p } : { route: [] }; }
+    if (isDemoWrite(url)) return {};
+    return undefined;
+  }
+  return match(url, { now });
+}
+
+// ── Misses ───────────────────────────────────────────────────────────────────
+// One log line per unfixtured route, ids folded to {id}, so a page that comes up
+// empty in demo mode names the request it was waiting on instead of degrading
+// in silence.
+const _missed = new Set();
+function miss(url) {
+  let key;
+  try { const u = new URL(url); key = u.host + u.pathname.replace(/\/\d+(?=\/|$)/g, '/{id}'); }
+  catch (_) { key = String(url).slice(0, 120); }
+  if (_missed.has(key)) return;
+  _missed.add(key);
+  console.log(`[demo] no fixture: ${key}`);
+}
+
+// ── Market prices ────────────────────────────────────────────────────────────
+// Real prices come from the snapshot (src/demo/universe.js). A type it does not
+// hold — rare — falls into a plausible band by magnitude, derived from the id so
+// a re-record produces identical net-worth figures.
+function fallbackPrice(id) {
+  const h = (id * 2654435761) % 1000;
+  return id < 1000 ? 20 + h / 10 : id < 20000 ? 1_000_000 + h * 41_000 : 12_000_000 + h * 380_000;
+}
+function fuzzworkAggregates(typeIds) { return U.fuzzworkAggregates(typeIds, fallbackPrice); }
+const marketPrices = () => U.marketPrices();
+
+// Kept for callers that enumerate the demo's types (the valuation tests).
+const DEMO_TYPE_IDS = [
+  34, 35, 36, 37, 38, 39, 40, 22, 1223, 1225, 1230, 11396, 587, 621, 638, 691, 2389, 3689, 9832,
+  12005, 17738, 17739, 24698, 24699, 28606, 12015, 11978, 22456, 29990, 24688, 24702, 34828, 670,
+  44992, 40520, 11399,
+];
+
+// ── Skill queue ──────────────────────────────────────────────────────────────
+// Generated per pilot from real ranks (src/demo/skills.js); the head is
+// part-trained and every finish date follows from the pilot's attributes.
+function skillQueue(now, characterId = MAIN) { return S.skillQueue(keyOf(characterId) || 'main', now); }
+
 // ── Industry jobs ────────────────────────────────────────────────────────────
-// A mix of running and nearly-done, across activities, so the progress bars are
-// at different fills. All-100% or all-0% both look static in a screenshot.
-function industryJobs(now) {
-  const job = (job_id, installer_id, blueprint_type_id, product_type_id, activity_id,
-               runs, startedAgo, endsIn, system) => ({
-    job_id, installer_id, facility_id: 1035466617946, station_id: 1035466617946,
+// Real blueprint → product pairs from industryActivityProducts. Research and
+// copying name the blueprint itself as the product, as ESI does. A mix of
+// running and nearly done, across activities, so the bars sit at different fills.
+const JOBS = [
+  // [job_id, who, blueprint, product, activity, runs, startedAgo, endsIn, system, cost]
+  [70001, 'main',  24699, 24698, 1, 10, 6 * HOUR,  2 * HOUR,   30004759, 18_420_000],   // Drake ×10
+  [70002, 'main',    688,   638, 1,  2, 20 * HOUR, 30 * MIN,   30004759,  9_310_000],   // Raven ×2
+  [70003, 'main',    687, 11994, 8,  1, 30 * HOUR, 44 * HOUR,  30004759,  4_880_000],   // Cerberus BPC (invention)
+  [70004, 'indy',    687,   621, 1, 20, 9 * HOUR,  5 * HOUR,   30004759, 11_250_000],   // Caracal ×20
+  [70005, 'indy',  28607, 28607, 4,  1, 3 * DAY,   28 * HOUR,  30004722,  6_900_000],   // Orca BP — ME research
+  [70006, 'indy',  17739, 17739, 3,  1, 2 * DAY,   9 * HOUR,   30004722,  3_120_000],   // Machariel BP — TE research
+  [70007, 'indy',    691,   691, 5,  5, 12 * HOUR, 4 * HOUR,   30004759,    410_000],   // Rifter BP — copying
+  [70008, 'indy',  12006, 12005, 1,  1, 40 * HOUR, 22 * HOUR,  30004759, 22_600_000],   // Ishtar
+  [70009, 'scout',   691, 11372, 8,  2, 10 * HOUR, 14 * HOUR,  30004759,  1_920_000],   // Wolf BPC (invention)
+  [70010, 'scout',   692,   692, 5,  3, 7 * HOUR,  3 * HOUR,   30004759,    260_000],   // Stabber BP — copying
+];
+function _job([job_id, who, blueprint_type_id, product_type_id, activity_id, runs, startedAgo, endsIn, system, cost], now) {
+  const installer_id = CAST[who].id;
+  return {
+    job_id, installer_id, facility_id: STG.stationId, station_id: STG.stationId,
     activity_id, blueprint_id: 1_600_000_000 + job_id, blueprint_type_id,
-    blueprint_location_id: 1035466617946, output_location_id: 1035466617946,
-    product_type_id, runs, cost: 12_400_000, licensed_runs: runs, status: 'active',
+    blueprint_location_id: STG.stationId, output_location_id: STG.stationId,
+    product_type_id, runs, cost, licensed_runs: runs, status: 'active',
     duration: Math.round((startedAgo + endsIn) / 1000),
     start_date: iso(now, startedAgo), end_date: iso(now, -endsIn),
     solar_system_id: system,
-  });
-  return [
-    job(70001, MAIN,  1178, 626,   1, 20, 6 * HOUR,  2 * HOUR,  30004759),  // manufacturing
-    job(70002, MAIN,  1178, 626,   1, 10, 20 * HOUR, 30 * MIN,  30004759),
-    job(70003, INDY,  1179, 627,   3,  1, 2 * DAY,   9 * HOUR,  30004722),  // TE research
-    job(70004, INDY,  1179, 627,   4,  1, 3 * DAY,   28 * HOUR, 30004722),  // ME research
-    job(70005, SCOUT, 1180, 628,   5,  3, 12 * HOUR, 4 * HOUR,  30004759),  // copying
-    job(70006, MAIN,  1181, 629,   8,  1, 30 * HOUR, 44 * HOUR, 30004759),  // invention
-  ];
+  };
 }
-
+function industryJobs(now, characterId = MAIN) {
+  const key = keyOf(characterId) || 'main';
+  return JOBS.filter(j => j[1] === key).map(j => _job(j, now));
+}
 function corpIndustryJobs(now) {
-  const rows = industryJobs(now).slice(0, 4);
-  return rows.map((j, i) => ({ ...j, job_id: 71000 + i, installer_id: [MAIN, INDY, SCOUT][i % 3] }));
+  // The corporation's own lines, installed by the cast on its behalf.
+  return [
+    [71001, 'indy',  24699, 24698, 1, 25, 14 * HOUR, 11 * HOUR, 30004759, 46_800_000],
+    [71002, 'main',    687,   621, 1, 40, 22 * HOUR, 90 * MIN,  30004759, 22_400_000],
+    [71003, 'indy',  12006, 12006, 4,  1, 4 * DAY,   2 * DAY,   30004722,  8_150_000],
+    [71004, 'scout',   691,   587, 1, 50, 3 * HOUR,  52 * MIN,  30004759,  1_150_000],
+  ].map(j => _job(j, now));
 }
 
 // ── Market orders ────────────────────────────────────────────────────────────
 // Buys and sells both, because the widget splits them and one-sided data hides
-// half the layout.
-function marketOrders(now) {
+// half the layout. Each pilot their own book.
+function marketOrders(now, characterId = MAIN) {
+  const key = keyOf(characterId) || 'main';
   const o = (order_id, type_id, is_buy_order, price, volume_total, volume_remain, region_id, location_id, issuedAgo) => ({
-    order_id, type_id, is_buy_order, price,
-    volume_total, volume_remain, min_volume: 1,
+    order_id, type_id, is_buy_order, price, volume_total, volume_remain, min_volume: 1,
     duration: 90, escrow: is_buy_order ? price * volume_remain : 0,
-    issued: iso(now, issuedAgo), range: 'station',
-    region_id, location_id,
+    issued: iso(now, issuedAgo), range: 'station', region_id, location_id,
   });
-  return [
-    o(80001, 44992, false, 6_120_000,   40,  12, 10000002, 60003760, 3 * HOUR),   // PLEX sell
-    o(80002, 40520, false, 742_800_000,  4,   1, 10000002, 60003760, 9 * HOUR),   // Large Skill Injector
-    o(80003, 34,    true,        4.85, 50_000_000, 18_400_000, 10000002, 60003760, 26 * HOUR), // Tritanium buy
-    o(80004, 11399, true,   6_950_000,  120,  84, 10000060, 1035466617946, 2 * DAY),
-    o(80005, 12015, false, 214_500_000,   3,   3, 10000060, 1035466617946, 4 * DAY),
-  ];
-}
-
-// ── Jabber: director ping, Beehive status ────────────────────────────────────
-//
-// Neither of these is a network fetch — they come from the XMPP connection and
-// its local database, so they are supplied at their IPC handlers rather than in
-// match(). Without them the two widgets read "No director pings yet" and
-// "UNKNOWN — waiting for Beehive MOTD", which looks like the app failing rather
-// than like a quiet evening.
-//
-// The cast and the alliance are INVENTED. No real corp, alliance, comms link or
-// iconography appears here: a demo video that shows a real organisation's
-// broadcast is a different kind of problem from an ugly one.
-function latestPing(now = Date.now()) {
-  return {
-    id: 990001,
-    is_director: 1,
-    who_pinged: 'vaelin_ops',
-    sig: 'opsbot',
-    fc_name: 'Kaska Vaelin',
-    // `hurf` is the MESSAGE BODY, not the formup location — the renderer reads
-    // `ping.hurf || ping.raw_body` for the message and `formup_location` for the
-    // field. Getting that backwards puts a system name in the message pane.
-    formup_location: '1DQ1-A',
-    comms: 'Mumble — Op 3',
-    doctrine: 'Muninn (Shield HAC) — Scimitar support, T2 light drones',
-    pap_type: 'Strategic',
-    target_sig: 'all',
-    eve_timecode: new Date(now + 25 * MIN).toISOString().slice(11, 16),
-    gsol_member: null,
-    hurf:
-      'STRAT OP — form up 1DQ1-A, undock in 25.\n\n'
-      + 'Doctrine is Muninn with Scimitar support — bring T2 light drones and a '
-      + 'mobile depot. Cap chain on comms channel 2.\n\n'
-      + 'If you are not in a doctrine hull you are on standby. Titan is lit for the '
-      + 'first wave only.',
-    raw_body: 'STRAT OP — form up 1DQ1-A, undock in 25.',
-    ping_timestamp: new Date(now - 6 * MIN).toISOString(),
-    received_at:    new Date(now - 6 * MIN).toISOString(),
+  const p = (t, f) => Math.round((U.priceOf(t) || { sell: fallbackPrice(t) }).sell * f * 100) / 100;
+  const books = {
+    main: [
+      o(80001, 44992, false, p(44992, 1.01), 40, 12, 10000002, 60003760, 3 * HOUR),     // PLEX
+      o(80002, 40520, false, p(40520, 0.99), 4, 1, 10000002, 60003760, 9 * HOUR),       // Large Skill Injector
+      o(80003, 34,    true,  p(34, 0.9), 50_000_000, 18_400_000, 10000002, 60003760, 26 * HOUR), // Tritanium
+      o(80005, 12015, false, p(12015, 1.03), 3, 3, 10000060, STG.stationId, 4 * DAY),   // Muninn in Delve
+    ],
+    indy: [
+      o(80101, 621,   false, p(621, 1.02), 20, 14, 10000002, 60003760, 6 * HOUR),       // Caracal
+      o(80102, 2389,  false, p(2389, 1.0), 60_000, 41_200, 10000002, 60003760, 2 * DAY), // Plasmoids
+      o(80103, 11399, true,  p(11399, 0.92), 120, 84, 10000060, STG.stationId, 2 * DAY), // Morphite
+    ],
+    scout: [
+      o(80201, 22456, false, p(22456, 1.04), 2, 2, 10000030, 60004588, 11 * HOUR),      // Sabre in Rens
+    ],
   };
+  return books[key] || [];
 }
 
+// ── Jabber: Beehive status ───────────────────────────────────────────────────
+// Not a network fetch — supplied at its IPC handler. Without it the widget reads
+// "UNKNOWN — waiting for Beehive MOTD", which looks like the app failing.
+// (Director pings are seeded into the demo's Jabber database — src/demo/pings.js.)
 function beehiveStatus(now = Date.now()) {
   return {
     // The traffic light only understands green/yellow/red/unknown — the words
-    // parseBeehiveStatus() produces. 'go' is not one of them and falls through
-    // to UNKNOWN, which is what the header showed while the MOTD text below it
-    // clearly said the beacons were up.
+    // parseBeehiveStatus() produces.
     status: 'green',
     text:
-      'BEEHIVE: GO\n'
-      + 'Home defence beacons are UP. Rorquals cleared to undock in 1DQ1-A and 319-3D.\n'
-      + 'Standing fleet is running — join "Vaelin Home Defence" before undocking.',
+      'HOME GUARD: GREEN\n'
+      + 'Cover fleet is UP. Rorquals cleared to undock in 1DQ1-A and 319-3D.\n'
+      + 'Join "Vaelin Home Cover" before undocking.',
     changedAt: new Date(now - 48 * MIN).toISOString(),
   };
 }
@@ -439,9 +643,15 @@ function beehiveStatus(now = Date.now()) {
 // the widget renders as critical, one further gang, and a clear report. All the
 // same colour would make the urgency banding invisible in a screenshot.
 function intelStatus() {
+  // origins/reach are what the widget header reads ("3 characters · 212
+  // systems"); without them it said NO POSITION MONITORED over live contacts.
+  const origin = (key, systemId, systemName) => ({
+    key: String(CAST[key].id), characterId: CAST[key].id, label: CAST[key].name, systemId, systemName, source: 'chatlog' });
   return {
     running: true,
     systems: 212,
+    reach: 212,
+    origins: [origin('main', 30004759, '1DQ1-A'), origin('indy', 30004759, '1DQ1-A'), origin('scout', 30004722, '319-3D')],
     // INVENTED channel names. The first version of this fixture used real
     // nullsec intel channels, which is the same mistake as screenshotting a real
     // killboard: a published image would have told anyone watching which
@@ -453,28 +663,29 @@ function intelStatus() {
 }
 
 // Field names come from the SHARED row builder (src/shared/intel-row.js), which
-// reads label/ships/shipIds/pilots/etaSeconds — not name/ship/eta. Using the
-// wrong ones renders a row with blank system and ship columns and a "GANG
-// undefined" size chip, which is what the first attempt at this produced.
+// reads label/ships/shipIds/pilots/etaSeconds — not name/ship/eta. Pilots are
+// NPC agents, so a portrait lookup by name finds a face that is nobody's.
+// `closing` is how many jumps a contact has closed — the row prints "IN −2" —
+// and only inbound contacts carry one. A boolean there printed "IN −true".
 function intelContacts(now = Date.now()) {
-  const c = (o) => Object.assign({ last: now - 90 * 1000, etaMeasured: true, inbound: true }, o);
+  const c = (o) => Object.assign({ last: now - 90 * 1000, etaMeasured: true, inbound: false, closing: 0 }, o);
   return [
     c({ kind: 'pilot', label: '319-3D', solarSystemId: 30004722, regionName: 'Delve',
-        jumps: 2, js: 2, ships: ['Loki'], shipIds: [29990], pilots: ['Vex Tarrow'],
+        jumps: 2, js: 2, ships: ['Loki'], shipIds: [29990], pilots: [pilot(101).name],
         count: 1, size: 1, band: 'solo', roles: ['cloaky'],
-        security: -0.32, etaSeconds: 75, closing: true }),
+        security: -0.32, etaSeconds: 75, inbound: true, closing: 2 }),
     c({ kind: 'pilot', label: 'T5ZI-S', solarSystemId: 30004735, regionName: 'Delve',
         jumps: 3, js: 3, ships: ['Sabre', 'Jackdaw'], shipIds: [22456, 34828],
-        pilots: ['Sorren Kade', 'Ilva Renn'], count: 2, size: 2, band: 'small', roles: [],
-        security: -0.14, etaSeconds: 140, closing: true }),
+        pilots: [pilot(102).name, pilot(103).name], count: 2, size: 2, band: 'small', roles: [],
+        security: -0.14, etaSeconds: 140, inbound: true, closing: 1 }),
     c({ kind: 'system', label: 'YZ9-F6', solarSystemId: 30004719, regionName: 'Delve',
         jumps: 4, js: 4, ships: ['Muninn', 'Scimitar'], shipIds: [12015, 11978],
         pilots: [], count: 14, size: 14, band: 'fleet', roles: ['capital', 'logi'],
-        security: -0.18, etaSeconds: 220, closing: false }),
+        security: -0.18, etaSeconds: 220 }),
     c({ kind: 'system', label: 'K-6K16', solarSystemId: 30004751, regionName: 'Delve',
         jumps: 5, js: 5, ships: [], shipIds: [], pilots: [], count: 0, size: 0,
-        band: null, roles: [], camp: false, clear: true,
-        security: -0.43, etaSeconds: 300, closing: false, body: 'clear' }),
+        band: null, roles: [], camp: false, clear: true, status: 'clear',
+        security: -0.43, etaSeconds: 300, body: 'clear' }),
   ];
 }
 
@@ -501,7 +712,8 @@ const SHIP = {                    // real hull ids
 function zkillFeed(kind, entityId, page = 1, now = Date.now()) {
   if (page > 1) return [];        // one page of demo history is plenty
   const id = Number(entityId) || MAIN;
-  const corp = 1000167;
+  const corp = CAST.main.corpId;
+  const foe = (n) => pilot(100 + n).id;
 
   const mk = (killmail_id, ago, sys, victim, attackers, isk) => ({
     killmail_id,
@@ -512,27 +724,27 @@ function zkillFeed(kind, entityId, page = 1, now = Date.now()) {
     zkb: { totalValue: isk, npc: false, solo: attackers.length === 1, hash: 'demo' + killmail_id },
   });
   const us    = (ship, character_id = id) => ({ character_id, corporation_id: corp, ship_type_id: ship, damage_taken: 4210 });
-  const them  = (ship, character_id) => ({ character_id, corporation_id: 98000501, alliance_id: 99000501, ship_type_id: ship, damage_taken: 8800 });
-  const themA = (ship, character_id, final_blow = false) => ({ character_id, corporation_id: 98000501, alliance_id: 99000501, ship_type_id: ship, final_blow });
+  const them  = (ship, character_id) => ({ character_id, corporation_id: RIVAL.corp, alliance_id: RIVAL.alliance, ship_type_id: ship, damage_taken: 8800 });
+  const themA = (ship, character_id, final_blow = false) => ({ character_id, corporation_id: RIVAL.corp, alliance_id: RIVAL.alliance, ship_type_id: ship, final_blow });
   const ourA  = (ship, character_id = id, final_blow = false) => ({ character_id, corporation_id: corp, ship_type_id: ship, final_blow });
 
   return [
     // Recent kills — us on the attacking side
-    mk(141_200_301, 34 * MIN, D.YZ9,  them(SHIP.rokh, 2119000301),
+    mk(141_200_301, 34 * MIN, D.YZ9,  them(SHIP.rokh, foe(1)),
        [ourA(SHIP.muninn, id, true), ourA(SHIP.scimitar, INDY)], 284_610_000),
-    mk(141_200_298, 52 * MIN, D.YZ9,  them(SHIP.hurricane, 2119000302),
+    mk(141_200_298, 52 * MIN, D.YZ9,  them(SHIP.hurricane, foe(2)),
        [ourA(SHIP.muninn, id, true)], 96_250_000),
-    mk(141_200_244, 2 * HOUR + 10 * MIN, D.T5ZI, them(SHIP.jackdaw, 2119000303),
+    mk(141_200_244, 2 * HOUR + 10 * MIN, D.T5ZI, them(SHIP.jackdaw, foe(3)),
        [ourA(SHIP.muninn, id), ourA(SHIP.sabre, SCOUT, true)], 148_020_000),
     // A loss — we were the victim
     mk(141_200_190, 3 * HOUR, D.T5ZI, us(SHIP.sabre, SCOUT),
-       [themA(SHIP.loki, 2119000310, true)], 71_880_000),
-    mk(141_199_880, 9 * HOUR, D.T319, them(SHIP.capsule, 2119000303),
+       [themA(SHIP.loki, foe(4), true)], 71_880_000),
+    mk(141_199_880, 9 * HOUR, D.T319, them(SHIP.capsule, foe(3)),
        [ourA(SHIP.sabre, SCOUT, true)], 10_000),
-    mk(141_198_402, 28 * HOUR, D.DQ,  them(SHIP.machariel, 2119000320),
+    mk(141_198_402, 28 * HOUR, D.DQ,  them(SHIP.machariel, foe(5)),
        [ourA(SHIP.muninn, id, true), ourA(SHIP.scimitar, INDY)], 1_842_400_000),
     mk(141_197_115, 2 * DAY, D.DQ,    us(SHIP.muninn, id),
-       [themA(SHIP.rokh, 2119000330, true)], 231_500_000),
+       [themA(SHIP.rokh, foe(6), true)], 231_500_000),
   ];
 }
 
@@ -542,8 +754,6 @@ function zkillFeed(kind, entityId, page = 1, now = Date.now()) {
  * as climbing rather than flat — a flat demo shows the feature doing nothing.
  */
 function zkillStats(kind, entityId, now = Date.now()) {
-  // One ranking period. `metrics` drives the efficiency figure the app shows;
-  // `ranks` drives the placing. Both are read straight back out by periodOf().
   const period = (overall, destroyed, lost, shipsDestroyed, shipsLost) => ({
     all: {
       ranks:   { overall, shipsDestroyed: destroyed, shipsLost: lost },
@@ -573,9 +783,10 @@ function zkillStats(kind, entityId, now = Date.now()) {
 }
 
 module.exports = {
-  match, mailHeaders, notifications, calendar, MAIL_BODIES,
+  match, matchAsync, miss, isDemoWrite, resolveNames, resolveIds, route,
+  mailHeaders, notifications, calendar, MAIL_BODIES,
   fuzzworkAggregates, marketPrices, DEMO_TYPE_IDS, skillQueue, industryJobs, corpIndustryJobs, marketOrders,
-  latestPing, beehiveStatus, intelStatus, intelContacts,
+  beehiveStatus, intelStatus, intelContacts,
   zkillFeed, zkillStats,
   MAIN, INDY, SCOUT,
 };

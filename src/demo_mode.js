@@ -151,7 +151,13 @@ function redirectPaths(app) {
   if (!isEnabled(app)) return null;
   // Sibling of the real profile, not inside it — so "delete the demo" is a
   // single obvious folder and can never take real data with it.
-  const userDataDir = path.join(app.getPath('appData'), 'EVE Carbon Demo');
+  //
+  // EVE_CARBON_DEMO_DIR moves it, for e2e: the default is ONE global folder, and
+  // a test launching into it would wipe whatever demo the developer has set up
+  // (and lose to the single-instance lock if one is running).
+  const userDataDir = process.env.EVE_CARBON_DEMO_DIR
+    ? path.resolve(process.env.EVE_CARBON_DEMO_DIR)
+    : path.join(app.getPath('appData'), 'EVE Carbon Demo');
   const dataDir     = path.join(userDataDir, 'data');
   fs.mkdirSync(dataDir, { recursive: true });
 

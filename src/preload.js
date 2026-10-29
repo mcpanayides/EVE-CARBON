@@ -253,6 +253,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // getDemoMode() below is the async form; code that must decide before its
   // first await (the dashboard layout) needs this one.
   isDemo:            process.argv.includes('--demo-active'),
+  // The demo launch that rebuilt the profile (absent under --demo-keep): the
+  // renderer re-seeds the demo's localStorage once for each new value.
+  demoSeed:          (process.argv.find(a => a.startsWith('--demo-seed=')) || '').slice(12) || null,
   // True only under the e2e harness (main sets --automated from EVE_CARBON_E2E).
   // Suppresses nag prompts, nothing else — never branch real behaviour on this,
   // or the suite stops testing the app the user actually runs.

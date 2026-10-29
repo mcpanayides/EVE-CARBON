@@ -9,6 +9,7 @@
     "start": "electron .",
     "demo": "electron . --demo",
     "demo:shots": "node scripts/demo-shots.js",
+    "demo:snapshot": "node scripts/demo-snapshot.js",
     "lint": "node scripts/lint.js",
     "esi:audit": "node scripts/esi-audit.js --list",
     "graphify:sync": "python scripts/graphify-wiki.py",

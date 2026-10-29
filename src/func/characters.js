@@ -217,10 +217,12 @@ async function resyncAllCharacters() {
 }
 
 // Bloodline id → name (static EVE data). Used on the character ID cards.
+// From the SDE's bloodlines — the table this replaced was a guess that put the
+// wrong name on most pilots (4 read "Gallente" for a Brutor, 7 "Amarr" for a
+// Gallente). Same table as the dashboard banner's.
 const CHAR_BLOODLINE_NAMES = {
-  1:'Deteis', 2:'Civire', 3:'Achura', 4:'Gallente', 5:'Intaki', 6:'Jin-Mei',
-  7:'Amarr', 8:'Ni-Kunni', 9:'Khanid', 11:'Vherokior', 12:'Brutor', 13:'Sebiestor',
-  14:'Minmatar', 15:'Nefantar', 16:'Starkmanir', 17:'Thukker',
+  1:'Deteis', 2:'Civire', 3:'Sebiestor', 4:'Brutor', 5:'Amarr', 6:'Ni-Kunni',
+  7:'Gallente', 8:'Intaki', 11:'Achura', 12:'Jin-Mei', 13:'Khanid', 14:'Vherokior',
 };
 
 // A location name that's really a placeholder, not a real place.

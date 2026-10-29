@@ -1869,10 +1869,11 @@ async function loadDashboard() {
   (async () => {
 
     // ── Static bloodline lookup (EVE data never changes) ─────────────────
+    // From the SDE's bloodlines; the guessed table it replaced named most
+    // pilots wrong. Kept in step with CHAR_BLOODLINE_NAMES in characters.js.
     const BLOODLINE_NAMES = {
-      1:'Deteis', 2:'Civire', 3:'Achura', 4:'Gallente', 5:'Intaki', 6:'Jin-Mei',
-      7:'Amarr', 8:'Ni-Kunni', 9:'Khanid', 11:'Vherokior', 12:'Brutor', 13:'Sebiestor',
-      14:'Minmatar', 15:'Nefantar', 16:'Starkmanir', 17:'Thukker',
+      1:'Deteis', 2:'Civire', 3:'Sebiestor', 4:'Brutor', 5:'Amarr', 6:'Ni-Kunni',
+      7:'Gallente', 8:'Intaki', 11:'Achura', 12:'Jin-Mei', 13:'Khanid', 14:'Vherokior',
     };
 
     // ── Helper: render the banner from DB data ────────────────────────────

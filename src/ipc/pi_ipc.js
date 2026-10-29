@@ -33,6 +33,7 @@ const PI_STORAGE_TYPES_FALLBACK = {
 };
 
 let _storageTypesCache = null; // populated once from SDE, then reused
+let _volumeCache       = null; // typeID → m³ for every PI commodity, from the SDE
 
 async function buildStorageTypes(sdeDb) {
   if (_storageTypesCache) return _storageTypesCache;
@@ -65,13 +66,29 @@ async function buildStorageTypes(sdeDb) {
 
   _storageTypesCache = Object.keys(map).length > 0 ? map : PI_STORAGE_TYPES_FALLBACK;
   console.log(`[PI] Storage type registry: ${Object.keys(_storageTypesCache).length} types from SDE`);
+
+  // Commodity volumes, from the same SDE: categories 42 (planetary resources,
+  // P0) and 43 (planetary commodities, P1–P4). The hand-written table below was
+  // the only source until this, and it had gone wrong twice over: its values
+  // predate CCP halving PI volumes (P0 0.01 → 0.005, P1 0.38 → 0.19 …), and it
+  // was missing or misfiled ids — Noble Metals, Autotrophs, Oxygen and
+  // Mechanical Parts fell through to 1 m³, so a storage facility of raw Noble
+  // Metals read 100% full when it held about 1%.
+  try {
+    const vols = await sdeDb.all(
+      `SELECT t.${invTable.id} AS typeID, t.volume AS volume
+         FROM ${invTable.t} t JOIN invGroups g ON g.groupID = t.groupID
+        WHERE g.categoryID IN (42, 43) AND t.volume > 0`);
+    if (vols.length) _volumeCache = Object.fromEntries(vols.map(v => [v.typeID, v.volume]));
+  } catch (_) { /* older SDE layout — the table below stands in */ }
   return _storageTypesCache;
 }
 
-// ─── PI commodity volumes (m³ per unit) ──────────────────────────────────────
-// These are the standard P0-P4 tier volumes from the EVE SDE.
-// Used to compute fill % from contents[].amount when exact SDE is unavailable.
-// If your app already has an SDE DB, replace getItemVolume() with an SDE lookup.
+// ─── PI commodity volumes (m³ per unit) — FALLBACK ONLY ─────────────────────
+// The SDE is the source (see buildStorageTypes, which fills _volumeCache).
+// This table only stands in when no SDE is open. It is known-stale: the values
+// are the pre-halving tier volumes and some ids are misfiled, which is why it
+// stopped being the source.
 const PI_ITEM_VOLUMES = {
   // P0 — Raw resources (0.01 m³)
   2267: 0.01, 2268: 0.01, 2272: 0.01, 2073: 0.01, 2306: 0.01,
@@ -114,7 +131,7 @@ const PI_ITEM_VOLUMES = {
  * never show 0% for unknown items.
  */
 function getItemVolume(typeId) {
-  return PI_ITEM_VOLUMES[typeId] ?? 1;
+  return (_volumeCache && _volumeCache[typeId]) ?? PI_ITEM_VOLUMES[typeId] ?? 1;
 }
 
 /**

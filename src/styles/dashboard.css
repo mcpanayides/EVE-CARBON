@@ -85,6 +85,10 @@
   gap: 0;
   flex-shrink: 0;
   z-index: 1;
+  /* A query container, so the columns can make room at narrow widths — see
+     the @container rules after .banner-ship-col. */
+  container-type: inline-size;
+  container-name: welcomebanner;
 }
 
 /* Crimson gradient tint */
@@ -403,6 +407,26 @@
   align-items: stretch;
   border-left: 1px solid var(--border-e);
   overflow: hidden;
+}
+
+/* The fixed columns (portrait, identity, killboard, bloodline/implants, ship)
+   add up to ~1215px, and the stats column — the only flexible one — took what
+   was left. In a 1600px window that was nothing: Born, Sec Status, Home and
+   Location rendered as labels with no values. Below these widths the fixed
+   columns give up room instead, and the least essential ones go last-in,
+   first-out. 296px is the implant grid (5 × 48px + gaps) plus its padding. */
+@container welcomebanner (max-width: 1500px) {
+  .banner-identity-col  { min-width: 210px; padding: 20px 18px; }
+  .banner-stats-outer   { padding: 20px 16px; }
+  .banner-killboard-col { width: 200px; padding: 20px 16px; }
+  .banner-extra-col     { width: 296px; padding: 20px; }
+  .banner-ship-col      { width: 140px; }
+}
+@container welcomebanner (max-width: 1150px) {
+  .banner-killboard-col { display: none; }
+}
+@container welcomebanner (max-width: 950px) {
+  .banner-ship-col { display: none; }
 }
 
 .banner-ship-icon { width: 100%; flex: 1; min-height: 0; object-fit: cover; object-position: center; display: block; filter: drop-shadow(0 0 8px var(--glow-ship-1)); transition: filter 0.3s ease; }

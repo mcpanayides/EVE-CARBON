@@ -30,7 +30,7 @@ See `test/updater_critical.test.js`.
 
 ---
 
-## [4.0.5] - 2026-10-29
+## [4.0.6] - 2026-10-30
 
 ### Added
 - **Force Projection.** A new map layer: pick one or more alliances, and every
@@ -63,8 +63,22 @@ See `test/updater_critical.test.js`.
 - **Jump bridges and wormholes on the Spatial map**, and each bridge shows
   which way it runs: a light travels along it from its start to its end. The
   lights shrink as you zoom out instead of swamping the map.
-- The drifting clouds and the bridge lights stop while the window is unfocused
-  or the map is hidden, and hold still when reduced motion is on.
+- **Lens flares, twinkle and drifting dust on the Spatial map.** Stars twinkle
+  and pulse; flown in, each throws a small lens flare, and the star you are
+  closing on a bigger one. Fine dust in the colour of the surrounding gas
+  drifts past the edges of the view as you zoom, pan and orbit, and never
+  crosses the middle of it.
+- **Routes draw themselves in.** A newly plotted route — from the Stargate
+  planner, the Jump planner or a star's right-click menu — grows hop by hop
+  from its start: about 1.2 s a hop, and never more than 15 s however long the
+  route. Capital jump routes grow along their arcs.
+- **The selected system is ringed** in the Spatial view and the Schematic
+  overview, the way "You are here" is: in the theme's accent, with its name and
+  security beside it, so it can be found at any zoom. The ring goes when the
+  system panel closes.
+- The drifting clouds, dust, twinkle and bridge lights stop while the window is
+  unfocused or the map is hidden, and hold still when reduced motion is on; a
+  new route then appears whole instead of drawing in.
 
 ### Changed
 - **Spatial camera controls.** Dragging sideways now turns the map the way your
@@ -72,6 +86,12 @@ See `test/updater_critical.test.js`.
   nothing selected the camera orbits Rens. Shift + drag no longer pans in 3-D.
   In Flat, Shift + drag turns the map and Space + drag pans. A right-click
   still opens the system menu; a right-drag never does.
+- **Demo mode is one consistent world.** Every page tells the same story — the
+  contract on the Contracts page is the one the wallet journal paid for — and
+  Jabber pings, the alliance forum, calendar feeds, skill plans, shopping lists
+  and a dashboard with every widget are filled in too. No real alliance,
+  corporation or player appears, nothing is fetched from the network, and the
+  update and donation prompts stay away while you record.
 
 ### Fixed
 - **Planned routes now show on the Spatial map.** The Stargate planner's route
@@ -81,6 +101,17 @@ See `test/updater_critical.test.js`.
   always said. The key did nothing.
 - A slow sovereignty update could arrive after a newer one and paint stale
   ownership over the map. Late answers are now dropped.
+- **Bloodlines.** Character cards and the dashboard banner named the wrong
+  bloodline for most pilots — a Brutor read as Gallente, a Gallente as Amarr.
+  They now match CCP's data.
+- **PI storage.** Commodity volumes now come from CCP's static data. The
+  built-in table predated CCP halving PI volumes and misfiled several
+  commodities, so a storage facility of raw Noble Metals could read 100% full
+  while holding about 1%.
+- **The dashboard banner in narrower windows.** At 1600 px, Born, Sec Status,
+  Home and Location showed as labels with no values. The other columns now give
+  up room, and the killboard and ship columns step aside in narrower windows
+  still.
 
 ## [4.0.0] - 2026-10-26
 

@@ -141,9 +141,16 @@
 
     <!-- Main canvas — sized to parent by ResizeObserver in map.js -->
     <canvas id="mapCanvas"></canvas>
-    <!-- Bridge shimmer: the one animated layer, kept off the map canvas so the
-         map itself never has to redraw to move it. Never takes the mouse. -->
+    <!-- A newly plotted route drawing itself in, hop by hop: on a layer of its
+         own until it lands, when the map takes it back. Never takes the mouse. -->
+    <canvas id="mapRouteCanvas" aria-hidden="true"></canvas>
+    <!-- Bridge shimmer: animated on a layer of its own, so the map itself never
+         has to redraw to move it. Never takes the mouse. -->
     <canvas id="mapFxCanvas" aria-hidden="true"></canvas>
+    <!-- Spatial dust, twinkle and lens flares, over everything: the dust hangs
+         in front of the lens and the flares are in it. Its own layer for the
+         same reason. Never takes the mouse. -->
+    <canvas id="mapSkyCanvas" aria-hidden="true"></canvas>
 
     <!-- Floating tooltip (system name on hover) -->
     <div id="mapTooltip"></div>

@@ -3089,8 +3089,12 @@ function _jbFxSync() {
 // Shared by the Schematic and Spatial views the way _drawArcs is: each passes
 // its own toCanvas(id) -> [x, y] | null. Spatial used to draw no route at all,
 // so a plotted route simply was not on that map.
+//
+// A route still drawing itself in is left out: the reveal layer has it until
+// it lands (see _routeRevealStart), and takes the same toCanvas from here.
 function _drawRoutes(ctx, toCanvas, width) {
-  if (_routeIds && _routeIds.length > 1) {
+  _routeDraw = { toCanvas, width };
+  if (_routeIds && _routeIds.length > 1 && !_revealing('gate')) {
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(96,200,255,0.95)';
     ctx.lineWidth   = width;
@@ -3104,17 +3108,14 @@ function _drawRoutes(ctx, toCanvas, width) {
     ctx.stroke();
     ctx.lineCap = 'butt';
   }
-  if (_jumpRouteIds && _jumpRouteIds.length > 1) {
+  if (_jumpRouteIds && _jumpRouteIds.length > 1 && !_revealing('jump')) {
     ctx.lineCap   = 'round';
     ctx.lineWidth = width;
     for (let i = 1; i < _jumpRouteIds.length; i++) {
       const a = toCanvas(_jumpRouteIds[i - 1]), b = toCanvas(_jumpRouteIds[i]);
       if (!a || !b) continue;
       const [ax, ay] = a, [bx, by] = b;
-      const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1;
-      const arcH = Math.min(len * 0.18, 140);
-      const cpx = (ax + bx) / 2 + (-dy / len) * arcH;
-      const cpy = (ay + by) / 2 + ( dx / len) * arcH;
+      const [cpx, cpy] = RouteReveal.jumpArc(ax, ay, bx, by);
       ctx.beginPath();
       ctx.moveTo(ax, ay);
       ctx.quadraticCurveTo(cpx, cpy, bx, by);
@@ -3123,6 +3124,198 @@ function _drawRoutes(ctx, toCanvas, width) {
     }
     ctx.lineCap = 'butt';
   }
+}
+
+// ── Route reveal ──────────────────────────────────────────────────────────────
+//
+// A newly plotted route draws itself in, hop by hop from its start: each hop
+// eases out of one system and into the next with a bright head on its tip, and
+// every system it reaches flashes a ring. Paced by route-reveal.js - about
+// 1.2 s a hop, never more than 15 s in all.
+//
+// It is drawn on a canvas of its own over the map (#mapRouteCanvas); the map is
+// not redrawn for it. While a route draws in, the map leaves it out
+// (_drawRoutes) and this layer draws however much has arrived; once it lands
+// the map takes it back, under the stars where it belongs. The two are handed
+// over across one frame, so the line never blinks.
+//
+// It plays wherever a route lands on a map someone is looking at: plotted from
+// a star's menu, shown from either planner, or a planner closed over it. Behind
+// an open planner there is no one to watch, so the route just goes down; reduced
+// motion skips the reveal; and losing focus or leaving the map finishes it at
+// once - the Nothing-Animates-Unwatched rule (DESIGN.md).
+
+const _ROUTE_STYLE = {
+  gate: { line: 'rgba(96,200,255,0.95)', rgb: '96,200,255' },
+  jump: { line: 'rgba(240,120,200,0.92)', rgb: '240,120,200' },
+};
+const _ROUTE_RING_MS = 520;              // how long a system's arrival ring takes to fade
+const _routeReveal = { gate: null, jump: null };   // kind -> { ids, start, total, landed } while drawing in
+let _routeDraw = null;                   // the toCanvas and line width the map last drew routes with
+let _rtCv = null, _rtCtx = null, _rtRaf = 0;
+
+const _routeIdsOf = (kind) => (kind === 'gate' ? _routeIds : _jumpRouteIds);
+
+/** True while that route is still drawing in, so the map leaves it to the reveal layer. */
+function _revealing(kind) {
+  const r = _routeReveal[kind];
+  return !!(r && !r.landed && r.ids === _routeIdsOf(kind));
+}
+
+function _rtMayRun() {
+  return _mapVisible() && !_jbFxStill() && !document.body.classList.contains('app-unfocused');
+}
+
+/** A planner open over the map: a route set behind it goes down without a reveal no one would see. */
+function _plannerOpen() {
+  return ['stargatePlannerModal', 'jumpPlannerModal'].some(id => {
+    const m = document.getElementById(id);
+    return !!m && getComputedStyle(m).display !== 'none';
+  });
+}
+
+/** Draw that route in from its start - or, when no one could watch it, just put it down. */
+function _routeRevealStart(kind) {
+  const ids = _routeIdsOf(kind);
+  _routeReveal[kind] = null;
+  if (ids && ids.length > 1 && _rtMayRun() && !_plannerOpen()) {
+    _routeReveal[kind] = { ids, start: performance.now(), total: RouteReveal.durationMs(ids.length - 1), landed: false };
+  }
+  _scheduleRender();                     // the map drops the route while it draws in, or draws it whole
+}
+
+/** Finish every reveal at once: the map draws the routes whole and this layer clears. */
+function _routeRevealFinish() {
+  _routeReveal.gate = _routeReveal.jump = null;
+  if (_rtCtx) _rtCtx.clearRect(0, 0, _rtCv.width, _rtCv.height);
+  _scheduleRender();
+}
+
+/** A ring swelling out of a system as the route reaches it, fading as it goes. */
+function _rtRing(ctx, x, y, since, rgb, big) {
+  const k = since / (_ROUTE_RING_MS * (big ? 1.6 : 1));
+  if (k < 0 || k >= 1) return;
+  ctx.beginPath();
+  ctx.arc(x, y, (big ? 6 : 4) + k * (big ? 18 : 11), 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(${rgb},${((1 - k) * (1 - k) * 0.9).toFixed(3)})`;
+  ctx.lineWidth = big ? 2 : 1.5;
+  ctx.stroke();
+}
+
+/** The light on the growing tip: white-hot in a halo of the route's colour. */
+function _rtHead(ctx, x, y, width, rgb) {
+  const r = 3 + width * 2.2;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0,    'rgba(255,255,255,0.95)');
+  g.addColorStop(0.35, `rgba(${rgb},0.8)`);
+  g.addColorStop(1,    `rgba(${rgb},0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+}
+
+/**
+ * However much of one route has arrived `elapsed` ms in: the hops already
+ * made, the one under way as far as its eased progress, its head, and the
+ * rings of the systems lately reached. Gate hops are straight; jump hops grow
+ * along their own arc.
+ */
+function _rtTrace(ctx, kind, r, elapsed, toCanvas, width) {
+  const ids = r.ids, hops = ids.length - 1, st = _ROUTE_STYLE[kind];
+  const p = RouteReveal.progress(elapsed, r.total, hops);
+  const upTo = p.done ? hops : p.hop;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = width;
+  ctx.strokeStyle = st.line;
+  let head = null;
+  for (let i = 1; i <= Math.min(hops, upTo + 1); i++) {
+    const a = toCanvas(ids[i - 1]), b = toCanvas(ids[i]);
+    if (!a || !b) continue;
+    const t = i <= upTo ? 1 : p.t;      // made, or under way
+    if (t <= 0) continue;
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    if (kind === 'jump') {
+      const [cx, cy] = RouteReveal.jumpArc(a[0], a[1], b[0], b[1]);
+      const [qx, qy, ex, ey] = RouteReveal.partialQuad(a[0], a[1], cx, cy, b[0], b[1], t);
+      ctx.quadraticCurveTo(qx, qy, ex, ey);
+      if (t < 1) head = [ex, ey];
+    } else {
+      const ex = a[0] + (b[0] - a[0]) * t, ey = a[1] + (b[1] - a[1]) * t;
+      ctx.lineTo(ex, ey);
+      if (t < 1) head = [ex, ey];
+    }
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+  if (head) _rtHead(ctx, head[0], head[1], width, st.rgb);
+  // Each system the line has reached gets its ring, popping in as it arrives -
+  // the map holds them back meanwhile (_drawRouteMarkers), except the ends and
+  // chosen waypoints, which it shows from the start.
+  const wps = kind === 'gate' ? _routeWaypointIds : _jumpRouteWaypointIds;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = `rgb(${st.rgb})`;
+  for (let k = 1; k <= Math.min(upTo, hops - 1); k++) {
+    if (wps && wps.has(ids[k])) continue;
+    const c = toCanvas(ids[k]);
+    if (!c) continue;
+    const pop = Math.min(1, (elapsed - RouteReveal.arrivalMs(k, r.total, hops)) / 160);
+    ctx.beginPath();
+    ctx.arc(c[0], c[1], 4.5 * (0.4 + 0.6 * (1 - (1 - pop) * (1 - pop))), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  for (let k = 0; k <= upTo; k++) {        // the start's ring as it sets off, then each arrival's
+    const since = elapsed - RouteReveal.arrivalMs(k, r.total, hops);
+    if (since > _ROUTE_RING_MS * 1.6) continue;
+    const c = toCanvas(ids[k]);
+    if (c) _rtRing(ctx, c[0], c[1], since, st.rgb, k === hops);
+  }
+}
+
+/** One frame of the reveal layer. A route that lands is drawn whole here, once more, as the map takes it back. */
+function _rtDraw() {
+  const ctx = _rtCtx;
+  if (!ctx) return;
+  ctx.clearRect(0, 0, _rtCv.width, _rtCv.height);
+  const d = _routeDraw;
+  const now = performance.now();
+  for (const kind of ['gate', 'jump']) {
+    const r = _routeReveal[kind];
+    if (!r) continue;
+    if (r.ids !== _routeIdsOf(kind)) { _routeReveal[kind] = null; continue; }   // cleared or replaced since
+    const elapsed = now - r.start;
+    if (elapsed >= r.total && !r.landed) {
+      r.landed = true;                   // the map draws it whole from the next frame...
+      _scheduleRender();
+      if (d) _rtTrace(ctx, kind, r, r.total, d.toCanvas, d.width);   // ...and until then, this does
+      continue;
+    }
+    if (r.landed) {
+      // Only the destination's ring is left to finish fading.
+      if (elapsed > r.total + _ROUTE_RING_MS * 1.6) { _routeReveal[kind] = null; continue; }
+      const c = d && d.toCanvas(r.ids[r.ids.length - 1]);
+      if (c) _rtRing(ctx, c[0], c[1], elapsed - r.total, _ROUTE_STYLE[kind].rgb, true);
+      continue;
+    }
+    if (d) _rtTrace(ctx, kind, r, elapsed, d.toCanvas, d.width);
+  }
+}
+
+function _rtTick() {
+  _rtRaf = 0;
+  if (!_rtMayRun()) { _routeRevealFinish(); return; }
+  _rtDraw();
+  if (_routeReveal.gate || _routeReveal.jump) _rtRaf = requestAnimationFrame(_rtTick);
+}
+
+/** After every map frame - the route may have moved with the camera - and whenever focus or the motion setting changes. */
+function _rtSync() {
+  if (!(_routeReveal.gate || _routeReveal.jump)) {
+    if (_rtCtx) _rtCtx.clearRect(0, 0, _rtCv.width, _rtCv.height);
+    return;
+  }
+  if (!_rtMayRun()) { _routeRevealFinish(); return; }
+  _rtDraw();
+  if (!_rtRaf) _rtRaf = requestAnimationFrame(_rtTick);
 }
 
 function _drawModernRoutes(ctx, W, H, posMap) {
@@ -3220,6 +3413,57 @@ function _drawRouteExtras(ctx, W, H, place) {
   }
 }
 
+// Security to one decimal, as the game prints it. `|| 0` is load-bearing: a
+// system a hair below zero rounds to negative zero, and toFixed renders that as
+// "-0.0", which the game never shows and which reads as a bug. -0 is falsy, so
+// this normalises it to 0.
+function _secText(sec) {
+  return (Number(sec.toFixed(1)) || 0).toFixed(1);
+}
+
+// The system whose details are open: "you are here"'s counterpart for the one
+// you picked. A ring a size up from that one, so the two nest when they are the
+// same star, in the accent - what the app marks anything selected with, and
+// Classic's own selected ring. Named to its right, clear of the names the route
+// and "you" marks put above and below a system, because at galaxy scale nothing
+// else on the map says which star it is.
+//
+// Drawn before those marks, so their names lie over the ring where they cross
+// it. The Schematic overview and Spatial draw it; Classic has its own, and a
+// Schematic region outlines the system's pill instead (_renderRegion).
+const _SEL_R = 13;
+function _drawSelection(ctx, W, H, place) {
+  const s = _selected && _sysById[_selected.id];
+  const c = s && place(s);
+  if (!c) return;
+  const [cx, cy] = c;
+  if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
+  const col = _accent();
+  ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, _SEL_R, 0, Math.PI * 2);
+  ctx.strokeStyle = col;
+  ctx.lineWidth   = 2;
+  ctx.stroke();
+  // Name, then security in its own colour: the map's label, in the accent.
+  // Flipped to the left where the edge would cut it off.
+  ctx.font = _mono(11, 'bold');
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const sec = (s.sec == null) ? '' : ' ' + _secText(s.sec);
+  const wN = ctx.measureText(s.name).width;
+  const w  = wN + (sec ? ctx.measureText(sec).width : 0);
+  const gap = _SEL_R + 6;
+  const x0 = (cx + gap + w > W - 6) ? cx - gap - w : cx + gap;
+  ctx.fillStyle = col;
+  ctx.fillText(s.name, x0, cy);
+  if (sec) {
+    ctx.fillStyle = (_viewMode === 'modern' ? _secColorModern : _secColor)(s.sec);
+    ctx.fillText(sec, x0 + wN, cy);
+  }
+  ctx.shadowBlur = 0;
+  ctx.textBaseline = 'alphabetic';
+}
+
 function _renderGalaxyModern() {
   const ctx = _ctx, W = _canvas.width, H = _canvas.height;
   ctx.fillStyle = '#07080c';
@@ -3297,8 +3541,9 @@ function _renderGalaxyModern() {
 
   _drawInfluenceTitles(ctx, W, H, regionFs, 9, 15);   // matches regionFs' own clamp
 
-  // Route markers + pending-endpoint + "you are here" — drawn last, on top of
-  // everything, same order as classic's equivalent block.
+  // The selection, then route markers + pending-endpoint + "you are here" —
+  // drawn last, on top of everything, same order as classic's equivalent block.
+  _drawSelection(ctx, W, H, (s) => { const p = gp.get(s.id); return p ? _w2c(p.x, p.z) : null; });
   _drawModernRouteExtras(ctx, W, H, gp);
 
   ctx.fillStyle = 'rgba(150,160,180,0.8)'; ctx.font = _mono(11);
@@ -4324,6 +4569,10 @@ let _bgClock = 0, _bgLast = 0;         // drift time in ms - stands still while 
 const _nebSprites = new Map();         // key -> { canvas, at }  (painted, and when)
 const _nebQueue = [];                  // { key, paint } waiting their turn
 let _nebTimer = 0;
+// What the dust reads its colour from (see _skyClouds): each cloud's density
+// grid, kept from painting it, and the clouds the backdrop last drew, far to near.
+const _nebDensity = new Map();         // key -> Float32Array
+let _nebDrawn = [];                    // { key, neb, cx, cy, r, rot, alpha }
 
 /** A painted texture, or null while it waits in the queue - asked for again next frame. */
 function _nebGet(key, paint) {
@@ -4366,7 +4615,9 @@ function _nebCanvas(density, size, core, edge, alphaScale) {
 
 function _paintRegionNebula(neb) {
   const { core, edge } = Nebula.paletteFor(neb);
-  return _nebCanvas(Nebula.nebulaDensity(neb.key, _NEB_PX), _NEB_PX, core, edge, 300);
+  const density = Nebula.nebulaDensity(neb.key, _NEB_PX);
+  _nebDensity.set(neb.key, density);
+  return _nebCanvas(density, _NEB_PX, core, edge, 300);
 }
 
 /** The skybox: faint indigo dust that wraps round, and a scatter of distant stars. */
@@ -4515,16 +4766,19 @@ function _drawRegionNebulae(ctx, W, H, t = _bgClock / 1000, scale = 1) {
     vis.push({ g, cx, cy, R, depth: pr.depth });
   }
   vis.sort((a, b) => b.depth - a.depth);
+  _nebDrawn = [];
   ctx.save();
   for (const { g, cx, cy, R } of vis) {
     const sprite = _nebGet(g.neb.key, () => _paintRegionNebula(g.neb));
     if (!sprite) continue;
     const breath = Math.sin((t / g.period) * Math.PI * 2 + g.phase);
-    const r = R * (1 + _NEB.breathe * breath) * scale;
+    const r = R * (1 + _NEB.breathe * breath);
+    const rot = g.spin + g.w * t;
     ctx.globalAlpha = (1 - _NEB.glimmer * (1 - breath) / 2) * _nebFade(sprite);   // full at the top of a breath
     ctx.setTransform(1, 0, 0, 1, cx * scale, cy * scale);
-    ctx.rotate(g.spin + g.w * t);
-    ctx.drawImage(sprite.canvas, -r, -r, r * 2, r * 2);
+    ctx.rotate(rot);
+    ctx.drawImage(sprite.canvas, -r * scale, -r * scale, r * scale * 2, r * scale * 2);
+    _nebDrawn.push({ key: g.neb.key, neb: g.neb, cx, cy, r, rot, alpha: ctx.globalAlpha });
   }
   ctx.restore();
 }
@@ -4634,6 +4888,467 @@ function _bgSync() {
 function _bgRequest() {
   if (_bgRaf || _bgReq) return;
   _bgReq = requestAnimationFrame(() => { _bgReq = 0; _drawBackdrop(); });
+}
+
+// ── Dust, twinkle and lens flares (Spatial only) ──────────────────────────────
+//
+// What the camera is doing, made visible. Fine dust hangs in front of the lens:
+// it streams past as you fly in, falls away as you pull out and sweeps round as
+// you orbit - round the edges of the view, soft, greyed and clumped, with a
+// hint of the gas behind it, thick in the clouds and sparse in open space
+// (skyfx.js says why each). And the stars are alive: each twinkles on its own
+// beat and, flown in, throws a small lens flare, with a bigger one on the star
+// the view is closing on. skyfx.js does the arithmetic; this draws it.
+//
+// It is the bargain the bridge shimmer and the drifting clouds already strike:
+// a full map frame costs ~40 ms, so the map never redraws for any of this. The
+// flares sit on the stars the last map frame placed (_skyStar), and the dust
+// takes its colour from the clouds the backdrop last drew - worked out from the
+// same textures, never read back off the GPU, which would stall the frame it
+// was read in. It keeps the Nothing-Animates-Unwatched rule (DESIGN.md):
+// unfocused or off the map it holds its last frame. Reduced motion keeps the
+// flares, still, and drops the dust altogether: specks swimming past with every
+// move are exactly the motion that setting asks to be spared.
+
+const _SKY = {
+  frame:    33,    // ms between frames at rest: ~30 fps for twinkle and drift
+  tau:      0.09,  // s the dust takes to catch up with a camera move: a wheel tick streams, not jumps
+  speck:    1.3,   // px across a mid-size mote one unit from the lens; most are further, and finer
+  dust:     0.85,  // the dust's strength under Natural - the data overlays dim it as they dim the clouds
+  clouds:   150,   // ms between re-reading the clouds for the dust's colour; they drift slowly
+  grid:     64,    // cells across the view the clouds are read at
+  glint:    0.45,  // how much a twinkle at its peak adds to a star's own glow
+  flare:    0.9,   // the small flares' strength
+  hero:     1.0,   // and the big one's
+  heroFade: 0.22,  // s the big flare takes to hand over from one star to the next
+  reach:    0.7,   // of a flare sprite's width, how much the rays visibly span - measured, not designed
+};
+// Open space has no cloud to take a colour from: there the dust is the
+// skybox's own faint indigo, lit.
+const _SKY_OPEN = Nebula.hslToRgb(224, 0.32, 0.52);
+
+let _skyFxOn = true;                   // tests turn it off to measure the layers beneath
+let _sky = null, _skyCtx = null;       // the canvas over the map, and its context
+let _skyRaf = 0;                       // the pending frame; 0 while stopped
+let _skyClock = 0;                     // animation time in ms - stands still while stopped
+let _skyLast = 0, _skyDrawnAt = 0;     // when a frame last stepped the clock, and was drawn
+let _skyDust = null;                   // SkyFx's box of specks
+let _skyCam = null;                    // the camera as the last frame saw it
+const _skyPending = SkyFx.motion();    // camera motion the dust has still to take up
+// The stars the last map frame drew, as parallel arrays, reused frame to frame:
+// pulled out there are five thousand of them.
+let _skyN = 0, _skyCap = 0;
+let _skyX, _skyY, _skyR, _skyA, _skyT, _skySz, _skyId;
+const _skyHex = [], _skyQ = [];        // ...its colour, and its twinkle
+let _skyHero = null;                   // the star the view is closing on
+const _skyHeroW = new Map();           // id -> how much of the big flare it carries, 0..1
+const _skyRhythm = new Map();          // id -> its twinkle, made once
+let _skyField = null;                  // the clouds' colour and thickness on a coarse grid
+const _skyCol = [0, 0, 0, 0];          // _skyCloudAt's answer, reused
+const _nebPalettes = new Map();        // nebula key -> Nebula.paletteFor
+const _flareSprites = new Map();       // star hex -> { cross, diag }, each a list of sizes
+const _heroSprites = new Map();        // star hex -> a list of sizes
+const _moteSprites = new Map();        // quantised dust tint -> a soft round mote
+
+/** Note a star the map just drew, so its twinkle and flare land on it. */
+function _skyStar(id, x, y, R, a, t, size, hex) {
+  if (_skyN === _skyCap) {
+    const cap = Math.max(1024, _skyCap * 2);
+    const grow = (old, T) => { const n = new T(cap); if (old) n.set(old); return n; };
+    _skyX = grow(_skyX, Float32Array); _skyY = grow(_skyY, Float32Array);
+    _skyR = grow(_skyR, Float32Array); _skyA = grow(_skyA, Float32Array);
+    _skyT = grow(_skyT, Float32Array); _skySz = grow(_skySz, Float32Array);
+    _skyId = grow(_skyId, Int32Array);
+    _skyCap = cap;
+  }
+  const i = _skyN++;
+  _skyX[i] = x; _skyY[i] = y; _skyR[i] = R; _skyA[i] = a;
+  _skyT[i] = t; _skySz[i] = size; _skyId[i] = id; _skyHex[i] = hex;
+  let q = _skyRhythm.get(id);
+  if (!q) _skyRhythm.set(id, q = SkyFx.twinkleOf(id));
+  _skyQ[i] = q;                        // looked up once a map frame, not thirty times a second
+}
+
+/** Light, not paint: a star's colour taken part of the way to white. */
+function _skyTint(hex, k) {
+  const n = parseInt(String(hex).slice(1), 16) || 0xe8ecf8;
+  const m = (v) => Math.round(v + (255 - v) * k);
+  return `rgb(${m((n >> 16) & 255)},${m((n >> 8) & 255)},${m(n & 255)})`;
+}
+
+/**
+ * One ray of a flare: a radial gradient squashed into a needle, so it tapers to
+ * nothing along its length and across it - white-hot at the star, the star's
+ * colour out along the ray. len and thick are half-sizes in sprite px.
+ *
+ * It holds its strength most of the way out and only then fades. A ray that
+ * faded from the start was all spent inside the star's own glow - the glow is
+ * ~18 px across flown in - and only its faint tips ever showed.
+ */
+function _flareRay(g, c, angle, len, thick, a, tint) {
+  g.save();
+  g.translate(c, c);
+  g.rotate(angle);
+  g.scale(1, thick / len);
+  const grad = g.createRadialGradient(0, 0, 0, 0, 0, len);
+  grad.addColorStop(0,    `rgba(255,255,255,${a})`);
+  grad.addColorStop(0.04, _rgba(tint, a));
+  grad.addColorStop(0.3,  _rgba(tint, a * 0.85));
+  grad.addColorStop(0.55, _rgba(tint, a * 0.5));
+  grad.addColorStop(0.75, _rgba(tint, a * 0.25));
+  grad.addColorStop(0.9,  _rgba(tint, a * 0.08));
+  grad.addColorStop(1,    _rgba(tint, 0));
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(0, 0, len, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
+/** A ray with a soft glow beneath it, four times as wide: a beam of light, not a hairline. */
+function _flareBeam(g, c, angle, len, thick, a, tint) {
+  _flareRay(g, c, angle, len, thick * 4, a * 0.22, tint);
+  _flareRay(g, c, angle, len, thick, a, tint);
+}
+
+/**
+ * A flare drawn at several sizes, each twice the last. A ray is a pixel or so
+ * wide on screen, and shrinking a big sprite many times over simply loses it -
+ * the filter samples between the ray's texels - so each flare is drawn from
+ * the smallest size at least as big as it needs: never shrunk more than 2x.
+ */
+function _flareMips(sizes, paint) {
+  return sizes.map(N => {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = N;
+    const g = cv.getContext('2d');
+    g.globalCompositeOperation = 'lighter';
+    paint(g, N / 2);
+    return cv;
+  });
+}
+
+/** The pre-drawn size to scale down from for a flare `px` across. */
+function _mip(levels, px) {
+  for (const cv of levels) if (cv.width >= px) return cv;
+  return levels[levels.length - 1];
+}
+
+/**
+ * A star's small lens flare, per colour: the four diffraction spikes a star
+ * throws through a lens - and, apart from it, a fainter diagonal cross that
+ * shimmers on its own beat. The upright pair is shorter, which reads as a
+ * wide-screen lens and keeps the upper ray out of the system's name above.
+ */
+function _flareSprite(hex) {
+  let s = _flareSprites.get(hex);
+  if (s) return s;
+  const tint = _skyTint(hex, 0.45);
+  s = {
+    cross: _flareMips([16, 32, 64], (g, c) => {
+      _flareBeam(g, c, 0, c, 0.07 * c, 1, tint);
+      _flareBeam(g, c, Math.PI / 2, 0.65 * c, 0.07 * c, 0.9, tint);
+    }),
+    diag: _flareMips([16, 32, 64], (g, c) => {
+      _flareRay(g, c, Math.PI / 4, 0.45 * c, 0.05 * c, 0.5, tint);
+      _flareRay(g, c, -Math.PI / 4, 0.45 * c, 0.05 * c, 0.5, tint);
+    }),
+  };
+  _flareSprites.set(hex, s);
+  return s;
+}
+
+/**
+ * The bigger flare, on the star the view is closing on: brighter spikes, a thin
+ * anamorphic streak running past their tips and a faint halo ring just outside
+ * the star's glow - the reflections a bright star throws in a real lens, kept small.
+ */
+function _heroSprite(hex) {
+  let s = _heroSprites.get(hex);
+  if (s) return s;
+  const tint = _skyTint(hex, 0.4), deep = _skyTint(hex, 0.1);
+  s = _flareMips([32, 64, 128], (g, c) => {
+    _flareRay(g, c, 0, c, 0.012 * c, 0.3, deep);                // the streak, in the star's own colour
+    _flareBeam(g, c, 0, 0.82 * c, 0.06 * c, 1, tint);
+    _flareBeam(g, c, Math.PI / 2, 0.55 * c, 0.06 * c, 0.95, tint);
+    _flareRay(g, c, Math.PI / 4, 0.36 * c, 0.04 * c, 0.5, tint);
+    _flareRay(g, c, -Math.PI / 4, 0.36 * c, 0.04 * c, 0.5, tint);
+    const ring = g.createRadialGradient(c, c, 0.5 * c, c, c, 0.66 * c);
+    ring.addColorStop(0,   _rgba(tint, 0));
+    ring.addColorStop(0.5, _rgba(tint, 0.12));
+    ring.addColorStop(1,   _rgba(tint, 0));
+    g.fillStyle = ring;
+    g.beginPath(); g.arc(c, c, 0.66 * c, 0, Math.PI * 2); g.fill();
+  });
+  _heroSprites.set(hex, s);
+  return s;
+}
+
+/**
+ * The gas behind every part of the view - its colour and how thick it is - on a
+ * coarse grid, worked out from the textures and placements the backdrop last
+ * drew (_nebDrawn): far to near, each painted over what is behind it, as the
+ * backdrop paints them. Re-read at most every _SKY.clouds ms.
+ */
+function _skyClouds(W, H) {
+  const now = performance.now();
+  let f = _skyField;
+  if (f && f.W === W && f.H === H && (f.src === _nebDrawn || now - f.at < _SKY.clouds)) return f;
+  const gw = _SKY.grid, gh = Math.max(4, Math.round(gw * H / W));
+  if (!f || f.gw !== gw || f.gh !== gh) {
+    f = _skyField = { gw, gh, rgb: new Float32Array(gw * gh * 3), a: new Float32Array(gw * gh) };
+  }
+  f.rgb.fill(0); f.a.fill(0);
+  f.W = W; f.H = H; f.at = now; f.src = _nebDrawn;
+  const N = _NEB_PX, half = N / 2, cw = W / gw, ch = H / gh, rgb = f.rgb, A = f.a;
+  for (const c of _nebDrawn) {
+    const dens = _nebDensity.get(c.key);
+    if (!dens) continue;
+    let pal = _nebPalettes.get(c.key);
+    if (!pal) _nebPalettes.set(c.key, pal = Nebula.paletteFor(c.neb));
+    // Into the sprite's own frame: undo its turn, then texels.
+    const cos = Math.cos(c.rot), sin = Math.sin(c.rot), k = N / (2 * c.r);
+    const i0 = Math.max(0, Math.floor((c.cx - c.r) / cw)), i1 = Math.min(gw - 1, Math.floor((c.cx + c.r) / cw));
+    const j0 = Math.max(0, Math.floor((c.cy - c.r) / ch)), j1 = Math.min(gh - 1, Math.floor((c.cy + c.r) / ch));
+    for (let j = j0; j <= j1; j++) {
+      const py = (j + 0.5) * ch - c.cy;
+      for (let i = i0; i <= i1; i++) {
+        const px = (i + 0.5) * cw - c.cx;
+        const u = (px * cos + py * sin) * k + half, v = (py * cos - px * sin) * k + half;
+        if (u < 0 || v < 0 || u >= N || v >= N) continue;
+        const d = dens[(v | 0) * N + (u | 0)];
+        if (!d) continue;
+        // The same colour and alpha _nebCanvas gave that texel.
+        const al = Math.min(1, d * 300 / 255) * c.alpha, m = Math.pow(d, 0.7), keep = 1 - al, q = j * gw + i;
+        rgb[q * 3]     = (pal.edge[0] + (pal.core[0] - pal.edge[0]) * m) * al + rgb[q * 3]     * keep;
+        rgb[q * 3 + 1] = (pal.edge[1] + (pal.core[1] - pal.edge[1]) * m) * al + rgb[q * 3 + 1] * keep;
+        rgb[q * 3 + 2] = (pal.edge[2] + (pal.core[2] - pal.edge[2]) * m) * al + rgb[q * 3 + 2] * keep;
+        A[q] = al + A[q] * keep;
+      }
+    }
+  }
+  return f;
+}
+
+/** The gas at a point on screen, blended from the grid: [r, g, b, thickness 0..1]. */
+function _skyCloudAt(f, x, y) {
+  const fx = Math.min(f.gw - 1.001, Math.max(0, x / f.W * f.gw - 0.5));
+  const fy = Math.min(f.gh - 1.001, Math.max(0, y / f.H * f.gh - 0.5));
+  const i = fx | 0, j = fy | 0, u = fx - i, v = fy - j;
+  const q00 = j * f.gw + i, q10 = q00 + 1, q01 = q00 + f.gw, q11 = q01 + 1;
+  const w00 = (1 - u) * (1 - v), w10 = u * (1 - v), w01 = (1 - u) * v, w11 = u * v;
+  const A = f.a, C = f.rgb;
+  const a = A[q00] * w00 + A[q10] * w10 + A[q01] * w01 + A[q11] * w11;
+  for (let k = 0; k < 3; k++) {
+    const pre = C[q00 * 3 + k] * w00 + C[q10 * 3 + k] * w10 + C[q01 * 3 + k] * w01 + C[q11 * 3 + k] * w11;
+    _skyCol[k] = a > 0.004 ? pre / a : 0;
+  }
+  _skyCol[3] = a;
+  return _skyCol;
+}
+
+/** The Spatial camera, as the dust compares it frame to frame. */
+function _skyCamNow() {
+  return {
+    zoom: _camZoom, panX: _camPanX, panY: _camPanY,
+    yaw: _camYaw, pitch: _camFlat ? Math.PI / 2 : _camPitch,
+    fx: _camFocusX, fy: _camFocusY, fz: _camFocusZ,
+    W: _sky.width, H: _sky.height, flat: _camFlat,
+  };
+}
+
+/**
+ * Take up whatever the camera did since the last frame - eased, so it plays
+ * out over a fraction of a second - then let the dust wander. Not live (frozen
+ * unfocused), the camera is noted and nothing moves.
+ */
+function _skyStepDust(W, H, dt, live) {
+  const want = SkyFx.dustCount(W, H);
+  if (!_skyDust || Math.abs(_skyDust.n - want) > _skyDust.n * 0.25) _skyDust = SkyFx.makeDust(want, 0x5ced);
+  if (_skyDust.W !== W || _skyDust.H !== H) SkyFx.fitDust(_skyDust, W, H);
+  const cam = _skyCamNow();
+  const d = live ? SkyFx.cameraDelta(_skyCam, cam, _spatialPxPerUnit(), _camToView) : { cut: true };
+  _skyCam = cam;
+  if (d.cut) SkyFx.clearMotion(_skyPending);
+  else SkyFx.addMotion(_skyPending, d);
+  if (!live || dt <= 0) return;
+  const m = SkyFx.takeMotion(_skyPending, SkyFx.easeShare(dt, _SKY.tau));
+  m.pitchNow = cam.pitch;
+  SkyFx.stepDust(_skyDust, m, dt, _skyClock / 1000);
+}
+
+/** A soft round mote in a tint, pre-drawn: dust this near the lens is out of focus, with no hard edge. */
+function _moteSprite(r, g, b) {
+  r -= r & 15; g -= g & 15; b -= b & 15;     // sixteen steps a channel: the motes are near-grey, so few are ever made
+  const key = (r << 16) | (g << 8) | b;
+  let cv = _moteSprites.get(key);
+  if (cv) return cv;
+  cv = document.createElement('canvas');
+  cv.width = cv.height = 32;
+  const x = cv.getContext('2d');
+  const grad = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0,    `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0.35, `rgba(${r},${g},${b},0.7)`);
+  grad.addColorStop(1,    `rgba(${r},${g},${b},0)`);
+  x.fillStyle = grad;
+  x.fillRect(0, 0, 32, 32);
+  _moteSprites.set(key, cv);
+  return cv;
+}
+
+/**
+ * The motes: soft and greyed, round the edges of the view only, and any moving
+ * fast drawn as a streak with its light spread along it - one frame's motion
+ * blur, which is what turns a quick zoom into flying.
+ */
+function _skyDrawDust(ctx, W, H) {
+  const f = _skyDust;
+  if (!f) return;
+  const clouds = _skyClouds(W, H);
+  const strength = _SKY.dust * (_overlay === 'natural' ? 1 : _NEB.data / _NEB.natural);
+  const F = f.F, cx = W / 2, cy = H / 2, gas = [0, 0, 0], tint = [0, 0, 0];
+  ctx.lineCap = 'round';
+  for (let i = 0; i < f.n; i++) {
+    // SkyFx.projectDust, inline: this runs for every mote, every frame.
+    const z = f.z[i], r = _SKY.speck * f.size[i] / z;
+    const sx = cx + F * f.x[i] / z, sy = cy + F * f.y[i] / z;
+    if (sx < -r || sx > W + r || sy < -r || sy > H + r) { f.seen[i] = 0; continue; }
+    const edge = SkyFx.vignette(sx, sy, W, H);
+    if (!edge) { f.seen[i] = 0; continue; }
+    const c = _skyCloudAt(clouds, sx, sy);
+    let a = strength * edge * SkyFx.depthFade(z) * Math.min(1, f.age[i] / 0.7)
+      * (0.18 + 0.82 * SkyFx.smooth(0, 0.3, c[3]));
+    if (a < 0.004) { f.seen[i] = 0; continue; }
+    // The gas's colour where there is gas, the skybox's faint indigo where there is not - then greyed.
+    const mix = SkyFx.smooth(0, 0.08, c[3]);
+    for (let k = 0; k < 3; k++) gas[k] = _SKY_OPEN[k] + (c[k] - _SKY_OPEN[k]) * mix;
+    SkyFx.dustTint(gas, tint);
+    const len = f.seen[i] ? Math.hypot(sx - f.px[i], sy - f.py[i]) : 0;
+    if (len > 1.5) {
+      ctx.strokeStyle = `rgba(${tint[0]},${tint[1]},${tint[2]},${(a * Math.min(1, Math.pow((3 * r + 2) / len, 0.85))).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, Math.min(2.4, 1.5 * r));   // even a near mote streaks thin
+      ctx.beginPath(); ctx.moveTo(f.px[i], f.py[i]); ctx.lineTo(sx, sy); ctx.stroke();
+    } else {
+      // Always a soft disc, never a hard point - crisp pixels were what made
+      // the motes read as stars. Bigger, the same light spreads thinner; too
+      // small to see, a mote dims rather than shrinking to nothing.
+      const R = Math.min(7, Math.max(1.2, 1.6 * r));
+      a *= Math.min(1, 3 / R) * Math.min(1, (r / 0.75) ** 2);
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.drawImage(_moteSprite(tint[0], tint[1], tint[2]), sx - R, sy - R, R * 2, R * 2);
+      ctx.globalAlpha = 1;
+    }
+    f.px[i] = sx; f.py[i] = sy; f.seen[i] = 1;
+  }
+}
+
+/**
+ * Every star's twinkle - its own glow, brighter for a moment - and, flown in,
+ * its flare. Pulled far out, where stars are specks, only the glints show, and
+ * only the stars glinting right now are drawn at all.
+ */
+function _skyDrawStars(ctx, W, H, dt, still, snap) {
+  if (!_skyN) { _skyHero = null; _skyHeroW.clear(); return; }
+  const fl = SkyFx.flareSizes(_medianGateLen() * _spatialPxPerUnit());
+  const t = _skyClock / 1000;
+  if (fl.starK <= 0) {
+    if (still) return;
+    for (let i = 0; i < _skyN; i++) {
+      const q = _skyQ[i];
+      if (!q.far) continue;
+      const gl = SkyFx.glint(q, t);
+      if (gl < 0.04) continue;
+      const R = _skyR[i] * (1 + 0.5 * gl);
+      ctx.globalAlpha = Math.min(1, _skyA[i] * _SKY.glint * 1.4 * gl);
+      ctx.drawImage(_orbSprite(_skyHex[i]), _skyX[i] - R, _skyY[i] - R, R * 2, R * 2);
+    }
+    ctx.globalAlpha = 1;
+    _skyHero = null; _skyHeroW.clear();
+    return;
+  }
+  // The big flare: whose, and a short handover when the view moves on.
+  _skyHero = fl.heroK > 0
+    ? SkyFx.pickHero({ n: _skyN, x: _skyX, y: _skyY, t: _skyT, id: _skyId }, W, H, _skyHero)
+    : null;
+  if (_skyHero != null && !_skyHeroW.has(_skyHero)) _skyHeroW.set(_skyHero, 0);
+  // A frame with no time passing - held still, or frozen while unfocused -
+  // shows where the handover ends up: waiting on a clock that is stopped, the
+  // big flare would never arrive.
+  const ease = snap ? 1 : SkyFx.easeShare(dt, _SKY.heroFade);
+  for (const [id, w] of _skyHeroW) {
+    const to = id === _skyHero ? 1 : 0;
+    const nw = w + (to - w) * ease;
+    if (!to && nw < 0.01) _skyHeroW.delete(id);
+    else _skyHeroW.set(id, nw);
+  }
+  for (let i = 0; i < _skyN; i++) {
+    const id = _skyId[i], q = _skyQ[i];
+    const tw = still ? 0.5 : SkyFx.twinkle(q, t);
+    const x = _skyX[i], y = _skyY[i], hex = _skyHex[i];
+    const R = _skyR[i] * (0.8 + 0.4 * tw);
+    ctx.globalAlpha = Math.min(1, _skyA[i] * _SKY.glint * tw);
+    ctx.drawImage(_orbSprite(hex), x - R, y - R, R * 2, R * 2);
+    const near = _skyT[i];
+    const heroW = _skyHeroW.size ? (_skyHeroW.get(id) || 0) * fl.heroK : 0;
+    const a = fl.starK * (0.3 + 0.7 * near) * (0.45 + 0.55 * tw) * _SKY.flare * (1 - heroW);
+    if (a > 0.01) {
+      const sp = _flareSprite(hex);
+      const span = fl.star * (0.75 + 0.25 * _skySz[i]) * (0.6 + 0.4 * near) * (0.85 + 0.3 * tw) / _SKY.reach;
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.drawImage(_mip(sp.cross, span), x - span / 2, y - span / 2, span, span);
+      ctx.globalAlpha = Math.min(1, a * (still ? 0.6 : 0.25 + 0.75 * SkyFx.shimmer(q, t)));
+      ctx.drawImage(_mip(sp.diag, span), x - span / 2, y - span / 2, span, span);
+    }
+    if (heroW > 0.01) {
+      const span = fl.hero * (0.92 + 0.16 * tw) / _SKY.reach;
+      ctx.globalAlpha = Math.min(1, heroW * _SKY.hero * (0.72 + 0.28 * tw));
+      ctx.drawImage(_mip(_heroSprite(hex), span), x - span / 2, y - span / 2, span, span);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function _skyMayRun() {
+  return _viewMode === 'spatial' && _skyOn && _skyFxOn && _systems.length > 0 && _mapVisible()
+    && !_jbFxStill() && !document.body.classList.contains('app-unfocused');
+}
+
+/** One frame: the clock and the dust stepped if it is live, then everything drawn. */
+function _skyDraw() {
+  const ctx = _skyCtx;
+  if (!ctx) return;
+  const now = performance.now(), W = _sky.width, H = _sky.height;
+  _skyDrawnAt = now;
+  ctx.clearRect(0, 0, W, H);
+  if (_viewMode !== 'spatial' || !_skyOn || !_skyFxOn || !_systems.length || !W || !H) { _skyCam = null; return; }
+  const still = _jbFxStill();                    // the OS reduced-motion setting
+  const live = _skyMayRun();
+  const dt = live ? Math.min(0.1, Math.max(0, (now - _skyLast) / 1000)) : 0;   // after a stall, carry on - never leap ahead
+  _skyLast = now;
+  _skyClock += dt * 1000;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';      // light on light: where two glows meet, they add
+  if (!still) {
+    _skyStepDust(W, H, dt, live);
+    _skyDrawDust(ctx, W, H);
+  }
+  _skyDrawStars(ctx, W, H, dt, still, still || !live);
+  ctx.restore();
+}
+
+function _skyTick() {
+  _skyRaf = 0;
+  // Stopping, it draws one last frame and leaves it up: frozen where it was,
+  // or - motion just turned down - the still one.
+  if (!_skyMayRun()) { _skyDraw(); return; }
+  // At rest ~30 fps; while the dust is still taking up a move, every frame.
+  const since = performance.now() - _skyDrawnAt;
+  if (since >= _SKY.frame - 3 || (since > 4 && SkyFx.moving(_skyPending))) _skyDraw();
+  _skyRaf = requestAnimationFrame(_skyTick);
+}
+
+/** After every map frame, and whenever focus or the motion setting changes. */
+function _skySync() {
+  _skyDraw();                                    // the stars may have moved: put the flares back on them
+  if (!_skyRaf && _skyMayRun()) _skyRaf = requestAnimationFrame(_skyTick);
 }
 
 function _renderSpatial() {
@@ -4756,6 +5471,10 @@ function _renderSpatial() {
       ctx.globalAlpha = (0.35 + 0.65 * t) * (0.4 + 0.6 * glow);
       ctx.drawImage(_orbSprite(agg ? _aggStarHex(p.s) : (p.s.starHex || _STAR_FALLBACK)),
         p.cx - R, p.cy - R, R * 2, R * 2);
+      // A real star, on screen: its twinkle and flare go on the sky layer.
+      if (!agg && p.cx > -R && p.cx < W + R && p.cy > -R && p.cy < H + R) {
+        _skyStar(p.s.id, p.cx, p.cy, R, ctx.globalAlpha, t, p.s.starSize || 1, p.s.starHex || _STAR_FALLBACK);
+      }
     } else {
       const col = agg ? _aggLayerColor(p.s) : _systemColor(p.s);
       // The halo is the difference between a star field and a heat map. New Eden
@@ -4880,13 +5599,11 @@ function _renderSpatial() {
       const key = Math.floor(p.cx / CELL_W) + '|' + Math.floor(ly / CELL_H);
       if (taken.has(key)) continue;
       taken.add(key);
+      // The selected star is named on its ring (_drawSelection). Its cell stays
+      // taken, so no neighbour's name lands across the ring either.
+      if (_selected && p.s.id === _selected.id) continue;
       const nm  = p.s.name;
-      // `|| 0` is load-bearing: a system a hair below zero rounds to negative
-      // zero, and toFixed renders that as "-0.0", which the game never shows
-      // and which reads as a bug. -0 is falsy, so this normalises it to 0.
-      const sec = (p.s.sec == null)
-        ? ''
-        : ' ' + (Number(p.s.sec.toFixed(1)) || 0).toFixed(1);
+      const sec = (p.s.sec == null) ? '' : ' ' + _secText(p.s.sec);
       const wN  = ctx.measureText(nm).width;
       const x0  = p.cx - (wN + (sec ? ctx.measureText(sec).width : 0)) / 2;
       ctx.fillStyle = `rgba(214,224,242,${(0.30 + 0.55 * t).toFixed(3)})`;
@@ -4902,15 +5619,19 @@ function _renderSpatial() {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
+  _drawSelection(ctx, W, H, (s) => _spatialCanvasOf(s.id));
   _drawRouteExtras(ctx, W, H, (s) => _spatialCanvasOf(s.id));
 }
 
-/** One frame of the map, then the bridge shimmer over it and the backdrop under it. */
+/** One frame of the map, then the layers round it: a route drawing in and the bridge shimmer over it, the backdrop under it, the sky over all. */
 function _render() {
   _jbArcs = [];          // refilled by whichever view draws the bridges this frame
+  _skyN = 0;             // ...and the stars, by Spatial under Natural
   _renderMap();
+  _rtSync();
   _jbFxSync();
-  _bgSync();
+  _bgSync();             // before the sky: the dust takes its colour from the clouds this draws
+  _skySync();
 }
 
 function _renderMap() {
@@ -5305,6 +6026,9 @@ function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, 
   place = place || ((s) => _w2c(s.wx, s.wz));
   endR = endR || 7;
   labelDy = (labelDy == null) ? -14 : labelDy;
+  // A route still drawing itself in keeps its ends and chosen waypoints here;
+  // the ring on each system between them arrives with the line (_rtTrace).
+  const arriving = (ids === _routeIds && _revealing('gate')) || (ids === _jumpRouteIds && _revealing('jump'));
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ids.forEach((id, i) => {
     const s = _sysById[id]; if (!s) return;
@@ -5313,6 +6037,7 @@ function _drawRouteMarkers(ctx, W, H, ids, wpSet, endCol, wpCol, endR, labelDy, 
     if (cx < -30 || cx > W + 30 || cy < -30 || cy > H + 30) return;
     const isEnd = (i === 0 || i === ids.length - 1);
     const isWaypoint = !isEnd && wpSet && wpSet.has(id);
+    if (arriving && !isEnd && !isWaypoint) return;
     ctx.beginPath();
     ctx.arc(cx, cy, isEnd ? endR : (isWaypoint ? 6 : 4.5), 0, Math.PI * 2);
     if (isWaypoint) { ctx.fillStyle = wpCol; ctx.fill(); ctx.strokeStyle = wpCol; }
@@ -6214,9 +6939,13 @@ function _initCanvas() {
   _jbFxCtx = _jbFx && _jbFx.getContext('2d');
   _bg = document.getElementById('mapBgCanvas');
   _bgCtx = _bg && _bg.getContext('2d');
-  // The shimmer and the drifting clouds start and stop with focus (ui.js sets
-  // app-unfocused) and with the OS reduced-motion setting.
-  const motionChanged = () => { _jbFxSync(); _bgSync(); };
+  _sky = document.getElementById('mapSkyCanvas');
+  _skyCtx = _sky && _sky.getContext('2d');
+  _rtCv = document.getElementById('mapRouteCanvas');
+  _rtCtx = _rtCv && _rtCv.getContext('2d');
+  // The shimmer, the drifting clouds, the sky and a route drawing in start and
+  // stop with focus (ui.js sets app-unfocused) and the OS reduced-motion setting.
+  const motionChanged = () => { _rtSync(); _jbFxSync(); _bgSync(); _skySync(); };
   new MutationObserver(motionChanged)
     .observe(document.body, { attributes: true, attributeFilter: ['class'] });
   _jbFxStill();                         // makes the media query
@@ -6463,6 +7192,8 @@ function _onResize() {
   _canvas.height = Math.floor(rect.height) || 300;
   if (_jbFx) { _jbFx.width = _canvas.width; _jbFx.height = _canvas.height; }
   if (_bg)   { _bg.width   = _canvas.width; _bg.height   = _canvas.height; }
+  if (_sky)  { _sky.width  = _canvas.width; _sky.height  = _canvas.height; }
+  if (_rtCv) { _rtCv.width = _canvas.width; _rtCv.height = _canvas.height; }
 
   if (!_loaded || prevW === 0 || prevH === 0) {
     if (_viewMode === 'spatial') _fitSpatial();
@@ -7009,7 +7740,13 @@ function openStargatePlanner() {
   if (f && t && f.value && t.value) _sgPlot();
 }
 
-function _sgClose()    { const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'none'; const p = document.getElementById('sgRestorePill'); if (p) p.style.display = 'none'; }
+function _sgClose() {
+  const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'none';
+  const p = document.getElementById('sgRestorePill'); if (p) p.style.display = 'none';
+  // Closing on a plotted route leaves it on the map - drawing itself in, where
+  // the view already is (Show / centre on map is the one that reframes).
+  if (_sgLastPath && _sgLastPath.length > 1 && typeof window.mapShowRoute === 'function') window.mapShowRoute(_sgLastPath, [], false);
+}
 function _sgMinimize() {
   const m = document.getElementById('stargatePlannerModal'); if (m) m.style.display = 'none';
   _sgShowPill();
@@ -7591,12 +8328,14 @@ async function initMapPage() {
       _pendingRouteIds = null;
       _pendingWaypointIds = null;
       _fitToSystems(_routeIds);
+      _routeRevealStart('gate');
     }
     if (_pendingJumpRouteIds) {
       _jumpRouteIds = _pendingJumpRouteIds;
       _jumpRouteWaypointIds = _pendingJumpWaypointIds || new Set();
       _pendingJumpRouteIds = null;
       _pendingJumpWaypointIds = null;
+      _routeRevealStart('jump');
     }
 
     // Mark the selected character's current system.
@@ -7683,7 +8422,7 @@ window.mapShowRoute = function (systemIds, waypointIds, fit = true) {
     _routeIds = ids;
     _routeWaypointIds = wps;
     if (fit) _fitToSystems(ids);
-    _scheduleRender();
+    _routeRevealStart('gate');            // draws itself in, hop by hop - or goes straight down unwatched
   } else {
     _pendingRouteIds = ids;
     _pendingWaypointIds = wps;
@@ -7700,9 +8439,14 @@ window.mapShowJumpRoute = function (systemIds, waypointIds, fit = true) {
     _jumpRouteIds = ids;
     _jumpRouteWaypointIds = wps;
     if (fit) _fitToSystems(ids);
-    _scheduleRender();
+    _routeRevealStart('jump');
   } else {
     _pendingJumpRouteIds = ids;
     _pendingJumpWaypointIds = wps;
   }
+};
+
+// Draw the route already on the map in again - a planner closed over it. 'gate' or 'jump'.
+window.mapRevealRoute = function (kind) {
+  if (_loaded && (kind === 'gate' || kind === 'jump')) _routeRevealStart(kind);
 };

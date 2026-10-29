@@ -394,6 +394,9 @@ function _jpCloseModal() {
   if (m) m.style.display = 'none';
   const pill = document.getElementById('jpRestorePill');
   if (pill) pill.style.display = 'none';
+  // The route has been on the map all along, kept in step behind the planner:
+  // with the planner out of the way, draw it in again so it can be seen arriving.
+  if (typeof window.mapRevealRoute === 'function') window.mapRevealRoute('jump');
 }
 
 // ── Minimize / restore ────────────────────────────────────────────────────────

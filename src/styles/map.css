@@ -349,8 +349,9 @@
   min-height: 0;
 }
 
-/* Positioned so that, with the backdrop and shimmer canvases, the three stack
-   in DOM order: backdrop, map, shimmer - and every overlay after them on top. */
+/* Positioned so that, with the backdrop, route, shimmer and sky canvases, the
+   five stack in DOM order: backdrop, map, route, shimmer, sky - and every
+   overlay after them on top. */
 #mapCanvas {
   display: block;
   position: relative;
@@ -370,12 +371,21 @@
 }
 
 /* Sized to the map canvas pixel for pixel by _onResize; clicks go straight through. */
-#mapFxCanvas {
+#mapRouteCanvas,
+#mapFxCanvas,
+#mapSkyCanvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* Light adds to what is under it. The sky layer is drawn additively inside
+   itself, and laid over the map the same way - composited normally, its flares
+   half-covered the very stars they sit on and all but vanished. */
+#mapSkyCanvas {
+  mix-blend-mode: plus-lighter;
 }
 
 /* ── Loading overlay ─────────────────────────────────────────────────────── */

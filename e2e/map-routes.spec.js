@@ -36,6 +36,15 @@ function routeBlue(window) {
   });
 }
 
+/**
+ * Show a route and skip to where it lands. A new route draws itself in over
+ * a few seconds (e2e/map-route-reveal.spec.js); these tests are about the
+ * route that is left on the map, not its arrival.
+ */
+function showRoute(window, path) {
+  return window.evaluate((p) => { window.mapShowRoute(p); _routeRevealFinish(); _render(); }, path);
+}
+
 function onScreen(window, ids) {
   return window.evaluate((ids) => ids.filter(id => {
     const c = _spatialCanvasOf(id);
@@ -58,7 +67,7 @@ test('a planned route is drawn and framed on the Spatial map', async ({ window }
   expect(await onScreen(window, path)).toBeLessThan(path.length / 2);
   const before = await routeBlue(window);
 
-  await window.evaluate((p) => { window.mapShowRoute(p); _render(); }, path);
+  await showRoute(window, path);
   expect(await onScreen(window, path), 'framed: every system on the route in view').toBe(path.length);
   expect(await routeBlue(window) - before, 'drawn: the route and its rings').toBeGreaterThan(300);
 
@@ -93,6 +102,6 @@ test('the Schematic still draws it, from the same shared code', async ({ window 
   await window.locator('.map-view-btn[data-view="modern"]').click();
   await window.waitForTimeout(300);
   const before = await routeBlue(window);
-  await window.evaluate((p) => { window.mapShowRoute(p); _render(); }, path);
+  await showRoute(window, path);
   expect(await routeBlue(window) - before).toBeGreaterThan(300);
 });

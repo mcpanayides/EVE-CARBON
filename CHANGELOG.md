@@ -30,6 +30,58 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.0.5] - 2026-10-29
+
+### Added
+- **Force Projection.** A new map layer: pick one or more alliances, and every
+  system within 20 LY of their sovereignty capitals is ringed by its Ansiblex
+  fare zone — free inside 5 LY, then 2×, 6× and 9× out to 20 LY — with spheres
+  of influence drawn round each capital in the 3-D view. Capitals come from
+  ESI's sovereignty data, so there is nothing to type in, and the layer sits on
+  top of whatever overlay is showing.
+- **Ansiblex fares in the Stargate planner.** Choose a hull and a fleet size,
+  and every bridge on the route shows its capacitor fare, per ship and for the
+  whole fleet. The fare is priced from the destination's zone, so heading home
+  is cheaper than heading out. A bridge is only used if the hull may take it —
+  capitals cannot; Rorquals, freighters and jump freighters can — and if its
+  structure holds enough capacitor for the whole fleet. Mark a bridge
+  **Out of cap** and the route goes around it until it has recharged, at about
+  200 TJ an hour. **Route home** plots to your alliance's capital, and the
+  alternative routes follow the same rules.
+- **A Natural overlay, now the map's default.** Every system is drawn as a
+  glowing star in the colour of its real star and sized by its type — a red
+  giant big and red, a white dwarf small and pale, a blue star blue — taken
+  from CCP's static data. The legend lists the star types, and the tooltip
+  names the star under the cursor. Security, Sovereignty and the other
+  overlays are a click away, as before.
+- **Region skyboxes on the Spatial map.** Each region has its own nebula behind
+  it, painted from the skybox family CCP's data gives it — golds on the Amarr
+  side, steel blues for the Caldari, teals for the Gallente, rusts for the
+  Minmatar — blending into its neighbours, with a wide starfield tying it all
+  together. The clouds drift slowly and carry a fine film grain. They are drawn
+  by EVE Carbon itself, not taken from the game client.
+- **Jump bridges and wormholes on the Spatial map**, and each bridge shows
+  which way it runs: a light travels along it from its start to its end. The
+  lights shrink as you zoom out instead of swamping the map.
+- The drifting clouds and the bridge lights stop while the window is unfocused
+  or the map is hidden, and hold still when reduced motion is on.
+
+### Changed
+- **Spatial camera controls.** Dragging sideways now turns the map the way your
+  hand moves; it ran backwards. Right-drag and Space + drag pan, and with
+  nothing selected the camera orbits Rens. Shift + drag no longer pans in 3-D.
+  In Flat, Shift + drag turns the map and Space + drag pans. A right-click
+  still opens the system menu; a right-drag never does.
+
+### Fixed
+- **Planned routes now show on the Spatial map.** The Stargate planner's route
+  was only drawn on the Schematic; it now draws on both, and the Spatial view
+  frames it.
+- **F refits the view**, as the "Nothing in view — press F to refit" message
+  always said. The key did nothing.
+- A slow sovereignty update could arrive after a newer one and paint stale
+  ownership over the map. Late answers are now dropped.
+
 ## [4.0.0] - 2026-10-26
 
 ### Added

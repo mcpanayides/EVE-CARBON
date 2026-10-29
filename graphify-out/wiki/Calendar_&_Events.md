@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **calendar.js** (48 connections) — `src/func/calendar.js`
+- **func/calendar.js** (48 connections) — `src/func/calendar.js`
 - **_calLoadEvents()** (10 connections) — `src/func/calendar.js`
 - **_calRenderMonth()** (9 connections) — `src/func/calendar.js`
 - **_calRenderAgenda()** (7 connections) — `src/func/calendar.js`

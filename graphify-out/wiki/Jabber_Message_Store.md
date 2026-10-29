@@ -4,11 +4,11 @@
 
 ## Key Concepts
 
-- **jabber_data_db.js** (21 connections) — `src/jabber_data_db.js`
+- **jabber_data_db.js** (22 connections) — `src/jabber_data_db.js`
 - **jabber_migration.test.js** (9 connections) — `test/jabber_migration.test.js`
 - **jabber_rooms.test.js** (8 connections) — `test/jabber_rooms.test.js`
+- **parseJabberMessage()** (5 connections) — `src/jabber_data_db.js`
 - **extractField()** (4 connections) — `src/jabber_data_db.js`
-- **parseJabberMessage()** (4 connections) — `src/jabber_data_db.js`
 - **stripInvisible()** (3 connections) — `src/jabber_data_db.js`
 - **escapeRegex()** (2 connections) — `src/jabber_data_db.js`
 - **insertJabberMessage()** (2 connections) — `src/jabber_data_db.js`
@@ -33,6 +33,7 @@
 
 ## Relationships
 
+- [Demo World Test](Demo_World_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files
@@ -43,8 +44,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 57 (70%)
-- INFERRED: 24 (30%)
+- EXTRACTED: 59 (71%)
+- INFERRED: 24 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -4,8 +4,8 @@
 
 ## Key Concepts
 
-- **electron-app.js** (43 connections) — `e2e/support/electron-app.js`
-- **test** (32 connections) — `e2e/support/electron-app.js`
+- **electron-app.js** (46 connections) — `e2e/support/electron-app.js`
+- **test** (35 connections) — `e2e/support/electron-app.js`
 - **seed.js** (5 connections) — `e2e/fixtures/seed.js`
 - **widget-popout.spec.js** (4 connections) — `e2e/widget-popout.spec.js`
 - **calendar.spec.js** (3 connections) — `e2e/calendar.spec.js`
@@ -33,18 +33,18 @@
 
 ## Relationships
 
+- [Stargate Ansiblex Spec](Stargate_Ansiblex_Spec.md) (4 shared connections)
 - [Assets Spec](Assets_Spec.md) (2 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (2 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (2 shared connections)
 - [Force Projection Spec](Force_Projection_Spec.md) (2 shared connections)
 - [Intel Patterns Spec](Intel_Patterns_Spec.md) (2 shared connections)
 - [Map Jb Shimmer Spec](Map_Jb_Shimmer_Spec.md) (2 shared connections)
-- [Map Natural Spec](Map_Natural_Spec.md) (2 shared connections)
+- [Map Route Reveal Spec](Map_Route_Reveal_Spec.md) (2 shared connections)
 - [Map Routes Spec](Map_Routes_Spec.md) (2 shared connections)
+- [Map Selection Spec](Map_Selection_Spec.md) (2 shared connections)
+- [Map Sky Spec](Map_Sky_Spec.md) (2 shared connections)
 - [Map Skybox Spec](Map_Skybox_Spec.md) (2 shared connections)
-- [Fleet Teams Test](Fleet_Teams_Test.md) (2 shared connections)
-- [Map Spec](Map_Spec.md) (2 shared connections)
-- [Navigation Spec](Navigation_Spec.md) (2 shared connections)
 
 ## Source Files
 
@@ -69,7 +69,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 157 (98%)
+- EXTRACTED: 163 (98%)
 - INFERRED: 4 (2%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,6 +1,6 @@
 # o()
 
-> God node · 53 connections · `src/vendor/chartjs/chart.umd.js`
+> God node · 54 connections · `src/vendor/chartjs/chart.umd.js`
 
 **Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
 
@@ -47,11 +47,11 @@
 - ai() `INFERRED`
 - je() `INFERRED`
 - on() `INFERRED`
+- _demoConnect() `INFERRED`
 - ra() `INFERRED`
 - xn() `INFERRED`
 - zi() `INFERRED`
 - zs() `INFERRED`
-- _jpNeighboursInRange() `INFERRED`
 
 ---
 

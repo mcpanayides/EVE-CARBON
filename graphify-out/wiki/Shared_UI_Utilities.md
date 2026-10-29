@@ -31,13 +31,12 @@
 
 ## Relationships
 
-- [Chart Umd (f)](Chart_Umd_%28f%29.md) (4 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (2 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (5 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (2 shared connections)
 - [Chart Umd (s)](Chart_Umd_%28s%29.md) (2 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (g)](Chart_Umd_%28g%29.md) (1 shared connections)
 - [Chart Umd](Chart_Umd.md) (1 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
 

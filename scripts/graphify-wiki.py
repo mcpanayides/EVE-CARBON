@@ -98,6 +98,10 @@ NAME = {
     "jabber": "Jabber Chat Client",
     "ui": "UI Shell & Theming",
     "jump-planner": "Jump Route Planner",
+    "skyfx": "Map Dust & Lens Flares",
+    "skyfx.test": "Map Dust & Lens Flares Tests",
+    "route-reveal": "Map Route Reveal",
+    "route_reveal.test": "Map Route Reveal Tests",
     "fleet_aar": "Fleet After-Action Report",
     "calendar": "Calendar & Events",
     "sde_fetch": "SDE Fetch & Build",
@@ -115,6 +119,18 @@ NAME = {
     "fitting_sim.test": "Fitting Simulator Tests",
     "request_broker": "HTTP Request Broker",
     "demo_fixtures": "Demo Mode Fixtures",
+    # src/demo/ -- folder-qualified (see _file_key): several share a stem with
+    # the real feature they stand in for.
+    "demo/cast": "Demo Cast & Names",
+    "demo/world": "Demo Pilot Belongings",
+    "demo/universe": "Demo Public Data Snapshots",
+    "demo/skills": "Demo Skill Sheets",
+    "demo/pings": "Demo Jabber Pings",
+    "demo/forum": "Demo Alliance Forum",
+    "demo/calendar": "Demo Calendar Feeds",
+    "demo/text": "Demo Text Feeds",
+    "demo-seed": "Demo Local Storage Seed",
+    "demo-snapshot": "Demo Snapshot Refresh",
     "salvage": "Salvage Calculator",
     "locator": "Station & Structure Locator",
     "asset_index": "Asset Index Schema",
@@ -163,6 +179,16 @@ def titleise(stem: str) -> str:
     return " ".join(words)[:44] or "Misc"
 
 
+def _file_key(src: str) -> str:
+    """The NAME key for a source file: "folder/stem" when NAME lists one, else the
+    bare stem. Two files can share a stem in different folders -- src/func/
+    calendar.js and src/demo/calendar.js -- and a stem-only key gave the demo's
+    community the real feature's name with a hub-symbol suffix."""
+    p = Path(src)
+    qualified = f"{p.parent.name}/{p.stem}"
+    return qualified if qualified in NAME else p.stem
+
+
 def build_labels(nodes_by_cid: dict[str, list[dict]], key_set) -> dict[str, str]:
     sizes = {cid: len(ns) for cid, ns in nodes_by_cid.items()}
     files: dict[str, Counter] = {}
@@ -174,7 +200,7 @@ def build_labels(nodes_by_cid: dict[str, list[dict]], key_set) -> dict[str, str]
                 marks.setdefault(lab, set()).add(cid)
             src = n.get("source_file") or ""
             if src:
-                files.setdefault(cid, Counter())[Path(src).stem] += 1
+                files.setdefault(cid, Counter())[_file_key(src)] += 1
 
     ambiguous = {k: sorted(v) for k, v in marks.items() if len(v) != 1}
     if ambiguous:

@@ -11,6 +11,7 @@
 - **galaxy_layout.js** (7 connections) — `src/galaxy_layout.js`
 - **cpu_budget.test.js** (7 connections) — `test/cpu_budget.test.js`
 - **cpu_budget.js** (6 connections) — `src/cpu_budget.js`
+- **_recordHistory()** (5 connections) — `src/ipc/map_ipc.js`
 - **workerCount()** (4 connections) — `src/cpu_budget.js`
 - **balance()** (4 connections) — `src/cpu_budget.js`
 - **distanceLy()** (4 connections) — `src/func/force-projection.js`
@@ -18,7 +19,6 @@
 - **reachZones()** (4 connections) — `src/func/force-projection.js`
 - **jumpFare()** (4 connections) — `src/func/force-projection.js`
 - **buildRegionLayouts()** (4 connections) — `src/galaxy_layout.js`
-- **_recordHistory()** (4 connections) — `src/ipc/map_ipc.js`
 - **logicalCores()** (3 connections) — `src/cpu_budget.js`
 - **zoneOfSystem()** (3 connections) — `src/func/force-projection.js`
 - **fareTJ()** (3 connections) — `src/func/force-projection.js`
@@ -36,7 +36,8 @@
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
+- [Map Dust & Lens Flares Tests](Map_Dust_%26_Lens_Flares_Tests.md) (1 shared connections)
 
 ## Source Files
 
@@ -50,7 +51,7 @@
 ## Audit Trail
 
 - EXTRACTED: 127 (89%)
-- INFERRED: 15 (11%)
+- INFERRED: 16 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

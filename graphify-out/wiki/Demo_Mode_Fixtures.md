@@ -1,50 +1,60 @@
 # Demo Mode Fixtures
 
-> 37 nodes · cohesion 0.08
+> 46 nodes · cohesion 0.09
 
 ## Key Concepts
 
-- **demo_fixtures.js** (26 connections) — `src/demo_fixtures.js`
+- **demo_fixtures.js** (58 connections) — `src/demo_fixtures.js`
+- **pilot()** (15 connections) — `src/demo/cast.js`
+- **iso()** (11 connections) — `src/demo_fixtures.js`
 - **match()** (11 connections) — `src/demo_fixtures.js`
-- **iso()** (8 connections) — `src/demo_fixtures.js`
-- **demo_fixtures.test.js** (8 connections) — `test/demo_fixtures.test.js`
-- **demo_fixtures_zkill.test.js** (5 connections) — `test/demo_fixtures_zkill.test.js`
-- **industryJobs()** (4 connections) — `src/demo_fixtures.js`
-- **mailHeaders()** (3 connections) — `src/demo_fixtures.js`
-- **notifications()** (3 connections) — `src/demo_fixtures.js`
-- **marketPrices()** (3 connections) — `src/demo_fixtures.js`
-- **fuzzworkAggregates()** (3 connections) — `src/demo_fixtures.js`
-- **skillQueue()** (3 connections) — `src/demo_fixtures.js`
-- **corpIndustryJobs()** (3 connections) — `src/demo_fixtures.js`
-- **marketOrders()** (3 connections) — `src/demo_fixtures.js`
+- **characterRoute()** (10 connections) — `src/demo_fixtures.js`
+- **keyOf()** (7 connections) — `src/demo_fixtures.js`
+- **matchAsync()** (7 connections) — `src/demo_fixtures.js`
+- **marketOrders()** (6 connections) — `src/demo_fixtures.js`
+- **corporationSheet()** (5 connections) — `src/demo_fixtures.js`
+- **allianceSheet()** (5 connections) — `src/demo_fixtures.js`
+- **industryJobs()** (5 connections) — `src/demo_fixtures.js`
+- **mailHeaders()** (4 connections) — `src/demo_fixtures.js`
+- **notifications()** (4 connections) — `src/demo_fixtures.js`
+- **fallbackPrice()** (4 connections) — `src/demo_fixtures.js`
+- **_job()** (4 connections) — `src/demo_fixtures.js`
+- **corpIndustryJobs()** (4 connections) — `src/demo_fixtures.js`
+- **characterSheet()** (3 connections) — `src/demo_fixtures.js`
+- **resolveNames()** (3 connections) — `src/demo_fixtures.js`
+- **staticUniverse()** (3 connections) — `src/demo_fixtures.js`
+- **zkillFeed()** (3 connections) — `src/demo_fixtures.js`
+- **pickP()** (2 connections) — `src/demo/forum.js`
+- **MAILS** (2 connections) — `src/demo_fixtures.js`
 - **calendar()** (2 connections) — `src/demo_fixtures.js`
-- **zkillFeed()** (2 connections) — `src/demo_fixtures.js`
-- **MAIL_BODIES** (1 connections) — `src/demo_fixtures.js`
-- **CAL_EVENTS** (1 connections) — `src/demo_fixtures.js`
-- **HAND_PRICED** (1 connections) — `src/demo_fixtures.js`
-- **DEMO_TYPE_IDS** (1 connections) — `src/demo_fixtures.js`
-- **QUEUE** (1 connections) — `src/demo_fixtures.js`
-- **latestPing()** (1 connections) — `src/demo_fixtures.js`
-- **beehiveStatus()** (1 connections) — `src/demo_fixtures.js`
-- **intelStatus()** (1 connections) — `src/demo_fixtures.js`
-- **intelContacts()** (1 connections) — `src/demo_fixtures.js`
-- **D** (1 connections) — `src/demo_fixtures.js`
-- *... and 12 more nodes in this community*
+- **isDemoWrite()** (2 connections) — `src/demo_fixtures.js`
+- **resolveIds()** (2 connections) — `src/demo_fixtures.js`
+- *... and 21 more nodes in this community*
 
 ## Relationships
 
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Demo Cast & Names](Demo_Cast_%26_Names.md) (11 shared connections)
+- [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (4 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (3 shared connections)
+- [Demo Data](Demo_Data.md) (2 shared connections)
+- [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
+- [Demo Fixtures Zkill Test](Demo_Fixtures_Zkill_Test.md) (1 shared connections)
+- [Demo World Test](Demo_World_Test.md) (1 shared connections)
 
 ## Source Files
 
+- `src/demo/cast.js`
+- `src/demo/forum.js`
 - `src/demo_fixtures.js`
-- `test/demo_fixtures.test.js`
-- `test/demo_fixtures_zkill.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 77 (71%)
-- INFERRED: 32 (29%)
+- EXTRACTED: 158 (76%)
+- INFERRED: 49 (24%)
 - AMBIGUOUS: 0 (0%)
 
 ---

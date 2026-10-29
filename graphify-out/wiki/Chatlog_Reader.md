@@ -1,12 +1,13 @@
 # Chatlog Reader
 
-> 34 nodes · cohesion 0.08
+> 36 nodes · cohesion 0.08
 
 ## Key Concepts
 
 - **chatlog_reader.js** (15 connections) — `src/intel/chatlog_reader.js`
 - **intel_local_position.test.js** (15 connections) — `test/intel_local_position.test.js`
 - **local_position.js** (13 connections) — `src/intel/local_position.js`
+- **createChatlogReader()** (7 connections) — `src/intel/chatlog_reader.js`
 - **findChatlogDir()** (6 connections) — `src/intel/chatlog_reader.js`
 - **lineTimestamp()** (4 connections) — `src/intel/chatlog_reader.js`
 - **scanForSystem()** (4 connections) — `src/intel/local_position.js`
@@ -15,6 +16,7 @@
 - **discoverChannels()** (3 connections) — `src/intel/chatlog_reader.js`
 - **newestLocalPerCharacter()** (3 connections) — `src/intel/local_position.js`
 - **line()** (3 connections) — `test/intel.test.js`
+- **status()** (2 connections) — `src/demo/universe.js`
 - **newestPerChannel()** (2 connections) — `src/intel/chatlog_reader.js`
 - **readHeader()** (2 connections) — `src/intel/chatlog_reader.js`
 - **detectOnlineCharacters()** (2 connections) — `src/intel/chatlog_reader.js`
@@ -27,21 +29,20 @@
 - **fs** (1 connections) — `src/intel/local_position.js`
 - **path** (1 connections) — `src/intel/local_position.js`
 - **{ findChatlogDir, lineTimestamp }** (1 connections) — `src/intel/local_position.js`
-- **seedOffset()** (1 connections) — `src/intel/local_position.js`
-- **test** (1 connections) — `test/intel_local_position.test.js`
-- *... and 9 more nodes in this community*
+- *... and 11 more nodes in this community*
 
 ## Relationships
 
 - [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
-- [Intel Service](Intel_Service.md) (1 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
+- [Shared UI Utilities](Shared_UI_Utilities.md) (2 shared connections)
+- [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
 - [Ics Parse](Ics_Parse.md) (1 shared connections)
-- [Intel Test](Intel_Test.md) (1 shared connections)
 
 ## Source Files
 
+- `src/demo/universe.js`
 - `src/intel/chatlog_reader.js`
 - `src/intel/local_position.js`
 - `test/intel.test.js`
@@ -49,8 +50,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 73 (72%)
-- INFERRED: 28 (28%)
+- EXTRACTED: 77 (70%)
+- INFERRED: 33 (30%)
 - AMBIGUOUS: 0 (0%)
 
 ---

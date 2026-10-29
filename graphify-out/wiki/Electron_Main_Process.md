@@ -1,10 +1,10 @@
 # Electron Main Process
 
-> 93 nodes · cohesion 0.02
+> 97 nodes · cohesion 0.02
 
 ## Key Concepts
 
-- **main.js** (172 connections) — `main.js`
+- **main.js** (176 connections) — `main.js`
 - **loadConfig()** (4 connections) — `main.js`
 - **createTray()** (4 connections) — `main.js`
 - **applyMinimizeToTray()** (4 connections) — `main.js`
@@ -18,6 +18,8 @@
 - **initSde()** (2 connections) — `main.js`
 - **resolvePackFile()** (2 connections) — `main.js`
 - **_readLaunchAtLogin()** (2 connections) — `main.js`
+- **_serveDemoForum()** (2 connections) — `main.js`
+- **_setDemoForumCookies()** (2 connections) — `main.js`
 - **loadJumpBridges()** (2 connections) — `main.js`
 - **saveJumpBridges()** (2 connections) — `main.js`
 - **_esiNoteFetchResponse()** (2 connections) — `main.js`
@@ -27,24 +29,22 @@
 - **registerStationHandlers()** (2 connections) — `src/ipc/station_ipc.js`
 - **path** (1 connections) — `main.js`
 - **{ app }** (1 connections) — `main.js`
-- **{ BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session, Notification }** (1 connections) — `main.js`
-- **https** (1 connections) — `main.js`
-- *... and 68 more nodes in this community*
+- *... and 72 more nodes in this community*
 
 ## Relationships
 
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (35 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (11 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (6 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (10 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (8 shared connections)
+- [Demo Mode](Demo_Mode.md) (4 shared connections)
 - [PI IPC](PI_IPC.md) (4 shared connections)
 - [Presence](Presence.md) (4 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
-- [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Fleet After-Action Report](Fleet_After-Action_Report.md) (2 shared connections)
+- [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
 - [Theme Vars](Theme_Vars.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
+- [Character Database](Character_Database.md) (1 shared connections)
 
 ## Source Files
 
@@ -54,7 +54,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 290 (98%)
+- EXTRACTED: 300 (98%)
 - INFERRED: 6 (2%)
 - AMBIGUOUS: 0 (0%)
 

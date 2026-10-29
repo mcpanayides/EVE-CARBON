@@ -1,6 +1,6 @@
 # r()
 
-> God node · 67 connections · `src/vendor/chartjs/chart.umd.js`
+> God node · 68 connections · `src/vendor/chartjs/chart.umd.js`
 
 **Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
 

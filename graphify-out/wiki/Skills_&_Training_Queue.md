@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **skills.js** (67 connections) — `src/func/skills.js`
+- **func/skills.js** (67 connections) — `src/func/skills.js`
 - **_skBindPlannerControls()** (14 connections) — `src/func/skills.js`
 - **_skRenderOptimise()** (12 connections) — `src/func/skills.js`
 - **_skRenderEntries()** (12 connections) — `src/func/skills.js`

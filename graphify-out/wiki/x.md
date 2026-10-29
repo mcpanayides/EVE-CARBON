@@ -20,11 +20,11 @@
 - .updateOptions() `EXTRACTED`
 - .batchUpdate() `EXTRACTED`
 - .makeSubGrid() `EXTRACTED`
-- ._dragOrResize() `EXTRACTED`
 - ._triggerChangeEvent() `EXTRACTED`
 - .cellHeight() `EXTRACTED`
 - .column() `EXTRACTED`
 - .destroy() `EXTRACTED`
+- ._dragOrResize() `EXTRACTED`
 - .enable() `EXTRACTED`
 - ._prepareElement() `EXTRACTED`
 - .disable() `EXTRACTED`

@@ -24,7 +24,7 @@
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Calendar & Events](Calendar_%26_Events.md) (1 shared connections)
-- [ESI Client Test](ESI_Client_Test.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

@@ -29,9 +29,9 @@
 ## Relationships
 
 - [Chart Umd (u)](Chart_Umd_%28u%29.md) (8 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (4 shared connections)
-- [Chart Umd](Chart_Umd.md) (2 shared connections)
-- [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (3 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (2 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (2 shared connections)
 
 ## Source Files
 

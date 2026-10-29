@@ -1,19 +1,21 @@
 # Fleet Teams Test
 
-> 19 nodes · cohesion 0.11
+> 21 nodes · cohesion 0.13
 
 ## Key Concepts
 
 - **fleet_teams.test.js** (11 connections) — `test/fleet_teams.test.js`
-- **map-viewport.spec.js** (9 connections) — `e2e/map-viewport.spec.js`
+- **fleet_teams.js** (9 connections) — `src/fleet_teams.js`
+- **assignTeams()** (6 connections) — `src/fleet_teams.js`
+- **buildTimeline()** (4 connections) — `src/fleet_teams.js`
+- **entityKey()** (3 connections) — `src/fleet_teams.js`
+- **victimOf()** (3 connections) — `src/fleet_teams.js`
+- **charOf()** (3 connections) — `src/fleet_teams.js`
 - **drawnAt()** (2 connections) — `e2e/map-viewport.spec.js`
+- **TEAMS** (2 connections) — `src/fleet_teams.js`
+- **attackersOf()** (2 connections) — `src/fleet_teams.js`
 - **p()** (2 connections) — `test/fleet_teams.test.js`
-- **{ test, expect }** (1 connections) — `e2e/map-viewport.spec.js`
-- **openSpatial()** (1 connections) — `e2e/map-viewport.spec.js`
-- **starNear()** (1 connections) — `e2e/map-viewport.spec.js`
-- **drift()** (1 connections) — `e2e/map-viewport.spec.js`
-- **rensInView()** (1 connections) — `e2e/map-viewport.spec.js`
-- **markers()** (1 connections) — `e2e/map-viewport.spec.js`
+- **summariseTeams()** (1 connections) — `src/fleet_teams.js`
 - **test** (1 connections) — `test/fleet_teams.test.js`
 - **assert** (1 connections) — `test/fleet_teams.test.js`
 - **T** (1 connections) — `test/fleet_teams.test.js`
@@ -26,18 +28,18 @@
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (2 shared connections)
-- [Battle Report Sides](Battle_Report_Sides.md) (1 shared connections)
+- [Map Viewport Spec](Map_Viewport_Spec.md) (1 shared connections)
 
 ## Source Files
 
 - `e2e/map-viewport.spec.js`
+- `src/fleet_teams.js`
 - `test/fleet_teams.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 37 (95%)
-- INFERRED: 2 (5%)
+- EXTRACTED: 47 (82%)
+- INFERRED: 10 (18%)
 - AMBIGUOUS: 0 (0%)
 
 ---

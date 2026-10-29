@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **ics-parse.js** (10 connections) — `src/func/ics-parse.js`
+- **ics-parse.js** (11 connections) — `src/func/ics-parse.js`
 - **parseIcs()** (7 connections) — `src/func/ics-parse.js`
 - **expandRecurring()** (4 connections) — `src/func/ics-parse.js`
 - **parseDate()** (3 connections) — `src/func/ics-parse.js`
@@ -18,6 +18,7 @@
 
 ## Relationships
 
+- [Demo World Test](Demo_World_Test.md) (1 shared connections)
 - [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
 
 ## Source Files
@@ -26,7 +27,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 36 (97%)
+- EXTRACTED: 37 (97%)
 - INFERRED: 1 (3%)
 - AMBIGUOUS: 0 (0%)
 

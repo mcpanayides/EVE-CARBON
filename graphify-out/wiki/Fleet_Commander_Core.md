@@ -15,8 +15,8 @@
 - **navigateFcTab()** (6 connections) — `src/func/fc.js`
 - **renderOpHistory()** (6 connections) — `src/func/fc.js`
 - **_fcToggleOp()** (6 connections) — `src/func/fc.js`
+- **_fcShowReport()** (6 connections) — `src/func/fc.js`
 - **_fcStartTracking()** (5 connections) — `src/func/fc.js`
-- **_fcShowReport()** (5 connections) — `src/func/fc.js`
 - **_fcSetOpBtn()** (5 connections) — `src/func/fc.js`
 - **_fcResumeOp()** (4 connections) — `src/func/fc.js`
 - **_fcPullKills()** (4 connections) — `src/func/fc.js`
@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 186 (96%)
-- INFERRED: 8 (4%)
+- EXTRACTED: 186 (95%)
+- INFERRED: 9 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

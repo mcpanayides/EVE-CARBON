@@ -1,41 +1,56 @@
 # Demo Mode
 
-> 15 nodes · cohesion 0.25
+> 30 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **demo_mode.js** (17 connections) — `src/demo_mode.js`
+- **esi_ipc.js** (13 connections) — `src/ipc/esi_ipc.js`
+- **createWindow()** (6 connections) — `main.js`
 - **isEnabled()** (6 connections) — `src/demo_mode.js`
+- **registerEsiHandlers()** (5 connections) — `src/ipc/esi_ipc.js`
+- **fuzzwork_api.test.js** (5 connections) — `test/fuzzwork_api.test.js`
 - **_argv()** (4 connections) — `src/demo_mode.js`
 - **_realConfigPath()** (4 connections) — `src/demo_mode.js`
+- **shouldKeep()** (4 connections) — `src/demo_mode.js`
 - **windowOptions()** (4 connections) — `src/demo_mode.js`
+- **fetchFuzzworkBlueprint()** (4 connections) — `src/ipc/esi_ipc.js`
 - **realUserDataPath()** (3 connections) — `src/demo_mode.js`
 - **_configSaysDemo()** (3 connections) — `src/demo_mode.js`
-- **shouldKeep()** (3 connections) — `src/demo_mode.js`
 - **windowSize()** (3 connections) — `src/demo_mode.js`
 - **redirectPaths()** (3 connections) — `src/demo_mode.js`
 - **reset()** (3 connections) — `src/demo_mode.js`
 - **setEnabled()** (2 connections) — `src/demo_mode.js`
+- **FUZZWORK_BLUEPRINT_URL()** (2 connections) — `src/ipc/esi_ipc.js`
+- **_fuzzworkMaterials()** (2 connections) — `src/ipc/esi_ipc.js`
 - **fs** (1 connections) — `src/demo_mode.js`
 - **path** (1 connections) — `src/demo_mode.js`
 - **DEFAULT_SIZE** (1 connections) — `src/demo_mode.js`
+- **{ APP_USER_AGENT, ESI_BASE }** (1 connections) — `src/ipc/esi_ipc.js`
+- **demoMode** (1 connections) — `src/ipc/esi_ipc.js`
+- **{ ipcMain }** (1 connections) — `src/ipc/esi_ipc.js`
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (3 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
 - [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
+- `main.js`
 - `src/demo_mode.js`
+- `src/ipc/esi_ipc.js`
+- `test/fuzzwork_api.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 41 (71%)
-- INFERRED: 17 (29%)
+- EXTRACTED: 80 (77%)
+- INFERRED: 24 (23%)
 - AMBIGUOUS: 0 (0%)
 
 ---

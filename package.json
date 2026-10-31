@@ -9,6 +9,7 @@
     "start": "electron .",
     "demo": "electron . --demo",
     "demo:shots": "node scripts/demo-shots.js",
+    "video:map": "node scripts/video-map.js",
     "demo:snapshot": "node scripts/demo-snapshot.js",
     "lint": "node scripts/lint.js",
     "esi:audit": "node scripts/esi-audit.js --list",
@@ -91,7 +92,8 @@
       "!node_modules/.cache",
       "!**/*.map",
       "!screenshots",
-      "!demo-shots"
+      "!demo-shots",
+      "!video-takes"
     ]
   },
   "devDependencies": {

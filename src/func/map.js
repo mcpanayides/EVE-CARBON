@@ -8436,10 +8436,40 @@ async function _ensureWhArcs() {
   _scheduleRender();
 }
 
+/**
+ * What hi-sec and low-sec cost a safest route, per system entered.
+ *
+ * Players hold this route up against the game's Safer autopilot, so a trip with
+ * either end outside null-sec is priced to give the game's answer. Checked against
+ * ESI's POST /route/ (preference Safer) with no standings set, 898 of 900 sampled
+ * routes matched on jumps, low-sec and null-sec systems, and the other two were
+ * exact ties. Hi-sec is as good as free, so a route leaves it only when it has to
+ * and then for as few systems as it can. Low-sec is half of neutral null-sec (6),
+ * the game's own ratio.
+ *
+ * Raising low-sec instead cannot get there. The higher it goes, the more often a
+ * hi-sec pilot is sent through null-sec to dodge it, and from 50 up it reads as red
+ * to avoidRed and the planner's red count.
+ *
+ * A trip between two null-sec systems keeps the prices it always had. With hi-sec
+ * free, a pilot crossing 11 jumps of their own sov would be sent 41 jumps round
+ * through empire instead.
+ */
+const _EMPIRE_TRIP  = { hi: 0.01, low: 3 };
+const _NULLSEC_TRIP = { hi: 1,    low: 6 };
+
+function _tripPrices(startId, endId) {
+  const a = _sysById[startId], b = _sysById[endId];
+  return a && b && a.sec <= 0 && b.sec <= 0 ? _NULLSEC_TRIP : _EMPIRE_TRIP;
+}
+
 // Per-system safety cost (lower = preferred). Uses the Friends & Foes standings.
-function _travelSafetyCost(sys) {
+function _travelSafetyCost(sys, prices = _EMPIRE_TRIP) {
   const sec = sys.sec;
-  if (sec >= 0.45) return 1;                       // hi-sec — safe to travel
+  if (sec >= 0.45) return prices.hi;               // hi-sec — safe to travel
+  // Ahead of the sov lookup: every low-sec system has a faction claim in _sovMap,
+  // so asking sov first prices all 687 of them as neutral null-sec.
+  if (sec > 0.0) return prices.low;                // low-sec
   const s = _sovMap[sys.id];
   if (s) {                                         // null-sec sov
     if (_fnfAllianceId && s.allianceId === _fnfAllianceId) return 1;   // your sov
@@ -8452,7 +8482,6 @@ function _travelSafetyCost(sys) {
     }
     return 6;                      // neutral / NPC sov
   }
-  if (sec > 0.0 && sec < 0.45) return 10;          // low-sec
   return 6;                                        // unclaimed / NPC null
 }
 
@@ -8468,13 +8497,14 @@ function _mapHeap() {
 
 // Core gate pathfinder, shared by the right-click route and the Stargate Planner.
 // opts: { mode:'safest'|'shortest', avoidLow, avoidNull, avoidRed, useBridges,
-// useWormholes }. removedNodes / removedEdges (Sets; edges keyed "from>to") let
+// useWormholes, prices }. removedNodes / removedEdges (Sets; edges keyed "from>to") let
 // Yen's k-shortest carve out alternatives. Returns { path, cost } or null.
 // Endpoints are never filtered out.
 function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedEdges = null) {
   if (!_sysById[startId] || !_sysById[endId]) return null;
   _ensureGateAdj();
   const { mode = 'safest', avoidLow = false, avoidNull = false, avoidRed = false, avoidZarzakh = false, useBridges = false, useWormholes = false } = opts;
+  const prices = opts.prices || _tripPrices(startId, endId);
   // A hull that cannot use an Ansiblex at all (capitals) skips the whole
   // network up front, rather than being rejected one bridge at a time.
   const cls = ForceProjection.shipClass(opts.shipClass || 'hauler');
@@ -8519,7 +8549,7 @@ function _routeDijkstra(startId, endId, opts = {}, removedNodes = null, removedE
       // Capacitor is a tiebreak, never a detour: at most ~0.03 a hop, so among
       // equally fast routes the one that drains less wins, and no route is ever
       // made longer to save capacitor.
-      const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys)) + (hop ? hop.fare * 1e-4 : 0);
+      const nd = d + (mode === 'shortest' ? 1 : _travelSafetyCost(toSys, prices)) + (hop ? hop.fare * 1e-4 : 0);
       if (nd < (dist.has(to) ? dist.get(to) : Infinity)) {
         dist.set(to, nd); prev.set(to, id); heap.push(nd, to);
       }
@@ -8541,14 +8571,17 @@ function _travelRoutePath(startId, endId, opts = {}) {
 // Total routing cost of an explicit path (matches _routeDijkstra's edge weights).
 function _pathCost(path, opts) {
   if ((opts.mode || 'safest') === 'shortest') return path.length - 1;
+  const prices = _tripPrices(path[0], path[path.length - 1]);
   let c = 0;
-  for (let i = 1; i < path.length; i++) { const s = _sysById[path[i]]; c += s ? _travelSafetyCost(s) : 1; }
+  for (let i = 1; i < path.length; i++) { const s = _sysById[path[i]]; c += s ? _travelSafetyCost(s, prices) : 1; }
   return c;
 }
 
 // Up to K shortest loopless routes (Yen's algorithm) for the Stargate Planner's
 // "alternative routes". Returns [{ path, cost }, …] best-first.
 function _kShortestRoutes(startId, endId, opts = {}, K = 3) {
+  // A spur starts mid-route but is still this trip, so it is priced as this trip.
+  opts = { ...opts, prices: _tripPrices(startId, endId) };
   const first = _routeDijkstra(startId, endId, opts);
   if (!first) return [];
   const A = [first], B = [];
@@ -8808,7 +8841,7 @@ function _sgBuildModal() {
             <button id="sgSendGameBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Set this route as autopilot waypoints in your running EVE client"><span class="material-symbols-outlined" aria-hidden="true">satellite_alt</span> Send to game</button>
             <button id="sgAltBtn" class="icon-btn" style="flex:1;padding:7px;font-size:12px;cursor:pointer;" title="Show up to 3 alternative routes">Alternatives</button>
           </div>
-          <div class="jp-range-note" id="sgNote">Safest prefers your sov, blues and hi-sec; drops to neutral, low-sec, then red only if needed.</div>
+          <div class="jp-range-note" id="sgNote">Safest stays in hi-sec whenever it can, then prefers your sov and blues; low-sec and neutral space next, red only if needed.</div>
         </div>
         <div class="jp-result" id="sgResult">
           <div class="jp-empty">Enter a start and destination, then plot a route.</div>

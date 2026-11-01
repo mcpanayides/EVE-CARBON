@@ -41,7 +41,7 @@
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
 - [Demo Fixtures Zkill Test](Demo_Fixtures_Zkill_Test.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
 

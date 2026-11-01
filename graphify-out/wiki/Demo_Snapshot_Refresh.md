@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
+- [ESI IPC](ESI_IPC.md) (1 shared connections)
 
 ## Source Files
 

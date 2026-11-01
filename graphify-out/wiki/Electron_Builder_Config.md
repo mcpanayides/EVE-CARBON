@@ -1,12 +1,14 @@
 # Electron Builder Config
 
-> 20 nodes · cohesion 0.10
+> 32 nodes · cohesion 0.06
 
 ## Key Concepts
 
 - **build** (11 connections) — `package.json`
-- **files** (6 connections) — `package.json`
+- **nsis** (7 connections) — `package.json`
+- **files** (7 connections) — `package.json`
 - **mac** (4 connections) — `package.json`
+- **linux** (4 connections) — `package.json`
 - **win** (3 connections) — `package.json`
 - **directories** (2 connections) — `package.json`
 - **appId** (1 connections) — `package.json`
@@ -16,20 +18,22 @@
 - **extraResources** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
+- **oneClick** (1 connections) — `package.json`
+- **allowToChangeInstallationDirectory** (1 connections) — `package.json`
+- **createDesktopShortcut** (1 connections) — `package.json`
+- **include** (1 connections) — `package.json`
+- **installerSidebar** (1 connections) — `package.json`
+- **displayLanguageSelector** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
 - **identity** (1 connections) — `package.json`
-- ****/*** (1 connections) — `package.json`
-- **!node_modules/.cache** (1 connections) — `package.json`
-- **!**/*.map** (1 connections) — `package.json`
-- **!screenshots** (1 connections) — `package.json`
-- **!demo-shots** (1 connections) — `package.json`
+- **target** (1 connections) — `package.json`
+- **icon** (1 connections) — `package.json`
+- *... and 7 more nodes in this community*
 
 ## Relationships
 
 - [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
-- [Package Manifest (linux)](Package_Manifest_%28linux%29.md) (1 shared connections)
-- [Package Manifest (nsis)](Package_Manifest_%28nsis%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -37,7 +41,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 41 (100%)
+- EXTRACTED: 63 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

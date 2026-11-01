@@ -23,9 +23,10 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (10 shared connections)
 - [Demo Mode](Demo_Mode.md) (3 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (3 shared connections)
+- [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
 - [Electron App](Electron_App.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 - [Auto Updater](Auto_Updater.md) (1 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)

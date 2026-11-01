@@ -1,12 +1,13 @@
 # Electron App
 
-> 48 nodes · cohesion 0.06
+> 51 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **electron-app.js** (46 connections) — `e2e/support/electron-app.js`
-- **test** (35 connections) — `e2e/support/electron-app.js`
+- **electron-app.js** (47 connections) — `e2e/support/electron-app.js`
+- **test** (36 connections) — `e2e/support/electron-app.js`
 - **seed.js** (5 connections) — `e2e/fixtures/seed.js`
+- **assets.spec.js** (4 connections) — `e2e/assets.spec.js`
 - **widget-popout.spec.js** (4 connections) — `e2e/widget-popout.spec.js`
 - **calendar.spec.js** (3 connections) — `e2e/calendar.spec.js`
 - **characters.spec.js** (3 connections) — `e2e/characters.spec.js`
@@ -26,15 +27,13 @@
 - **seedUserData()** (2 connections) — `e2e/fixtures/seed.js`
 - **seedCharacterDb()** (2 connections) — `e2e/fixtures/seed.js`
 - **popoutState()** (2 connections) — `e2e/widget-popout.spec.js`
-- **{ test, expect }** (1 connections) — `e2e/calendar.spec.js`
-- **{ test, expect, FAKE_CHAR_NAME, FAKE_CHAR_ID }** (1 connections) — `e2e/characters.spec.js`
-- **{ test, expect, FAKE_CHAR_NAME }** (1 connections) — `e2e/dashboard.spec.js`
-- *... and 23 more nodes in this community*
+- **{ test, expect, FAKE_CHAR_NAME }** (1 connections) — `e2e/assets.spec.js`
+- **openJitaHangar()** (1 connections) — `e2e/assets.spec.js`
+- *... and 26 more nodes in this community*
 
 ## Relationships
 
 - [Stargate Ansiblex Spec](Stargate_Ansiblex_Spec.md) (4 shared connections)
-- [Assets Spec](Assets_Spec.md) (2 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (2 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (2 shared connections)
 - [Force Projection Spec](Force_Projection_Spec.md) (2 shared connections)
@@ -45,9 +44,11 @@
 - [Map Selection Spec](Map_Selection_Spec.md) (2 shared connections)
 - [Map Sky Spec](Map_Sky_Spec.md) (2 shared connections)
 - [Map Skybox Spec](Map_Skybox_Spec.md) (2 shared connections)
+- [Map Solar System Spec](Map_Solar_System_Spec.md) (2 shared connections)
 
 ## Source Files
 
+- `e2e/assets.spec.js`
 - `e2e/calendar.spec.js`
 - `e2e/characters.spec.js`
 - `e2e/dashboard.spec.js`
@@ -69,7 +70,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 163 (98%)
+- EXTRACTED: 171 (98%)
 - INFERRED: 4 (2%)
 - AMBIGUOUS: 0 (0%)
 

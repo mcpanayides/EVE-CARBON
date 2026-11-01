@@ -1,6 +1,6 @@
-# Patterns
+# Intel Patterns Test
 
-> 28 nodes · cohesion 0.12
+> 27 nodes · cohesion 0.13
 
 ## Key Concepts
 
@@ -14,7 +14,6 @@
 - **entryPoints()** (4 connections) — `src/intel/patterns.js`
 - **bucketPattern()** (3 connections) — `src/intel/patterns.js`
 - **hourBlocks()** (3 connections) — `src/intel/patterns.js`
-- **buildWalks()** (3 connections) — `src/intel/patterns.js`
 - **DEFAULTS** (2 connections) — `src/intel/patterns.js`
 - **WEEKDAY_NAMES** (2 connections) — `src/intel/patterns.js`
 - **at()** (2 connections) — `test/intel_patterns.test.js`
@@ -32,14 +31,16 @@
 - **sysSighting()** (1 connections) — `test/intel_patterns.test.js`
 - **hop()** (1 connections) — `test/intel_patterns.test.js`
 - **SDE** (1 connections) — `test/intel_patterns.test.js`
-- *... and 3 more nodes in this community*
+- **evLine()** (1 connections) — `test/intel_patterns.test.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [Intel Test](Intel_Test.md) (6 shared connections)
+- [Intel Service](Intel_Service.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
+- [Fleet Mining](Fleet_Mining.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Notifications](Notifications.md) (1 shared connections)
 
 ## Source Files
 
@@ -48,8 +49,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 84 (82%)
-- INFERRED: 18 (18%)
+- EXTRACTED: 83 (84%)
+- INFERRED: 16 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

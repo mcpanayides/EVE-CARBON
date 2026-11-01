@@ -1,6 +1,6 @@
 # e()
 
-> God node · 51 connections · `src/vendor/chartjs/chart.umd.js`
+> God node · 52 connections · `src/vendor/chartjs/chart.umd.js`
 
 **Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
 
@@ -24,6 +24,7 @@
 - [r()](r%28%29.md) `INFERRED`
 - [o()](o%28%29.md) `INFERRED`
 - l() `INFERRED`
+- _initCanvas() `INFERRED`
 - d() `INFERRED`
 - registerJabberHandlers() `INFERRED`
 - loadDashboard() `INFERRED`
@@ -40,7 +41,6 @@
 - renderDashboardActiveJobs() `INFERRED`
 - _fitCloneSlot() `INFERRED`
 - _skQueueCard() `INFERRED`
-- vi() `INFERRED`
 
 ---
 

@@ -1,13 +1,14 @@
 # Package Manifest
 
-> 24 nodes · cohesion 0.08
+> 25 nodes · cohesion 0.08
 
 ## Key Concepts
 
-- **scripts** (24 connections) — `package.json`
+- **scripts** (25 connections) — `package.json`
 - **start** (1 connections) — `package.json`
 - **demo** (1 connections) — `package.json`
 - **demo:shots** (1 connections) — `package.json`
+- **video:map** (1 connections) — `package.json`
 - **demo:snapshot** (1 connections) — `package.json`
 - **lint** (1 connections) — `package.json`
 - **esi:audit** (1 connections) — `package.json`
@@ -39,7 +40,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 47 (100%)
+- EXTRACTED: 49 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

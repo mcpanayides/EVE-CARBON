@@ -1,6 +1,6 @@
 # r()
 
-> God node · 68 connections · `src/vendor/chartjs/chart.umd.js`
+> God node · 69 connections · `src/vendor/chartjs/chart.umd.js`
 
 **Community:** [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md)
 
@@ -40,11 +40,11 @@
 - zn() `INFERRED`
 - _buildRegionLayout() `INFERRED`
 - _sgShowAlternatives() `INFERRED`
+- layout() `INFERRED`
 - lo() `INFERRED`
 - mi() `INFERRED`
 - Yi() `INFERRED`
 - _trRenderUndercut() `INFERRED`
-- buildSdeFromJsonl() `INFERRED`
 
 ---
 

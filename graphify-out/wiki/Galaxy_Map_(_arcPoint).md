@@ -1,55 +1,58 @@
 # Galaxy Map (_arcPoint)
 
-> 35 nodes · cohesion 0.09
+> 27 nodes · cohesion 0.11
 
 ## Key Concepts
 
-- **_jbFxStill()** (8 connections) — `src/func/map.js`
-- **_drawBackdrop()** (8 connections) — `src/func/map.js`
+- **skyfx.test.js** (11 connections) — `test/skyfx.test.js`
+- **_jbFxStill()** (9 connections) — `src/func/map.js`
 - **_skyDraw()** (8 connections) — `src/func/map.js`
-- **_render()** (7 connections) — `src/func/map.js`
-- **_mapVisible()** (7 connections) — `src/func/map.js`
+- **SkyFx** (8 connections) — `test/skyfx.test.js`
 - **_jbFxDraw()** (6 connections) — `src/func/map.js`
 - **_jbFxSync()** (6 connections) — `src/func/map.js`
-- **_bgMayRun()** (6 connections) — `src/func/map.js`
-- **_bgSync()** (6 connections) — `src/func/map.js`
-- **_skyDrawDust()** (6 connections) — `src/func/map.js`
+- **_skyStepDust()** (6 connections) — `src/func/map.js`
 - **_skyMayRun()** (6 connections) — `src/func/map.js`
 - **_skySync()** (6 connections) — `src/func/map.js`
-- **Nebula** (6 connections) — `test/nebula.test.js`
 - **_jbFxMayRun()** (5 connections) — `src/func/map.js`
-- **_drawSkybox()** (5 connections) — `src/func/map.js`
 - **_skyTick()** (5 connections) — `src/func/map.js`
-- **_startLivePolling()** (5 connections) — `src/func/map.js`
+- **field()** (5 connections) — `test/skyfx.test.js`
 - **_jbFxTick()** (4 connections) — `src/func/map.js`
-- **_nebGet()** (4 connections) — `src/func/map.js`
-- **_paintRegionNebula()** (4 connections) — `src/func/map.js`
-- **_nebFade()** (4 connections) — `src/func/map.js`
-- **_bgTick()** (4 connections) — `src/func/map.js`
-- **_bgRequest()** (4 connections) — `src/func/map.js`
 - **_jbFxPhase()** (3 connections) — `src/func/map.js`
 - **_jbComet()** (3 connections) — `src/func/map.js`
-- *... and 10 more nodes in this community*
+- **_skyStar()** (3 connections) — `src/func/map.js`
+- **across()** (3 connections) — `test/skyfx.test.js`
+- **_arcPoint()** (2 connections) — `src/func/map.js`
+- **_jbFlare()** (2 connections) — `src/func/map.js`
+- **_skyCamNow()** (2 connections) — `src/func/map.js`
+- **snap()** (2 connections) — `test/skyfx.test.js`
+- **test** (1 connections) — `test/skyfx.test.js`
+- **assert** (1 connections) — `test/skyfx.test.js`
+- **still** (1 connections) — `test/skyfx.test.js`
+- **fromMiddle()** (1 connections) — `test/skyfx.test.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (34 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (9 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (7 shared connections)
-- [Galaxy Map (_routeIdsOf)](Galaxy_Map_%28_routeIdsOf%29.md) (3 shared connections)
-- [Map Dust & Lens Flares Tests](Map_Dust_%26_Lens_Flares_Tests.md) (3 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
-- [Nebula](Nebula.md) (1 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (16 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (6 shared connections)
+- [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (3 shared connections)
+- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (3 shared connections)
+- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (2 shared connections)
+- [Galaxy Map (_aggStarHex)](Galaxy_Map_%28_aggStarHex%29.md) (2 shared connections)
+- [Chart Umd](Chart_Umd.md) (2 shared connections)
+- [Galaxy Map (_rtMayRun)](Galaxy_Map_%28_rtMayRun%29.md) (1 shared connections)
+- [Map Dust & Lens Flares](Map_Dust_%26_Lens_Flares.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/map.js`
-- `test/nebula.test.js`
+- `test/skyfx.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 149 (93%)
-- INFERRED: 11 (7%)
+- EXTRACTED: 103 (93%)
+- INFERRED: 8 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

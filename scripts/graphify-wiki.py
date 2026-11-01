@@ -102,6 +102,8 @@ NAME = {
     "skyfx.test": "Map Dust & Lens Flares Tests",
     "route-reveal": "Map Route Reveal",
     "route_reveal.test": "Map Route Reveal Tests",
+    "orrery": "Solar System Layout",
+    "orrery.test": "Solar System Layout Tests",
     "fleet_aar": "Fleet After-Action Report",
     "calendar": "Calendar & Events",
     "sde_fetch": "SDE Fetch & Build",

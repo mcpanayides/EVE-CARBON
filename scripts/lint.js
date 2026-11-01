@@ -7,7 +7,8 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'release', 'data', '.git', '.vs', '.idea', 'tmp_electron_extracted']);
+// .claude holds session worktrees: whole copies of the repo, whose paths miss every rule's exceptions.
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'out', 'release', 'data', '.git', '.vs', '.idea', '.claude', 'tmp_electron_extracted']);
 
 function collect(dir, acc) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

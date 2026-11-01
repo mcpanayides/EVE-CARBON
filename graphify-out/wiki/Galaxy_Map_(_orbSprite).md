@@ -34,14 +34,13 @@
 ## Relationships
 
 - [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
-- [Galaxy Map (_aggStarHex)](Galaxy_Map_%28_aggStarHex%29.md) (9 shared connections)
+- [Galaxy Map (_aggStarHex)](Galaxy_Map_%28_aggStarHex%29.md) (10 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (8 shared connections)
-- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (6 shared connections)
+- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (5 shared connections)
 - [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (3 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (2 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (3 shared connections)
 - [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (q)](Chart_Umd_%28q%29.md) (1 shared connections)
 
 ## Source Files
 

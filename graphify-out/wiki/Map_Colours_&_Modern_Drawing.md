@@ -1,6 +1,6 @@
 # Map Colours & Modern Drawing
 
-> 31 nodes · cohesion 0.14
+> 28 nodes · cohesion 0.17
 
 ## Key Concepts
 
@@ -24,22 +24,22 @@
 - **_drawModernRouteExtras()** (5 connections) — `src/func/map.js`
 - **_drawRouteExtras()** (5 connections) — `src/func/map.js`
 - **_refreshThemeVars()** (4 connections) — `src/func/map.js`
-- **_drawRoutes()** (4 connections) — `src/func/map.js`
-- **_routeIdsOf()** (4 connections) — `src/func/map.js`
-- **_revealing()** (4 connections) — `src/func/map.js`
 - **_resolveSpecialRegionIds()** (3 connections) — `src/func/map.js`
 - **_monoStack()** (3 connections) — `src/func/map.js`
-- *... and 6 more nodes in this community*
+- **_infLighten()** (3 connections) — `src/func/map.js`
+- **_drawModernLinks()** (3 connections) — `src/func/map.js`
+- **_secColorModern()** (2 connections) — `src/func/map.js`
+- *... and 3 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (37 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (33 shared connections)
 - [Galaxy Map (_aggStarHex)](Galaxy_Map_%28_aggStarHex%29.md) (10 shared connections)
 - [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (8 shared connections)
-- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (5 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (4 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (2 shared connections)
-- [Galaxy Map (_rtMayRun)](Galaxy_Map_%28_rtMayRun%29.md) (1 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (5 shared connections)
+- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (4 shared connections)
+- [Galaxy Map (_drawRoutes)](Galaxy_Map_%28_drawRoutes%29.md) (2 shared connections)
+- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 - [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (1 shared connections)
 
 ## Source Files
@@ -48,7 +48,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 202 (100%)
+- EXTRACTED: 190 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

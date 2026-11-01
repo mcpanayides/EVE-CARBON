@@ -38,7 +38,7 @@
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (20 shared connections)
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (8 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (5 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (3 shared connections)
 - [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
 
 ## Source Files

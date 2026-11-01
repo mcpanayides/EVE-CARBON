@@ -41,10 +41,10 @@
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 - [Alert Rules](Alert_Rules.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
 
 ## Source Files
 

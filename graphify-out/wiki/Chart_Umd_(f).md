@@ -1,6 +1,6 @@
 # Chart Umd (f)
 
-> 71 nodes · cohesion 0.07
+> 70 nodes · cohesion 0.07
 
 ## Key Concepts
 
@@ -29,21 +29,21 @@
 - **gs()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.updateElement()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
 - **oa()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 46 more nodes in this community*
+- *... and 45 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (55 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (42 shared connections)
-- [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (29 shared connections)
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) (27 shared connections)
-- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (21 shared connections)
-- [Chart Umd (n)](Chart_Umd_%28n%29.md) (8 shared connections)
-- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (8 shared connections)
-- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (6 shared connections)
-- [Chart Umd (jn)](Chart_Umd_%28jn%29.md) (3 shared connections)
-- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (3 shared connections)
-- [Chart Umd (ct)](Chart_Umd_%28ct%29.md) (3 shared connections)
+- [Chart Umd](Chart_Umd.md) (62 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (40 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (28 shared connections)
+- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (24 shared connections)
+- [Chart Umd (w)](Chart_Umd_%28w%29.md) (17 shared connections)
+- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (12 shared connections)
+- [Chart Umd (getParsed)](Chart_Umd_%28getParsed%29.md) (7 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (6 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (6 shared connections)
+- [Chart Umd (q)](Chart_Umd_%28q%29.md) (4 shared connections)
+- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (2 shared connections)
 
 ## Source Files
@@ -52,7 +52,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 501 (93%)
+- EXTRACTED: 500 (93%)
 - INFERRED: 35 (7%)
 - AMBIGUOUS: 0 (0%)
 

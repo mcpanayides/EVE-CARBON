@@ -34,11 +34,12 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
 - [Jabber Chat Rooms](Jabber_Chat_Rooms.md) (1 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
 - [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (1 shared connections)
 
 ## Source Files

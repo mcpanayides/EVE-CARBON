@@ -33,7 +33,8 @@
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (5 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (4 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

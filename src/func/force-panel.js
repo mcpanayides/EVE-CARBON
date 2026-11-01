@@ -144,7 +144,9 @@ async function _fpSyncWidget() {   // eslint-disable-line no-unused-vars
   _fpBuild();
   const w = document.getElementById('mapFpWidget');
   if (!w) return;
-  const on = _showFp;
+  // Inside a solar system the top-left corner is the system's name card, and
+  // force projection is about the galaxy around it.
+  const on = _showFp && !_solarScene();
   w.classList.toggle('is-hidden', !on);
   if (!on) return;
   _fpRender();

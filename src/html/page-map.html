@@ -176,5 +176,19 @@
     <!-- Colour legend (bottom-left) -->
     <div class="map-legend" id="mapLegend"></div>
 
+    <!-- Solar system view. The system's name card, top-left
+         while inside it, and the way in and out, bottom-centre: "View solar
+         system" over the map, the way back inside one. -->
+    <div class="map-sys-hud is-hidden" id="mapSysHud" aria-live="polite">
+      <div class="map-sys-hud-name" id="mapSysHudName"></div>
+      <div class="map-sys-hud-meta" id="mapSysHudMeta"></div>
+      <div class="map-sys-hud-count" id="mapSysHudCount"></div>
+      <div class="map-sys-hud-route" id="mapSysHudRoute"></div>
+    </div>
+    <button type="button" class="map-sys-btn is-hidden" id="mapSysBtn">
+      <span class="material-symbols-outlined" aria-hidden="true">orbit</span>
+      <span class="map-sys-btn-label">View solar system</span>
+    </button>
+
   </div>
 </div>

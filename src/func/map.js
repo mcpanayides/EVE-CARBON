@@ -640,6 +640,7 @@ function _fitGalaxy() {
 }
 
 function _adjustZoom(factor, cx, cy) {
+  if (_sys && _sys.anim) return;   // diving into a system or rising out: the camera is spoken for
   if (_viewMode === 'spatial') {
     _camCancelTween();        // scrolling mid-glide should not fight it
     // Zoom about the cursor, so the star you are aiming at stays put as you
@@ -2814,6 +2815,7 @@ function _spatialPoint(id) {
  * is what keeps Rens from bringing that back once you have flown elsewhere.
  */
 function _orbitPivotAt(cx, cy) {
+  if (_solarScene()) return _solarPivotAt();
   const W = _canvas.width, H = _canvas.height;
   const inView = (id) => {
     const p = _spatialPoint(id);
@@ -3457,7 +3459,7 @@ function _drawSelection(ctx, W, H, place) {
   ctx.fillStyle = col;
   ctx.fillText(s.name, x0, cy);
   if (sec) {
-    ctx.fillStyle = (_viewMode === 'modern' ? _secColorModern : _secColor)(s.sec);
+    ctx.fillStyle = Orrery.legible((_viewMode === 'modern' ? _secColorModern : _secColor)(s.sec));
     ctx.fillText(sec, x0 + wN, cy);
   }
   ctx.shadowBlur = 0;
@@ -3646,6 +3648,7 @@ function _enterRegion(regionId) {
 // this just backs out of a region (which has no "whole galaxy" context of its
 // own) instead of abandoning whichever mode the user actually has open.
 function _forceGalaxyView() {
+  if (_sys) _solarClose();           // out of a solar system, too: everything that calls this works in galaxy coords
   if (_regionView == null) return;   // already at a galaxy-level view, either mode
   _regionView = null;
   const sel = document.getElementById('mapRegionSelect');
@@ -4620,6 +4623,12 @@ function _paintRegionNebula(neb) {
   return _nebCanvas(density, _NEB_PX, core, edge, 300);
 }
 
+/**
+ * Whether the sky is at full strength. The data overlays dim it so their colours
+ * read over it; inside a solar system no overlay is colouring anything.
+ */
+function _skyFull() { return _overlay === 'natural' || _solarScene(); }
+
 /** The skybox: faint indigo dust that wraps round, and a scatter of distant stars. */
 function _paintSky() {
   const DW = 512, DH = 256, W = 2048, H = 1024;
@@ -4668,7 +4677,7 @@ function _drawSkybox(ctx, W, H) {
   let x0 = -((_camYaw / (Math.PI * 2)) * sw) % sw;
   if (x0 > 0) x0 -= sw;
   const y0 = Math.min(0, Math.max(H - sh, -(sh - H) / 2 + pitch * H * 0.18));
-  ctx.globalAlpha = (_overlay === 'natural' ? 1 : 0.55) * _nebFade(sky);
+  ctx.globalAlpha = (_skyFull() ? 1 : 0.55) * _nebFade(sky);
   for (let x = x0; x < W; x += sw) ctx.drawImage(sky.canvas, x, y0, sw, sh);
   ctx.globalAlpha = 1;
 }
@@ -4750,14 +4759,14 @@ function _regionGeometry() { return _nebGeometryNow().list; }
  * built up to the texture's bright core colour and blew the view out to a flat
  * pale wash. Now no pile of clouds is brighter than one.
  */
-function _drawRegionNebulae(ctx, W, H, t = _bgClock / 1000, scale = 1) {
+function _drawRegionNebulae(ctx, W, H, t = _bgClock / 1000, scale = 1, patches = _nebGeometryNow().patches) {
   const S = _spatialScale();
   // Painted far to near, not added: where clouds overlap on screen - and in 3-D
   // regions do, one behind another - the nearer shows in front. Added together
   // (screen blending) they summed towards white across the packed high-sec
   // core and drowned each region's own colour.
   const vis = [];
-  for (const g of _nebGeometryNow().patches) {
+  for (const g of patches) {
     const pr = _spatialProject({ tx: g.x, ty: g.y, tz: g.z });
     if (!pr) continue;
     const [cx, cy] = _spatialToCanvas(pr);
@@ -4806,9 +4815,17 @@ function _drawBackdrop() {
   const buf = _nebBuffer(W, H), b = buf.getContext('2d');
   b.setTransform(1, 0, 0, 1, 0, 0);
   b.clearRect(0, 0, buf.width, buf.height);
-  _drawRegionNebulae(b, W, H, _bgClock / 1000, buf.width / W);
+  // Inside a system the clouds are its region's, seen from its star - or, in
+  // wormhole space, its own sky (_solarWormholeSky) - turning with the view like
+  // a sky, never sliding with it.
+  if (_solarScene()) {
+    _withCam(Object.assign({}, _sys.bg, { yaw: _camYaw, pitch: _camPitch }),
+      () => _drawRegionNebulae(b, W, H, _bgClock / 1000, buf.width / W, _sys.clouds || undefined));
+  } else {
+    _drawRegionNebulae(b, W, H, _bgClock / 1000, buf.width / W);
+  }
   // The layer's strength, once: a backdrop, and data overlays need their colours.
-  ctx.globalAlpha = _overlay === 'natural' ? _NEB.natural : _NEB.data;
+  ctx.globalAlpha = _skyFull() ? _NEB.natural : _NEB.data;
   ctx.drawImage(buf, 0, 0, W, H);
   ctx.globalAlpha = 1;
   _drawGrain(ctx, W, H, buf);
@@ -5203,7 +5220,7 @@ function _skyDrawDust(ctx, W, H) {
   const f = _skyDust;
   if (!f) return;
   const clouds = _skyClouds(W, H);
-  const strength = _SKY.dust * (_overlay === 'natural' ? 1 : _NEB.data / _NEB.natural);
+  const strength = _SKY.dust * (_skyFull() ? 1 : _NEB.data / _NEB.natural);
   const F = f.F, cx = W / 2, cy = H / 2, gas = [0, 0, 0], tint = [0, 0, 0];
   ctx.lineCap = 'round';
   for (let i = 0; i < f.n; i++) {
@@ -5623,6 +5640,950 @@ function _renderSpatial() {
   _drawRouteExtras(ctx, W, H, (s) => _spatialCanvasOf(s.id));
 }
 
+// ─── The solar system view ────────────────────────────────────────────────────
+//
+// THESIS: a system you can turn over in your hand - every planet, gate and
+// station where the SDE puts it - not a list, and not the evenly spaced rings
+// of a schematic.
+// OWN-WORLD: the Spatial map's own: black space under the region's nebula,
+// hairline orbits in cool white, planets lit by their own sun, mono labels,
+// the accent only on what is selected.
+// STORY: pick a system, dive into its star, and find its gates - Jita's seven are
+// four parked beside Jita VIII and three out on a 42 AU shell, well out of the plane.
+// FIRST VIEWPORT: the sun in the middle, its tilted orbits filling most of the
+// view, every gate named with where it leads; the system's name top left, the
+// way back bottom centre, where "View solar system" was.
+// FORM: an extension of Spatial - its camera, controls and layers; distances
+// square-rooted, a planet's company spread round it by decades (orrery.js).
+//
+// It borrows the Spatial camera rather than keeping one of its own: the same
+// orbit, pan and zoom, with the galaxy's camera put aside on the way in and
+// handed back exactly on the way out. The backdrop stays the region the dive
+// went into - its clouds turn as you orbit, like a sky, and never slide - and
+// the dust keeps reacting to the camera, so moving round a system still feels
+// like flying.
+//
+// Every system with a star opens: that is all 5,485 of known space and the 2,599
+// of wormhole space on the map. Picked in the Schematic it runs on the same Spatial camera,
+// for as long as it is open, and hands the Schematic back untouched. Wormhole
+// space has no place on the Spatial map, so there, and from the Schematic, there
+// is no dive: it arrives in a flash of the star's light (Orrery.ENTER.flash).
+
+const _SOLAR = {
+  ring:  120,                       // points round an orbit
+  fit:   0.86,                      // of the view a fitted system fills
+  reach: 1100,                      // px a median gate jump spans where the dive ends: the neighbours are gone
+};
+// A planet's flat tint, only while its art loads - or if it is missing.
+const _SOLAR_TINT = {
+  gas: '#c4a582', temperate: '#6c9478', oceanic: '#3e72aa', ice: '#c5d7e6', lava: '#9c4430',
+  barren: '#8a6f5d', storm: '#68799a', plasma: '#9061b8', shattered: '#7b7980',
+};
+let _sys = null;          // the open system - see _solarOpen
+let _solarArt = null;     // planet kind -> a square of its lit surface (_solarSkin)
+
+/** The camera, all of it, as a value: to put aside and hand back. */
+function _camSnap() {
+  return { fx: _camFocusX, fy: _camFocusY, fz: _camFocusZ, yaw: _camYaw, pitch: _camPitch,
+           zoom: _camZoom, px: _camPanX, py: _camPanY, flat: _camFlat };
+}
+function _camLoad(c) {
+  _camFocusX = c.fx; _camFocusY = c.fy; _camFocusZ = c.fz; _camYaw = c.yaw; _camPitch = c.pitch;
+  _camZoom = c.zoom; _camPanX = c.px; _camPanY = c.py; _camFlat = c.flat;
+}
+/** Run `fn` with the camera set to `c`, then put it back. */
+function _withCam(c, fn) {
+  const was = _camSnap();
+  _camLoad(c);
+  try { return fn(); } finally { _camLoad(was); }
+}
+
+const _solarScene = () => !!_sys && _sys.scene === 'system';
+/** A security value's colour inside a system: the ramp of the view you came from, lifted so it reads. */
+const _solarSec = (sec) => Orrery.legible((_sys && _sys.from === 'modern' ? _secColorModern : _secColor)(sec));
+const _solarLerp  = (a, b, t) => a + (b - a) * t;
+
+/**
+ * Whether "View solar system" is on offer: a system selected, with a star in the
+ * SDE. Every system on the map has one - abyssal space and the test regions, which
+ * have nothing in them, never reach it - so this only ever says no with an SDE too
+ * old to carry stars, where there would be nothing to draw.
+ */
+function _solarOffered() {
+  return !_sys && !!_selected && !!_selected.star;
+}
+
+function _solarMayAnimate() {
+  return _mapVisible() && !_jbFxStill() && !document.body.classList.contains('app-unfocused');
+}
+
+/** The bottom-centre button and the system's name card, for wherever the map is now. */
+function _solarSyncUi() {
+  const btn = document.getElementById('mapSysBtn');
+  if (btn) {
+    const inside = !!_sys;
+    btn.classList.toggle('is-hidden', !(inside || _solarOffered()));
+    btn.classList.toggle('is-inside', inside);
+    btn.disabled = !!(_sys && _sys.anim);
+    const icon = btn.querySelector('.material-symbols-outlined');
+    const label = btn.querySelector('.map-sys-btn-label');
+    if (icon)  icon.textContent  = inside ? 'arrow_back' : 'orbit';
+    if (label) label.textContent = !inside ? 'View solar system' : _sys.from === 'spatial' ? 'Back to galaxy' : 'Back to map';
+  }
+  const hud = document.getElementById('mapSysHud');
+  if (hud) hud.classList.toggle('is-hidden', !_solarScene());
+}
+
+/** The planet art, each cut to a square of lit surface - once, in the background. */
+function _solarLoadArt() {
+  if (_solarArt) return;
+  _solarArt = new Map();
+  const api = window.eveAPI;
+  if (!api || typeof api.planetArt !== 'function') return;
+  Promise.resolve(api.planetArt()).then((urls) => {
+    for (const [kind, url] of Object.entries(urls || {})) {
+      const img = new Image();
+      img.onload = () => { _solarArt.set(kind, _solarSkin(img)); if (_sys) _scheduleRender(); };
+      img.src = url;
+    }
+  }).catch(() => { /* a flat tint stands in */ });
+}
+
+/**
+ * A square of a planet's surface, from its hero art. The art is a horizon close
+ * up, lit from the right - never a whole disc - so the lower right of every one
+ * is lit planet. Cut from there, it is shaded into a sphere as it is drawn.
+ */
+function _solarSkin(img) {
+  const side = img.height * 0.5;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  c.getContext('2d').drawImage(img, img.width * 0.56, img.height - side, side, side, 0, 0, 128, 128);
+  return c;
+}
+
+/** Open the selected system: read what is in it, then dive into its star. */
+async function _solarOpen() {
+  if (!_solarOffered()) return;
+  // The system itself, with its true position: one picked in Flat is a copy
+  // carrying its flat one, which would aim the backdrop at the wrong patch of sky.
+  const sys = _sysById[_selected.id] || _selected;
+  let rows;
+  try {
+    rows = await window.eveAPI.mapGetSystemContents(sys.id);
+  } catch (e) {
+    logToConsole(`[Map] ${sys.name}'s contents did not load: ${e.message}`, 'error');
+    return;
+  }
+  if (!_solarOffered() || _selected.id !== sys.id) return;     // the pilot moved on while it was read
+  const L = Orrery.layout(rows || []);
+  if (!L.planets.length && !L.gates.length && !L.stations.length) {
+    logToConsole(`[Map] The SDE has nothing in ${sys.name} to draw`, 'warning');
+    return;
+  }
+  _solarPrepare(L, sys);
+  _solarLoadArt();
+  _camCancelTween();
+  _routeRevealFinish();               // a route drawing in belongs to the galaxy
+  const gal = _camSnap();
+  // Only a star on the Spatial map, seen from the Spatial map, can be dived into.
+  const at = _viewMode === 'spatial' ? _spatialPoint(sys.id) : null;
+  let dive = null;
+  if (at) {
+    const to = Object.assign({}, gal, { fx: at.tx, fy: at.ty, fz: at.tz, px: 0, py: 0 });
+    to.zoom = _solarDeep(to);
+    dive = { from: gal, to };
+  }
+  // The sky inside: the region's clouds from the system's true place, or a
+  // wormhole's own. Never Flat: a system is always 3-D.
+  const known = sys.tx !== undefined;
+  const near = Object.assign({}, gal, known
+    ? { fx: sys.tx, fy: sys.ty, fz: sys.tz, px: 0, py: 0, flat: false }
+    : { fx: 0, fy: 0, fz: 0, px: 0, py: 0, flat: false, zoom: 1.2 });
+  if (known) near.zoom = _solarDeep(near);
+  _sys = {
+    id: sys.id, sys, L,
+    from: _viewMode,              // the view to go back to
+    gal,                          // the Spatial camera, handed back on the way out
+    dive,                         // from where you were into the star - null: a flash instead
+    rise: null,                   // and back out again
+    bg: near,                     // the backdrop's camera while inside
+    clouds: known ? null : _solarWormholeSky(sys),
+    scene: 'galaxy', bloom: 0, reveal: 0,
+    zFit: 1, sel: null, hover: null, hits: [], raf: 0,
+    anim: { kind: 'enter', t0: performance.now() },
+  };
+  _solarSyncUi();
+  if (_solarMayAnimate()) _solarTick();
+  else _solarFinish();
+}
+
+/** How far in a camera has to be for a median gate jump to span past the screen, the neighbours gone. */
+function _solarDeep(cam) {
+  return _withCam(cam, () => _camZoom * _SOLAR.reach / Math.max(1e-6, _medianGateLen() * _spatialPxPerUnit()));
+}
+
+/**
+ * The sky over a wormhole system. Anoikis has no place among the regions, so
+ * there are no clouds to borrow: a few of its own, in its region's family - the
+ * SDE gives wormhole regions a sky by class, as it gives the rest by faction -
+ * scattered round the view, the same each visit.
+ */
+function _solarWormholeSky(sys) {
+  const neb = Nebula.familyOf(_regionNebulae[sys.regionId]);
+  if (!neb) return [];
+  const r = Nebula.rng(Nebula.seedOf(String(sys.id)));
+  const out = [];
+  for (let i = 0; i < 16; i++) {
+    const y = r() * 2 - 1, a = r() * Math.PI * 2, h = Math.sqrt(1 - y * y), d = 0.4 + r() * 1.1;
+    out.push({
+      neb, x: h * Math.cos(a) * d, y: y * d, z: h * Math.sin(a) * d, r: 0.35 + r() * 0.45,
+      spin: r() * Math.PI * 2, w: (r() < 0.5 ? -1 : 1) * (0.006 + r() * 0.012), period: 26 + r() * 22, phase: r() * Math.PI * 2,
+    });
+  }
+  return out;
+}
+
+/** What drawing needs, worked out once: each primary's point and orbit, where each gate leads, how stations share a moon. */
+function _solarPrepare(L, sys) {
+  const byName = new Map(_systems.map(s => [s.name, s]));
+  const pt = (p) => ({ tx: p[0], ty: p[1], tz: p[2] });
+  for (const p of L.planets) {
+    p.pt = pt(p.p);
+    p.ring = Orrery.orbitRing(p.p, _SOLAR.ring).map(pt);
+  }
+  for (const b of [...L.gates, ...L.stations]) {
+    if (!b.parent) { b.pt = pt(b.p); b.foot = { tx: b.p[0], ty: 0, tz: b.p[2] }; }
+  }
+  for (const g of L.gates) {
+    g.to = byName.get(g.dest) || null;
+    g.crossesRegion = !!(g.to && g.to.regionId !== sys.regionId);
+  }
+  // Stations docked at one moon share its spot: set them side by side along it.
+  for (const p of L.planets) {
+    const at = new Map();
+    for (const st of p.stations) {
+      const key = st.moon ? st.moon.id : 'planet';
+      if (!at.has(key)) at.set(key, []);
+      at.get(key).push(st);
+    }
+    for (const list of at.values()) list.forEach((st, i) => { st.slot = i - (list.length - 1) / 2; });
+  }
+  // The reference circles, flat in the plane, so the squash can be read off them.
+  L.marks = Orrery.scaleMarks(L.extent)
+    .map(m => Object.assign(m, { ring: Array.from({ length: 96 }, (_, i) => {
+      const t = (i / 96) * Math.PI * 2;
+      return { tx: m.r * Math.cos(t), ty: 0, tz: m.r * Math.sin(t) };
+    }) }));
+}
+
+/** The zoom that fits the whole system - every orbit and far gate - round its sun, turned the way the camera is. */
+function _solarFitZoom() {
+  const L = _sys.L, W = _canvas.width, H = _canvas.height, S = _spatialScale();
+  return _withCam(Object.assign(_camSnap(), { fx: 0, fy: 0, fz: 0, px: 0, py: 0, zoom: 1, flat: false }), () => {
+    let need = 0;
+    const take = (q) => {
+      const pr = _spatialProject(q);
+      if (pr) need = Math.max(need, Math.abs(pr.x * S) / (W / 2), Math.abs(pr.y * S) / (H / 2));
+    };
+    for (const p of L.planets) for (let i = 0; i < p.ring.length; i += 4) take(p.ring[i]);
+    for (const b of [...L.gates, ...L.stations]) if (b.pt) take(b.pt);
+    return need > 0 ? _SOLAR.fit / need : 1;
+  });
+}
+
+/** F inside a system: the whole of it again, round its sun, turned the way you have it. */
+function _solarFit() {
+  _camCancelTween();
+  _camFocusX = 0; _camFocusY = 0; _camFocusZ = 0;
+  _camPanX = 0; _camPanY = 0;
+  _sys.zFit = _solarFitZoom();
+  _camZoom = _sys.zFit;
+}
+
+/** The light at its height: change scenes - into the system's own space, close in on the sun. */
+function _solarSwap() {
+  const s = _sys, g = _camSnap();
+  s.scene = 'system';
+  _viewMode = 'spatial';                                 // the camera, input and layers all follow from this
+  _hovered = null; _hoveredRegion = null; _hoveredExit = null;
+  _camFlat = false;
+  _camFocusX = 0; _camFocusY = 0; _camFocusZ = 0;
+  _camPanX = 0; _camPanY = 0;
+  _camYaw = g.yaw;                                       // turned as the galaxy was: north is still north
+  _camPitch = Math.max(0.55, Math.min(1.25, g.pitch));
+  s.zFit = _solarFitZoom();
+  _camZoom = s.zFit * Orrery.ZOOM_IN;
+  _solarHud();
+  _solarSyncUi();
+  _updateLegend();
+}
+
+/** Back out of the light: the galaxy where the dive went in, turned the way you left the system - or the map as it was. */
+function _solarUnswap() {
+  const s = _sys, was = s.anim.sysCam;
+  s.scene = 'galaxy';
+  _viewMode = s.from;
+  if (s.dive) s.rise = { from: Object.assign({}, s.dive.to, { yaw: was.yaw, pitch: was.pitch, flat: s.gal.flat }), to: s.gal };
+  _camLoad(s.rise ? s.rise.from : s.gal);
+  _solarSyncUi();
+  _updateLegend();
+}
+
+/** The dive at `u` (0..1): onto the star early, then in - faster and faster. */
+function _solarDiveCam(u) {
+  const { from: a, to: b } = _sys.dive;
+  const f = Orrery.easeInOut(Math.min(1, u / 0.7));
+  _camFocusX = _solarLerp(a.fx, b.fx, f); _camFocusY = _solarLerp(a.fy, b.fy, f); _camFocusZ = _solarLerp(a.fz, b.fz, f);
+  _camPanX = _solarLerp(a.px, 0, f); _camPanY = _solarLerp(a.py, 0, f);
+  _camZoom = a.zoom * Math.pow(b.zoom / a.zoom, Orrery.easeIn(u));
+}
+
+/** Rising out at `u`: back to the galaxy camera you left, slowing as it arrives. */
+function _solarRiseCam(u) {
+  const { from: a, to: b } = _sys.rise;
+  const f = Orrery.easeInOut(u);
+  let turn = (b.yaw - a.yaw) % (Math.PI * 2);            // the short way round
+  if (turn > Math.PI) turn -= Math.PI * 2;
+  if (turn < -Math.PI) turn += Math.PI * 2;
+  _camFocusX = _solarLerp(a.fx, b.fx, f); _camFocusY = _solarLerp(a.fy, b.fy, f); _camFocusZ = _solarLerp(a.fz, b.fz, f);
+  _camPanX = _solarLerp(a.px, b.px, f); _camPanY = _solarLerp(a.py, b.py, f);
+  _camYaw = a.yaw + turn * f;
+  _camPitch = _solarLerp(a.pitch, b.pitch, f);
+  _camZoom = a.zoom * Math.pow(b.zoom / a.zoom, Orrery.easeOut(u));
+}
+
+/** One frame of arriving or leaving: the camera for this moment, then the map. */
+function _solarTick() {
+  const s = _sys;
+  if (!s) return;
+  s.raf = 0;
+  if (!s.anim) return;
+  if (!_solarMayAnimate()) { _solarFinish(); return; }      // nobody watching: land where it ends
+  const ms = performance.now() - s.anim.t0;
+  if (s.anim.kind === 'enter') {
+    const a = Orrery.arrival(ms, s.dive ? Orrery.ENTER.dive : Orrery.ENTER.flash);
+    if (a.scene === 'galaxy') { if (s.dive) _solarDiveCam(a.dive); }
+    else {
+      if (s.scene !== 'system') _solarSwap();
+      _camZoom = s.zFit * Math.pow(Orrery.ZOOM_IN, 1 - Orrery.easeOut(a.reveal));
+    }
+    s.bloom = a.bloom;
+    s.reveal = a.reveal;
+    if (a.done) { s.anim = null; s.bloom = 0; _solarSyncUi(); }
+  } else {
+    const d = Orrery.departure(ms, s.dive ? Orrery.LEAVE.rise : Orrery.LEAVE.fade);
+    if (d.scene === 'system') {
+      // Back to the sun from wherever you had flown, and in.
+      const c = s.anim.sysCam, f = Orrery.easeInOut(d.sink);
+      _camFocusX = _solarLerp(c.fx, 0, f); _camFocusY = _solarLerp(c.fy, 0, f); _camFocusZ = _solarLerp(c.fz, 0, f);
+      _camPanX = _solarLerp(c.px, 0, f); _camPanY = _solarLerp(c.py, 0, f);
+      _camZoom = c.zoom * Math.pow(s.zFit * Orrery.ZOOM_IN / c.zoom, Orrery.easeIn(d.sink));
+    } else {
+      if (s.scene !== 'galaxy') _solarUnswap();
+      if (s.rise) _solarRiseCam(d.rise);
+    }
+    s.bloom = d.bloom;
+    if (d.done) { _solarClose(); return; }
+  }
+  _render();
+  if (_sys && _sys.anim) _sys.raf = requestAnimationFrame(_solarTick);
+}
+
+/** Land wherever the running transition ends - for when nobody is watching it play. */
+function _solarFinish() {
+  const s = _sys;
+  if (!s) return;
+  if (s.raf) { cancelAnimationFrame(s.raf); s.raf = 0; }
+  if (s.anim && s.anim.kind === 'leave') { _solarClose(); return; }
+  if (s.scene !== 'system') { if (s.dive) _camLoad(s.dive.to); _solarSwap(); }
+  if (s.anim) _camZoom = s.zFit;
+  s.anim = null; s.bloom = 0; s.reveal = 1;
+  _solarSyncUi();
+  _render();
+}
+
+/** Back to the galaxy: into the sun, and out where you came in. */
+function _solarLeave() {
+  const s = _sys;
+  if (!s || s.anim) return;
+  s.sel = null; s.hover = null;
+  _solarTip(null);
+  _camCancelTween();
+  s.anim = { kind: 'leave', t0: performance.now(), sysCam: _camSnap() };
+  _solarSyncUi();
+  if (_solarMayAnimate()) _solarTick();
+  else _solarClose();
+}
+
+/** Out for good: the view it was opened from and the camera exactly as they were, and the system selected, as it was. */
+function _solarClose() {
+  const s = _sys;
+  if (!s) return;
+  if (s.raf) cancelAnimationFrame(s.raf);
+  _camLoad(s.gal);
+  _viewMode = s.from;
+  _sys = null;
+  _solarTip(null);
+  _solarSyncUi();
+  _updateLegend();
+  _showInfo(s.sys);       // its own panel back, in place of whatever was picked inside it
+  _render();
+}
+
+/** The star's light over the map, going into a system or coming out: on the star if there is a dive, else the middle of the view, where the sun will be. */
+function _solarGlare() {
+  if (!_sys || !(_sys.bloom > 0) || _solarScene()) return;
+  const W = _canvas.width, H = _canvas.height;
+  const c = (_sys.dive && _spatialCanvasOf(_sys.id)) || [W / 2, H / 2];
+  _solarBloom(_ctx, W, H, c[0], c[1], _sys.bloom);
+}
+
+/** A star's light swelling over the view: centre white, then its own colour, reaching `k` (0..1) of the way out. */
+function _solarBloom(ctx, W, H, x, y, k, hex) {
+  if (!(k > 0.002)) return;
+  const col = hex || (_sys && _sys.sys.starHex) || _STAR_FALLBACK;
+  const R = 30 + Math.max(W, H) * 0.95 * k;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+  g.addColorStop(0,    `rgba(255,255,255,${(0.95 * k).toFixed(3)})`);
+  g.addColorStop(0.18, _rgba(col, 0.85 * k));
+  g.addColorStop(0.5,  _rgba(col, 0.32 * k));
+  g.addColorStop(1,    _rgba(col, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+/** A planet's radius on screen: bigger planets bigger, gently, and a little larger as you fly in. */
+function _solarPlanetPx(p, zr) {
+  const base = Math.max(2.6, Math.min(16, 2.4 * Math.pow(Math.max(3e5, p.radius || 3e6) / 1e6, 0.42)));
+  return Math.min(44, base * Math.pow(Math.max(1, zr), 0.3));
+}
+
+/** Where the route plotted on the map comes into this system and leaves it: gate -> 'in' | 'out'. */
+function _solarRouteRoles() {
+  const roles = new Map();
+  if (!_sys || !_routeIds) return roles;
+  const i = _routeIds.indexOf(_sys.id);
+  if (i < 0) return roles;
+  const prev = i > 0 ? _sysById[_routeIds[i - 1]] : null;
+  const next = i < _routeIds.length - 1 ? _sysById[_routeIds[i + 1]] : null;
+  for (const g of _sys.L.gates) {
+    if (prev && g.to === prev) roles.set(g, 'in');
+    if (next && g.to === next) roles.set(g, 'out');
+  }
+  return roles;
+}
+
+/** The system drawn: reference circles, orbits, sun, planets with their company, gates, then the names over all. */
+function _renderSystem() {
+  const ctx = _ctx, W = _canvas.width, H = _canvas.height, s = _sys, L = s.L;
+  ctx.clearRect(0, 0, W, H);
+  const zr = _camZoom / s.zFit;                  // how far in, against the fitted view
+  const rv = s.reveal;
+  const near = (depth) => Math.max(0, Math.min(1, 0.5 + (_SPATIAL_DIST - depth) * 0.5));
+  const proj = (q) => {
+    const pr = _spatialProject(q);
+    if (!pr) return null;
+    const [x, y] = _spatialToCanvas(pr);
+    return { x, y, depth: pr.depth, t: near(pr.depth) };
+  };
+  const hex = s.sys.starHex || _STAR_FALLBACK;
+  const accent = _accent();
+  const roles = _solarRouteRoles();
+  const labels = [];
+  s.hits = [];
+  const sun = proj({ tx: 0, ty: 0, tz: 0 });
+
+  // ── The scale: a short arc of 1, 5, 10, 20 AU... flat in the plane, on the
+  // side nearest you, strung on a line from the sun. Their spacing is the
+  // squash, laid bare - without a full ring each to compete with the orbits.
+  const markA = Orrery.smooth(0.45, 0.9, rv);
+  if (markA > 0.01) {
+    ctx.lineWidth = 1;
+    let spine = null;
+    for (const m of L.marks) {
+      const cs = m.ring.map(proj);
+      let lo = -1;
+      cs.forEach((c, j) => { if (c && (lo < 0 || c.y > cs[lo].y)) lo = j; });
+      if (lo < 0) continue;
+      ctx.strokeStyle = `rgba(190,205,230,${(0.22 * markA).toFixed(3)})`;
+      ctx.beginPath();
+      let pen = false;
+      for (let k = -5; k <= 5; k++) {
+        const c = cs[(lo + k + cs.length) % cs.length];
+        if (!c) { pen = false; continue; }
+        if (pen) ctx.lineTo(c.x, c.y); else ctx.moveTo(c.x, c.y);
+        pen = true;
+      }
+      ctx.stroke();
+      spine = cs[lo];
+      labels.push({ x: cs[lo].x, y: cs[lo].y + 9, r: 0, pri: 9, a: 0.7 * markA, fixed: true,
+        runs: [{ t: `${m.au} AU`, font: _mono(9), col: 'rgba(170,186,214,1)' }] });
+    }
+    if (sun && spine) {
+      ctx.setLineDash([2, 4]);
+      ctx.strokeStyle = `rgba(190,205,230,${(0.1 * markA).toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(sun.x, sun.y); ctx.lineTo(spine.x, spine.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ── Orbits, drawn out from their planets as the system opens; the near side brighter.
+  const n = L.planets.length;
+  L.planets.forEach((p, i) => {
+    const share = Orrery.ringShare(i, n, rv);
+    if (share <= 0) return;
+    const pts = p.ring, end = Math.round(share * pts.length);
+    const picked = !!s.sel && (s.sel === p || s.sel.parent === p);
+    ctx.lineWidth = picked ? 1.3 : 1;
+    let prev = proj(pts[0]);
+    for (let j = 1; j <= end; j++) {
+      const c = proj(pts[j % pts.length]);
+      if (prev && c) {
+        const a = picked ? 0.55 : 0.06 + 0.17 * (prev.t + c.t) / 2;
+        ctx.strokeStyle = picked ? _rgba(accent, a) : `rgba(200,214,240,${a.toFixed(3)})`;
+        ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+      }
+      prev = c;
+    }
+  });
+
+  // ── Whatever stands out on its own: a line down to the plane, so its height reads.
+  const farA = Orrery.smooth(0.5, 0.78, rv);
+  if (farA > 0) {
+    ctx.setLineDash([2, 3]);
+    ctx.lineWidth = 1;
+    for (const g of [...L.gates, ...L.stations]) {
+      if (!g.pt) continue;
+      const a = proj(g.pt), b = proj(g.foot);
+      if (!a || !b) continue;
+      ctx.strokeStyle = `rgba(200,214,240,${(0.18 * farA).toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.fillStyle = `rgba(200,214,240,${(0.35 * farA).toFixed(3)})`;
+      ctx.fillRect(b.x - 1, b.y - 1, 2, 2);
+    }
+    ctx.setLineDash([]);
+  }
+
+  // ── The sun: its glow and flare added to the sky, a white-hot disc at the heart.
+  if (sun) {
+    const core = Math.max(5, Math.min(70, 8.5 * Math.pow(zr, 0.45)));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const G = core * 7, F = core * 11;
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(_orbSprite(hex), sun.x - G, sun.y - G, G * 2, G * 2);
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(_mip(_heroSprite(hex), F), sun.x - F / 2, sun.y - F / 2, F, F);
+    ctx.globalAlpha = 1;
+    const cg = ctx.createRadialGradient(sun.x, sun.y, 0, sun.x, sun.y, core);
+    cg.addColorStop(0, 'rgba(255,255,255,1)');
+    cg.addColorStop(0.65, 'rgba(255,255,255,0.95)');
+    cg.addColorStop(1, _rgba(hex, 0));
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.arc(sun.x, sun.y, core, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (L.sun) s.hits.push({ b: L.sun, x: sun.x, y: sun.y, r: core + 4, pri: 5 });
+  }
+
+  // ── Planets with their company, and whatever stands alone: back to front.
+  const items = [];
+  for (const p of L.planets) { const c = proj(p.pt); if (c) items.push({ p, c }); }
+  for (const b of [...L.gates, ...L.stations]) { if (b.pt) { const c = proj(b.pt); if (c) items.push({ b, c }); } }
+  items.sort((a, b) => b.c.depth - a.c.depth);
+  for (const it of items) {
+    if (it.p) { _solarDrawPlanet(ctx, it.p, it.c, sun, zr, rv, n, labels, roles); continue; }
+    const a = farA * (0.55 + 0.45 * it.c.t);
+    if (a <= 0.01) continue;
+    if (it.b.kind === 'gate') _solarDrawGate(ctx, it.b, it.c.x, it.c.y, 4.5, a, labels, roles, 1);
+    else _solarDrawStation(ctx, it.b, it.c.x, it.c.y, a, true, labels);
+  }
+
+  // ── Names, most important first, each kept clear of the others and off the marks.
+  _solarLabels(ctx, labels, Orrery.smooth(0.72, 0.98, rv), s.hits);
+
+  // ── What is picked, and what is under the cursor.
+  const ring = (b, col, width) => {
+    const h = s.hits.find(q => q.b === b);
+    if (!h) return;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 4;
+    ctx.strokeStyle = col; ctx.lineWidth = width;
+    ctx.beginPath(); ctx.arc(h.x, h.y, Math.max(7, h.r + 3), 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  };
+  if (s.hover && s.hover !== s.sel) ring(s.hover, 'rgba(255,255,255,0.55)', 1);
+  if (s.sel) ring(s.sel, accent, 2);
+
+  if (sun && s.bloom > 0) _solarBloom(ctx, W, H, sun.x, sun.y, s.bloom, hex);
+}
+
+/**
+ * One planet and everything beside it. Its company keeps its true direction
+ * from the planet - turned with the camera, so a planet's moons swing round it
+ * as you orbit - and sits off the disc by the decades of its true distance.
+ * What is behind the planet is drawn before it, what is in front after.
+ */
+function _solarDrawPlanet(ctx, p, c, sun, zr, rv, n, labels, roles) {
+  const s = _sys, i = s.L.planets.indexOf(p);
+  const shown = Orrery.planetShare(i, n, rv);
+  if (shown <= 0.01) return;
+  const pr = _solarPlanetPx(p, zr);
+  const a = shown * (0.55 + 0.45 * c.t);
+  const company = [];
+  for (const b of [...p.moons, ...p.belts, ...p.stations, ...p.gates]) {
+    const v = _camToView(b.dir[0], b.dir[1], b.dir[2], _camYaw, _camPitch);
+    const d = Orrery.spreadPx(b.k, pr, zr);
+    let x = c.x + v[0] * d, y = c.y + v[1] * d;
+    if (b.kind === 'station' && b.slot) {
+      // Side by side along their moon, so two stations at one moon are two marks.
+      const l = Math.hypot(v[0], v[1]) || 1;
+      x += (-v[1] / l) * b.slot * 5;
+      y += (v[0] / l) * b.slot * 5;
+    }
+    company.push({ b, x, y, behind: v[2] > 0 });
+  }
+  const drawOne = (q) => {
+    const b = q.b;
+    if (b.kind === 'moon') {
+      const r = Math.max(1.1, Math.min(3.2, 0.75 * Math.pow(Math.max(1e5, b.radius || 1e6) / 1e6, 0.4))) * Math.pow(Math.max(1, zr), 0.2);
+      ctx.fillStyle = `rgba(198,204,214,${(a * (q.behind ? 0.6 : 0.95)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, Math.PI * 2); ctx.fill();
+      s.hits.push({ b, x: q.x, y: q.y, r: r + 2, pri: 4 });
+      if (zr > 9) labels.push({ x: q.x, y: q.y, r: r + 1, pri: 6, a, runs: [{ t: `Moon ${b.index}`, font: _mono(9), col: 'rgba(170,180,198,1)' }] });
+    } else if (b.kind === 'belt') {
+      ctx.fillStyle = `rgba(190,180,160,${(a * 0.8).toFixed(3)})`;
+      for (const k of [-3, 0, 3]) ctx.fillRect(q.x + k - 0.7, q.y - 0.7 + Math.abs(k) * 0.3, 1.4, 1.4);
+      s.hits.push({ b, x: q.x, y: q.y, r: 5, pri: 4 });
+      if (zr > 9) labels.push({ x: q.x, y: q.y, r: 4, pri: 6, a, runs: [{ t: `Belt ${b.index}`, font: _mono(9), col: 'rgba(170,180,198,1)' }] });
+    } else if (b.kind === 'station') {
+      _solarDrawStation(ctx, b, q.x, q.y, a * (q.behind ? 0.65 : 1), zr > 3.5, labels);
+    } else if (b.kind === 'gate') {
+      _solarDrawGate(ctx, b, q.x, q.y, 3.6, a, labels, roles, 1);
+    }
+  };
+  for (const q of company) if (q.behind) drawOne(q);
+  _solarPlanetDisc(ctx, p, c.x, c.y, pr, sun, a);
+  s.hits.push({ b: p, x: c.x, y: c.y, r: pr + 2, pri: 3 });
+  for (const q of company) if (!q.behind) drawOne(q);
+  labels.push({ x: c.x, y: c.y, r: pr, pri: 3, a: shown,
+    runs: [{ t: p.numeral, font: _mono(11, 'bold'), col: 'rgba(226,232,244,1)' },
+           { t: '  ' + _solarKindLabel(p), font: _mono(10), col: 'rgba(160,172,194,1)' }] });
+}
+
+/** An NPC station: a small square. A trade hub, or one standing alone with no planet near, is always named; the rest once you are close. */
+function _solarDrawStation(ctx, b, x, y, a, named, labels) {
+  ctx.fillStyle = `rgba(226,232,244,${a.toFixed(3)})`;
+  ctx.fillRect(x - 1.6, y - 1.6, 3.2, 3.2);
+  _sys.hits.push({ b, x, y, r: 5, pri: 2 });
+  const hub = !b.parent || /trade hub/i.test(b.typeName || '');
+  if (hub || named) labels.push({ x, y, r: 3, pri: hub ? 2 : 5, a,
+    runs: [{ t: b.short, font: _mono(hub ? 10 : 9), col: hub ? 'rgba(226,232,244,1)' : 'rgba(176,188,208,1)' }] });
+}
+
+/**
+ * A planet's disc: a square of its own surface, shaded into a ball lit by its
+ * sun - the light from where the sun is, and the night side turned to you
+ * when the sun is behind it.
+ */
+function _solarPlanetDisc(ctx, p, x, y, r, sun, a) {
+  const skin = _solarArt && _solarArt.get(p.skin);
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+  if (skin) ctx.drawImage(skin, x - r, y - r, r * 2, r * 2);
+  else { ctx.fillStyle = _SOLAR_TINT[p.skin] || '#8a8f99'; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+  const pv = _camToView(p.p[0] - _camFocusX, p.p[1] - _camFocusY, p.p[2] - _camFocusZ, _camYaw, _camPitch);
+  const sv = _camToView(-_camFocusX, -_camFocusY, -_camFocusZ, _camYaw, _camPitch);
+  let lx = sv[0] - pv[0], ly = sv[1] - pv[1], lz = sv[2] - pv[2];
+  const l = Math.hypot(lx, ly, lz) || 1;
+  lx /= l; ly /= l; lz /= l;
+  // The sun beyond it: more of it in shadow. Less on a small disc, where a proper
+  // terminator leaves a few dark pixels that read as a hole rather than a planet.
+  const small = Math.max(0, Math.min(1, (r - 3) / 7));
+  const night = (0.28 + 0.27 * small) + (0.25 + 0.15 * small) * Math.max(0, lz);
+  const g = ctx.createRadialGradient(x + lx * r * 0.6, y + ly * r * 0.6, r * 0.1, x - lx * r * 0.25, y - ly * r * 0.25, r * 1.3);
+  g.addColorStop(0,   'rgba(0,0,0,0)');
+  g.addColorStop(0.5, `rgba(0,0,0,${(night * 0.45).toFixed(3)})`);
+  g.addColorStop(1,   `rgba(0,0,0,${Math.min(0.96, night + 0.3).toFixed(3)})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  ctx.restore();
+  if (r > 3.5 && lz < 0.6) {                                  // a thin rim of light on the sunward limb
+    const at = Math.atan2(ly, lx);
+    ctx.strokeStyle = `rgba(255,255,255,${(0.28 * a).toFixed(3)})`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.arc(x, y, r - 0.4, at - 1.1, at + 1.1); ctx.stroke();
+  }
+}
+
+/** A stargate: a diamond in the colour of where it leads, named, and ringed when the plotted route uses it. */
+function _solarDrawGate(ctx, g, x, y, r, a, labels, roles, pri) {
+  const to = g.to;
+  const col = to ? _solarSec(to.sec) : 'rgba(200,210,230,1)';
+  ctx.beginPath();
+  ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(8,10,16,0.75)';
+  ctx.fill();
+  ctx.strokeStyle = _rgba(col, a);
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.fillStyle = _rgba(col, a);
+  ctx.fillRect(x - 0.9, y - 0.9, 1.8, 1.8);
+  const role = roles.get(g);
+  if (role) {
+    ctx.strokeStyle = `rgba(96,200,255,${a.toFixed(3)})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x, y, r + 4, 0, Math.PI * 2); ctx.stroke();
+  }
+  _sys.hits.push({ b: g, x, y, r: r + 4, pri: 1 });
+  const runs = [{ t: g.dest, font: _mono(10), col: 'rgba(222,230,244,1)' }];
+  if (to && to.sec != null) runs.push({ t: ' ' + _secText(to.sec), font: _mono(10), col: _rgba(col, 1) });
+  if (g.crossesRegion && to) runs.push({ t: ' · ' + (_regions[to.regionId] || ''), font: _mono(9), col: 'rgba(160,172,194,1)' });
+  if (role) runs.push({ t: role === 'in' ? '  ROUTE IN' : '  ROUTE OUT', font: _mono(9, 'bold'), col: 'rgba(96,200,255,1)' });
+  labels.push({ x, y, r, pri, a, runs });
+}
+
+/**
+ * Lay the names down, most important first: beside their mark if there is
+ * room, else stepped above or below it on a thin leader, so a planet with four
+ * gates parked by it reads as a short list rather than a smudge. Names keep off
+ * the marks themselves (`marks`, the frame's hit circles), each other, the
+ * panels floating over the map and the edges of the view. Gates and planets
+ * always find a place; a lesser name that would cover something is left out.
+ */
+function _solarLabels(ctx, labels, k, marks) {
+  if (k <= 0.01) return;
+  labels.sort((p, q) => p.pri - q.pri);
+  const placed = (marks || []).map(m => {
+    const r = Math.min(m.r, 16);
+    return { x: m.x - r, y: m.y - r, w: r * 2, h: r * 2 };
+  });
+  const view = _canvas.getBoundingClientRect();
+  for (const el of document.querySelectorAll('#mapLegend, #mapSysHud, #mapInfoPanel, #mapSysBtn, .map-zoom-controls')) {
+    const b = el.getBoundingClientRect();
+    if (b.width && b.height) placed.push({ x: b.left - view.left, y: b.top - view.top, w: b.width, h: b.height });
+  }
+  const W = _canvas.width, H = _canvas.height;
+  const free = (x, y, w, h) => x >= 0 && y >= 0 && x + w <= W && y + h <= H
+    && !placed.some(b => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  for (const lb of labels) {
+    let w = 0;
+    for (const r of lb.runs) { ctx.font = r.font; r.w = ctx.measureText(r.t).width; w += r.w; }
+    const h = 12;
+    let at = null;
+    if (lb.fixed) {
+      if (free(lb.x - w / 2 - 1, lb.y - h / 2, w + 2, h)) at = { x: lb.x - w / 2, y: lb.y, dy: 0 };
+    } else {
+      const gap = lb.r + 5;
+      const tries = [[gap, 0], [-gap - w, 0]];
+      const rows = lb.pri <= 1 ? 7 : lb.pri <= 3 ? 4 : 1;
+      for (let i = 1; i <= rows; i++) tries.push([gap + 6, i * h], [gap + 6, -i * h], [-gap - 6 - w, i * h], [-gap - 6 - w, -i * h]);
+      for (const [dx, dy] of tries) {
+        const x = lb.x + dx, y = lb.y + dy;
+        if (free(x - 1, y - h / 2, w + 2, h)) { at = { x, y, dy }; break; }
+      }
+      if (!at && lb.pri <= 3) at = { x: lb.x + gap, y: lb.y, dy: 0 };
+    }
+    if (!at) continue;
+    placed.push({ x: at.x - 1, y: at.y - h / 2, w: w + 2, h });
+    const a = Math.min(1, lb.a * k);
+    if (at.dy) {
+      // Stepped off its mark: a hairline back to it.
+      const right = at.x > lb.x;
+      ctx.globalAlpha = a * 0.45;
+      ctx.strokeStyle = 'rgba(200,214,240,1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(lb.x + (right ? lb.r + 1 : -lb.r - 1), lb.y);
+      ctx.lineTo(right ? at.x - 2 : at.x + w + 2, at.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = a;
+    ctx.shadowColor = 'rgba(0,0,0,0.92)';
+    ctx.shadowBlur = 3;
+    let x = at.x;
+    for (const r of lb.runs) { ctx.font = r.font; ctx.fillStyle = r.col; ctx.fillText(r.t, x, at.y); x += r.w; }
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+/** The system's name card: what it is, and - with a route through it - which gates the route uses. */
+function _solarHud() {
+  const s = _sys, L = s.L, sys = s.sys;
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  const m = /^Sun\s+(\S+)\s*\(([^)]+)\)/i.exec((L.sun && L.sun.typeName) || '');
+  const star = m ? `${m[1]} ${m[2].toLowerCase()} star` : '';
+  const sec = sys.sec == null ? '' : _secText(sys.sec);
+  set('mapSysHudName', _esc(sys.name));
+  set('mapSysHudMeta', [
+    _esc(_regions[sys.regionId] || ''),
+    sec ? `<span class="map-sys-hud-sec" style="color:${_solarSec(sys.sec)}">${sec}</span>` : '',
+    _esc(star),
+  ].filter(Boolean).join(' · '));
+  const count = (n, one, many) => n ? `${n} ${n === 1 ? one : many}` : '';
+  set('mapSysHudCount', [
+    count(L.planets.length, 'planet', 'planets'), count(L.moons.length, 'moon', 'moons'),
+    count(L.belts.length, 'belt', 'belts'), count(L.gates.length, 'stargate', 'stargates'),
+    count(L.stations.length, 'station', 'stations'),
+  ].filter(Boolean).join(' · '));
+  const roles = _solarRouteRoles();
+  const gin = [...roles].find(([, r]) => r === 'in'), gout = [...roles].find(([, r]) => r === 'out');
+  let route = '';
+  if (gin || gout) {
+    const parts = [];
+    if (gin) parts.push(`in from ${_esc(gin[0].dest)}`);
+    if (gout) parts.push(`out to ${_esc(gout[0].dest)}`);
+    if (gin && gout) parts.push(`${_solarDistance(Math.hypot(gin[0].m[0] - gout[0].m[0], gin[0].m[1] - gout[0].m[1], gin[0].m[2] - gout[0].m[2]))} apart`);
+    route = `<span class="map-sys-hud-route-label">ROUTE</span> ${parts.join(' · ')}`;
+  }
+  set('mapSysHudRoute', route);
+}
+
+/** "gas" → "Gas", as the map names a planet's kind. */
+function _solarKindLabel(p) {
+  return p.planetKind.charAt(0).toUpperCase() + p.planetKind.slice(1);
+}
+
+/** A distance the way a pilot reads one: km up close, AU across a system. */
+function _solarDistance(m) {
+  if (m < 0.01 * Orrery.AU) return `${Math.round(m / 1000).toLocaleString('en-GB')} km`;
+  const au = m / Orrery.AU;
+  return `${au < 10 ? au.toFixed(2) : au.toFixed(1)} AU`;
+}
+
+/** The info panel, for whatever is picked inside the system. */
+function _solarShowInfo(b) {
+  const panel = document.getElementById('mapInfoPanel');
+  const nameEl = document.getElementById('mapInfoSystemName');
+  const bodyEl = document.getElementById('mapInfoBody');
+  if (!panel || !nameEl || !bodyEl) return;
+  const row = (label, value) =>
+    `<div class="map-info-row"><span class="map-info-label">${label}</span><span class="map-info-value">${value}</span></div>`;
+  const sys = _sys.sys;
+  const fromSun = b.au != null ? row('FROM SUN', _solarDistance(b.au * Orrery.AU)) : '';
+  let title = b.name, rows = '';
+  if (b.kind === 'sun') {
+    const m = /^Sun\s+(\S+)\s*\(([^)]+)\)/i.exec(b.typeName || '');
+    title = `${sys.name} · star`;
+    rows = row('CLASS', _esc(m ? `${m[1]} · ${m[2]}` : (b.typeName || '—')))
+         + (b.radius ? row('RADIUS', _solarDistance(b.radius)) : '');
+  } else if (b.kind === 'planet') {
+    rows = row('TYPE', _esc(_solarKindLabel(b)))
+         + (b.radius ? row('RADIUS', _solarDistance(b.radius)) : '') + fromSun
+         + row('MOONS', String(b.moons.length))
+         + (b.stations.length ? row('STATIONS', String(b.stations.length)) : '')
+         + (b.gates.length ? row('STARGATES', b.gates.map(g => _esc(g.dest)).join(', ')) : '');
+  } else if (b.kind === 'moon' || b.kind === 'belt') {
+    const docked = _sys.L.stations.filter(st => st.moon === b);
+    rows = row('ORBITS', _esc(b.parent.name)) + row('FROM PLANET', _solarDistance(b.d)) + fromSun
+         + (docked.length ? row('STATIONS', docked.map(st => _esc(st.short)).join('<br>')) : '');
+  } else if (b.kind === 'station') {
+    title = b.short;
+    rows = row('AT', _esc(b.where)) + row('TYPE', _esc(b.typeName || '—')) + fromSun;
+  } else if (b.kind === 'gate') {
+    const to = b.to;
+    title = `Stargate · ${b.dest}`;
+    const sec = to && to.sec != null ? ` <span style="color:${_solarSec(to.sec)};">${_secText(to.sec)}</span>` : '';
+    rows = row('LEADS TO', _esc(b.dest) + sec)
+         + (to ? row('REGION', _esc(_regions[to.regionId] || '—')) : '')
+         + row('REACH', b.reach === 'region' ? 'Regional gate' : b.reach === 'constellation' ? 'Constellation gate' : 'System gate')
+         + fromSun
+         + (b.parent ? row('BESIDE', `${_esc(b.parent.name)} · ${_solarDistance(b.d)}`) : '');
+  }
+  nameEl.textContent = title;
+  bodyEl.innerHTML = rows;
+  panel.classList.remove('is-hidden');
+}
+
+/** What is under the cursor, inside the system: the nearest mark within reach, gates first where they crowd. */
+function _solarHit(cx, cy) {
+  let best = null, bestKey = Infinity;
+  for (const h of (_sys ? _sys.hits : [])) {
+    const d = Math.hypot(h.x - cx, h.y - cy);
+    if (d > Math.max(6, h.r)) continue;
+    const key = h.pri * 100 + d;
+    if (key < bestKey) { bestKey = key; best = h; }
+  }
+  return best ? best.b : null;
+}
+
+function _solarTip(b, e) {
+  const tip = document.getElementById('mapTooltip');
+  if (!tip) return;
+  if (!b || !e) { tip.style.display = 'none'; return; }
+  tip.textContent = b.kind === 'gate' ? `Stargate · ${b.dest}` : b.kind === 'sun' ? `${_sys.sys.name} · ${b.typeName || 'star'}` : b.name;
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY - 10) + 'px';
+  tip.style.display = 'block';
+}
+
+function _solarHover(cx, cy, e) {
+  const b = _solarHit(cx, cy);
+  _canvas.style.cursor = b ? 'pointer' : 'grab';
+  _solarTip(b, e);
+  if (b !== _sys.hover) { _sys.hover = b; _scheduleRender(); }
+}
+
+/** A click inside the system picks what is under it and glides the camera onto it - or, on empty space, lets go. */
+function _solarClick(cx, cy) {
+  const b = _solarHit(cx, cy);
+  const panel = document.getElementById('mapInfoPanel');
+  _solarTip(null);              // the camera is about to move out from under it
+  if (!b) {
+    _sys.sel = null;
+    if (panel) panel.classList.add('is-hidden');
+    _scheduleRender();
+    return;
+  }
+  _sys.sel = b;
+  _solarShowInfo(b);
+  const at = b.pt || (b.parent && b.parent.pt) || (b.kind === 'sun' ? { tx: 0, ty: 0, tz: 0 } : null);
+  if (at) _spatialFocusOn(at);
+  _scheduleRender();
+}
+
+/** What a drag inside the system turns about: what is picked, if it is on screen - otherwise the sun. */
+function _solarPivotAt() {
+  const b = _sys.sel;
+  const at = b && (b.pt || (b.parent && b.parent.pt));
+  if (at) {
+    const pr = _spatialProject(at);
+    if (pr) {
+      const [x, y] = _spatialToCanvas(pr);
+      if (x >= 0 && x <= _canvas.width && y >= 0 && y <= _canvas.height) return at;
+    }
+  }
+  return { tx: 0, ty: 0, tz: 0 };
+}
+
+/** The legend inside a system: what the marks are, and how far the picture can be trusted. */
+function _solarLegendHtml() {
+  const L = _sys.L;
+  const glyph = (g) => `<span class="map-legend-glyph" aria-hidden="true">${g}</span>`;
+  const row = (mark, label) => `<div class="map-legend-row">${mark} ${label}</div>`;
+  const note = ['Distances from the sun are square-rooted so the inner planets have room; directions and heights are true.'];
+  if (L.planets.length) {
+    note.push('What sits beside a planet is spread round it, opening out as you zoom in.',
+              'Planets do not move: each orbit is a circle drawn through one.');
+  }
+  return `<div class="map-legend-title">SOLAR SYSTEM</div>
+    ${L.gates.length ? row(glyph('◇'), 'Stargate · coloured by where it leads') : ''}
+    ${L.stations.length ? row(glyph('▪'), 'NPC station') : ''}
+    ${L.moons.length ? row(glyph('•'), 'Moon') : ''}
+    ${L.belts.length ? row(glyph('···'), 'Asteroid belt') : ''}
+    ${_solarRouteRoles().size ? row(`<span class="map-legend-line" style="background:#60c8ff"></span>`, 'Gate the plotted route uses') : ''}
+    <div class="map-legend-note">${note.join(' ')}</div>`;
+}
+
 /** One frame of the map, then the layers round it: a route drawing in and the bridge shimmer over it, the backdrop under it, the sky over all. */
 function _render() {
   _jbArcs = [];          // refilled by whichever view draws the bridges this frame
@@ -5640,9 +6601,9 @@ function _renderMap() {
   _refreshThemeVars();   // once per frame — every _mono()/_accent() below reads it
   // Modern takes over the whole canvas (its own coordinate space): a single region
   // when one is open, otherwise the galaxy overview of all region clusters.
-  if (_viewMode === 'spatial') { _renderSpatial(); return; }
-  if (_viewMode === 'modern' && _regionView != null) { _renderRegion(); return; }
-  if (_viewMode === 'modern') { _renderGalaxyModern(); return; }
+  if (_viewMode === 'spatial') { if (_solarScene()) _renderSystem(); else _renderSpatial(); _solarGlare(); return; }
+  if (_viewMode === 'modern' && _regionView != null) { _renderRegion(); _solarGlare(); return; }
+  if (_viewMode === 'modern') { _renderGalaxyModern(); _solarGlare(); return; }
 
   const ctx = _ctx;
   const W   = _canvas.width;
@@ -6282,7 +7243,7 @@ async function _showInfo(system) {
   const jb         = _jbSet.has(system.id);
   // The ramp the canvas is currently painting — the panel used to always show the
   // Classic hue for a value the Modern view had drawn in a different one.
-  const secColor   = (_viewMode === 'modern' ? _secColorModern : _secColor)(system.sec);
+  const secColor   = Orrery.legible((_viewMode === 'modern' ? _secColorModern : _secColor)(system.sec));
   const secDisplay = system.sec !== null ? system.sec.toFixed(1) : '—';
 
   // Sovereignty label (async — will update once alliance name resolves)
@@ -6365,6 +7326,7 @@ async function _showInfo(system) {
 
   panel.classList.remove('is-hidden');
   _scheduleRender();
+  _solarSyncUi();      // "View solar system", for the systems that have one
 
   // Layer evidence fills in underneath — it may need the network, and the rest
   // of the panel should not wait on it.
@@ -6384,9 +7346,13 @@ async function _showInfo(system) {
 }
 
 function mapCloseInfo() {
-  _selected = null;
   const panel = document.getElementById('mapInfoPanel');
   if (panel) panel.classList.add('is-hidden');
+  // Inside a solar system the panel is about what was picked in it; the system
+  // itself stays selected, to come back to.
+  if (_sys) _sys.sel = null;
+  else _selected = null;
+  _solarSyncUi();
   _scheduleRender();
 }
 
@@ -6403,6 +7369,7 @@ function _updateLegend() {
   if (typeof _fpSyncWidget === 'function') _fpSyncWidget();
   const el = document.getElementById('mapLegend');
   if (!el) return;
+  if (_solarScene()) { el.innerHTML = _solarLegendHtml(); return; }
 
   // Swatch fills are data (a ramp value, an alliance hash), not design decisions,
   // so they are the one thing here that is legitimately inline.
@@ -6782,6 +7749,7 @@ function _initToolbar() {
   document.querySelectorAll('.map-view-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.view;
+      if (_sys) _solarClose();         // back to the view it was opened from, first
       if (mode === _viewMode || !VIEW_MODES.has(mode)) return;
       _viewMode = mode;
       document.querySelectorAll('.map-view-btn')
@@ -6828,6 +7796,7 @@ function _initToolbar() {
   const flatBtn = document.getElementById('mapFlatBtn');
   if (flatBtn) {
     flatBtn.addEventListener('click', () => {
+      if (_sys) _solarClose();         // Flat is a galaxy map; a system is always 3-D
       _camFlat = !_camFlat;
       _press(flatBtn, _camFlat);
       // Flat is a different MAP, not just a different lens, so everything
@@ -6843,6 +7812,7 @@ function _initToolbar() {
 
   if (regionSel) {
     regionSel.addEventListener('change', () => {
+      if (_sys) _solarClose();
       if (_viewMode !== 'modern') {
         _viewMode = 'modern';
         document.querySelectorAll('.map-view-btn')
@@ -6912,6 +7882,10 @@ function _initToolbar() {
   if (zoomOut) zoomOut.addEventListener('click', () => _adjustZoom(1/1.45, _canvas.width/2, _canvas.height/2));
   if (zoomFit) zoomFit.addEventListener('click', _fitCurrentView);
 
+  // "View solar system" over the map; the way back inside one.
+  const sysBtn = document.getElementById('mapSysBtn');
+  if (sysBtn) sysBtn.addEventListener('click', () => { if (_sys) _solarLeave(); else _solarOpen(); });
+
   // There is deliberately no Refresh control here. Everything the old ⟳ button
   // did now happens on the endpoints' own cadence in _startLivePolling(), and the
   // legend reports the age of the data instead.
@@ -6919,6 +7893,7 @@ function _initToolbar() {
 
 /** Refit whichever view is showing. The fit button and the F key share it. */
 function _fitCurrentView() {
+  if (_sys) { if (_solarScene() && !_sys.anim) { _solarFit(); _scheduleRender(); } return; }
   if (_viewMode === 'spatial') _fitSpatial();
   else if (_viewMode === 'modern' && _regionView != null) _fitRegion();
   else _fitGalaxy();
@@ -6957,6 +7932,7 @@ function _initCanvas() {
   // Pan (drag).
   _canvas.addEventListener('mousedown', e => {
     if (e.button !== 0 && e.button !== 2) return;
+    if (_sys && _sys.anim) return;   // diving in or rising out: the camera is spoken for
     _closeMapMenu();            // a fresh press on the map is done with its menu
     _dragging = true;
     _dragButton = e.button;
@@ -7016,6 +7992,8 @@ function _initCanvas() {
       return;
     }
 
+    if (_solarScene()) { _solarHover(cx, cy, e); return; }
+
     const tip = document.getElementById('mapTooltip');
 
     // Modern region view: an inter-region gateway box under the cursor is a clickable
@@ -7073,7 +8051,7 @@ function _initCanvas() {
     // A right press is a pan or a click, and only now can the two be told
     // apart - which is why the menu opens here and not on 'contextmenu'.
     if (e.button === 2) {
-      if (moved < 5) _openMapMenuAt(e.clientX, e.clientY);
+      if (moved < 5 && !_sys) _openMapMenuAt(e.clientX, e.clientY);   // the system menu is for systems
       return;
     }
 
@@ -7081,6 +8059,7 @@ function _initCanvas() {
       // Treat as click — toggle info panel
       const rect = _canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      if (_sys) { if (_solarScene()) _solarClick(mx, my); return; }
       // Modern region view: the "◄ Galaxy overview" link returns to the overview.
       if (_viewMode === 'modern' && _regionView != null && _regionBackRect &&
           mx >= _regionBackRect.x && mx <= _regionBackRect.x + _regionBackRect.w &&
@@ -7112,6 +8091,7 @@ function _initCanvas() {
         _selected = null;
         const p = document.getElementById('mapInfoPanel');
         if (p) p.classList.add('is-hidden');
+        _solarSyncUi();
         _scheduleRender();
       }
     }
@@ -7120,6 +8100,7 @@ function _initCanvas() {
   _canvas.addEventListener('mouseleave', () => {
     _dragging = false;
     _hovered  = null;
+    if (_sys) _sys.hover = null;
     _hoveredExit = null;
     _hoveredRegion = null;
     _canvas.style.cursor = 'grab';
@@ -7140,7 +8121,7 @@ function _initCanvas() {
   _canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
     const rightPress = (_dragging && _dragButton === 2) || performance.now() - _rightUpAt < 500;
-    if (!rightPress) _openMapMenuAt(e.clientX, e.clientY);
+    if (!rightPress && !_sys) _openMapMenuAt(e.clientX, e.clientY);
   });
 
   // Space held = the next drag pans. On the window, not the canvas: a canvas
@@ -7160,6 +8141,9 @@ function _initCanvas() {
       // listened for it until now.
       e.preventDefault();
       _fitCurrentView();
+    } else if (e.code === 'Escape' && _sys && !_plannerOpen()) {
+      e.preventDefault();               // out of the system, back to the galaxy
+      _solarLeave();
     }
   });
   window.addEventListener('keyup', e => {
@@ -7203,6 +8187,11 @@ function _onResize() {
     // Keep the galaxy centre stable across resize
     _panX += (_canvas.width  - prevW) / 2;
     _panY += (_canvas.height - prevH) / 2;
+    if (_solarScene()) {                // a system keeps how far in you were against its new fit
+      const k = _camZoom / _sys.zFit;
+      _sys.zFit = _solarFitZoom();
+      _camZoom = _sys.zFit * k;
+    }
   }
   _scheduleRender();
 }

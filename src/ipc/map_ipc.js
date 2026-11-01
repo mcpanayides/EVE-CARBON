@@ -460,6 +460,32 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
     return _galaxyCache;
   });
 
+  // ── One system's contents, for the solar system view ───────────────────────
+  // Everything the SDE places in it - sun, planets, moons, belts, stargates and
+  // NPC stations - in metres from its sun. One indexed read on
+  // mapDenormalize.solarSystemID: about a millisecond, so it is not cached.
+  ipcHandle('map-get-system-contents', async (_e, systemId) => {
+    const id = Number(systemId);
+    if (!Number.isInteger(id)) throw new Error(`Not a system id: ${systemId}`);
+    const db = getSdeDb();
+    if (!db) throw new Error('SDE database not available — check Settings > Database');
+    return db.all(
+      `SELECT d.itemID         AS id,
+              d.groupID        AS groupId,
+              d.typeID         AS typeId,
+              t.typeName       AS typeName,
+              d.orbitID        AS orbitId,
+              d.x, d.y, d.z,
+              d.radius,
+              d.itemName       AS name,
+              d.celestialIndex AS celestialIndex,
+              d.orbitIndex     AS orbitIndex
+       FROM   mapDenormalize d
+       LEFT JOIN invTypes t ON t.typeID = d.typeID
+       WHERE  d.solarSystemID = ? AND d.groupID IN (6, 7, 8, 9, 10, 15)`,
+      [id]);
+  });
+
   // ── ESI: sovereignty map (cached 5 min, the endpoint's own TTL) ────────────
   ipcHandle('map-get-sovereignty', async () => {
     const cached = readCache(SOV_CACHE_KEY);

@@ -698,6 +698,67 @@
   line-height: 1;
 }
 
+/* ── Solar system view ───────────────────────────────────────────────────── */
+/* The way in and out, bottom-centre between the legend and the zoom controls.
+   Over the map it carries the accent - it is the one thing to do with the
+   system you picked; inside, as the way back, it steps down to the neutral
+   chrome and leaves the accent to what is picked in the system. */
+.map-sys-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px 0 12px;
+  background: var(--bg-card-deep);
+  border: 1px solid var(--accent-40);
+  border-radius: 999px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 8px 24px var(--shadow-dark);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.map-sys-btn:hover { background: var(--accent-12); border-color: var(--accent); }
+.map-sys-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40), 0 8px 24px var(--shadow-dark); }
+.map-sys-btn[disabled] { cursor: default; opacity: 0.6; }
+.map-sys-btn .material-symbols-outlined { font-size: 18px; line-height: 1; }
+.map-sys-btn.is-inside { color: var(--text-1); border-color: var(--border); }
+.map-sys-btn.is-inside:hover { background: var(--bg-hover); border-color: var(--accent-40); }
+
+/* The system's name card, top-left while inside it: the legend's surface, the
+   name as a tracked console title, the rest in the caption and console steps. */
+.map-sys-hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+  background: var(--bg-card-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(4px);
+  font-family: var(--mono);
+}
+.map-sys-hud-name  { font-size: 14px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-1); }
+.map-sys-hud-meta  { font-size: 11px; color: var(--text-2); }
+.map-sys-hud-count { font-size: 10px; color: var(--text-3); }
+.map-sys-hud-route { font-size: 10px; color: var(--text-2); margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--border); }
+.map-sys-hud-route:empty { display: none; }
+.map-sys-hud-route-label { font-size: 9px; letter-spacing: 0.14em; color: var(--text-3); margin-right: 4px; }
+
 /* ── Legend ──────────────────────────────────────────────────────────────── */
 .map-legend {
   position: absolute;

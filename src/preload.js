@@ -403,6 +403,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   mapGetFwSystems:       ()    => ipcRenderer.invoke('map-get-fw-systems'),
   mapGetIndustryIndices: ()    => ipcRenderer.invoke('map-get-industry-indices'),
   mapGetSystemKillLog:   (id)  => ipcRenderer.invoke('map-get-system-kill-log', id),
+  mapGetSystemContents:  (id)  => ipcRenderer.invoke('map-get-system-contents', id),
   mapGetSystemHistory:   (id)  => ipcRenderer.invoke('map-get-system-history', id),
   regionLayoutsGet:      ()    => ipcRenderer.invoke('region-layouts-get'),
   mapGetAllianceTickers:   (ids)         => ipcRenderer.invoke('map-get-alliance-tickers', ids),

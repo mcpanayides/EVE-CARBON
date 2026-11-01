@@ -30,6 +30,31 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.0.8] - 2026-11-01
+
+### Added
+- **A solar system view, for every system.** Select a system on the map and press
+  **View solar system**: the camera dives into its star, the light fills the view,
+  and the system opens out round its sun - its planets in their real types, moons,
+  asteroid belts, NPC stations and stargates, each in the direction CCP's data puts
+  it. Drag to orbit and scroll to zoom, as on the Spatial map; zooming in on a planet
+  spreads out what sits beside it. Esc or **Back to galaxy** puts you back exactly
+  where you were. Distances from the sun are square-rooted so the inner planets have
+  room, and the legend says so. Player structures are not in CCP's static data, so
+  they are not shown.
+- **Stargates say where they lead.** Each is named with its destination and security,
+  and the region if it crosses into another. Click one for its distance from the sun
+  and the planet it sits beside. With a route plotted, the gates it uses are ringed,
+  and the system's card gives how far apart they are.
+- **It opens from anywhere on the map.** Pick a system in the Schematic and it works
+  the same, handing the Schematic back as you left it. Wormhole systems, found through
+  the search box, open under a sky of their own, in the colours of their class.
+
+### Fixed
+- **Security numbers you can read.** A wormhole's "-1.0" was all but invisible in the
+  system panel, and null-sec's dark red faded into the map behind it. As text they are
+  now lifted to a readable shade; the dots on the map keep the game's colours.
+
 ## [4.0.6] - 2026-10-30
 
 ### Added

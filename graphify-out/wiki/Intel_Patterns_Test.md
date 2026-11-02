@@ -40,7 +40,7 @@
 - [Intel Test](Intel_Test.md) (3 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (2 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 

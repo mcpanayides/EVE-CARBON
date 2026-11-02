@@ -1,30 +1,65 @@
 # Demo Fixtures Test
 
-> 7 nodes · cohesion 0.29
+> 30 nodes · cohesion 0.08
 
 ## Key Concepts
 
+- **app_ident.js** (23 connections) — `src/app_ident.js`
+- **APP_USER_AGENT** (11 connections) — `src/app_ident.js`
+- **esi_client.test.js** (9 connections) — `test/esi_client.test.js`
+- **character_ipc.js** (8 connections) — `src/ipc/character_ipc.js`
 - **demo_fixtures.test.js** (8 connections) — `test/demo_fixtures.test.js`
+- **esi_headers.test.js** (6 connections) — `test/esi_headers.test.js`
+- **esi.js** (5 connections) — `src/shared/esi.js`
+- **Esi** (4 connections) — `src/app_ident.js`
+- **version** (2 connections) — `package.json`
+- **{ version }** (1 connections) — `src/app_ident.js`
+- **{ ipcMain }** (1 connections) — `src/ipc/character_ipc.js`
+- **{ ESI_BASE, Esi }** (1 connections) — `src/ipc/character_ipc.js`
+- **registered** (1 connections) — `src/ipc/character_ipc.js`
+- **NOTE: the corp mining routes use singular "/corporation/" (an ESI quirk),** (1 connections) — `src/ipc/character_ipc.js`
+- **headers()** (1 connections) — `src/shared/esi.js`
 - **test** (1 connections) — `test/demo_fixtures.test.js`
 - **assert** (1 connections) — `test/demo_fixtures.test.js`
 - **fx** (1 connections) — `test/demo_fixtures.test.js`
 - **{ ESI_BASE }** (1 connections) — `test/demo_fixtures.test.js`
 - **NOW** (1 connections) — `test/demo_fixtures.test.js`
 - **u()** (1 connections) — `test/demo_fixtures.test.js`
+- **test** (1 connections) — `test/esi_client.test.js`
+- **assert** (1 connections) — `test/esi_client.test.js`
+- **fs** (1 connections) — `test/esi_client.test.js`
+- **path** (1 connections) — `test/esi_client.test.js`
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [ESI IPC](ESI_IPC.md) (1 shared connections)
-- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (3 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (3 shared connections)
+- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (2 shared connections)
+- [SDE Fetch & Build](SDE_Fetch_%26_Build.md) (2 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [ESI IPC](ESI_IPC.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
+- [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
+- [Alert Rules](Alert_Rules.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
+- [PI IPC](PI_IPC.md) (1 shared connections)
 
 ## Source Files
 
+- `package.json`
+- `src/app_ident.js`
+- `src/ipc/character_ipc.js`
+- `src/shared/esi.js`
 - `test/demo_fixtures.test.js`
+- `test/esi_client.test.js`
+- `test/esi_headers.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 14 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 96 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

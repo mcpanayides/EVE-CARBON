@@ -1,6 +1,6 @@
 # Chart Umd (f)
 
-> 70 nodes · cohesion 0.07
+> 77 nodes · cohesion 0.06
 
 ## Key Concepts
 
@@ -17,34 +17,34 @@
 - **to()** (12 connections) — `src/vendor/chartjs/chart.umd.js`
 - **f()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
 - **g()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
+- **m()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
+- **b()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._computeGridLineItems()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
 - **wo()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
 - **wi()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.drawTitle()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
+- **qn()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.fit()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._resolveAnimations()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.drawTitle()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.drawBody()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **p()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- **Oi()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- **gs()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.updateElement()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- **oa()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 45 more nodes in this community*
+- *... and 52 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (62 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (40 shared connections)
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) (28 shared connections)
-- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (24 shared connections)
-- [Chart Umd (w)](Chart_Umd_%28w%29.md) (17 shared connections)
-- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (12 shared connections)
-- [Chart Umd (getParsed)](Chart_Umd_%28getParsed%29.md) (7 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (6 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (6 shared connections)
-- [Chart Umd (q)](Chart_Umd_%28q%29.md) (4 shared connections)
+- [Chart Umd](Chart_Umd.md) (74 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (44 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (24 shared connections)
+- [Chart Umd (n)](Chart_Umd_%28n%29.md) (21 shared connections)
+- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (20 shared connections)
+- [Chart Umd (s)](Chart_Umd_%28s%29.md) (11 shared connections)
+- [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (9 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (9 shared connections)
+- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (8 shared connections)
 - [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (2 shared connections)
+- [Jump Route Planner](Jump_Route_Planner.md) (1 shared connections)
 
 ## Source Files
 
@@ -52,8 +52,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 500 (93%)
-- INFERRED: 35 (7%)
+- EXTRACTED: 542 (92%)
+- INFERRED: 48 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

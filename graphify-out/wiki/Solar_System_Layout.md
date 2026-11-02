@@ -31,8 +31,8 @@
 
 ## Relationships
 
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
-- [Galaxy Map (_heat)](Galaxy_Map_%28_heat%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (1 shared connections)
 
 ## Source Files
 

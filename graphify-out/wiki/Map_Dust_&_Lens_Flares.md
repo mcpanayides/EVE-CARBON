@@ -32,7 +32,7 @@
 
 ## Relationships
 
-- [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (1 shared connections)
+- [Map Dust & Lens Flares Tests](Map_Dust_%26_Lens_Flares_Tests.md) (1 shared connections)
 
 ## Source Files
 

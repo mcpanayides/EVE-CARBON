@@ -33,9 +33,8 @@
 
 ## Relationships
 
-- [ESI IPC](ESI_IPC.md) (2 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 
 ## Source Files

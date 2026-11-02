@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 
 ## Source Files
 

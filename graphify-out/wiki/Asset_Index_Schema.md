@@ -38,7 +38,7 @@
 - [Valuation Rebuild Race Test](Valuation_Rebuild_Race_Test.md) (2 shared connections)
 - [Stress Index](Stress_Index.md) (1 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (1 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 

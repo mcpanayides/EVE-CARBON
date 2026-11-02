@@ -1,60 +1,59 @@
 # Chart Umd (s)
 
-> 95 nodes · cohesion 0.05
+> 55 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **r()** (69 connections) — `src/vendor/chartjs/chart.umd.js`
-- **o()** (54 connections) — `src/vendor/chartjs/chart.umd.js`
 - **s()** (49 connections) — `src/vendor/chartjs/chart.umd.js`
-- **a()** (44 connections) — `src/vendor/chartjs/chart.umd.js`
-- **l()** (39 connections) — `src/vendor/chartjs/chart.umd.js`
-- **n()** (37 connections) — `src/vendor/chartjs/chart.umd.js`
-- **c()** (36 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **h()** (20 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.buildTicks()** (17 connections) — `src/vendor/chartjs/chart.umd.js`
-- **draw()** (15 connections) — `src/vendor/chartjs/chart.umd.js`
-- **m()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **b()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **ne()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **._update()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **zn()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **parseObjectData()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **so()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
-- **mi()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.getUserBounds()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
-- **._computeGridLineItems()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._createDescriptors()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
 - **bo** (10 connections) — `src/vendor/chartjs/chart.umd.js`
-- **ko** (10 connections) — `src/vendor/chartjs/chart.umd.js`
-- **we()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
-- **hi()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
-- **es()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 70 more nodes in this community*
+- **de** (9 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.bindResponsiveEvents()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ws** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.addEventListener()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **qs()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.register()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **sn** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ce()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.apply()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
+- **pa()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.constructor()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ys()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.removeEventListener()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.notify()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **et()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ct()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **dt()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **he()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.describe()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ge()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._descriptors()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._notifyStateChanges()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- *... and 30 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (94 shared connections)
-- [Chart Umd (f)](Chart_Umd_%28f%29.md) (40 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (35 shared connections)
-- [Chart Umd (q)](Chart_Umd_%28q%29.md) (27 shared connections)
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) (26 shared connections)
-- [Chart Umd (w)](Chart_Umd_%28w%29.md) (24 shared connections)
-- [Chart Umd (getParsed)](Chart_Umd_%28getParsed%29.md) (20 shared connections)
-- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (19 shared connections)
-- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (18 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (10 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (6 shared connections)
-- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (4 shared connections)
+- [Chart Umd](Chart_Umd.md) (30 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (29 shared connections)
+- [Chart Umd (f)](Chart_Umd_%28f%29.md) (11 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (9 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (9 shared connections)
+- [Chart Umd (n)](Chart_Umd_%28n%29.md) (7 shared connections)
+- [Chart Umd (Oe)](Chart_Umd_%28Oe%29.md) (5 shared connections)
+- [Chart Umd (rt)](Chart_Umd_%28rt%29.md) (4 shared connections)
+- [Chart Umd (mt)](Chart_Umd_%28mt%29.md) (3 shared connections)
+- [Chart Umd (isForType)](Chart_Umd_%28isForType%29.md) (3 shared connections)
+- [Chart Umd (nt)](Chart_Umd_%28nt%29.md) (2 shared connections)
+- [Chart Umd (countUp)](Chart_Umd_%28countUp%29.md) (2 shared connections)
 
 ## Source Files
 
 - `src/vendor/chartjs/chart.umd.js`
-- `src/vendor/gridstack/gridstack-all.js`
 
 ## Audit Trail
 
-- EXTRACTED: 515 (65%)
-- INFERRED: 276 (35%)
+- EXTRACTED: 239 (89%)
+- INFERRED: 31 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

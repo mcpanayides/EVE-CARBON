@@ -1,6 +1,6 @@
 # Demo Mode Fixtures
 
-> 46 nodes · cohesion 0.09
+> 51 nodes · cohesion 0.07
 
 ## Key Concepts
 
@@ -15,6 +15,7 @@
 - **corporationSheet()** (5 connections) — `src/demo_fixtures.js`
 - **allianceSheet()** (5 connections) — `src/demo_fixtures.js`
 - **industryJobs()** (5 connections) — `src/demo_fixtures.js`
+- **demo_fixtures_zkill.test.js** (5 connections) — `test/demo_fixtures_zkill.test.js`
 - **mailHeaders()** (4 connections) — `src/demo_fixtures.js`
 - **notifications()** (4 connections) — `src/demo_fixtures.js`
 - **fallbackPrice()** (4 connections) — `src/demo_fixtures.js`
@@ -28,8 +29,7 @@
 - **MAILS** (2 connections) — `src/demo_fixtures.js`
 - **calendar()** (2 connections) — `src/demo_fixtures.js`
 - **isDemoWrite()** (2 connections) — `src/demo_fixtures.js`
-- **resolveIds()** (2 connections) — `src/demo_fixtures.js`
-- *... and 21 more nodes in this community*
+- *... and 26 more nodes in this community*
 
 ## Relationships
 
@@ -38,11 +38,10 @@
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (3 shared connections)
 - [Demo Data](Demo_Data.md) (2 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
 - [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
-- [Demo Fixtures Zkill Test](Demo_Fixtures_Zkill_Test.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
 
 ## Source Files
@@ -50,11 +49,12 @@
 - `src/demo/cast.js`
 - `src/demo/forum.js`
 - `src/demo_fixtures.js`
+- `test/demo_fixtures_zkill.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 158 (76%)
-- INFERRED: 49 (24%)
+- EXTRACTED: 167 (77%)
+- INFERRED: 49 (23%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -34,9 +34,9 @@
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (1 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (1 shared connections)
-- [Galaxy Map (_aggStarHex)](Galaxy_Map_%28_aggStarHex%29.md) (1 shared connections)
+- [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (1 shared connections)
 - [Market Trading](Market_Trading.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Ping Classify](Ping_Classify.md) (1 shared connections)
 - [Theme Vars](Theme_Vars.md) (1 shared connections)
 - [Chart Umd (u)](Chart_Umd_%28u%29.md) (1 shared connections)
 

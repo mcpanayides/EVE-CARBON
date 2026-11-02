@@ -35,10 +35,10 @@
 
 - [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
 - [Intel Service](Intel_Service.md) (2 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (2 shared connections)
+- [Chart Umd (countUp)](Chart_Umd_%28countUp%29.md) (2 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (1 shared connections)
-- [Ics Parse](Ics_Parse.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Shared UI Utilities](Shared_UI_Utilities.md) (1 shared connections)
 - [Intel Test](Intel_Test.md) (1 shared connections)
 
 ## Source Files

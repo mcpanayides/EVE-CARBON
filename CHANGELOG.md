@@ -30,7 +30,11 @@ See `test/updater_critical.test.js`.
 
 ---
 
-## [4.0.8] - 2026-11-01
+## [4.1.0] - 2026-11-02
+
+The map release. Every system on the map now opens out into its own solar system, on
+top of everything the map gained through 4.0: Force Projection, the Natural overlay,
+region skyboxes and routes that draw themselves in.
 
 ### Added
 - **A solar system view, for every system.** Select a system on the map and press
@@ -51,6 +55,14 @@ See `test/updater_critical.test.js`.
   the search box, open under a sky of their own, in the colours of their class.
 
 ### Fixed
+- **Safest route stays in hi-sec, as the game's Safer does.** Amarr to Jita cut through
+  low-sec Ahbazon; it is now 34 jumps, all hi-sec. A route leaves hi-sec only when it
+  has to, for as few systems as it can, and takes low-sec before neutral null-sec. Some
+  routes get longer, as they are in the game: Jita to 1DQ1-A goes from 47 jumps to 69.
+  A trip between two null-sec systems is priced as before, so crossing your own sov
+  does not send you round through empire. With **Use EvE-Scout connections** ticked,
+  Safest no longer leaves hi-sec for Thera or Turnur when an all hi-sec route exists.
+  Shortest is unchanged.
 - **Security numbers you can read.** A wormhole's "-1.0" was all but invisible in the
   system panel, and null-sec's dark red faded into the map behind it. As text they are
   now lifted to a readable shade; the dots on the map keep the game's colours.

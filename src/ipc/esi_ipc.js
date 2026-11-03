@@ -101,6 +101,19 @@ const TICKER_TYPE_IDS = [
  * @param {object}   deps.bpCache      - shared in-memory blueprint cache object
  * @param {function} deps.getSdeDb    - getter returning the live SDE SQLite db instance (or null)
  */
+// Cerebral accelerators the skill planner can offer: ones the market carries
+// (the query's job), that last at least an hour, and that can still be injected.
+// Attribute 2422 is the last injection date, in days since 1970. Without these
+// checks the Serenity festival accelerators, which carry a "bonus" of 2021 and
+// last 20 minutes, won the boosters table as strongest with NaN units, and an
+// expired accelerator could come out fastest.
+function usableAccelerators(rows, now = Date.now()) {
+  return (rows || [])
+    .filter(r => r.bonus > 0 && r.durMs >= 3600000)
+    .filter(r => !(r.lastDay > 0) || r.lastDay * 86400000 > now)
+    .map(r => ({ id: r.id, name: r.name, bonus: r.bonus, durationHours: Math.round(r.durMs / 3600000) }));
+}
+
 function registerEsiHandlers({
   ipcHandle,
   httpGet,
@@ -1010,9 +1023,10 @@ function registerEsiHandlers({
   //     each (+1..+5), in a fixed head slot.
   //   • Cerebral accelerators — temporary, +N to ALL five attributes for a set
   //     duration (attribute 330, milliseconds).
-  // Blueprints/crates are excluded; the renderer further drops anything with no
-  // Jita price, which cleanly removes the non-tradeable Serenity/expired/event
-  // boosters that share these names.
+  // Blueprints/crates are excluded, and so is any accelerator the market doesn't
+  // carry (no market group): the Serenity, festival and expired ones share these
+  // names. usableAccelerators drops the rest, and the renderer drops anything
+  // with no Jita price.
   ipcHandle('sde-attribute-boosters', async () => {
     const sdeDb = getSdeDb();
     if (!sdeDb) return { implants: [], accelerators: [] };
@@ -1042,15 +1056,14 @@ function registerEsiHandlers({
       const accRows = await sdeDb.all(`
         SELECT t.typeID AS id, t.typeName AS name,
           MAX(CASE WHEN a.attributeID IN (175,176,177,178,179) THEN COALESCE(a.valueInt,a.valueFloat) END) AS bonus,
-          MAX(CASE WHEN a.attributeID=330 THEN COALESCE(a.valueInt,a.valueFloat) END) AS durMs
+          MAX(CASE WHEN a.attributeID=330 THEN COALESCE(a.valueInt,a.valueFloat) END) AS durMs,
+          MAX(CASE WHEN a.attributeID=2422 THEN COALESCE(a.valueInt,a.valueFloat) END) AS lastDay
         FROM invTypes t
         LEFT JOIN dgmTypeAttributes a ON a.typeID = t.typeID
-        WHERE t.published = 1 AND t.typeName LIKE '%Cerebral Accelerator%'
+        WHERE t.published = 1 AND t.marketGroupID IS NOT NULL AND t.typeName LIKE '%Cerebral Accelerator%'
           AND t.typeName NOT LIKE '%Blueprint%' AND t.typeName NOT LIKE '%Crate%'
         GROUP BY t.typeID`);
-      const accelerators = (accRows || [])
-        .filter(r => r.bonus > 0 && r.durMs > 0)
-        .map(r => ({ id: r.id, name: r.name, bonus: r.bonus, durationHours: Math.round(r.durMs / 3600000) }));
+      const accelerators = usableAccelerators(accRows);
 
       return { implants, accelerators };
     } catch (e) {
@@ -1306,3 +1319,4 @@ module.exports = { registerEsiHandlers };
 // this wrong for a long time without anything failing loudly — the URL 404'd and
 // the adapter read a key that does not exist — so they are pinned here.
 module.exports._fuzzwork = { FUZZWORK_BLUEPRINT_URL, _fuzzworkMaterials };
+module.exports._boosters = { usableAccelerators };

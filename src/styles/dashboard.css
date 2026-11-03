@@ -1746,8 +1746,20 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
   .aj-cell-item              { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .aj-cell-char              { width: 26%; }
   .aj-cell-item              { width: 34%; }
-  .aj-cell-activity          { width: 18%; }
   .aj-cell-progress          { width: 22%; }
+  /* The activity badge is a fixed-size tag, so a percentage column is either
+     narrower than it (Manufacturing used to run over the progress text) or wider
+     than it needs. The column fits the longest badge at this step's tighter
+     tracking, and the item column takes whatever is left; the room comes out of
+     the character column, the first to go. The market orders tile shares this
+     table but has no activity column, so it keeps the widths above — :where()
+     holds these at plain class specificity, so the later steps still override
+     them. If a label is ever wider than the column, it truncates. */
+  .aj-cell-activity          { width: 100px; }
+  .aj-cell-activity .aj-activity-badge { max-width: 100%; padding: 2px 4px; letter-spacing: 0.04em;
+                               overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-char { width: 22%; }
+  :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-item { width: auto; }
   .mo-cell-side              { width: 12%; }
   .mo-cell-price             { width: 20%; }
   .mo-cell-qty               { width: 20%; }
@@ -1781,8 +1793,10 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
 
   .aj-cell-char              { display: none; }
   .aj-cell-item              { width: 46%; }
-  .aj-cell-activity          { width: 22%; }
   .aj-cell-progress          { width: 32%; }
+  /* Activity keeps its badge-wide column from 520px; with the character column
+     gone, the item column takes the rest. */
+  :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-item { width: auto; }
   .mo-cell-side              { width: 14%; }
   .mo-cell-price             { width: 24%; }
   .mo-cell-qty               { width: 24%; }

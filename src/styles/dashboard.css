@@ -1733,6 +1733,32 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
    definite height, where size containment would collapse it to nothing. */
 .grid-stack-item .dashboard-widget-body { container-type: size; }
 
+/* ── Over 520px: the market orders table stays inside its tile ───────────────
+   Above the first step the tables size their columns to their content, and the
+   market orders table's six columns could add up to more than its tile, so it
+   scrolled sideways with EXPIRES off the edge (a five-column tile at 1920 with
+   the nav open did). Instead the character and item columns take fixed shares,
+   about what content sizing gave them, and truncate when the tile is short of
+   room; side, price, quantity and expiry keep their content width and are never
+   cut. max-width: 0 is what lets a nowrap cell go narrower than its text in an
+   auto-layout table. */
+@container dashwidget (width > 520px) {
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-char,
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item {
+    max-width: 0; overflow: hidden; text-overflow: ellipsis;
+  }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-char { width: 18%; }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item { width: 23%; }
+}
+/* Those six columns need about 640px at full padding, so under that the orders
+   table takes the 520 step's tighter cell padding sooner, which leaves the
+   five-column tile at 1920 with the nav open (612px) room for its names. Only
+   the sides, so the rows keep their height. */
+@container dashwidget (520px < width <= 640px) {
+  .active-jobs-list:has(.mo-cell-side) th,
+  .active-jobs-list:has(.mo-cell-side) td { padding-left: 6px; padding-right: 6px; }
+}
+
 /* ── 520px: everything tightens a notch ─────────────────────────────────────── */
 @container dashwidget (max-width: 520px) {
   .dash-wealth-header        { grid-template-columns: 1fr; }   /* net-worth KPIs stack */
@@ -1760,10 +1786,20 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
                                overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
   :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-char { width: 22%; }
   :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-item { width: auto; }
-  .mo-cell-side              { width: 12%; }
-  .mo-cell-price             { width: 20%; }
-  .mo-cell-qty               { width: 20%; }
-  .mo-cell-time              { width: 14%; }
+  /* The market orders tile has six columns to the jobs tile's four, so its columns
+     go a step sooner: the character column here, the expiry at 420, the quantity at
+     320 and the side badge at 240, which leaves item and price as the jobs tile is
+     left with item and progress. The side badge, the price and the expiry are
+     fixed-size text, so their columns fit the longest value at this step's type (a
+     12-character price, 745.22 M ISK) — as percentages they were narrower than it,
+     and the price ran into the quantity. The quantity takes a share and its count
+     truncates; the item takes the rest. */
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-char { display: none; }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item { width: auto; }
+  .mo-cell-side              { width: 48px; }
+  .mo-cell-price             { width: 92px; }
+  .mo-cell-qty               { width: 24%; overflow: hidden; text-overflow: ellipsis; }
+  .mo-cell-time              { width: 59px; }
 
   /* Cards: media shrinks first — it is the least informative pixel on the tile. */
   .jw-card, .cw-card         { padding: 9px; }
@@ -1797,10 +1833,9 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
   /* Activity keeps its badge-wide column from 520px; with the character column
      gone, the item column takes the rest. */
   :where(.active-jobs-list:has(.aj-cell-activity)) .aj-cell-item { width: auto; }
-  .mo-cell-side              { width: 14%; }
-  .mo-cell-price             { width: 24%; }
-  .mo-cell-qty               { width: 24%; }
-  .mo-cell-time              { width: 16%; }
+  .mo-cell-time              { display: none; }
+  .mo-cell-qty               { width: 28%; }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item { width: auto; }
 
   .kt-sub                    { display: none; }                 /* the count, not the scope */
   .kt-card                   { width: 190px; }
@@ -1829,10 +1864,8 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
   .aj-cell-activity          { display: none; }
   .aj-cell-item              { width: 55%; }
   .aj-cell-progress          { width: 45%; }
-  .mo-cell-time              { display: none; }
-  .mo-cell-side              { width: 16%; }
-  .mo-cell-price             { width: 28%; }
-  .mo-cell-qty               { width: 28%; }
+  .mo-cell-qty               { display: none; }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item { width: auto; }
 
   /* Job Watch keeps the bar and the countdown; the end timestamp is the same
      information a second time, less precisely. */
@@ -1879,10 +1912,14 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
   .aj-progress-wrap          { min-width: 0; }
   .aj-progress-label         { font-size: 9px; white-space: nowrap;
                                overflow: hidden; text-overflow: ellipsis; }
-  .mo-cell-qty               { display: none; }
   .aj-cell-item              { width: 58%; }
-  .mo-cell-side              { width: 18%; }
-  .mo-cell-price             { width: 24%; }
+  /* Market orders: item and price. The price is the one cell here that keeps its
+     width (a 12-character price at this step's 10px type): a price cut short loses
+     its M or B, so a tile too narrow for it scrolls instead. The item takes what is
+     left. */
+  .mo-cell-side              { display: none; }
+  .mo-cell-price             { width: 80px; }
+  :where(.active-jobs-list:has(.mo-cell-side)) .aj-cell-item { width: auto; }
 
   .jw-sub                    { display: none; }                 /* activity badge + runs */
   .cw-name                   { font-size: 11px; }

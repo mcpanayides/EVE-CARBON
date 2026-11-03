@@ -4471,6 +4471,9 @@ async function resolveNamesFromSde(ids) {
     `SELECT solarSystemID   AS id, solarSystemName   AS name FROM mapSolarSystems   WHERE solarSystemID   IN (__PH__)`,
     `SELECT constellationID AS id, constellationName AS name FROM mapConstellations WHERE constellationID IN (__PH__)`,
     `SELECT regionID        AS id, regionName        AS name FROM mapRegions        WHERE regionID        IN (__PH__)`,
+    // Moons, planets and the other celestials. ESI's /universe/names won't
+    // resolve a moon, so without this the moon extractions view said "Type 40298900".
+    `SELECT itemID          AS id, itemName          AS name FROM mapDenormalize    WHERE itemID          IN (__PH__)`,
   ];
 
   // Chunk at 500 to stay well under SQLite's bound-parameter limit.

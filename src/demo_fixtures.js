@@ -303,6 +303,11 @@ function match(url, { now = Date.now() } = {}) {
         victory_points: { last_week: 7_400_000, total: 1_610_000_000, yesterday: 980_000 } }
     : { kills: { last_week: 0, total: 0, yesterday: 0 }, victory_points: { last_week: 0, total: 0, yesterday: 0 } };
 
+  // Corp moon mining. The singular "/corporation/" is ESI's own spelling here.
+  m = path.match(/^\/corporation\/\d+\/mining\/(extractions|observers)(?:\/(\d+))?$/);
+  if (m) return m[1] === 'extractions' ? corpMiningExtractions(now)
+    : m[2] ? corpMiningObserver(Number(m[2]), now) : corpMiningObservers(now);
+
   // ── One of the cast ──
   m = path.match(/^\/characters\/(\d+)\/(.+)$/);
   if (m) return characterRoute(Number(m[1]), m[2], search, now);
@@ -497,6 +502,8 @@ async function matchAsync(url, { method = 'GET', body, sde, now = Date.now() } =
   if (String(method).toUpperCase() === 'GET' && sde) {
     const st = await staticUniverse(path, sde);
     if (st !== undefined) return st;
+    const fw = await fuzzworkFromSde(url, sde);
+    if (fw !== undefined) return fw;
   }
   if (String(method).toUpperCase() !== 'GET') {
     if (path === '/universe/names') return resolveNames(Array.isArray(body) ? body : [], sde);
@@ -507,6 +514,25 @@ async function matchAsync(url, { method = 'GET', body, sde, now = Date.now() } =
     return undefined;
   }
   return match(url, { now });
+}
+
+// Fuzzwork prices, with the SDE to hand. A type the price snapshot doesn't hold
+// is priced at its SDE base price where it has one: the magnitude band match()
+// falls back on put newer items, such as the unrefined minerals, at hundreds of
+// millions of ISK a unit, and Reactions Profit at margins of a million percent.
+async function fuzzworkFromSde(url, sde) {
+  let host, path, search;
+  try { const u = new URL(url); host = u.hostname; path = u.pathname.replace(/\/+$/, ''); search = u.searchParams; }
+  catch (_) { return undefined; }
+  if (!/market\.fuzzwork\.co\.uk$/.test(host) && !/\/aggregates$/.test(path)) return undefined;
+  const ids = (search.get('types') || '').split(',').filter(Boolean);
+  const absent = ids.map(Number).filter(id => Number.isFinite(id) && !U.listed(id));
+  const base = {};
+  if (absent.length) {
+    try { for (const r of await sde.all(`SELECT typeID id, basePrice b FROM invTypes WHERE typeID IN (${absent.join(',')})`)) base[r.id] = r.b; }
+    catch (_) { /* no SDE table — the band below still answers */ }
+  }
+  return U.fuzzworkAggregates(ids, (id) => (base[id] > 0 ? base[id] : fallbackPrice(id)));
 }
 
 // ── Misses ───────────────────────────────────────────────────────────────────
@@ -657,36 +683,79 @@ function intelStatus() {
     // killboard: a published image would have told anyone watching which
     // channels a group actually monitors. Nothing here names a real channel.
     channels: ['vaelin.intel', 'vaelin.home', 'vaelin.forward'],
+    // What the page's status line reads. Without it, it said no log files.
+    reader: { channels: [{ channel: 'vaelin.intel' }, { channel: 'vaelin.home' }, { channel: 'vaelin.forward' }] },
     characters: 3,
     home: { solarSystemId: 30004759, name: '1DQ1-A' },
   };
 }
 
 // Field names come from the SHARED row builder (src/shared/intel-row.js), which
-// reads label/ships/shipIds/pilots/etaSeconds — not name/ship/eta. Pilots are
-// NPC agents, so a portrait lookup by name finds a face that is nobody's.
-// `closing` is how many jumps a contact has closed — the row prints "IN −2" —
-// and only inbound contacts carry one. A boolean there printed "IN −true".
+// reads label/systemName/ships/shipIds/pilots/etaSeconds — not name/ship/eta.
+// A pilot contact's label is the pilot; the system goes in systemName, or the
+// row prints the system where the pilot should be and leaves its chip empty.
+// Pilots are NPC agents, so a portrait lookup by name finds a face that is
+// nobody's. `closing` is how many jumps a contact has closed — the row prints
+// "IN −2" — and only inbound contacts carry one. A boolean there printed "IN −true".
+// `jumpsPerMin` is what an ETA is estimated from; the page prints it in each
+// row's tooltip, and without it the whole contact list failed to draw.
+// Jumps are the real gate distances from 1DQ1-A, so they hold up for anyone who
+// knows Delve: 3-DMQT is two out, E-VKJV three, 4X0-8B four, KEE-N6 five.
 function intelContacts(now = Date.now()) {
-  const c = (o) => Object.assign({ last: now - 90 * 1000, etaMeasured: true, inbound: false, closing: 0 }, o);
+  const c = (o) => Object.assign({ last: now - 90 * 1000, first: now - 6 * MIN, etaMeasured: true,
+    inbound: false, closing: 0, sightings: 1, threatTo: CAST.main.name }, o);
   return [
-    c({ kind: 'pilot', label: '319-3D', solarSystemId: 30004722, regionName: 'Delve',
+    c({ kind: 'pilot', label: pilot(101).name, systemName: '3-DMQT', solarSystemId: 30004764, regionName: 'Delve',
         jumps: 2, js: 2, ships: ['Loki'], shipIds: [29990], pilots: [pilot(101).name],
         count: 1, size: 1, band: 'solo', roles: ['cloaky'],
-        security: -0.32, etaSeconds: 75, inbound: true, closing: 2 }),
-    c({ kind: 'pilot', label: 'T5ZI-S', solarSystemId: 30004735, regionName: 'Delve',
+        security: -1, etaSeconds: 75, inbound: true, closing: 2,
+        jumpsPerMin: 1.6, sightings: 3, path: ['8-YNBE', 'E-VKJV', '3-DMQT'] }),
+    c({ kind: 'pilot', label: pilot(102).name, systemName: 'E-VKJV', solarSystemId: 30004028, regionName: 'Querious',
         jumps: 3, js: 3, ships: ['Sabre', 'Jackdaw'], shipIds: [22456, 34828],
-        pilots: [pilot(102).name, pilot(103).name], count: 2, size: 2, band: 'small', roles: [],
-        security: -0.14, etaSeconds: 140, inbound: true, closing: 1 }),
-    c({ kind: 'system', label: 'YZ9-F6', solarSystemId: 30004719, regionName: 'Delve',
+        pilots: [pilot(102).name, pilot(103).name], count: 2, size: 2, band: 'small', roles: ['tackle'],
+        security: -0.46, etaSeconds: 140, inbound: true, closing: 1,
+        jumpsPerMin: 1.3, sightings: 2, path: ['8-YNBE', 'E-VKJV'] }),
+    c({ kind: 'system', label: '4X0-8B', systemName: '4X0-8B', solarSystemId: 30004736, regionName: 'Delve',
         jumps: 4, js: 4, ships: ['Muninn', 'Scimitar'], shipIds: [12015, 11978],
-        pilots: [], count: 14, size: 14, band: 'fleet', roles: ['capital', 'logi'],
-        security: -0.18, etaSeconds: 220 }),
-    c({ kind: 'system', label: 'K-6K16', solarSystemId: 30004751, regionName: 'Delve',
+        pilots: [], count: 14, size: 14, band: 'fleet', roles: ['logi'],
+        security: -0.24, etaSeconds: 220, etaMeasured: false, sightings: 2 }),
+    c({ kind: 'system', label: 'KEE-N6', systemName: 'KEE-N6', solarSystemId: 30004772, regionName: 'Delve',
         jumps: 5, js: 5, ships: [], shipIds: [], pilots: [], count: 0, size: 0,
         band: null, roles: [], camp: false, clear: true, status: 'clear',
-        security: -0.43, etaSeconds: 300, body: 'clear' }),
+        security: -0.23, etaSeconds: 300, etaMeasured: false, body: 'clear' }),
   ];
+}
+
+// ── Corp moon mining (Industry → Mining Ledger → Moon Extractions) ──────────
+// Real moon ids in 319-3D, so the SDE names them; the drills are invented
+// structure ids beside the staging Keepstar's. The ore type ids are real.
+const MOONS   = [40298900, 40298902, 40298906, 40298909];    // 319-3D VII - Moon 1, VII - Moon 3, VIII - Moon 2, VIII - Moon 5
+const DRILLS  = [1_035_466_617_951, 1_035_466_617_952];
+const MOON_ORES = [45490, 45491, 45494, 45497, 45499];        // Zeolites, Sylvite, Cobaltite, Scheelite, Sperrylite
+
+/** ESI /corporation/{id}/mining/extractions/: one chunk in this morning, the rest due over the week. */
+function corpMiningExtractions(now) {
+  return MOONS.map((moon_id, i) => {
+    const arrive = now + [-5 * HOUR, 19 * HOUR, 2 * DAY + 7 * HOUR, 6 * DAY + 2 * HOUR][i];
+    return { moon_id, structure_id: DRILLS[i % DRILLS.length],
+      extraction_start_time: new Date(arrive - 13 * DAY).toISOString(),
+      chunk_arrival_time:    new Date(arrive).toISOString(),
+      natural_decay_time:    new Date(arrive + 3 * HOUR).toISOString() };
+  });
+}
+/** ESI /corporation/{id}/mining/observers/. */
+function corpMiningObservers(now) {
+  return DRILLS.map((observer_id, i) => ({ observer_id, observer_type: 'structure', last_updated: iso(now, i * DAY).slice(0, 10) }));
+}
+/** ESI /corporation/{id}/mining/observers/{observer}/: the cast and some corp-mates, pulling this month's chunks. */
+function corpMiningObserver(observerId, now) {
+  const who = [MAIN, INDY, SCOUT, pilot(41).id, pilot(42).id, pilot(43).id, pilot(44).id];
+  return who.flatMap((character_id, i) => [0, 1].map(k => ({
+    character_id, recorded_corporation_id: CAST.main.corpId,
+    type_id: MOON_ORES[(i + k * 2 + observerId) % MOON_ORES.length],
+    quantity: 4_000 + ((i * 7919 + k * 104729 + observerId) % 26) * 1_150,
+    last_updated: iso(now, ((i + k) % 9) * DAY).slice(0, 10),
+  })));
 }
 
 // ── zKillboard ───────────────────────────────────────────────────────────────

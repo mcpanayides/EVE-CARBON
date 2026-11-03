@@ -270,12 +270,15 @@ const _fit = (fitting_id, name, ship_type_id, description, slots) => ({
 function fittings(key) {
   const all = {
     main: [
+      // The Muninn is a missile HAC now (5 launcher hardpoints, 1 turret), so the
+      // old artillery fit put five guns on a hull with room for one. A Co-Processor
+      // pays for the launchers' CPU, so the fit comes in under the hull's limit.
       _fit(9_100_001, 'Muninn — Vaelin fleet', 12015, 'Doctrine Muninn. Fit exactly; no substitutions.', {
-        HiSlot: [[2969], [2969], [2969], [2969], [2969]],
+        HiSlot: [[2410], [2410], [2410], [2410], [2410]],
         MedSlot: [[12076], [3841], [3841], [2281]],
-        LoSlot: [[519], [519], [519], [1999], [2048]],
+        LoSlot: [[22291], [22291], [22291], [3888], [2048]],
         RigSlot: [[31790], [31790]],
-        Cargo: [[21922, 2400], [28668, 400], [33474]],
+        Cargo: [[209, 2400], [28668, 400], [33474]],
       }),
       _fit(9_100_002, 'Drake — L3 missions', 24698, 'Passive tank, heavy missiles.', {
         HiSlot: [[2410], [2410], [2410], [2410], [2410], [2410], [2410]],

@@ -44,6 +44,9 @@ function priceOf(typeId) {
   return avg > 0 ? { adjusted: p[0], average: avg, sell: avg * 1.02, buy: avg * 0.94 } : null;
 }
 
+/** Whether CCP's list holds the type at all, priced or not. */
+function listed(typeId) { return !!(snap('prices') || {})[typeId]; }
+
 /** CCP /markets/prices/ — every type the snapshot holds, as CCP serves it. */
 function marketPrices() {
   return Object.entries(snap('prices') || {}).map(([id, [adjusted_price, average_price]]) =>
@@ -192,7 +195,16 @@ function regionHistory(typeId, now = Date.now()) {
   return out;
 }
 
-/** Fuzzwork aggregates for any type, from the same real prices. */
+/**
+ * Fuzzwork aggregates for any type, from the same real prices.
+ *
+ * A type CCP lists with no price at all has no market, and Fuzzwork answers 0
+ * for it, so the demo does too. Inventing one put unrefined reaction products,
+ * which CCP lists unpriced, at tens of millions of ISK a unit, and Reactions
+ * Profit showed margins in the tens of billions. Only a type the snapshot
+ * doesn't hold at all gets the fallback (demo_fixtures.js prices those from the
+ * SDE where it can).
+ */
 function fuzzworkAggregates(typeIds, fallback) {
   const out = {};
   const f = (n) => String(Math.round(n * 100) / 100);
@@ -200,7 +212,7 @@ function fuzzworkAggregates(typeIds, fallback) {
     const id = Number(raw);
     if (!Number.isFinite(id)) continue;
     const p = priceOf(id);
-    const sell = p ? p.sell : fallback(id);
+    const sell = p ? p.sell : listed(id) ? 0 : fallback(id);
     const buy  = p ? p.buy  : sell * 0.92;
     out[String(id)] = {
       buy:  { weightedAverage: f(buy),  max: f(buy),  min: f(buy * 0.85), stddev: '0', median: f(buy),
@@ -219,6 +231,7 @@ function lpOffers(corpId) {
 }
 
 module.exports = {
+  listed,
   priceOf, marketPrices, industrySystems, sovereigntySystems, sovCampaigns,
   fwSystems, fwStats, fwWars, fwLeaderboards, incursions, systemKills, systemJumps,
   status, eveScout, regionOrders, regionHistory, fuzzworkAggregates, lpOffers,

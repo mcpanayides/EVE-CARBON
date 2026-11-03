@@ -513,7 +513,7 @@ function _intelPaintContacts() {
   host.innerHTML = IntelRow.headerHtml() + rows.slice(0, 40).map(c => {
     // The jumps figure is exact and the time is not; the tooltip is where that
     // distinction gets spelled out, along with the path this contact took.
-    const basis = c.etaMeasured
+    const basis = c.etaMeasured && Number.isFinite(c.jumpsPerMin)
       ? `estimated from this contact's observed ${c.jumpsPerMin.toFixed(1)} jumps/min`
       : "rough estimate — this contact's speed has not been measured yet";
     const path = (c.path || []).slice(-5);

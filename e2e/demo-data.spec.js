@@ -105,6 +105,22 @@ test('cost indices load for the whole cluster', async () => {
   await expect(win.locator('#page-industry')).toContainText(/Showing 5,\d{3} systems/, { timeout: 20_000 });
 });
 
+test('early warning lists its contacts and the channels it watches', async () => {
+  await openPage('fc');
+  await win.locator('.fc-sub-btn[data-fc-tab="intel"]').click();
+  await expect(win.locator('#intelStatusLine')).toContainText('Watching vaelin.intel', { timeout: 15_000 });
+  await expect.poll(() => win.locator('#intelContacts .ir-row:not(.ir-head)').count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(3);
+  await expect(win.locator('#intelContacts')).toContainText('3-DMQT');
+});
+
+test('moon extractions list the corp chunks, with the moons named', async () => {
+  await openPage('industry');
+  await tool('industry', 'Mining Ledger');
+  await win.locator('#page-industry .ml-bar button', { hasText: 'Moon Extractions' }).first().click();
+  await expect(win.locator('#mlBody')).toContainText('319-3D VII - Moon 1', { timeout: 15_000 });
+  await expect(win.locator('#mlBody')).toContainText('Corp miners');
+});
+
 test('demo mode asked the network for nothing it could not answer', async () => {
   // Every unanswered request logs one "[demo] no fixture" line (demo_fixtures.js
   // miss()). A page that quietly renders empty in demo mode starts here.

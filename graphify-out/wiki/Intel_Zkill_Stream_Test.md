@@ -35,9 +35,8 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (4 shared connections)
+- [Intel Test](Intel_Test.md) (6 shared connections)
 - [Demo Fixtures Test](Demo_Fixtures_Test.md) (3 shared connections)
-- [Intel Test](Intel_Test.md) (2 shared connections)
 - [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)
 
 ## Source Files

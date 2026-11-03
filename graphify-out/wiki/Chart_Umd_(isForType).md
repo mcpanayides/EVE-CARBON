@@ -28,10 +28,13 @@
 
 ## Relationships
 
-- [Chart Umd (u)](Chart_Umd_%28u%29.md) (8 shared connections)
-- [Chart Umd (s)](Chart_Umd_%28s%29.md) (3 shared connections)
-- [Chart Umd](Chart_Umd.md) (3 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (1 shared connections)
+- [Chart Umd (u)](Chart_Umd_%28u%29.md) (6 shared connections)
+- [Chart Umd](Chart_Umd.md) (2 shared connections)
+- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (2 shared connections)
+- [Chart Umd (initialize)](Chart_Umd_%28initialize%29.md) (2 shared connections)
+- [Chart Umd (dt)](Chart_Umd_%28dt%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (at)](Chart_Umd_%28at%29.md) (1 shared connections)
 
 ## Source Files
 

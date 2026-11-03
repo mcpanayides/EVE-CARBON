@@ -25,7 +25,7 @@
 - [Galaxy Map (_c2w)](Galaxy_Map_%28_c2w%29.md) (2 shared connections)
 - [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (2 shared connections)
 - [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (2 shared connections)
-- [Chart Umd](Chart_Umd.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Map Dust & Lens Flares](Map_Dust_%26_Lens_Flares.md) (1 shared connections)
 - [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (1 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)

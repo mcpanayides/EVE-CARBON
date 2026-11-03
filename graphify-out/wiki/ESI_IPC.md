@@ -1,13 +1,15 @@
 # ESI IPC
 
-> 14 nodes · cohesion 0.18
+> 19 nodes · cohesion 0.13
 
 ## Key Concepts
 
-- **esi_ipc.js** (13 connections) — `src/ipc/esi_ipc.js`
-- **registerEsiHandlers()** (5 connections) — `src/ipc/esi_ipc.js`
+- **esi_ipc.js** (15 connections) — `src/ipc/esi_ipc.js`
+- **registerEsiHandlers()** (6 connections) — `src/ipc/esi_ipc.js`
 - **fuzzwork_api.test.js** (5 connections) — `test/fuzzwork_api.test.js`
+- **skill_boosters.test.js** (5 connections) — `test/skill_boosters.test.js`
 - **fetchFuzzworkBlueprint()** (4 connections) — `src/ipc/esi_ipc.js`
+- **usableAccelerators()** (3 connections) — `src/ipc/esi_ipc.js`
 - **FUZZWORK_BLUEPRINT_URL()** (2 connections) — `src/ipc/esi_ipc.js`
 - **_fuzzworkMaterials()** (2 connections) — `src/ipc/esi_ipc.js`
 - **{ APP_USER_AGENT, ESI_BASE }** (1 connections) — `src/ipc/esi_ipc.js`
@@ -18,6 +20,9 @@
 - **assert** (1 connections) — `test/fuzzwork_api.test.js`
 - **{ _fuzzwork }** (1 connections) — `test/fuzzwork_api.test.js`
 - **REAL** (1 connections) — `test/fuzzwork_api.test.js`
+- **test** (1 connections) — `test/skill_boosters.test.js`
+- **assert** (1 connections) — `test/skill_boosters.test.js`
+- **ROWS** (1 connections) — `test/skill_boosters.test.js`
 
 ## Relationships
 
@@ -30,11 +35,12 @@
 
 - `src/ipc/esi_ipc.js`
 - `test/fuzzwork_api.test.js`
+- `test/skill_boosters.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 32 (82%)
-- INFERRED: 7 (18%)
+- EXTRACTED: 44 (83%)
+- INFERRED: 9 (17%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,13 +1,16 @@
 # Electron Main Process
 
-> 93 nodes · cohesion 0.02
+> 97 nodes · cohesion 0.02
 
 ## Key Concepts
 
 - **main.js** (176 connections) — `main.js`
 - **loadConfig()** (4 connections) — `main.js`
+- **createTray()** (4 connections) — `main.js`
+- **applyMinimizeToTray()** (4 connections) — `main.js`
 - **jumpBridgesPath()** (3 connections) — `main.js`
 - **_esiNoteResponseCore()** (3 connections) — `main.js`
+- **showMainWindow()** (3 connections) — `main.js`
 - **getMissingScopes()** (3 connections) — `main.js`
 - **config_ipc.js** (3 connections) — `src/ipc/config_ipc.js`
 - **station_ipc.js** (3 connections) — `src/ipc/station_ipc.js`
@@ -20,26 +23,23 @@
 - **loadJumpBridges()** (2 connections) — `main.js`
 - **saveJumpBridges()** (2 connections) — `main.js`
 - **_esiNoteFetchResponse()** (2 connections) — `main.js`
+- **destroyTray()** (2 connections) — `main.js`
 - **decodeTokenScopes()** (2 connections) — `main.js`
 - **registerConfigHandlers()** (2 connections) — `src/ipc/config_ipc.js`
 - **registerStationHandlers()** (2 connections) — `src/ipc/station_ipc.js`
 - **path** (1 connections) — `main.js`
 - **{ app }** (1 connections) — `main.js`
-- **{ BrowserWindow, ipcMain, shell, screen, Tray, Menu, safeStorage, nativeImage, session, Notification }** (1 connections) — `main.js`
-- **https** (1 connections) — `main.js`
-- **http** (1 connections) — `main.js`
-- **crypto** (1 connections) — `main.js`
-- *... and 68 more nodes in this community*
+- *... and 72 more nodes in this community*
 
 ## Relationships
 
 - [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (35 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (15 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (10 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (6 shared connections)
 - [PI IPC](PI_IPC.md) (4 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (4 shared connections)
 - [Presence](Presence.md) (4 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
@@ -54,8 +54,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 289 (99%)
-- INFERRED: 4 (1%)
+- EXTRACTED: 300 (98%)
+- INFERRED: 6 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

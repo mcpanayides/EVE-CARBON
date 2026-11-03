@@ -27,7 +27,7 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (5 shared connections)
+- [Intel Test](Intel_Test.md) (5 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Intel Resume Test](Intel_Resume_Test.md) (2 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)

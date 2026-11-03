@@ -1,6 +1,6 @@
 # Demo Alliance Forum
 
-> 19 nodes · cohesion 0.31
+> 20 nodes · cohesion 0.28
 
 ## Key Concepts
 
@@ -18,6 +18,7 @@
 - **rel()** (4 connections) — `src/demo/forum.js`
 - **initials()** (3 connections) — `src/demo/forum.js`
 - **topicMeta()** (3 connections) — `src/demo/forum.js`
+- **P** (2 connections) — `src/demo/forum.js`
 - **FORUMS** (2 connections) — `src/demo/forum.js`
 - **{ DOMAIN, VAELIN, CAST, pilot }** (1 connections) — `src/demo/forum.js`
 - **cal** (1 connections) — `src/demo/forum.js`
@@ -31,9 +32,9 @@
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
 - [Fleet Commander Core](Fleet_Commander_Core.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
 
 ## Source Files
@@ -42,7 +43,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 113 (97%)
+- EXTRACTED: 115 (97%)
 - INFERRED: 4 (3%)
 - AMBIGUOUS: 0 (0%)
 

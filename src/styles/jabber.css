@@ -10,8 +10,10 @@
   text-transform: uppercase;
   background: var(--accent);
   border: 1px solid var(--accent);
-  border-radius: var(--radius, 2px);
-  color: #fff;
+  border-radius: var(--radius);
+  /* Not white: the accent is a user colour, and the Default orchid is light
+     enough that white text on it was barely readable. */
+  color: var(--text-on-accent);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, opacity 0.15s;
   white-space: nowrap;
@@ -38,7 +40,7 @@
   text-transform: uppercase;
   background: none;
   border: 1px solid var(--border);
-  border-radius: var(--radius, 2px);
+  border-radius: var(--radius);
   color: var(--text-3);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -51,8 +53,14 @@
   border-color: var(--accent);
 }
 
-/* PAP type badges */
-.jpap-badge {
+/* Badges in the PAP, SIG and TARGET columns. Most of them come from the SIG pack
+   (jabberBadgeFromYaml), which tints a 12% wash and a 32% rim from the group's own
+   colour; these fixed classes are the fallback for names the pack does not know,
+   so they mix the same amounts from their text colour and a column never shows two
+   kinds of badge. Each class names only its hue. */
+.jpap-badge,
+.jsig-badge,
+.jtgt-badge {
   display: inline-block;
   font-size: 9px;
   font-family: var(--mono);
@@ -62,36 +70,29 @@
   border-radius: var(--radius);
   text-transform: uppercase;
   white-space: nowrap;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
 }
-.jpap-stratop   { background: rgba(192,57,43,0.15);  color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
-.jpap-peacetime { background: rgba(52,120,210,0.12); color: var(--pal-blue); border: 1px solid rgba(52,120,210,0.30); }
-.jpap-sig       { background: rgba(39,174,96,0.10);  color: var(--pal-green); border: 1px solid rgba(39,174,96,0.28); }
+
+/* PAP type badges */
+.jpap-stratop   { color: var(--pal-red); }
+.jpap-peacetime { color: var(--pal-blue); }
+.jpap-sig       { color: var(--pal-green); }
 
 /* SIG column badges */
-.jsig-badge {
-  display: inline-block;
-  font-size: 9px;
-  font-family: var(--mono);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-  border-radius: var(--radius);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.jsig-capital   { background: rgba(220,170,0,0.12);  color: var(--pal-gold); border: 1px solid rgba(220,170,0,0.32); }
-.jsig-skirmish  { background: rgba(39,174,96,0.10);  color: var(--pal-green); border: 1px solid rgba(39,174,96,0.28); }
-.jsig-guardbees { background: rgba(192,57,43,0.15);  color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
-.jsig-gice      { background: rgba(0,180,180,0.10);  color: #3fcfcf; border: 1px solid rgba(0,180,180,0.28); }
-.jsig-coord     { background: rgba(220,170,0,0.12);  color: var(--pal-gold); border: 1px solid rgba(220,170,0,0.32); }
-.jsig-other     { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--border-e); }
+.jsig-capital   { color: var(--pal-gold); }
+.jsig-skirmish  { color: var(--pal-green); }
+.jsig-guardbees { color: var(--pal-red); }
+.jsig-gice      { color: var(--pal-teal); }
+.jsig-coord     { color: var(--pal-gold); }
+.jsig-other     { color: var(--text-3); background: rgba(255,255,255,0.04); border-color: var(--border-e); }
 
 /* ── FC portrait circle ── */
 .jabber-fc-portrait {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 1px solid rgba(192,57,43,0.30);
+  border: 1px solid var(--accent-30);
   object-fit: cover;
   vertical-align: middle;
   margin-right: 5px;
@@ -109,7 +110,9 @@
   white-space: nowrap;
 }
 
-/* ── Formup navigate button ── */
+/* ── Formup navigate button ──
+   The ping pop-out's formup button in miniature, on the same theme-derived
+   indigo slot (styles/ping-alert.css), so the two read as one control. */
 .jformup-btn {
   display: inline-block;
   font-size: 9px;
@@ -119,9 +122,9 @@
   padding: 1px 6px;
   border-radius: var(--radius);
   white-space: nowrap;
-  background: rgba(148,103,210,0.12);
-  color: #c39ff5;
-  border: 1px solid rgba(148,103,210,0.32);
+  background: var(--indigo-bg);
+  color: var(--indigo-text);
+  border: 1px solid var(--indigo-border);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   max-width: 100%;
@@ -129,15 +132,18 @@
   text-overflow: ellipsis;
 }
 .jformup-btn:hover:not(:disabled) {
-  background: rgba(148,103,210,0.25);
-  border-color: rgba(148,103,210,0.55);
-  color: #d8beff;
+  background: color-mix(in srgb, var(--indigo-border) 78%, transparent);
+  border-color: color-mix(in srgb, var(--indigo-text) 55%, transparent);
+  color: color-mix(in srgb, var(--indigo-text) 70%, white);
 }
 .jformup-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.jformup-btn.done     { color: var(--pal-green); border-color: rgba(39,174,96,0.35); background: rgba(39,174,96,0.10); }
-.jformup-btn.err      { color: var(--pal-red); border-color: rgba(192,57,43,0.35); background: rgba(192,57,43,0.10); }
+.jformup-btn.done,
+.jformup-btn.err      { border-color: color-mix(in srgb, currentColor 35%, transparent);
+                        background: color-mix(in srgb, currentColor 10%, transparent); }
+.jformup-btn.done     { color: var(--pal-green); }
+.jformup-btn.err      { color: var(--pal-red); }
 
-/* ── Comms green pill button ── */
+/* ── Comms green pill button ── (the pop-out's comms button, same green slot) */
 .jcomms-btn {
   display: inline-block;
   font-size: 9px;
@@ -147,9 +153,9 @@
   padding: 1px 6px;
   border-radius: var(--radius);
   white-space: nowrap;
-  background: rgba(74,218,138,0.12);
-  color: var(--pal-green);
-  border: 1px solid rgba(74,218,138,0.32);
+  background: var(--green-bg);
+  color: var(--green-text);
+  border: 1px solid var(--green-border);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
   max-width: 100%;
@@ -158,9 +164,8 @@
   vertical-align: middle;
 }
 .jcomms-btn:hover {
-  background: rgba(74,218,138,0.22);
-  border-color: rgba(74,218,138,0.55);
-  color: var(--pal-green);
+  background: color-mix(in srgb, var(--green-text) 22%, transparent);
+  border-color: color-mix(in srgb, var(--green-text) 55%, transparent);
 }
 
 /* ── Inline links (comms + message columns) ── */
@@ -173,26 +178,15 @@
 }
 .jabber-link:hover { text-decoration: underline; opacity: 0.85; }
 
-/* TARGET column badges */
-.jtgt-badge {
-  display: inline-block;
-  font-size: 9px;
-  font-family: var(--mono);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-  border-radius: var(--radius);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.jtgt-all       { background: rgba(192,57,43,0.15);   color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
-.jtgt-incursion { background: rgba(20,120,60,0.18);   color: #3a9e5f; border: 1px solid rgba(20,120,60,0.38); }
-.jtgt-goon      { background: rgba(130,60,210,0.14);  color: #b07aee; border: 1px solid rgba(130,60,210,0.34); }
-.jtgt-locusts   { background: rgba(140,80,30,0.18);   color: #c4894a; border: 1px solid rgba(140,80,30,0.38); }
-.jtgt-fcsc      { background: rgba(192,57,43,0.15);   color: var(--pal-red); border: 1px solid rgba(192,57,43,0.35); }
-.jtgt-optall    { background: rgba(52,120,210,0.12);  color: var(--pal-blue); border: 1px solid rgba(52,120,210,0.30); }
-.jtgt-beehive   { background: rgba(210,120,20,0.14);  color: var(--pal-yellow); border: 1px solid rgba(210,120,20,0.34); }
-.jtgt-other     { background: rgba(255,255,255,0.04); color: var(--text-3); border: 1px solid var(--border-e); }
+/* TARGET column badges (shared base with PAP and SIG, above) */
+.jtgt-all       { color: var(--pal-red); }
+.jtgt-incursion { color: var(--pal-green); }
+.jtgt-goon      { color: var(--pal-purple); }
+.jtgt-locusts   { color: var(--pal-orange); }
+.jtgt-fcsc      { color: var(--pal-red); }
+.jtgt-optall    { color: var(--pal-blue); }
+.jtgt-beehive   { color: var(--pal-yellow); }
+.jtgt-other     { color: var(--text-3); background: rgba(255,255,255,0.04); border-color: var(--border-e); }
 
 /* Column resize — th must be position:relative (set inline in template) */
 .jabber-th-text {
@@ -272,7 +266,7 @@
 .jabber-room-badge  { flex-shrink: 0; min-width: 17px; height: 17px; padding: 0 5px;
                       display: inline-flex; align-items: center; justify-content: center;
                       border-radius: 999px; background: var(--accent);
-                      color: var(--bg-deep); font-family: var(--mono); font-size: 9px;
+                      color: var(--text-on-accent); font-family: var(--mono); font-size: 9px;
                       font-weight: 700; }
 .jabber-add-room-btn { display: flex; align-items: center; justify-content: center; gap: 5px;
                       margin-top: 8px; padding: 6px 8px; width: 100%;

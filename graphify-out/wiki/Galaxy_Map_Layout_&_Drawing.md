@@ -40,9 +40,10 @@
 - [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (5 shared connections)
 - [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (5 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (5 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
 - [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (3 shared connections)
 - [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (3 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files
 

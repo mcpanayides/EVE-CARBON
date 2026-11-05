@@ -44,10 +44,10 @@
 - .cloneDeep() `INFERRED`
 - ve() `INFERRED`
 - we() `INFERRED`
+- _demoConnect() `INFERRED`
 - ai() `INFERRED`
 - je() `INFERRED`
 - on() `INFERRED`
-- _demoConnect() `INFERRED`
 - ra() `INFERRED`
 - xn() `INFERRED`
 - zi() `INFERRED`

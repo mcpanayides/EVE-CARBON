@@ -1,19 +1,11 @@
 # Account & Auth IPC
 
-> 19 nodes · cohesion 0.13
+> 9 nodes · cohesion 0.28
 
 ## Key Concepts
 
 - **accounts_ipc.js** (11 connections) — `src/ipc/accounts_ipc.js`
-- **{ BrowserWindow }** (11 connections) — `src/ipc/intel_ipc.js`
-- **appIconPath()** (5 connections) — `main.js`
-- **acrylicSupported()** (5 connections) — `main.js`
 - **registerAccountHandlers()** (5 connections) — `src/ipc/accounts_ipc.js`
-- **intel_ipc.js** (5 connections) — `src/ipc/intel_ipc.js`
-- **createPingAlertWindow()** (4 connections) — `main.js`
-- **registerIntelHandlers()** (4 connections) — `src/ipc/intel_ipc.js`
-- **createIntelWidgetWindow()** (3 connections) — `main.js`
-- **applyWidgetPin()** (3 connections) — `main.js`
 - **generateCodeVerifier()** (2 connections) — `src/ipc/accounts_ipc.js`
 - **generateCodeChallenge()** (2 connections) — `src/ipc/accounts_ipc.js`
 - **{ APP_USER_AGENT }** (1 connections) — `src/ipc/accounts_ipc.js`
@@ -21,30 +13,21 @@
 - **crypto** (1 connections) — `src/ipc/accounts_ipc.js`
 - **SCOPES** (1 connections) — `src/ipc/accounts_ipc.js`
 - **pendingAuth** (1 connections) — `src/ipc/accounts_ipc.js`
-- **fs** (1 connections) — `src/ipc/intel_ipc.js`
-- **path** (1 connections) — `src/ipc/intel_ipc.js`
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (10 shared connections)
-- [Demo Mode](Demo_Mode.md) (3 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (3 shared connections)
-- [Electron App](Electron_App.md) (1 shared connections)
-- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
+- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
 
 ## Source Files
 
-- `main.js`
 - `src/ipc/accounts_ipc.js`
-- `src/ipc/intel_ipc.js`
 
 ## Audit Trail
 
-- EXTRACTED: 62 (93%)
-- INFERRED: 5 (7%)
+- EXTRACTED: 23 (92%)
+- INFERRED: 2 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

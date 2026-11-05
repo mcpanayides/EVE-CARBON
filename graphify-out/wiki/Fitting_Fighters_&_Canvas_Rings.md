@@ -1,26 +1,36 @@
 # Fitting Fighters & Canvas Rings
 
-> 8 nodes · cohesion 0.61
+> 18 nodes · cohesion 0.29
 
 ## Key Concepts
 
+- **_fitNum()** (21 connections) — `src/func/fitting.js`
+- **_fitRenderBays()** (20 connections) — `src/func/fitting.js`
 - **_fitAddFighter()** (11 connections) — `src/func/fitting.js`
 - **_fitOpenFighterPicker()** (10 connections) — `src/func/fitting.js`
+- **_fitOpenCargoPicker()** (9 connections) — `src/func/fitting.js`
+- **_fitAddCargo()** (8 connections) — `src/func/fitting.js`
 - **_fitFighterUsedM3()** (8 connections) — `src/func/fitting.js`
+- **_fitEffCargo()** (7 connections) — `src/func/fitting.js`
 - **_fitFighterType()** (7 connections) — `src/func/fitting.js`
 - **_fitFighterRowBlock()** (7 connections) — `src/func/fitting.js`
+- **_fitCargoUsedM3()** (6 connections) — `src/func/fitting.js`
+- **_fitCargoHtml()** (6 connections) — `src/func/fitting.js`
 - **_fitFighterTypeCount()** (5 connections) — `src/func/fitting.js`
+- **_fitCargoRowNote()** (5 connections) — `src/func/fitting.js`
 - **_fitFighterTubeCaps()** (4 connections) — `src/func/fitting.js`
 - **_fitFighterRowNote()** (4 connections) — `src/func/fitting.js`
+- **_fitCargoSetQty()** (3 connections) — `src/func/fitting.js`
+- **_fitVol()** (3 connections) — `src/func/fitting.js`
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (8 shared connections)
-- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (5 shared connections)
-- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (4 shared connections)
-- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (2 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (2 shared connections)
-- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (1 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (23 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_%26_Module_Placement.md) (12 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (12 shared connections)
+- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (5 shared connections)
+- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (3 shared connections)
+- [Fitting Skills & Trait Engine](Fitting_Skills_%26_Trait_Engine.md) (1 shared connections)
 
 ## Source Files
 
@@ -28,8 +38,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 51 (91%)
-- INFERRED: 5 (9%)
+- EXTRACTED: 133 (92%)
+- INFERRED: 11 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

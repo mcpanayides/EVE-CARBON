@@ -1,6 +1,6 @@
 # Demo Fixtures Test
 
-> 35 nodes · cohesion 0.07
+> 33 nodes · cohesion 0.07
 
 ## Key Concepts
 
@@ -11,7 +11,6 @@
 - **forum_ipc.js** (8 connections) — `src/ipc/forum_ipc.js`
 - **demo_fixtures.test.js** (8 connections) — `test/demo_fixtures.test.js`
 - **esi_headers.test.js** (6 connections) — `test/esi_headers.test.js`
-- **esi.js** (5 connections) — `src/shared/esi.js`
 - **Esi** (4 connections) — `src/app_ident.js`
 - **registerForumHandlers()** (3 connections) — `src/ipc/forum_ipc.js`
 - **{ version }** (1 connections) — `src/app_ident.js`
@@ -23,42 +22,42 @@
 - **{ BrowserWindow, session, net }** (1 connections) — `src/ipc/forum_ipc.js`
 - **_forumScraper()** (1 connections) — `src/ipc/forum_ipc.js`
 - **FORUM_SCRAPER_SRC** (1 connections) — `src/ipc/forum_ipc.js`
-- **headers()** (1 connections) — `src/shared/esi.js`
 - **test** (1 connections) — `test/demo_fixtures.test.js`
 - **assert** (1 connections) — `test/demo_fixtures.test.js`
 - **fx** (1 connections) — `test/demo_fixtures.test.js`
 - **{ ESI_BASE }** (1 connections) — `test/demo_fixtures.test.js`
 - **NOW** (1 connections) — `test/demo_fixtures.test.js`
-- *... and 10 more nodes in this community*
+- **u()** (1 connections) — `test/demo_fixtures.test.js`
+- **test** (1 connections) — `test/esi_client.test.js`
+- *... and 8 more nodes in this community*
 
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (3 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (3 shared connections)
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (2 shared connections)
+- [Package Manifest](Package_Manifest.md) (2 shared connections)
 - [SDE Fetch & Build](SDE_Fetch_%26_Build.md) (2 shared connections)
+- [Demo Snapshot Refresh](Demo_Snapshot_Refresh.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (2 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Auto Updater](Auto_Updater.md) (2 shared connections)
 - [Station & Structure Locator](Station_%26_Structure_Locator.md) (2 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 - [Alert Rules](Alert_Rules.md) (1 shared connections)
-- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
-- [Map IPC](Map_IPC.md) (1 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
 
 ## Source Files
 
 - `src/app_ident.js`
 - `src/ipc/character_ipc.js`
 - `src/ipc/forum_ipc.js`
-- `src/shared/esi.js`
 - `test/demo_fixtures.test.js`
 - `test/esi_client.test.js`
 - `test/esi_headers.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 107 (97%)
+- EXTRACTED: 101 (97%)
 - INFERRED: 3 (3%)
 - AMBIGUOUS: 0 (0%)
 

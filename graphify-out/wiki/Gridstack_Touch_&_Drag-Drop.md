@@ -35,10 +35,11 @@
 
 - [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (16 shared connections)
 - [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (8 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (7 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (7 shared connections)
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (6 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (6 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (3 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files
 

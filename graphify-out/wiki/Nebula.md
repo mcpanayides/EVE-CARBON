@@ -1,10 +1,11 @@
 # Nebula
 
-> 15 nodes · cohesion 0.20
+> 16 nodes · cohesion 0.21
 
 ## Key Concepts
 
 - **nebula.js** (13 connections) — `src/func/nebula.js`
+- **makeNoise()** (6 connections) — `src/func/nebula.js`
 - **rng()** (5 connections) — `src/func/nebula.js`
 - **nebulaDensity()** (5 connections) — `src/func/nebula.js`
 - **nebula.test.js** (4 connections) — `test/nebula.test.js`
@@ -22,7 +23,7 @@
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (4 shared connections)
+- [Chart Umd](Chart_Umd.md) (2 shared connections)
 - [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (1 shared connections)
 
 ## Source Files
@@ -32,8 +33,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 47 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 51 (96%)
+- INFERRED: 2 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

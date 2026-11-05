@@ -507,7 +507,9 @@
         bestName: best ? best.name : null,
         // Said plainly, because a command centre this small is a dead end rather
         // than a smaller version of a working one.
-        note: !known ? 'Skills never synced — capacity unknown'
+        // The caller may know WHY a character is unknown (still reading, login
+        // expired, no permission); without that, unknown means never synced.
+        note: !known ? (c.unknownNote || 'Skills never synced — capacity unknown')
             : !can.length ? 'Command Center Upgrades 0 fits no working layout — train it to I before using this character for PI'
             : null,
       };

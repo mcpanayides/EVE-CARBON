@@ -770,6 +770,65 @@ function piStatusStripHtml(tally, cap) {
 let _piCapFilter   = '';
 let _piCapFreeOnly = false;
 
+// ─── Filling in missing skills ───────────────────────────────────────────────
+// A character with no skills on file has unknown capacity. Until v4.1.1 that was
+// most of a big roster: the full sync (SYNC, RESYNC ALL, adding a character)
+// never fetched skills, only the background refresh did, and that skips anything
+// synced in the last half hour and walks the roster one character at a time. So
+// this tab asks for exactly what it lacks, one skills request per character with
+// none on file, and says why for any it still cannot read.
+const _piSkillFetch = new Map();     // charId -> 'pending' | { ok, reason, message?, at }
+const PI_SKILL_RETRY_MS = 2 * 60 * 1000;
+
+/** Start reading skills for characters with none on file; resolves true once
+ *  they are in and the capacities re-read, or returns null with nothing to do. */
+function _piQueueMissingSkills() {
+  if (typeof window === 'undefined' || !window.eveAPI?.syncCharacterSkills) return null;
+  const now = Date.now();
+  const missing = _piAllCharData
+    .map(c => String(c.charId))
+    .filter(id => !_piCapacities[id]?.known)
+    .filter(id => {
+      const prev = _piSkillFetch.get(id);
+      if (!prev) return true;
+      // An ESI hiccup is worth another go a little later. A dead login or a
+      // missing permission is not, until somebody has done something about it.
+      return prev !== 'pending' && prev.reason === 'error' && now - prev.at > PI_SKILL_RETRY_MS;
+    });
+  if (!missing.length) return null;
+  missing.forEach(id => _piSkillFetch.set(id, 'pending'));
+
+  return (async () => {
+    let res = {};
+    try {
+      res = (await window.eveAPI.syncCharacterSkills(missing)) || {};
+    } catch (e) {
+      console.warn('[PI] skills read failed:', e?.message || e);
+    }
+    const at = Date.now();
+    for (const id of missing) {
+      _piSkillFetch.set(id, { ...(res[id] || { ok: false, reason: 'error', message: 'no answer' }), at });
+    }
+    await _piLoadCapacities();
+    return true;
+  })();
+}
+
+/** Why a character's capacity is unknown, when this page knows; else null and
+ *  the model says "never synced". */
+function _piUnknownNote(charId) {
+  const f = _piSkillFetch.get(String(charId));
+  if (!f) return null;
+  if (f === 'pending')        return 'Reading skills from ESI…';
+  if (f.reason === 'reauth')  return 'Login expired: re-login on the Characters page to read skills';
+  if (f.reason === 'scope')   return 'No permission to read skills: re-login on the Characters page';
+  if (f.ok || f.reason === 'unknown') return null;
+  const m    = String(f.message || '');
+  const http = m.match(/HTTP (\d{3})/);
+  const why  = http ? `ESI answered ${http[1]}` : /timeout/i.test(m) ? 'ESI timed out' : (m || 'no answer');
+  return `Could not read skills (${why})`;
+}
+
 /** Capacity rows joined with the role each character's command centre supports. */
 function piCapacityRoleRows() {
   const sum = piCapacitySummary();
@@ -777,6 +836,7 @@ function piCapacityRoleRows() {
     charId: r.charId, charName: r.charName,
     ccu: r.known ? r.ccu : null, ic: r.known ? r.ic : null,
     free: r.free, used: r.used,
+    unknownNote: r.known ? null : _piUnknownNote(r.charId),
   }))));
 }
 
@@ -784,7 +844,20 @@ async function renderPiCapacityTab(host) {
   if (!host) return;
   host.innerHTML = '<div class="loading-row">Reading colonies and skills…</div>';
   await _piEnsureNetwork();
+  const filling = _piQueueMissingSkills();
   _piRenderCapacityTab(host);
+  if (!filling || !(await filling)) return;
+
+  // Redraw with the skills just read, unless the user has moved to another tool
+  // in the meantime: they all render into this same host. Keep the filter box's
+  // focus and caret if they were typing in it while the skills came in.
+  if (_piTab !== 'capacity' || !host.isConnected) return;
+  const typing = document.activeElement?.id === 'piCapFilter';
+  _piRenderCapacityTab(host);
+  if (typing) {
+    const el = document.getElementById('piCapFilter');
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  }
 }
 
 function _piRenderCapacityTab(host) {

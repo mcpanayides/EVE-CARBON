@@ -3712,6 +3712,74 @@ async function resolveImplantSlots(typeIds) {
 // ─── Full character data sync ─────────────────────────────────────────────────
 // Syncs everything: info, wallet, location, ship, implants, PI, assets, blueprints
 // into character_information.db.  Called on first SSO login AND on manual re-sync.
+// ─── Skills and the market-fee profile ────────────────────────────────────────
+// The full trained-skills list, read by PI capacity, the jump planner and the
+// fitting simulator, and the trade profile derived from it. The full and the
+// core sync both run this. It used to live in the core sync only, so a character
+// synced with SYNC or RESYNC ALL had every other table filled and no skills at
+// all, and the background refresh that would have fetched them skips anything
+// synced in the last half hour and walks the roster one character at a time. On
+// a big roster most characters sat at "Skills never synced" on the PI page.
+const ACCOUNTING_SKILL_ID = 16622, BROKER_RELATIONS_SKILL_ID = 3446;
+const SKILLS_SCOPE    = 'esi-skills.read_skills.v1';
+const STANDINGS_SCOPE = 'esi-characters.read_standings.v1';
+
+// Fetch and store the list. Throws when ESI does not answer with one: every
+// character has trained skills, so an empty answer is a failed read, and storing
+// it would wipe a good list.
+async function fetchAndStoreSkills(characterId, authHdr) {
+  const data   = await httpGet(`${ESI_BASE}/characters/${characterId}/skills/?datasource=tranquility`, authHdr);
+  const skills = Array.isArray(data?.skills) ? data.skills : [];
+  if (!skills.length) throw new Error('ESI returned no skills');
+  await charInfoDb.replaceSkills(characterId, skills);
+  const lvl = (id) => (skills.find(s => s.skill_id === id)?.active_skill_level) || 0;
+  const acct = lvl(ACCOUNTING_SKILL_ID), broker = lvl(BROKER_RELATIONS_SKILL_ID);
+  await charInfoDb.replaceTradeProfile(characterId, { accounting: acct, brokerRelations: broker });
+  return { count: skills.length, acct, broker };
+}
+
+// The sync step: skills, then the NPC standings the broker fee needs. Each half
+// keeps whatever is already stored when its own request fails.
+//
+// A half the login was never granted the scope for is skipped rather than sent:
+// it can only 403, and ESI counts every 403 against the error budget the whole
+// app shares. RESYNC ALL across a big roster of older logins would otherwise
+// spend that budget two requests at a time and blank unrelated pages.
+async function syncSkillsStep(characterId, authHdr, report, summary) {
+  const granted = decodeTokenScopes(String(authHdr?.Authorization || '').replace(/^Bearer\s+/i, ''));
+  const lacks   = (scope) => Array.isArray(granted) && granted.length > 0 && !granted.includes(scope);
+
+  if (lacks(SKILLS_SCOPE)) {
+    summary.steps.trade_skills = 'skipped: login lacks the skills scope';
+    report('trade_profile', '✗ skills: this login was never granted skills access — re-login to fix');
+  } else {
+    try {
+      report('trade_profile', 'Fetching skills…');
+      const { count, acct, broker } = await fetchAndStoreSkills(characterId, authHdr);
+      summary.steps.trade_skills = `${count} skills, acct ${acct} / broker ${broker}`;
+      report('trade_profile', `✓ ${count} skills · Accounting ${acct}, Broker Relations ${broker}`);
+    } catch (e) { summary.steps.trade_skills = `error: ${e.message}`; report('trade_profile', `✗ skills: ${e.message}`); }
+  }
+
+  if (lacks(STANDINGS_SCOPE)) {
+    summary.steps.standings = 'skipped: login lacks the standings scope';
+    report('trade_profile', '✗ standings: this login was never granted standings access — re-login to fix');
+  } else {
+    try {
+      report('trade_profile', 'Fetching standings…');
+      const standings = await httpGet(`${ESI_BASE}/characters/${characterId}/standings/?datasource=tranquility`, authHdr);
+      if (Array.isArray(standings)) {
+        await charInfoDb.replaceStandings(characterId, standings);
+        summary.steps.standings = `${standings.length} entries`;
+        report('trade_profile', `✓ ${standings.length} standings`);
+      }
+    } catch (e) {
+      summary.steps.standings = `error: ${e.message}`;
+      report('trade_profile', `✗ standings: ${e.message}`);
+    }
+  }
+}
+
 async function fullCharacterSync(characterId, characterName, progressCb) {
   const report = (step, detail) => {
     if (progressCb) progressCb(step, detail);
@@ -3876,10 +3944,16 @@ async function fullCharacterSync(characterId, characterName, progressCb) {
     report('pi', `✗ ${e.message}`);
   }
  
-  // 7. Assets (full paginated)
   // Re-fetch the token here — PI + implant resolution can take several minutes
   // and the original token (20-min lifetime) may have expired by now.
   try { Object.assign(authHdr, _esiAuthHeaders(await getValidToken(characterId))); } catch (_) {}
+
+  // 6b. Skills and market-fee profile, the same step the core sync runs. Ahead
+  // of assets on purpose: one request, where assets can take minutes and fail,
+  // and the PI capacity view, the jump planner and the fitting simulator read it.
+  await syncSkillsStep(characterId, authHdr, report, summary);
+
+  // 7. Assets (full paginated)
   try {
     report('assets', 'Fetching assets (paginated)…');
     let allAssets = [];
@@ -4157,6 +4231,47 @@ ipcHandle('sync-character-full', async (event, characterId) => {
   return summary;
 });
 
+// ─── Skills only, for many characters ─────────────────────────────────────────
+// For a page that finds characters with no skills on file (the PI capacity view)
+// and wants them now, without a full sync of each: that is dozens of ESI requests
+// a character, this is one. A character that cannot succeed is answered without a
+// request, so a roster of dead logins does not spend the shared ESI error budget:
+// a login CCP has revoked needs a re-login, and a token never granted the skills
+// scope would only 403. Four at a time, through the same gate as every ESI call.
+// Answers { [characterId]: { ok, count } | { ok: false, reason, message? } } with
+// reason one of 'reauth', 'scope', 'error', 'unknown'.
+ipcHandle('sync-character-skills', async (_event, characterIds) => {
+  const ids = [...new Set((Array.isArray(characterIds) ? characterIds : []).map(String))].slice(0, 500);
+  const accounts = loadDB().accounts || {};
+  const out = {};
+  const queue = [...ids];
+  const worker = async () => {
+    while (queue.length) {
+      const id = queue.shift();
+      const account = accounts[id];
+      if (!account)            { out[id] = { ok: false, reason: 'unknown' }; continue; }
+      if (account.needsReauth) { out[id] = { ok: false, reason: 'reauth' };  continue; }
+      try {
+        const token   = await getValidToken(id);
+        const granted = decodeTokenScopes(token);
+        if (Array.isArray(granted) && granted.length && !granted.includes(SKILLS_SCOPE)) {
+          out[id] = { ok: false, reason: 'scope' };
+          continue;
+        }
+        await charInfoDb.ensureCharacterTables(id);
+        const { count } = await fetchAndStoreSkills(id, _esiAuthHeaders(token));
+        out[id] = { ok: true, count };
+      } catch (e) {
+        out[id] = e?.needsReauth
+          ? { ok: false, reason: 'reauth' }
+          : { ok: false, reason: 'error', message: e?.message || String(e) };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, ids.length) }, worker));
+  return out;
+});
+
 // ─── Status-only sync (location + ship + active implants) ─────────────────────
 // The dashboard banner shows "where am I / what am I flying / which implants". This
 // refreshes just those three on demand (every dashboard load) — no wallet / info /
@@ -4418,33 +4533,8 @@ async function coreCharacterSync(characterId, characterName, progressCb) {
     report('wallet_journal', `✗ ${e.message}`);
   }
 
-  // 9. Market-fee profile — trade skills + NPC standings (for Ore/Ice/Gas calc)
-  try {
-    report('trade_profile', 'Fetching trade skills…');
-    const ACCOUNTING_ID = 16622, BROKER_RELATIONS_ID = 3446;
-    const skillsData = await httpGet(`${ESI_BASE}/characters/${characterId}/skills/?datasource=tranquility`, authHdr);
-    const skills = Array.isArray(skillsData?.skills) ? skillsData.skills : [];
-    await charInfoDb.replaceSkills(characterId, skills);   // full list — used by jump planner etc.
-    const lvl = (id) => (skills.find(s => s.skill_id === id)?.active_skill_level) || 0;
-    const acct = lvl(ACCOUNTING_ID), broker = lvl(BROKER_RELATIONS_ID);
-    await charInfoDb.replaceTradeProfile(characterId, { accounting: acct, brokerRelations: broker });
-    summary.steps.trade_skills = `acct ${acct} / broker ${broker}`;
-    report('trade_profile', `✓ Accounting ${acct}, Broker Relations ${broker}`);
-  } catch (e) { summary.steps.trade_skills = `error: ${e.message}`; report('trade_profile', `✗ skills: ${e.message}`); }
-
-  try {
-    report('trade_profile', 'Fetching standings…');
-    const standings = await httpGet(`${ESI_BASE}/characters/${characterId}/standings/?datasource=tranquility`, authHdr);
-    if (Array.isArray(standings)) {
-      await charInfoDb.replaceStandings(characterId, standings);
-      summary.steps.standings = `${standings.length} entries`;
-      report('trade_profile', `✓ ${standings.length} standings`);
-    }
-  } catch (e) {
-    // Pre-re-auth tokens lack esi-characters.read_standings.v1 → 403; degrade gracefully.
-    summary.steps.standings = `error: ${e.message}`;
-    report('trade_profile', `✗ standings: ${e.message} (re-login to grant read_standings)`);
-  }
+  // 9. Skills and market-fee profile (shared with the full sync)
+  await syncSkillsStep(characterId, authHdr, report, summary);
 
   return summary;
 }

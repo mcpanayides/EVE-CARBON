@@ -128,6 +128,18 @@ test('an unsynced character is reported as unknown, never as CCU 0', () => {
   assert.match(row.note, /never synced/i);
 });
 
+test('an unknown character carries the reason the page has for it, when it has one', () => {
+  // "Never synced" sends someone to sync, which does nothing for a login CCP has
+  // revoked. When the page knows the real reason, that is what the row says.
+  const [row] = PM.recommendRoles([{ charId: 1, charName: 'Expired', ccu: null, ic: null,
+    unknownNote: 'Login expired: re-login on the Characters page to read skills' }]);
+  assert.strictEqual(row.known, false);
+  assert.match(row.note, /Login expired/);
+  // A known character ignores it: the note is only for capacity we cannot see.
+  const [known] = PM.recommendRoles([{ charId: 2, charName: 'Fine', ccu: 3, ic: 4, unknownNote: 'stale' }]);
+  assert.strictEqual(known.note, null);
+});
+
 // ─── allocation, not just capability ─────────────────────────────────────────
 
 const alloc = (chars) => PM.assignRoles(PM.recommendRoles(chars));

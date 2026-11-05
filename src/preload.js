@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Full character sync → character_information.db (manual SYNC button)
   syncCharacterFull:        (characterId) => ipcRenderer.invoke('sync-character-full', characterId),
+  // Skills only, for many characters at once (PI capacity fills its gaps with it).
+  syncCharacterSkills:      (characterIds) => ipcRenderer.invoke('sync-character-skills', characterIds),
 
   // Frequent-cadence auto-refresh: core data only (no assets), plus a separate
   // asset sync that self-skips unless assets are older than ASSET_STALE_MS (6 h).

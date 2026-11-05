@@ -32,6 +32,16 @@ See `test/updater_critical.test.js`.
 
 ## [4.1.1] - 2026-11-05
 
+### Changed
+- **More of the app follows your palette.** The incursion alert, the dashboard's job
+  activity, ready/paused, buy/sell and corp tags, and the Jabber feed's PAP, SIG and
+  target badges and its formup and comms buttons all had colours fixed by an older
+  theme. They now repaint with everything else when you change your palette. BP Copy
+  jobs get their own colour rather than sharing ME Research's purple.
+- **No more side stripes** on the warzone tile's "pushing" line or the Top Pilots rows.
+  The line carries its militia's colour in a tinted outline instead, and each pilot's
+  bar still shows the gap to the leader.
+
 ### Security
 - **Electron 43.8.7.** The runtime the app ships on is patched against 12 published
   issues, five of them high - among them windows opened from a sandboxed page not
@@ -56,6 +66,24 @@ See `test/updater_critical.test.js`.
   side. A wide tile no longer scrolls sideways either.
 - **Demo mode** fills Early Warning and the moon extractions, prices reactions without
   a market as having none, and fits the Muninn with the missiles it is built for.
+- **The Jabber light staying red while you were still connected.** When the connection
+  dropped for a moment and the server picked the session back up, the light never
+  turned green again, although pings kept arriving. It now says "reconnecting" while
+  the connection is actually down, goes green as soon as the session is back, and
+  checks the real state whenever you switch back to the app.
+- **Live pings showing twice** in the Jabber feed, until the page next reloaded its
+  history.
+- **Null-sec on the welcome banner** was tagged in the accent colour rather than
+  null-sec red, and hovering an implant filled its slot with a solid crimson block.
+- **The Jabber VIEW button** was white on the accent colour, hard to read on the
+  default orchid.
+- **"Skills never synced" for most of a big roster on the PI Capacity tab.** SYNC and
+  RESYNC ALL never fetched skills: only the background refresh did, and it skips any
+  character synced in the last half hour. So right after syncing everyone, most
+  characters had no skills on file. A full sync now fetches them (with the NPC
+  standings the market tools use). The Capacity tab also fetches any it is still
+  missing, and says why when it can't: login expired, no permission, or ESI not
+  answering.
 
 ## [4.1.0] - 2026-11-02
 

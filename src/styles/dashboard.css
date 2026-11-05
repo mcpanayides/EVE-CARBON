@@ -61,7 +61,7 @@
   --sec-lowsec-text:  #c49012;                 /* low-sec breadcrumb text (muted gold)*/
   --sec-lowsec-bg:    rgba(196, 144, 18, 0.08); /* low-sec breadcrumb background      */
   --sec-newbie-bg:    rgba(78, 201, 176, 0.10); /* newbie breadcrumb background       */
-  --sec-nullsec-bg:   rgba(192, 57, 43, 0.10); /* null-sec breadcrumb background      */
+  --sec-nullsec-bg:   color-mix(in srgb, var(--nullsec) 10%, transparent); /* null-sec breadcrumb background */
   --sec-lawless-text: #903030;                 /* lawless breadcrumb text             */
   --sec-lawless-bg:   rgba(60, 10, 10, 0.55);  /* lawless breadcrumb background       */
   --sec-lawless-border: #5a1a1a;               /* lawless breadcrumb border           */
@@ -327,7 +327,7 @@
   position: relative;
   width: 48px;
   height: 48px;
-  border-radius: 5px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -346,7 +346,7 @@
 }
 .implant-slot--filled:hover {
   border-color: var(--accent-50);
-  background: rgba(192, 58, 43, 0.836);
+  background: var(--accent-12);
   z-index: 10;
 }
 /* Slot number badge — top-left corner */
@@ -354,7 +354,7 @@
   position: absolute;
   top: 2px;
   left: 3px;
-  font-size: 8px;
+  font-size: 9px;
   font-family: var(--mono);
   color: var(--text-7);
   line-height: 1;
@@ -370,9 +370,7 @@
   background: transparent;
   border-radius: 2px;
   flex-shrink: 0;
-  transition: transform 0.15s;
 }
-.implant-slot--filled:hover .banner-implant-icon { transform: scale(1); }
 /* Unknown implant: id is null/missing — show a "?" glyph */
 .implant-slot--unknown {
   border: 1px dashed var(--border-e);
@@ -464,15 +462,13 @@
 .sec-newbie  { color: var(--newbie);         background: var(--sec-newbie-bg); }
 .sec-hisec   { color: var(--sec-hisec-text); background: var(--sec-hisec-bg); }
 .sec-lowsec  { color: var(--sec-lowsec-text); background: var(--sec-lowsec-bg); }
-.sec-nullsec { color: var(--accent);          background: var(--sec-nullsec-bg); }
+.sec-nullsec { color: var(--nullsec);         background: var(--sec-nullsec-bg); }
 .sec-lawless { color: var(--sec-lawless-text); background: var(--sec-lawless-bg); border-color: var(--sec-lawless-border); }
 
 /* ── KPI CARDS ── */
 .dash-wealth-header { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 10px; }
 .dash-wealth-kpi {
   background-color: var(--bg-panel);
-  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
-  background-size: 6px 6px;
   border: 1px solid var(--border-e);
   border-radius: var(--radius);
   padding: 8px 10px;
@@ -485,11 +481,11 @@
 .dash-kpi-loading   { font-size: 13px; color: var(--text-3); font-family: var(--mono); }
 
 /* ── WEALTH CHART WRAPPER ── */
-.dash-wealth-chart-wrap  { background-color: var(--bg-panel); background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px); background-size: 6px 6px; border: 1px solid var(--border-e); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
+.dash-wealth-chart-wrap  { background-color: var(--bg-panel); border: 1px solid var(--border-e); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
 .dash-wealth-chart-label { font-size: 9px; letter-spacing: 0.15em; color: var(--text-3); font-family: var(--mono); margin-bottom: 10px; }
 
 /* ── CHARACTER WEALTH BARS ── */
-.dash-char-bars         { background-color: var(--bg-panel); background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px); background-size: 6px 6px; border: 1px solid var(--border-e); border-radius: var(--radius); padding: 12px 14px; }
+.dash-char-bars         { background-color: var(--bg-panel); border: 1px solid var(--border-e); border-radius: var(--radius); padding: 12px 14px; }
 .dash-char-bars-label   { font-size: 9px; letter-spacing: 0.15em; color: var(--text-3); font-family: var(--mono); margin-bottom: 10px; }
 .dash-char-bar-row      { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .dash-char-bar-row:last-child { margin-bottom: 0; }
@@ -529,14 +525,14 @@
   min-width: 230px; max-height: 320px; overflow-y: auto;
   background: var(--bg-panel); border: 1px solid var(--border);
   border-radius: 10px; padding: 6px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  box-shadow: 0 10px 30px var(--shadow-dark);
 }
 .dashboard-add-item          {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   font-size: 12px; color: var(--text-1); background: none;
   border: none; border-radius: 6px; padding: 8px 10px; cursor: pointer;
 }
-.dashboard-add-item .material-symbols-outlined { font-size: 17px; flex-shrink: 0; }
+.dashboard-add-item .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
 .dashboard-add-item:hover    { background: var(--bg-hover-subtle, rgba(255,255,255,0.04)); color: var(--accent); }
 .dashboard-add-plus          { color: var(--accent); font-weight: 700; opacity: 0.7; margin-left: 2px; }
 .dashboard-add-empty         { padding: 10px; font-size: 11px; color: var(--text-3); text-align: center; }
@@ -557,7 +553,7 @@
   padding: 10px 11px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 10px;
   overflow: hidden;
 }
 .dashboard-panel-title       { font-size: 12px; font-weight: 700; color: var(--text-1); margin-bottom: 7px;
@@ -713,8 +709,7 @@
 .dash-pi-counts              { display: flex; gap: 10px; margin-bottom: 12px; }
 .dash-pi-count               { flex: 1; min-width: 0; padding: 8px 12px; text-align: center;
                                background-color: var(--bg-panel);
-                               background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
-                               background-size: 6px 6px; border: 1px solid var(--border); border-radius: 6px; }
+                               border: 1px solid var(--border); border-radius: 6px; }
 /* The lamp sits above the figure, centred, so the tile reads as a small panel of
    indicator lights rather than three numbers that happen to be coloured. */
 .dash-pi-count .sig-light    { --sig-size: 8px; margin-bottom: 5px; }
@@ -803,15 +798,18 @@
   display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 3px;
   font-family: var(--mono, monospace); font-size: 9px; font-weight: 700;
   letter-spacing: 0.08em; vertical-align: middle;
-  color: #d29922; background: rgba(210, 153, 34, 0.12);
-  border: 1px solid rgba(210, 153, 34, 0.35);
+  color: var(--pal-gold); background: color-mix(in srgb, var(--pal-gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pal-gold) 35%, transparent);
 }
 
 /* ── Active market orders widget (reuses the active-jobs table) ── */
+/* Both sides share one wash, tinted from their own text colour, so BUY and SELL
+   read as the same kind of tag in two colours rather than two kinds of tag. */
 .mo-side            { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-                      padding: 1px 7px; border-radius: 3px; white-space: nowrap; }
-.mo-side.mo-sell    { color: var(--success); background: rgba(39,174,96,0.14); }
-.mo-side.mo-buy     { color: var(--accent);  background: var(--accent-dim, rgba(180,120,60,0.16)); }
+                      padding: 1px 7px; border-radius: 3px; white-space: nowrap;
+                      background: color-mix(in srgb, currentColor 14%, transparent); }
+.mo-side.mo-sell    { color: var(--success); }
+.mo-side.mo-buy     { color: var(--accent); }
 .mo-cell-price      { font-family: var(--mono); color: var(--text-1); text-align: right; white-space: nowrap; }
 .mo-cell-qty        { min-width: 110px; }
 .mo-qty-bar         { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 3px; }
@@ -827,7 +825,7 @@
 .jw-icon            { width: 48px; height: 48px; border-radius: 6px; border: 1px solid var(--border);
                       object-fit: cover; flex-shrink: 0; background: var(--bg-deep); }
 .jw-head-info       { min-width: 0; }
-.jw-name            { font-size: 15px; font-weight: 700; color: var(--text-1);
+.jw-name            { font-size: 14px; font-weight: 700; color: var(--text-1);
                       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jw-sub             { display: flex; align-items: center; gap: 6px; margin: 4px 0 3px;
                       font-size: 10px; color: var(--text-3); font-family: var(--mono); }
@@ -853,7 +851,8 @@
 .cw-journal-icon    { flex-shrink: 0; color: var(--text-3); font-size: 20px; transition: color 0.15s; }
 .cw-card:hover .cw-journal-icon { color: var(--accent); }
 
-/* Activity type badge */
+/* Activity type badge. The wash and the rim are mixed from the text colour, so
+   each activity only names its hue, and a user palette retints all seven. */
 .aj-activity-badge {
   display: inline-block;
   padding: 2px 6px;
@@ -863,15 +862,16 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   white-space: nowrap;
-  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
 }
-.aj-act-1  { color: var(--pal-teal); background: rgba(78,203,176,0.08);  border-color: rgba(78,203,176,0.3);  } /* Manufacturing */
-.aj-act-3  { color: var(--pal-blue); background: rgba(74,159,212,0.08);  border-color: rgba(74,159,212,0.3);  } /* TE Research   */
-.aj-act-4  { color: var(--pal-purple); background: rgba(171,122,184,0.08); border-color: rgba(171,122,184,0.3); } /* ME Research   */
-.aj-act-5  { color: var(--pal-purple); background: rgba(155,89,182,0.08);  border-color: rgba(155,89,182,0.3);  } /* Copy         */
-.aj-act-7  { color: #c0392b; background: rgba(192,57,43,0.08);   border-color: rgba(192,57,43,0.3);   } /* Reverse Eng. */
-.aj-act-8  { color: #f39c12; background: rgba(243,156,18,0.08);  border-color: rgba(243,156,18,0.3);  } /* Invention    */
-.aj-act-9  { color: #16a085; background: rgba(22,160,133,0.08);  border-color: rgba(22,160,133,0.3);  } /* Reactions    */
+.aj-act-1  { color: var(--pal-teal);   } /* Manufacturing */
+.aj-act-3  { color: var(--pal-blue);   } /* TE Research   */
+.aj-act-4  { color: var(--pal-purple); } /* ME Research   */
+.aj-act-5  { color: var(--pal-pink);   } /* Copy          */
+.aj-act-7  { color: var(--pal-red);    } /* Reverse Eng.  */
+.aj-act-8  { color: var(--pal-orange); } /* Invention     */
+.aj-act-9  { color: var(--pal-green);  } /* Reactions     */
 
 /* Progress bar */
 .aj-progress-wrap {
@@ -898,19 +898,9 @@
   white-space: nowrap;
 }
 
-/* Status badges for ready/paused */
-.aj-status-ready  {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-family: var(--mono);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--pal-teal);
-  border: 1px solid rgba(78,203,176,0.4);
-  background: rgba(78,203,176,0.08);
-}
+/* Status badges for ready/paused. Paused is a holding state, which is gold's
+   job in the data palette. */
+.aj-status-ready,
 .aj-status-paused {
   display: inline-block;
   padding: 2px 7px;
@@ -919,24 +909,33 @@
   font-family: var(--mono);
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #e0a020;
-  border: 1px solid rgba(224,160,32,0.4);
-  background: rgba(224,160,32,0.08);
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }
+.aj-status-ready  { color: var(--pal-teal); }
+.aj-status-paused { color: var(--pal-gold); }
 
 /* ── Alliance-space incursion alert widget ─────────────────────────────────── */
+/* Every red here is --pal-red mixed down, so the alert follows the user's
+   Negative swatch like the rest of the app's danger states. */
 @keyframes inc-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0), 0 0 18px rgba(192,57,43,0.25), inset 0 0 0 1px rgba(192,57,43,0.35); }
-  50%       { box-shadow: 0 0 0 4px rgba(192,57,43,0.18), 0 0 32px rgba(192,57,43,0.45), inset 0 0 0 1px rgba(192,57,43,0.6); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent,
+                         0 0 18px color-mix(in srgb, var(--pal-red) 25%, transparent),
+                         inset 0 0 0 1px color-mix(in srgb, var(--pal-red) 35%, transparent); }
+  50%       { box-shadow: 0 0 0 4px color-mix(in srgb, var(--pal-red) 18%, transparent),
+                         0 0 32px color-mix(in srgb, var(--pal-red) 45%, transparent),
+                         inset 0 0 0 1px color-mix(in srgb, var(--pal-red) 60%, transparent); }
 }
 @keyframes inc-light-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px 2px #c0392b; }
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px 2px var(--pal-red); }
   50%       { opacity: 0.45; box-shadow: 0 0 12px 4px var(--pal-red); }
 }
 
 .inc-alert-widget {
-  background: linear-gradient(135deg, rgba(120,15,15,0.18) 0%, rgba(10,10,18,0.95) 60%);
-  border: 1px solid rgba(192,57,43,0.5);
+  background: linear-gradient(135deg,
+                color-mix(in srgb, var(--pal-red) 10%, transparent) 0%,
+                color-mix(in srgb, var(--bg-body) 95%, transparent) 60%);
+  border: 1px solid color-mix(in srgb, var(--pal-red) 50%, transparent);
   border-radius: 14px;
   overflow: hidden;
   animation: inc-pulse 2.4s ease-in-out infinite;
@@ -947,15 +946,15 @@
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
-  background: rgba(192,57,43,0.08);
-  border-bottom: 1px solid rgba(192,57,43,0.25);
+  background: color-mix(in srgb, var(--pal-red) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--pal-red) 25%, transparent);
 }
 
 .inc-alert-light {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #c0392b;
+  background: var(--pal-red);
   flex-shrink: 0;
   animation: inc-light-pulse 1.2s ease-in-out infinite;
 }
@@ -964,10 +963,10 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid rgba(192,57,43,0.4);
+  border: 1px solid color-mix(in srgb, var(--pal-red) 40%, transparent);
   object-fit: cover;
   flex-shrink: 0;
-  background: rgba(192,57,43,0.12);
+  background: color-mix(in srgb, var(--pal-red) 12%, transparent);
 }
 
 .inc-alert-title-block {
@@ -983,7 +982,7 @@
   margin-left: auto;
   padding-left: 20px;
   flex-shrink: 0;
-  border-left: 1px solid rgba(192,57,43,0.2);
+  border-left: 1px solid color-mix(in srgb, var(--pal-red) 20%, transparent);
 }
 
 .inc-earn-label {
@@ -1048,7 +1047,7 @@
 }
 
 .inc-alert-table thead tr {
-  border-bottom: 1px solid rgba(192,57,43,0.2);
+  border-bottom: 1px solid color-mix(in srgb, var(--pal-red) 20%, transparent);
 }
 
 .inc-alert-table th {
@@ -1067,7 +1066,7 @@
 }
 
 .inc-alert-row:last-child { border-bottom: none; }
-.inc-alert-row:hover      { background: rgba(192,57,43,0.06); }
+.inc-alert-row:hover      { background: color-mix(in srgb, var(--pal-red) 6%, transparent); }
 
 .inc-alert-table td { padding: 9px 14px; vertical-align: middle; }
 
@@ -1088,15 +1087,15 @@
 }
 
 .inc-state-established { color: var(--pal-red); border-color: color-mix(in srgb, var(--pal-red) 40%, transparent); background: color-mix(in srgb, var(--pal-red) 8%, transparent); }
-.inc-state-mobilizing  { color: #e09020; border-color: rgba(224,144,32,0.4); background: rgba(224,144,32,0.08); }
+.inc-state-mobilizing  { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 8%, transparent); }
 .inc-state-withdrawing { color: var(--pal-green); border-color: color-mix(in srgb, var(--pal-green) 40%, transparent); background: color-mix(in srgb, var(--pal-green) 8%, transparent); }
 
+/* A type render in a list row: bare, like every other type icon in a row. */
 .inc-site-icon {
   width: 28px;
   height: 28px;
   object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
   vertical-align: middle;
   margin-left: 6px;
 }
@@ -1105,8 +1104,8 @@
 .inc-view-btn {
   padding: 4px 10px;
   background: none;
-  border: 1px solid rgba(192,57,43,0.45);
-  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--pal-red) 45%, transparent);
+  border-radius: 4px;
   color: var(--pal-red);
   font-size: 11px;
   font-family: var(--mono);
@@ -1117,16 +1116,16 @@
 }
 
 .inc-view-btn:hover {
-  background: rgba(192,57,43,0.15);
-  border-color: #c0392b;
+  background: color-mix(in srgb, var(--pal-red) 15%, transparent);
+  border-color: var(--pal-red);
   color: var(--pal-red);
 }
 
 .inc-nav-btn {
   padding: 4px 10px;
   background: none;
-  border: 1px solid rgba(74,159,212,0.45);
-  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--pal-blue) 45%, transparent);
+  border-radius: 4px;
   color: var(--pal-blue);
   font-size: 11px;
   font-family: var(--mono);
@@ -1138,9 +1137,9 @@
 }
 
 .inc-nav-btn:hover:not(:disabled) {
-  background: rgba(74,159,212,0.15);
+  background: color-mix(in srgb, var(--pal-blue) 15%, transparent);
   border-color: var(--pal-blue);
-  color: #7ec8f0;
+  color: var(--pal-blue);
 }
 
 .inc-nav-btn:disabled {
@@ -1249,7 +1248,7 @@
 /* Flash when the status flips to RED so an active runner can't miss the stand-down. */
 .beehive-alert        { animation: beehiveRedFlash 0.5s ease-in-out 4; border-radius: 10px; }
 @keyframes beehiveRedFlash {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240,72,72,0); }
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
   50%      { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pal-red) 85%, transparent); background: color-mix(in srgb, var(--pal-red) 8%, transparent); }
 }
 
@@ -1301,7 +1300,7 @@ body.glass-on .grid-stack-item.ui-draggable-dragging .dashboard-panel {
   outline: none;
   border-color: var(--accent-40);
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 24px 64px var(--glass-shadow),
     0 0 24px var(--accent-12),
     inset 0 1px 0 var(--glass-specular);
 }
@@ -1313,7 +1312,7 @@ body.glass-on .dashboard-welcome-banner {
   -webkit-backdrop-filter: blur(calc(22px * var(--glass-blur-scale, 1))) saturate(150%);
   border: 1px solid var(--glass-edge);
   border-top-color: var(--accent-25);
-  border-radius: 20px;
+  border-radius: 18px;
   box-shadow:
     0 16px 48px var(--glass-shadow),
     0 0 30px var(--glow-banner),
@@ -1323,12 +1322,11 @@ body.glass-on .dashboard-welcome-banner {
    flute sheet (rule above); keep the crimson ::before tint as-is. */
 
 /* Portrait & ship columns: round off the outer corners they own */
-body.glass-on .banner-portrait-col { border-radius: 20px 0 0 20px; }
-body.glass-on .banner-ship-col     { border-radius: 0 20px 20px 0; }
+body.glass-on .banner-portrait-col { border-radius: 18px 0 0 18px; }
+body.glass-on .banner-ship-col     { border-radius: 0 18px 18px 0; }
 
 /* ── Inner surfaces (KPI cards, chart wrap, char bars) — thinner glass ──
-   The old dot-grid texture (radial-gradient) fought the glass blur; the hatch
-   now lives on the parent card, so these read as clean recessed wells. */
+   The hatch lives on the parent card, so these read as clean recessed wells. */
 body.glass-on .dash-wealth-kpi,
 body.glass-on .dash-wealth-chart-wrap,
 body.glass-on .dash-char-bars,
@@ -1336,9 +1334,8 @@ body.glass-on .dash-pi-count,
 body.glass-on .jw-card,
 body.glass-on .cw-card {
   background-color: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.55));
-  background-image: none;      /* kill the dotted pattern */
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border: 1px solid var(--border-e);
+  border-radius: 10px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
@@ -1349,7 +1346,7 @@ body.glass-on .dashboard-add-widget-menu {
   -webkit-backdrop-filter: blur(calc(24px * var(--glass-blur-scale, 1))) saturate(150%);
   border: 1px solid var(--glass-edge);
   border-radius: 14px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 var(--glass-specular);
+  box-shadow: 0 16px 48px var(--glass-shadow), inset 0 1px 0 var(--glass-specular);
 }
 
 /* ── Toolbar buttons pick up the glass material ── */
@@ -1517,13 +1514,13 @@ body.glass-on .active-jobs-list thead tr {
 .fwx-board { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .fwx-rank  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .fwx-row   { position: relative; display: flex; align-items: center; gap: 8px; overflow: hidden;
-             padding: 4px 8px 4px 5px; border-radius: 5px; background: var(--bg-deep); }
+             padding: 4px 8px 4px 5px; border-radius: 4px; background: var(--bg-deep); }
+/* No edge stripe: every bar starts at the same left edge, so a stripe there
+   marked all five rows identically and said nothing about the distribution. */
 .fwx-bar   { position: absolute; left: 0; top: 0; bottom: 0; z-index: 0;
-             border-left: 2px solid var(--accent-40);
              background: linear-gradient(90deg, var(--accent-20), var(--accent-06)); }
 .fwx-row > :not(.fwx-bar) { position: relative; z-index: 1; }
-.fwx-row.is-lead .fwx-bar { border-left-color: var(--accent);
-             background: linear-gradient(90deg, var(--accent-40), var(--accent-10)); }
+.fwx-row.is-lead .fwx-bar { background: linear-gradient(90deg, var(--accent-40), var(--accent-10)); }
 .fwx-pos   { flex: 0 0 11px; text-align: right; font-family: var(--mono); font-size: 10px;
              color: var(--text-3); font-variant-numeric: tabular-nums; }
 .fwx-row.is-lead .fwx-pos { color: var(--accent); font-weight: 700; }
@@ -1613,7 +1610,7 @@ body.glass-on .active-jobs-list thead tr {
    dark hairline is what stops it reading as one more chevron. */
 .fwx-knot    { position: absolute; top: 0; bottom: 0; left: var(--fwx-a, 50%); width: 3px;
                margin-left: -1.5px; border-radius: 2px; background: var(--value-bright);
-               box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.7); }
+               box-shadow: 0 0 0 1px var(--shadow-darker), 0 0 8px var(--shadow-darker); }
 
 /* Chevrons showing which way the rope is being dragged — a staggered opacity
    wave, like a walkway indicator. Opacity only, so it composites cheaply and,
@@ -1640,7 +1637,7 @@ body.glass-on .active-jobs-list thead tr {
                   The halo does the work: these sit against the knot, which is now
                   the BRIGHTEST part of the rope, so a plain white chevron would
                   wash out on a pale militia (gold especially). */
-               filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85)); }
+               filter: drop-shadow(0 0 3px var(--shadow-darker)); }
 .fwx-flow.is-right i { transform: rotate(45deg);   animation: fwx-chev var(--fwx-dur) ease-in-out infinite; }
 .fwx-flow.is-left  i { transform: rotate(-135deg); animation: fwx-chev var(--fwx-dur) ease-in-out infinite; }
 /* The stagger is what carries the direction: leading edge first on the side the
@@ -1666,11 +1663,15 @@ body.glass-on .active-jobs-list thead tr {
 
 /* The verdict line: which militia is pulling, and the number behind the claim.
    The number is there because "pushing" is a 24-hour victory-point share, not a
-   promise that systems are about to flip — so the tile shows its working. */
-.fwx-push     { display: flex; align-items: center; gap: 8px; padding: 6px 9px;
-                border-radius: 5px; background: var(--bg-deep);
-                border-left: 3px solid var(--fw-color); }
-.fwx-push-ico { font-size: 17px; color: var(--fw-color); flex-shrink: 0; }
+   promise that systems are about to flip — so the tile shows its working.
+   The militia colour is a hairline and a faint wash over the whole strip rather
+   than a stripe down one side: the arrow and the name already carry the hue, so
+   the strip only has to say whose line this is, not shout it. */
+.fwx-push     { display: flex; align-items: center; gap: 8px; padding: 5px 9px;
+                border-radius: 4px;
+                border: 1px solid color-mix(in srgb, var(--fw-color) 30%, transparent);
+                background: color-mix(in srgb, var(--fw-color) 8%, var(--bg-deep)); }
+.fwx-push-ico { font-size: 16px; color: var(--fw-color); flex-shrink: 0; }
 .fwx-push.is-left .fwx-push-ico { transform: scaleX(-1); }
 .fwx-push-txt { flex: 1; min-width: 0; font-size: 12px; color: var(--text-2);
                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1678,7 +1679,7 @@ body.glass-on .active-jobs-list thead tr {
 .fwx-push-num { flex-shrink: 0; font-family: var(--mono); font-size: 10px;
                 color: var(--label-muted); font-variant-numeric: tabular-nums; }
 /* Deadlocked: no side, no arrows, no colour to imply one is winning. */
-.fwx-push.is-even { --fw-color: var(--text-3); border-left-color: var(--border-b); }
+.fwx-push.is-even { --fw-color: var(--text-3); }
 
 .fwx-foot   { display: flex; justify-content: space-between; gap: 10px; margin-top: auto;
               padding-top: 6px; border-top: 1px solid var(--border);
@@ -1695,7 +1696,7 @@ body.glass-on .active-jobs-list thead tr {
 }
 
 /* Under glass these are recessed wells, not cards — they keep their own small
-   radii (a 7px capture bar at the 12px card radius is a lozenge) and only take
+   radii (a 7px capture bar at the 10px card radius is a lozenge) and only take
    the tint and the top highlight. */
 body.glass-on .fwx-row,
 body.glass-on .fwx-rope,
@@ -1704,6 +1705,11 @@ body.glass-on .fwx-push {
   background-color: rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.55));
   background-image: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* The push strip keeps its militia wash, laid over the well's tint. */
+body.glass-on .fwx-push {
+  background-color: color-mix(in srgb, var(--fw-color) 8%,
+                      rgba(var(--glass-tint-rgb), calc(var(--glass-tint-alpha) * 0.55)));
 }
 body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
 
@@ -1892,7 +1898,7 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
   .kt-victim                 { display: none; }
 
   .fwx-sys-row               { grid-template-columns: 24px minmax(0, 1.3fr) 1fr 26px; }
-  .fwx-sys-own               { font-size: 8px; }
+  .fwx-sys-own               { letter-spacing: 0; }
   /* The tug of war keeps the rope and who is pulling it. Yesterday's kills and
      the pilot counts are context around that fight, not the fight. */
   .fwx-foot                  { display: none; }
@@ -2002,7 +2008,7 @@ body.glass-on .fwx-rope { border-color: rgba(255, 255, 255, 0.08); }
      too — see the note on .fwx-flow i. */
   .fwx-flow i                { width: 6px; height: 6px; }
   .fwx-flow                  { gap: 12px; }
-  .fwx-push                  { padding: 4px 8px; }
+  .fwx-push                  { padding: 3px 8px; }
   .fwx-row                   { padding: 2px 6px 2px 4px; }
   .fwx-name, .fwx-amt        { font-size: 11px; }
 }

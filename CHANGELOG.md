@@ -30,6 +30,33 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.1.1] - 2026-11-05
+
+### Security
+- **Electron 43.8.7.** The runtime the app ships on is patched against 12 published
+  issues, five of them high - among them windows opened from a sandboxed page not
+  keeping its sandbox, file and web protocol handlers allowing cross-origin reads, and
+  Node.js turning on in workers started from a `<webview>`. js-yaml, which reads the
+  signature and Jabber packs, moves to 5.5.0 for one moderate issue; packs read and
+  write the same as before.
+
+### Fixed
+- **The skill planner's boosters table.** The Serenity festival accelerators, which last
+  twenty minutes, came out on top as the strongest booster, shown as "+2026 · NaN × 0h",
+  and an expired accelerator could come out fastest. Accelerators the market does not
+  carry, ones past their last injection date and ones lasting under an hour are now
+  left out.
+- **Early Warning showing nobody.** A contact with an ETA but no rate of travel stopped
+  the whole contact list from drawing.
+- **The industry jobs tile at narrow widths.** "Manufacturing" ran over the time left
+  beside it; the activity column now fits its badge.
+- **The market orders tile at narrow widths.** Prices ran into the quantity, the side
+  ran into the price and the expiry scrolled off the edge. The columns now fit, and as
+  the tile narrows the least important go first: character, then expiry, quantity and
+  side. A wide tile no longer scrolls sideways either.
+- **Demo mode** fills Early Warning and the moon extractions, prices reactions without
+  a market as having none, and fits the Muninn with the missiles it is built for.
+
 ## [4.1.0] - 2026-11-02
 
 The map release. Every system on the map now opens out into its own solar system, on

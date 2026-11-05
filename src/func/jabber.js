@@ -993,6 +993,30 @@ function initJabberZoom() {
   });
 }
 
+let _jabberIpcBound = false;
+
+// One place turns a connection state from main into the nav light and the
+// page's status line, whether it arrived as a broadcast or was asked for.
+function applyJabberStatus(status) {
+  if (!status) return;
+  const wasConnected = jabberConnected;
+  jabberConnected = status.status === 'online';
+  updateNavStatusIndicators();
+  // An empty message means nothing has been attempted yet (no credentials, say),
+  // and the label already says something more useful than a blank would.
+  const label = document.getElementById('jabberStatus');
+  if (label && status.message) label.textContent = status.message;
+  // History on connecting only. A reconnect loop reports each attempt, and
+  // reloading the feed for every one would re-render it for nothing.
+  if (jabberConnected && !wasConnected) loadJabberHistory();
+}
+
+async function syncJabberStatus() {
+  try {
+    applyJabberStatus(await window.eveAPI.getJabberStatus());
+  } catch (_) { /* main not ready yet; the next broadcast will do */ }
+}
+
 function bindJabberEvents() {
   initJabberColsToggle();
   initJabberColResize();
@@ -1064,30 +1088,35 @@ function bindJabberEvents() {
     });
   }
 
-  // Live messages from main process.
-  // When the DB insert succeeded, the broadcast is a complete DB row (has
-  // raw_body). When it fails, the broadcast is the raw XMPP msg (has body).
-  // Handle both so cells always show content regardless of DB state.
-  window.eveAPI.on('jabber-message', (payload) => {
-    const row = ('raw_body' in payload) ? payload : jabberLiveToRow(payload);
-    // Room chat has its own pane and its own channel. Nothing carrying a room
-    // belongs in the broadcast feed, whatever route it arrived by.
-    if (row.room_jid) return;
-    jabberMessages.unshift(row);
-    renderJabberTable();
-  });
+  // Main-process subscriptions, made once. This function runs twice at startup
+  // (see the click handler above), and these used to be made twice with it:
+  // every live ping landed in the feed twice, and every status change reloaded
+  // the history twice.
+  if (!_jabberIpcBound) {
+    _jabberIpcBound = true;
 
-  // Connection status updates
-  window.eveAPI.on('jabber-status', (status) => {
-    jabberConnected = status.status === 'online';
-    updateNavStatusIndicators();
-    const label = document.getElementById('jabberStatus');
-    if (label) label.textContent = status.message || '';
+    // Live messages from main process.
+    // When the DB insert succeeded, the broadcast is a complete DB row (has
+    // raw_body). When it fails, the broadcast is the raw XMPP msg (has body).
+    // Handle both so cells always show content regardless of DB state.
+    window.eveAPI.on('jabber-message', (payload) => {
+      const row = ('raw_body' in payload) ? payload : jabberLiveToRow(payload);
+      // Room chat has its own pane and its own channel. Nothing carrying a room
+      // belongs in the broadcast feed, whatever route it arrived by.
+      if (row.room_jid) return;
+      jabberMessages.unshift(row);
+      renderJabberTable();
+    });
 
-    // Always reload history on any status change — catches reconnects AND
-    // the initial 'connecting' event which fires once the DB is ready.
-    loadJabberHistory();
-  });
+    window.eveAPI.on('jabber-status', applyJabberStatus);
+
+    // The light only knows what it was last told. Asking main when the window
+    // comes back into view means a missed broadcast cannot leave it wrong for the
+    // rest of the session; this app spends most of its life behind the game, and
+    // being looked at again is exactly when the light has to be right.
+    window.addEventListener('focus', syncJabberStatus);
+    syncJabberStatus();
+  }
 
   // Defer the initial history load by one tick so the DB has time to
   // finish initialising before we query it. This replaces the old

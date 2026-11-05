@@ -19,6 +19,79 @@ function isUnstyled(messageEl) {
 let jabberClient = null;
 let jabberConnectionActive = false;
 
+// ── Connection state ──────────────────────────────────────────────────────────
+// What the nav light and the Jabber page say. One record, published from one
+// place, and readable on demand ('jabber-get-status') so a renderer that missed a
+// broadcast can ask instead of keeping whatever it last heard. The message starts
+// empty so a renderer never paints "not connected" over its own, better, text
+// (credentials missing) before anything has been attempted.
+let jabberState = { status: 'offline', message: '' };
+
+function publishJabberState(next) {
+  const state = { status: next.status, message: next.message || '' };
+  // A reconnect loop repeats the same failure every second or so; the renderer
+  // only needs to hear about a change.
+  if (state.status === jabberState.status && state.message === jabberState.message) return;
+  jabberState = state;
+  broadcastToRenderers('jabber-status', jabberState);
+}
+
+/**
+ * Follow a client's real connection state and report each change to onState.
+ *
+ * @xmpp/client 0.14 reports that state through more than 'online' and 'offline',
+ * which were all this app used to listen to:
+ *
+ *  - A dropped socket goes to 'disconnect', not 'offline'. The built-in reconnect
+ *    module is already on its way back; 'offline' only follows a deliberate stop().
+ *  - If the server still holds the session, stream management RESUMES it, and the
+ *    client goes back online by setting its status directly (Connection#_ready
+ *    with resumed = true in @xmpp/connection): no 'online' event at all. The
+ *    socket error before the drop had already turned the light red, so it stayed
+ *    red for as long as the resumed session lasted, with pings still arriving
+ *    through it. The resume is announced only on client.streamManagement.
+ *  - 'error' is not a state. An error that ends the connection is followed by
+ *    'disconnect' and is reported there; one that does not leaves the session up,
+ *    and must not turn the light red while it is.
+ *
+ * isCurrent lets the caller ignore a client it has already replaced: a stopped
+ * client still emits, and its 'offline' must not repaint the light of the one
+ * that took over.
+ */
+function watchConnection(client, { onState, isCurrent = () => true }) {
+  let lastError = '';
+  const live = (fn) => (...args) => { if (isCurrent(client)) fn(...args); };
+
+  client.on('online', live((address) => {
+    lastError = '';
+    onState({ status: 'online', message: `Connected as ${String(address || client.jid || '')}` });
+  }));
+
+  client.streamManagement?.on?.('resumed', live(() => {
+    lastError = '';
+    onState({ status: 'online', message: `Reconnected as ${String(client.jid || '')}` });
+  }));
+
+  client.on('disconnect', live(() => {
+    onState({
+      status: 'reconnecting',
+      message: lastError ? `Connection lost (${lastError}), reconnecting…` : 'Connection lost, reconnecting…',
+    });
+  }));
+
+  client.on('offline', live(() => {
+    onState({ status: 'offline', message: 'Disconnected' });
+  }));
+
+  client.on('error', live((err) => {
+    const message = err?.message || String(err);
+    // The null-write race is a benign teardown artifact, not news.
+    if (message.includes("reading 'write'")) return;
+    lastError = message;
+    if (client.status !== 'online') onState({ status: 'error', message });
+  }));
+}
+
 // ── Beehive beacon status ─────────────────────────────────────────────────────
 // Derived from the MOTD (MUC subject) of the GoonFleet "Beehive" room. Drives a
 // dashboard widget. RED only when an actual MOTD reads as stand-down; when we
@@ -257,7 +330,7 @@ function _demoConnect(jid, loadConfig) {
     if (def) roomSubjects.set(jidBare, { text: def.subject, setBy: 'chanserv', at: new Date(Date.now() - 6 * 3600 * 1000).toISOString() });
     roomOccupants.set(jidBare, new Map(P.occupants(jidBare).map(o => [o.nick, o])));
   }
-  broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${jid}` });
+  publishJabberState({ status: 'online', message: `Connected as ${jid}` });
   broadcastToRenderers('jabber-rooms', { joined: [...joinedRooms.keys()] });
   return { success: true, message: `Connected as ${jid}` };
 }
@@ -353,6 +426,7 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
     // exist. It "joins" the saved rooms with the demo's subjects and occupants,
     // whose history is already in the store (src/demo/pings.js).
     if (require('./demo_mode').isEnabled()) return _demoConnect(jid, loadConfig);
+    let client = null;   // this attempt's client, once it exists
     try {
       if (!service || !jid || !password) {
         return { success: false, message: 'Service, JID, and password are required.' };
@@ -368,27 +442,36 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
         const oldClient = jabberClient;
         jabberClient = null; // Null before stop so stale events don't route through
         try { await oldClient.stop(); } catch (_) {}
+        // The old client is no longer current, so its own 'offline' is ignored
+        // (see watchConnection); say here what it would have said.
+        resetBeehiveStatus();
       }
+      publishJabberState({ status: 'connecting', message: 'Connecting…' });
 
       const { client: xmppClient } = await getXmppClient();
-      jabberClient = xmppClient({ service, domain, username, password });
+      client = xmppClient({ service, domain, username, password });
+      jabberClient = client;
 
-      jabberClient.on('error', (err) => {
-        // Swallow the null-write race error — it's a benign teardown artifact
-        if (err?.message?.includes("reading 'write'")) return;
-        broadcastToRenderers('jabber-status', { status: 'error', message: err?.message || String(err) });
+      // Every change of connection state, including a resumed session, which
+      // @xmpp/client never announces as 'online', goes through watchConnection.
+      watchConnection(client, {
+        isCurrent: (c) => c === jabberClient,
+        onState: (state) => {
+          jabberConnectionActive = state.status === 'online';
+          publishJabberState(state);
+        },
       });
 
-      jabberClient.on('offline', () => {
-        jabberConnectionActive = false;
+      client.on('offline', () => {
+        if (client !== jabberClient) return;
         stopBeehiveRecheck();
         resetBeehiveStatus();   // lost the room → status unknown
-        broadcastToRenderers('jabber-status', { status: 'offline', message: 'Disconnected' });
       });
 
-      jabberClient.on('online', async (address) => {
-        jabberConnectionActive = true;
-        broadcastToRenderers('jabber-status', { status: 'online', message: `Connected as ${address.toString()}` });
+      // A FRESH session only: a resumed one keeps its room memberships on the
+      // server, which is the point of resuming, so there is nothing to re-join.
+      client.on('online', async (address) => {
+        if (client !== jabberClient) return;
 
         // Join the Beehive MUC (GoonFleet only) so its MOTD (subject) reaches us.
         // The subject arrives on join and on every change; the minutely recheck
@@ -557,13 +640,26 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
         }
       });
 
-      await jabberClient.start();
+      await client.start();
       return { success: true, message: 'Connecting...' };
     } catch (err) {
       console.warn('Jabber connect failed:', err.message || err);
+      // Not every failure reaches the client's 'error' event (the library failing
+      // to load, a service with no usable transport), and without this the page
+      // would say "Connecting…" for good. Only for this attempt, though: a newer
+      // one may already have replaced it, and has its own state to report.
+      const current = !client || client === jabberClient;
+      if (current && client?.status !== 'online') {
+        publishJabberState({ status: 'error', message: err.message || String(err) });
+      }
       return { success: false, message: err.message || String(err) };
     }
   });
+
+  // The connection state as it stands, for a renderer that has just started or
+  // may have missed a broadcast. The nav light is otherwise only ever as right as
+  // the last 'jabber-status' it happened to receive.
+  ipcMain.handle('jabber-get-status', () => jabberState);
 
   // Current Beehive beacon status (cached from the room MOTD) for the dashboard
   // widget to read on mount, before the next live subject update arrives.
@@ -866,4 +962,5 @@ function registerJabberHandlers({ jabberDataDb, createPingAlertWindow, loadConfi
 }
 
 module.exports = { registerJabberHandlers, conferenceHostFor, parseDiscoItems, parseMamResult, delayStamp,
-                   parseOccupantPresence, occupantSort, mamNamespaceFrom, broadcastToRenderers, parseBeehiveStatus };
+                   parseOccupantPresence, occupantSort, mamNamespaceFrom, broadcastToRenderers, parseBeehiveStatus,
+                   watchConnection };

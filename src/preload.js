@@ -281,6 +281,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
 
   // Jabber
   connectJabber:       (config) => ipcRenderer.invoke('jabber-connect', config),
+  getJabberStatus:     ()       => ipcRenderer.invoke('jabber-get-status'),
   getJabberMessages:   (limit)  => ipcRenderer.invoke('jabber-get-messages', limit),
   wipeJabberData:      ()       => ipcRenderer.invoke('jabber-wipe-data'),
   openPingAlert:       (rowId)  => ipcRenderer.invoke('jabber-open-ping-alert', rowId),

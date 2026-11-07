@@ -233,8 +233,12 @@ test('the fleet command tour opens each Fleet Commander tool, then the map’s r
   }
   await btn(window, 'Next').click();
   await expect(title(window)).toHaveText('Record the op');
-  await expect.poll(() => ringSurrounds(window, '#fcOpBtn')).toBe(true);
-  expect(await ringSurrounds(window, '#fcTabContent', '#fcTabContent')).toBe(false);   // the button, not the tool
+  // The button, not the tool. The ring slides in from the whole tool, which holds
+  // the button, so "around the button" is true from the first frame: wait until
+  // it has let go of the tool as well. Checking that straight after failed every
+  // time on a GitHub runner, which has no GPU and draws a frame every 40-190 ms.
+  await expect.poll(async () => await ringSurrounds(window, '#fcOpBtn')
+    && !(await ringSurrounds(window, '#fcTabContent', '#fcTabContent'))).toBe(true);
 
   for (const [name, tab] of [['Op history', 'ophistory'], ['Fitting simulator', 'fitting'], ['Early warning', 'intel']]) {
     await btn(window, 'Next').click();

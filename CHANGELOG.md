@@ -30,6 +30,48 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.1.2] - 2026-11-07
+
+### Added
+- **A guided tour.** On your first launch it walks the real app: adding a character
+  through EVE's sign-in, the first sync, picking your main, the dashboard and a widget,
+  then Mail, Industry and Settings. A second tour sets up your alliance tools: Jabber,
+  your forum, your sovereignty upgrades sheet and your jump gates. Run either again
+  from Settings → General. Nothing else pops up over a tour.
+- **Alliance packs for more coalitions.** The Goonswarm pack is now **The Imperium**,
+  covering its 14 alliances, and **Winter Coalition**, **Brave Collective** and
+  **The Initiative** come built in. A pack lists its pages under the picker in Settings
+  → Jabber. Picking one fills in its forum in Settings → Forums, and The Imperium's
+  fills in its Jabber server, `xmpp://goonfleet.com:5222`. An address you typed yourself
+  is never replaced. Goonswarm's own pages (the GEZ topic, the Goon Wiki, the Stargate
+  page) stay with Goonswarm pilots. Everyone else sees "sovereignty upgrades" where Goons
+  see their GEZ tracker. Packs you make can be exported to share.
+- **Jump gates straight from EVE.** Allow one character in Settings → Jump Gates and
+  EVE Carbon reads your alliance's Ansiblexes every hour. They show green on the map
+  and the jump planner routes through them. Other alliances' gates that your other
+  characters can see show as red dashed lines, so you can see where a target's bridge
+  comes out. Nothing ever routes through those. Only the character you allow signs in
+  again; nobody else is asked to re-authorise. Pasted lists read plain "A » B" lines now
+  too, and rows marked not friendly go red.
+- **Your main character.** The ◆ on a character card picks your main. Its portrait takes
+  the top of the menu, the dashboard's banner and skill queue switch to it at once, and
+  its card moves to the front. Clicking a card no longer changes it.
+
+### Changed
+- **A tidier map toolbar.** It's one row now: Spatial or Schematic, then Layout (or
+  Region), with Overlay and Layers as menus whose buttons say what's on, then Plan and
+  Find. Every overlay and layer has a one-line description where a tooltip used to hide it.
+- **Wormholes are drawn like jump bridges**, in a brighter violet, at the same weight
+  with the same end dots. In Spatial the same light runs along them, leaving Thera or
+  Turnur.
+
+### Fixed
+- **The map's Layout control showing in Schematic**, and the Region picker in Spatial,
+  after picking a region.
+- **The map's system panel losing its colours.** Your bridges, other alliances' bridges
+  and the blue, orange and red standings all showed in plain text.
+- **Wiping Jabber messages or deleting a pack** now asks in the app's own dialog.
+
 ## [4.1.1] - 2026-11-05
 
 ### Changed

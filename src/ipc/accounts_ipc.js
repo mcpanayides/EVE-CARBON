@@ -43,17 +43,20 @@ const SCOPES = [
   'esi-industry.read_character_mining.v1',      // personal mining ledger (Mining Ledger tool)
   'esi-industry.read_corporation_mining.v1',    // corp mining observers + moon extractions (needs in-game Station Manager/Accountant role, else 403)
   'esi-characters.read_fw_stats.v1',            // personal Faction Warfare stats (rank, kills, VP) for the FW tool
+  'esi-search.search_structures.v1',            // jump gates: the main character's alliance Ansiblexes, read hourly (jump_gates_ipc.js)
 ].join(' ');
 
-// Scopes asked for only when the pilot opts in from the feature that needs one,
-// never on a plain login. They are not in main.js's SCOPES either, so a token
-// without one is never flagged for re-login: the feature says so itself. A login
-// asking for a scope the app isn't registered for on the EVE developer portal
-// fails outright, so keeping these out of every login also keeps a missing
-// registration from breaking sign-in for everyone.
-//   esi-search.search_structures.v1  Settings → Jump Gates → "Find my gates"
-//                                    (src/ipc/jump_gates_ipc.js)
-const OPTIONAL_SCOPES = ['esi-search.search_structures.v1'];
+// Every login asks for all of the above. main.js keeps its own, shorter SCOPES:
+// the ones a character's token is checked against, which flag a character whose
+// token lacks one for re-login. A scope listed here but not there (the mail ones,
+// notifications, open_window, search_structures) is asked for at every login
+// without making anyone signed in before it sign in again; the feature that needs
+// it says so itself (the Jump Gates tab asks the main character to log in once).
+//
+// A login asking for a scope the app isn't registered for on the EVE developer
+// portal fails outright, for everyone, and EVE only says so after the pilot has
+// signed in. So a scope added here has to be ticked for the app on the portal
+// (developers.eveonline.com → the app → Scopes) BEFORE the build ships.
 
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
 function generateCodeVerifier() {
@@ -129,8 +132,7 @@ function registerAccountHandlers({
   });
 
   // ─── IPC: Start SSO login ───────────────────────────────────────────────────
-  // opts.extraScopes: optional scopes for this one login (OPTIONAL_SCOPES only).
-  ipcHandle('start-sso-login', (event, opts) => {
+  ipcHandle('start-sso-login', (event) => {
     // Ensure the local OAuth callback server is running
     callbackServerState.start();
 
@@ -141,12 +143,11 @@ function registerAccountHandlers({
     const win = BrowserWindow.fromWebContents(event.sender);
     pendingAuth[state] = { codeVerifier, win };
 
-    const extra = (Array.isArray(opts?.extraScopes) ? opts.extraScopes : []).filter(s => OPTIONAL_SCOPES.includes(s));
     const params = new URLSearchParams({
       response_type:         'code',
       redirect_uri:          CALLBACK_URL,
       client_id:             CLIENT_ID,
-      scope:                 [SCOPES, ...new Set(extra)].join(' '),
+      scope:                 SCOPES,
       code_challenge:        codeChallenge,
       code_challenge_method: 'S256',
       state,
@@ -283,4 +284,4 @@ function registerAccountHandlers({
   callbackServerState.start = startCallbackServer;
 }
 
-module.exports = { registerAccountHandlers, SCOPES, OPTIONAL_SCOPES };
+module.exports = { registerAccountHandlers, SCOPES };

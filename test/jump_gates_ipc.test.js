@@ -1,6 +1,6 @@
 'use strict';
 //
-// "Find my gates" (src/ipc/jump_gates_ipc.js), with ESI, the token store and the
+// Gates from EVE (src/ipc/jump_gates_ipc.js), with ESI, the token store and the
 // structure cache faked: who may search, what the search asks ESI, what comes
 // back, and that it stops while ESI's error budget still has room.
 const test   = require('node:test');
@@ -124,13 +124,13 @@ test('a refused search reads as a missing permission; anything else as an error'
 });
 
 // ─── the hourly read ──────────────────────────────────────────────────────────
-// The picked character's gates are ours (green, routed through); gates only the
+// The main character's gates are ours (green, routed through); gates only the
 // pilot's other characters can see are theirs (red, never routed through).
 
 const found = (...names) => ({ ok: true, failed: 0, stoppedEarly: false,
   gates: names.map(([name, systemId]) => ({ name, systemId })) });
 
-function round({ results, chosen = null, enabled = true, friendly = [], other = [], state = null, able } = {}) {
+function round({ results, chosen = '1', enabled = true, friendly = [], other = [], state = null, able } = {}) {
   const cfg = { app: { jumpGates: chosen ? { characterId: chosen } : {} } };
   const disk = { friendly, other, state };
   const searched = [], events = [];
@@ -162,7 +162,7 @@ function round({ results, chosen = null, enabled = true, friendly = [], other = 
   return { sync, cfg, disk, searched, events };
 }
 
-test('the picked character’s gates are ours and the other characters’ are theirs', async () => {
+test('the main character’s gates are ours and the other characters’ are theirs', async () => {
   const { sync, disk, searched, events } = round({ results: {
     1: found(['A1 » A2 - Spur', 1]),
     2: found(['B1 » B2', 11], ['A2 » A1 - Spur', 2]),               // the scout sees ours too
@@ -178,7 +178,7 @@ test('the picked character’s gates are ours and the other characters’ are th
   assert.deepStrictEqual([s.characterId, s.mine, s.theirs, s.checkedAt, s.characterName], [1, 1, 1, 1000, 'Main']);
 });
 
-test('picking another character makes its gates ours, and is remembered', async () => {
+test('a new main makes its gates ours and is remembered; the same main again reads nothing', async () => {
   const { sync, cfg, disk, searched } = round({
     friendly: [[1, 2]], other: [[11, 12]], state: { mine: [[1, 2]], theirs: [[11, 12]] },
     results: { 1: found(['A1 » A2', 1]), 2: found(['B1 » B2', 11]) },
@@ -188,6 +188,25 @@ test('picking another character makes its gates ours, and is remembered', async 
   assert.deepStrictEqual(searched, [2, 1]);                       // ours first
   assert.deepStrictEqual(disk.friendly, [[11, 12]]);              // the old network has left ours…
   assert.deepStrictEqual(disk.other, [[1, 2]]);                   // …and shows as theirs
+  // Told on every launch who the main is: only a change reads.
+  assert.deepStrictEqual(await sync.setCharacter('2'), { ok: true, reason: 'same' });
+  assert.deepStrictEqual(searched, [2, 1]);
+});
+
+test('a main that can’t search is never stood in for: nothing is read, nothing changes, and it says why', async () => {
+  // A scout in another alliance standing in would have had the planner routing through enemy gates.
+  const { sync, disk, searched } = round({
+    friendly: [[1, 2]], other: [[11, 12]], state: { mine: [[1, 2]], theirs: [[11, 12]], checkedAt: 5 },
+    able: [{ characterId: 1, characterName: 'Main', canSearch: false },
+           { characterId: 2, characterName: 'Scout', canSearch: true }],
+    results: { 2: found(['B1 » B2', 11]) },
+  });
+  const r = await sync.sync();
+  assert.deepStrictEqual([r.ok, r.reason, r.characterName], [false, 'scope', 'Main']);
+  assert.deepStrictEqual(searched, []);
+  assert.deepStrictEqual([disk.friendly, disk.other], [[[1, 2]], [[11, 12]]]);
+  assert.deepStrictEqual([disk.state.error.reason, disk.state.checkedAt], ['scope', 5]);
+  assert.deepStrictEqual(sync.status().main, { characterId: 1, characterName: 'Main', canSearch: false, needsReauth: false });
 });
 
 test('when ours can’t be read, nothing changes and the reason is kept', async () => {
@@ -209,11 +228,12 @@ test('switched off under e2e, nothing is read', async () => {
   assert.deepStrictEqual(searched, []);
 });
 
-test('a request while a round runs gets that round, and nobody allowed means no round', async () => {
+test('a request while a round runs gets that round, and no main means no round', async () => {
   const { sync, searched } = round({ results: { 1: found(['A1 » A2', 1]), 2: found() } });
   const [a, b] = await Promise.all([sync.sync(), sync.sync('requested')]);
   assert.strictEqual(a, b);
   assert.deepStrictEqual(searched, [1, 2]);
-  const nobody = round({ able: [{ characterId: 1, characterName: 'Main', canSearch: false }], results: {} });
-  assert.deepStrictEqual(await nobody.sync.sync(), { ok: false, reason: 'noCharacter' });
+  const noMain = round({ chosen: null, results: {} });
+  assert.deepStrictEqual(await noMain.sync.sync(), { ok: false, reason: 'noMain' });
+  assert.deepStrictEqual(noMain.searched, []);
 });

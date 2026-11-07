@@ -157,9 +157,148 @@ test('alliance tools open each Settings tab with its block lit, and SAVE finishe
   await window.locator('#saveSettingsBtn').click();                 // through the hole
   await expect(title(window)).toHaveText('You’re set up');
   await expect(window.locator('#uiSettingsDrawer')).toBeHidden();
-  await btn(window, 'Done').click();
+  await expect(btn(window, 'Industry tour')).toBeVisible();          // the next tour in the row
+  await btn(window, 'Finish').click();
   await expect(window.locator('.tour-root')).toHaveCount(0);
   await expect.poll(() => savedTutorial(profile)).toMatchObject({ seen: true, advancedDone: true });
+});
+
+// ── Industry and fleet command ────────────────────────────────────────────────
+// Each stop opens the tool it is about and lights it. A tool the stop names but
+// the tour never opened would leave the card describing a page you can't see.
+
+async function startFromGeneral(window, id) {
+  await openGeneral(window);
+  await window.locator(`#${id}`).click();
+  await expect(window.locator('#uiSettingsDrawer')).toBeHidden();   // these tours start in the app
+}
+
+test('the industry tour opens every tool it talks about, lit, and offers fleet command next', async ({ window, profile }) => {
+  const errors = [];
+  window.on('pageerror', (e) => errors.push(e.message));
+  await startFromGeneral(window, 'tutorialIndustryBtn');
+  await expect(title(window)).toHaveText('Industry tools');
+  await btn(window, 'Start').click();
+
+  await expect(title(window)).toHaveText('Open Industry');
+  await expect.poll(() => ringSurrounds(window, '.nav-btn[data-page="industry"]')).toBe(true);
+  await window.locator('.nav-btn[data-page="industry"]').click();      // through the hole
+
+  const stops = [
+    ['Your blueprints', 'blueprints'], ['Any blueprint', 'search'], ['Every job, every character', 'active-jobs'],
+    ['Reactions', 'reactions'], ['Where to build', 'cost-index'], ['Price anything', 'appraisal'],
+    ['Shopping lists', 'shopping-lists'], ['What you’re still missing', 'station-checkout'],
+    ['Mining ledger', 'mining'], ['Reprocessing', 'orehold'], ['Moon scans', 'moon'],
+  ];
+  for (const [i, [name, tab]] of stops.entries()) {
+    if (i) await btn(window, 'Next').click();
+    await expect(title(window)).toHaveText(name, { timeout: 5_000 });
+    await expect.poll(() => window.evaluate(() => currentIndustryTab), { message: name }).toBe(tab);
+    await expect(window.locator(`.industry-sub-btn[data-industry-tab="${tab}"]`)).toHaveClass(/active/);
+    await expect.poll(() => ringSurrounds(window, '#industryTabContent', '#industryTabContent'), { message: name }).toBe(true);
+  }
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Planets');
+  await expect.poll(() => window.evaluate(() => currentPage)).toBe('pi');
+  await expect.poll(() => ringSurrounds(window, '#piTabContent', '#piTabContent')).toBe(true);
+
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('That’s industry');
+  await expect(btn(window, 'Fleet command tour')).toBeVisible();
+  await btn(window, 'Finish').click();
+  await expect(window.locator('.tour-root')).toHaveCount(0);
+  await expect.poll(() => savedTutorial(profile)).toMatchObject({ industryDone: true });
+  // Ticked in Settings, General straight away, not on the next launch.
+  await window.locator('#openSettingsBtn').click();
+  await window.locator('[data-settings-tab="general"]').click();
+  await expect(window.locator('.tour-list-item[data-tour="industry"] .tour-list-done')).toBeVisible();
+  await expect(window.locator('.tour-list-item[data-tour="fleet"] .tour-list-done')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('the fleet command tour opens each Fleet Commander tool, then the map’s routes and the pings', async ({ window, profile }) => {
+  const errors = [];
+  window.on('pageerror', (e) => errors.push(e.message));
+  await startFromGeneral(window, 'tutorialFleetBtn');
+  await expect(title(window)).toHaveText('Fleet command tools');
+  await btn(window, 'Start').click();
+
+  await expect(title(window)).toHaveText('Open Fleet Commander');
+  await window.locator('.nav-btn[data-page="fc"]').click();
+  for (const [i, [name, tab]] of [['Fleet tracker', 'composition']].entries()) {
+    if (i) await btn(window, 'Next').click();
+    await expect(title(window)).toHaveText(name, { timeout: 5_000 });
+    await expect.poll(() => window.evaluate(() => currentFcTab)).toBe(tab);
+    await expect.poll(() => ringSurrounds(window, '#fcTabContent', '#fcTabContent')).toBe(true);
+  }
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Record the op');
+  await expect.poll(() => ringSurrounds(window, '#fcOpBtn')).toBe(true);
+  expect(await ringSurrounds(window, '#fcTabContent', '#fcTabContent')).toBe(false);   // the button, not the tool
+
+  for (const [name, tab] of [['Op history', 'ophistory'], ['Fitting simulator', 'fitting'], ['Early warning', 'intel']]) {
+    await btn(window, 'Next').click();
+    await expect(title(window)).toHaveText(name, { timeout: 5_000 });
+    await expect.poll(() => window.evaluate(() => currentFcTab), { message: name }).toBe(tab);
+    await expect.poll(() => ringSurrounds(window, '#fcTabContent', '#fcTabContent'), { message: name }).toBe(true);
+  }
+  // Pointed at, never opened: the form is CCP's website.
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Fleet fight notice');
+  await expect.poll(() => ringSurrounds(window, '.fc-sub-btn[data-fc-tab="fleetfight"]')).toBe(true);
+  expect(await window.evaluate(() => currentFcTab)).not.toBe('fleetfight');
+
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Plan routes');
+  await expect.poll(() => window.evaluate(() => currentPage)).toBe('map');
+  await expect.poll(() => ringSurrounds(window, '.map-toolbar [aria-label="Plan a route"]')).toBe(true);
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Read the map');
+  await expect.poll(() => ringSurrounds(window, '#mapOverlayGroup')).toBe(true);
+  await expect.poll(() => ringSurrounds(window, '#mapLayersGroup')).toBe(true);
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('Pings');
+  await expect.poll(() => ringSurrounds(window, '.nav-btn[data-page="jabber"]')).toBe(true);
+
+  await btn(window, 'Next').click();
+  await expect(title(window)).toHaveText('That’s the last tour');
+  await btn(window, 'Done').click();
+  await expect(window.locator('.tour-root')).toHaveCount(0);
+  await expect.poll(() => savedTutorial(profile)).toMatchObject({ fleetDone: true });
+  expect(errors).toEqual([]);
+});
+
+test('the tours run in a row: each closing card starts the next, without its welcome', async ({ window }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  // From alliance tools' closing card to industry's first real stop…
+  await window.evaluate(() => startTutorial('advanced', { chained: true }));
+  await expect(title(window)).toHaveText('Pick your alliance pack');
+  await window.evaluate(() => _tutGoto(_tut.steps.findIndex(s => s.id === 'advanced-done')));
+  await expect(title(window)).toHaveText('You’re set up');
+  await btn(window, 'Industry tour').click();
+  await expect(title(window)).toHaveText(/^(Open Industry|Your blueprints)$/);
+  expect(await window.evaluate(() => _tut.kind)).toBe('industry');
+  // Skipping SAVE left Settings open over the app; industry starts in the app.
+  await expect(window.locator('#uiSettingsDrawer')).toBeHidden();
+  // …and from industry's to fleet command's.
+  await window.evaluate(() => _tutGoto(_tut.steps.findIndex(s => s.id === 'industry-done')));
+  await btn(window, 'Fleet command tour').click();
+  await expect(title(window)).toHaveText(/^(Open Fleet Commander|Fleet tracker)$/);
+  expect(await window.evaluate(() => _tut.kind)).toBe('fleet');
+});
+
+test('Settings, General lists the four tours in order and ticks the ones finished', async ({ window, profile }) => {
+  fs.writeFileSync(path.join(profile.userDataDir, 'config.json'),
+    JSON.stringify({ app: { theme: 'Default', tutorial: { seen: true, basicDone: true, industryDone: true } } }, null, 2));
+  await window.reload();
+  await window.waitForLoadState('domcontentloaded');
+  await openGeneral(window);
+  const rows = window.locator('.tour-list-item');
+  await expect(rows.locator('.tour-list-name')).toHaveText(['The basics', 'Alliance tools', 'Industry', 'Fleet command']);
+  await expect(rows.nth(0).locator('.tour-list-done')).toBeVisible();
+  await expect(rows.nth(1).locator('.tour-list-done')).toBeHidden();
+  await expect(rows.nth(2).locator('.tour-list-done')).toBeVisible();
+  await expect(rows.nth(3).locator('.tour-list-done')).toBeHidden();
 });
 
 // The alliance pack names where members find the GEZ sheet and the gate list
@@ -379,7 +518,7 @@ test('donate prompts wait for the tour to end, and a donate click mid-tour opens
   await expect(window.locator('.tour-root')).toHaveCount(1);
 
   // The basics handing over to alliance tools is one go: nothing hears an end.
-  await window.evaluate(() => { exitTutorial('finished', { quiet: true }); startTutorial('advanced', { fromBasic: true }); });
+  await window.evaluate(() => { exitTutorial('finished', { quiet: true }); startTutorial('advanced', { chained: true }); });
   await expect(title(window)).toHaveText('Pick your alliance pack');
   await window.waitForTimeout(1_500);                      // longer than the shortened wait
   expect(await window.evaluate(() => window.__idle)).toBe(0);

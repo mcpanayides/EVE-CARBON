@@ -81,9 +81,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
   removeAccount: (id)  => ipcRenderer.invoke('remove-account', id),
   removeAllAccounts: () => ipcRenderer.invoke('remove-all-accounts'),
-  // opts.extraScopes: an optional scope for this one login, e.g. the Jump Gates
-  // tab's structure search (accounts_ipc.js OPTIONAL_SCOPES).
-  startSSOLogin: (opts) => ipcRenderer.invoke('start-sso-login', opts),
+  startSSOLogin: () => ipcRenderer.invoke('start-sso-login'),
   // The alliances the pilot's characters are in (what alliance packs go by).
   getCharacterAlliances: () => ipcRenderer.invoke('get-character-alliances'),
 

@@ -297,9 +297,62 @@ body.glass-on .tour-card {
 .tour-card[data-side="top"] .tour-arrow    { bottom: -8px; left: calc(var(--tour-arrow, 50%) - 7px); width: 14px; height: 8px; clip-path: polygon(0 0, 50% 100%, 100% 0); }
 .tour-card[data-side="center"] .tour-arrow { display: none; }
 
-/* ── Settings, General: run a tour again ── */
-.tutorial-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.tutorial-settings-actions .calc-btn { width: auto; }
+/* ── Settings, General: the tours, in the order they lead into each other ──
+   Numbered, because the order is the point: each tour's closing card offers the
+   next one. A finished tour carries a green "Done", in words, not colour alone. */
+.tour-list {
+  list-style: none;
+  counter-reset: tour;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.tour-list-item {
+  counter-increment: tour;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  transition: background 0.15s;
+}
+.tour-list-item:hover { background: var(--bg-hover); }
+.tour-list-item::before {
+  content: counter(tour);
+  flex-shrink: 0;
+  width: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label-muted);
+  text-align: right;
+}
+.tour-list-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.tour-list-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.tour-list-desc { font-size: 12px; line-height: 1.4; color: var(--text-3); }
+.tour-list-done {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pal-green);
+}
+.tour-list-done .material-symbols-outlined { font-size: 14px; line-height: 1; }
+.tour-list-item.is-done .tour-list-done { display: inline-flex; }
+.tour-list-item .calc-btn { width: auto; flex-shrink: 0; }
 
 /* ── While a tour runs ──
    The corner toasts and the confirm dialog normally sit under modals; a tour

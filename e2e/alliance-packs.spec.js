@@ -295,59 +295,66 @@ test.describe('a Goonswarm pilot', () => {
 });
 
 test.describe('gates from EVE', () => {
-  // Stand-ins for main's handlers: who may search and how the last read went, the
-  // pick, a read, and the login. What each was asked is kept. Main reads nothing
-  // under e2e; these stand in for what it would answer.
+  // Stand-ins for main's handlers: how the last read went through the main, who
+  // the main is, a read, and the login. What each was asked is kept. Main reads
+  // nothing under e2e; these stand in for what it would answer.
   async function standIns(electronApp, status) {
     await electronApp.evaluate(({ ipcMain }, status) => {
-      global.__asked = { pick: [], login: [], sync: 0 };
+      global.__asked = { main: [], login: 0, sync: 0 };
       for (const ch of ['jump-gates-esi-status', 'jump-gates-esi-set-character', 'jump-gates-esi-sync', 'start-sso-login']) {
         ipcMain.removeHandler(ch);
       }
       ipcMain.handle('jump-gates-esi-status', () => status);
-      ipcMain.handle('jump-gates-esi-set-character', (event, id) => {
-        global.__asked.pick.push(id);
-        event.sender.send('jump-gates-esi-progress', { done: 3, total: 6, characterName: 'Scout Alt' });
-        return { ok: true };
-      });
+      ipcMain.handle('jump-gates-esi-set-character', (_e, id) => { global.__asked.main.push(String(id)); return { ok: true }; });
       ipcMain.handle('jump-gates-esi-sync', () => { global.__asked.sync++; return { ok: true }; });
-      ipcMain.handle('start-sso-login', (_e, opts) => { global.__asked.login.push(opts); return { ok: true }; });
+      ipcMain.handle('start-sso-login', () => { global.__asked.login++; return { ok: true }; });
     }, status);
   }
-  const allowed = (characterId, characterName) => ({ characterId, characterName, canSearch: true, needsReauth: false });
-
-  test('with nobody allowed yet, it asks EVE for the one extra permission', async ({ window, electronApp }) => {
-    await standIns(electronApp, { enabled: true, characters: [{ ...allowed(FAKE_CHAR_ID, FAKE_CHAR_NAME), canSearch: false }], characterId: null });
-    await openSettings(window, 'jumpgates');
-    await expect(window.locator('#beaconEsiAllow')).toBeVisible();
-    await expect(window.locator('#beaconEsiFind')).toBeHidden();
-    await window.locator('#beaconEsiAllowBtn').click();
-    await expect.poll(() => electronApp.evaluate(() => global.__asked.login))
-      .toEqual([{ extraScopes: ['esi-search.search_structures.v1'] }]);
-    await expect(window.locator('#beaconEsiStatus')).toContainText('EVE’s login is open in your browser');
+  const main = (canSearch, extra = {}) => ({
+    enabled: true, running: false, characters: [{ characterId: FAKE_CHAR_ID, characterName: FAKE_CHAR_NAME, canSearch, needsReauth: false }],
+    characterId: FAKE_CHAR_ID,
+    main: { characterId: FAKE_CHAR_ID, characterName: FAKE_CHAR_NAME, canSearch, needsReauth: false },
+    ...extra,
   });
 
-  test('says whose gates are ours and how the last read went, with no button to press', async ({ window, electronApp }) => {
-    await standIns(electronApp, {
-      enabled: true, running: false, characters: [allowed(FAKE_CHAR_ID, FAKE_CHAR_NAME), allowed(2, 'Scout Alt')],
-      characterId: FAKE_CHAR_ID, checkedAt: Date.now() - 5 * 60_000, characterName: FAKE_CHAR_NAME,
-      mine: 143, theirs: 12, complete: true, error: null,
-    });
+  test('read through the main character, with nothing to pick and nothing to allow', async ({ window, electronApp }) => {
+    await standIns(electronApp, main(true, {
+      checkedAt: Date.now() - 5 * 60_000, characterName: FAKE_CHAR_NAME, mine: 143, theirs: 12, complete: true, error: null,
+    }));
     await openSettings(window, 'jumpgates');
-    await expect(window.locator('#beaconEsiCharacter option')).toHaveText([FAKE_CHAR_NAME, 'Scout Alt']);
-    await expect(window.locator('#beaconEsiCharacter')).toHaveValue(String(FAKE_CHAR_ID));
     const status = window.locator('#beaconEsiStatus');
     await expect(status).toContainText(`Kept up to date from EVE every hour. Read 5 min ago: 143 gates ${FAKE_CHAR_NAME} can use, green on the map`);
     await expect(status).toContainText('12 gates of other alliances your other characters can see, red');
-    await expect(window.locator('#settingsTabJumpgates button', { hasText: 'Find my gates' })).toHaveCount(0);
+    await expect(window.locator('#settingsTabJumpgates .beacon-esi .beacon-esi-help')).toContainText('through your main character');
+    // The picker and the extra permission are gone: the main decides, and every login asks for the permission.
+    await expect(window.locator('#settingsTabJumpgates .beacon-esi select')).toHaveCount(0);
+    await expect(window.locator('#settingsTabJumpgates button', { hasText: /Allow/ })).toHaveCount(0);
+    await expect(window.locator('#beaconEsiRelogin')).toBeHidden();
+  });
 
-    // Another character's gates become ours: main is told, and its read shows.
-    await window.locator('#beaconEsiCharacter').selectOption('2');
-    await expect.poll(() => electronApp.evaluate(() => global.__asked.pick)).toEqual(['2']);
+  test('a main signed in before 4.1.2 is asked, here only, to log in once more', async ({ window, electronApp }) => {
+    await standIns(electronApp, main(false));
+    await openSettings(window, 'jumpgates');
+    await expect(window.locator('#beaconEsiStatus'))
+      .toContainText(`${FAKE_CHAR_NAME} signed in before jump gates came from EVE. Log in again with ${FAKE_CHAR_NAME}`);
+    await expect(window.locator('#beaconEsiRelogin')).toBeVisible();
+    await window.locator('#beaconEsiReloginBtn').click();
+    await expect.poll(() => electronApp.evaluate(() => global.__asked.login)).toBe(1);
+    await expect(window.locator('#beaconEsiStatus')).toContainText('Sign in with your main character');
+  });
+
+  test('a new main tells main whose gates are ours', async ({ window, electronApp }) => {
+    // After start-up, which names the main once itself (the real handler takes that).
+    await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+    await standIns(electronApp, main(true));
+    await window.evaluate(() => document.dispatchEvent(new CustomEvent('main-character-changed', {
+      detail: { characterId: '2118400001', characterName: 'Another Pilot' },
+    })));
+    await expect.poll(() => electronApp.evaluate(() => global.__asked.main)).toEqual(['2118400001']);
   });
 
   test('when a read lands, the counts follow without a reload', async ({ window, electronApp }) => {
-    await standIns(electronApp, { enabled: true, characters: [allowed(FAKE_CHAR_ID, FAKE_CHAR_NAME)], characterId: FAKE_CHAR_ID });
+    await standIns(electronApp, main(true));
     await openSettings(window, 'jumpgates');
     await expect(window.locator('#beaconImportCount')).toHaveText('0 gates saved');
     await window.evaluate(async () => {

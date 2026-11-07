@@ -7,21 +7,23 @@
 // pasted list.
 //
 // Once an hour (ESI caches both the search and a structure for 3600 s), and when
-// the pilot allows a character or picks another, every character allowed to
-// search is read:
-//   • the picked character's gates are ours: the planner routes through them,
-//     and the map draws them green;
+// the main character changes, every character able to search is read:
+//   • the main character's gates are ours: the planner routes through them, and
+//     the map draws them green. The renderer names the main (the ◆ on the
+//     Characters page) through setCharacter, and nobody else's gates are ever
+//     taken for ours: a scout in another alliance standing in for a main that
+//     can't search would have had the planner routing through enemy gates;
 //   • gates only the pilot's other characters can see (an alt or a scout in
 //     another alliance) are theirs: drawn red and dashed, never routed through.
 //     A hunter can see where a target's bridge comes out ahead of them.
 // Each round folds into the two saved networks (JumpGateList.applyEsiRound): a
 // gate ESI stops reporting comes out, while a pasted one stays.
 //
-// The search needs esi-search.search_structures.v1. The app asks for it only when
-// the pilot presses "Allow a character" on the Jump Gates tab (OPTIONAL_SCOPES in
-// accounts_ipc.js): asking on every login would make the whole roster sign in
-// again, and a login asking for a scope the app isn't registered for fails
-// outright. Reading a structure uses read_structures, which every login has.
+// The search needs esi-search.search_structures.v1, which every login asks for
+// since 4.1.2 (accounts_ipc.js). main.js doesn't check tokens for it, so nobody
+// is made to sign in again; a main whose token predates it gets 'scope', and the
+// Jump Gates tab asks for that one character to log in again. Reading a
+// structure uses read_structures, which every login has.
 //
 // Search wants three characters at least, hence " » " rather than "»". Names
 // already in the locator's structure cache are used as they are, and each one
@@ -135,7 +137,7 @@ function createJumpGateSearch({ loadDB, getValidToken, decodeTokenScopes, httpGe
  * The hourly read and what it saves, again with its world passed in.
  *
  *   gates        createJumpGateSearch()
- *   loadConfig / saveConfig   app.jumpGates.characterId: whose gates are ours
+ *   loadConfig / saveConfig   app.jumpGates.characterId: the main character, whose gates are ours
  *   systemIndex  async () => { lower-case system name: id }
  *   store        { loadFriendly, saveFriendly, loadOther, saveOther, loadState, saveState }
  *   broadcast    (channel, payload) to every window
@@ -145,28 +147,36 @@ function createJumpGateSync({ gates, loadConfig, saveConfig, systemIndex, store,
                               enabled = true, now = () => Date.now() }) {
   let running = null, firstTimer = null, hourly = null;
   const same = (a, b) => a != null && b != null && String(a) === String(b);
-  const chosenId = () => { try { return (loadConfig() || {}).app?.jumpGates?.characterId ?? null; } catch (_) { return null; } };
-  const pick = (able) => able.find(c => same(c.characterId, chosenId())) || able[0] || null;
+  const mainId = () => { try { return (loadConfig() || {}).app?.jumpGates?.characterId ?? null; } catch (_) { return null; } };
+  const mainOf = (characters) => characters.find(c => same(c.characterId, mainId())) || null;
 
-  /** Who may search, whose gates are ours, and how the last read went. */
+  /** Who may search, whose gates are ours (the main's), and how the last read went. */
   function status() {
     const characters = gates.characters();
-    const chosen = pick(characters.filter(c => c.canSearch));
+    const main = mainOf(characters);
     const s = store.loadState() || {};
     return {
       enabled, running: !!running, characters,
-      characterId: chosen ? chosen.characterId : null,
+      characterId: main ? main.characterId : null,
+      main: main ? { characterId: main.characterId, characterName: main.characterName,
+                     canSearch: !!main.canSearch, needsReauth: !!main.needsReauth } : null,
       checkedAt: s.checkedAt || null, characterName: s.characterName || null,
       mine: s.counts ? s.counts.mine : null, theirs: s.counts ? s.counts.theirs : null,
       complete: s.complete !== false, error: s.error || null,
     };
   }
 
-  /** Whose gates are ours from now on; read straight away. */
+  /**
+   * The main character, whose gates are ours. The renderer says who it is on
+   * every launch and whenever it changes; only a real change is saved and read
+   * straight away, so a launch doesn't spend a read before the startup syncs.
+   */
   function setCharacter(characterId) {
+    const id = characterId == null ? null : String(characterId);
+    if (same(id, mainId())) return Promise.resolve({ ok: true, reason: 'same' });
     const cfg = loadConfig() || {};
     cfg.app = cfg.app || {};
-    cfg.app.jumpGates = { ...(cfg.app.jumpGates || {}), characterId: characterId == null ? null : String(characterId) };
+    cfg.app.jumpGates = { ...(cfg.app.jumpGates || {}), characterId: id };
     saveConfig(cfg);
     return sync('character');
   }
@@ -175,9 +185,19 @@ function createJumpGateSync({ gates, loadConfig, saveConfig, systemIndex, store,
     if (!enabled) return Promise.resolve({ ok: false, reason: 'disabled' });
     if (running) return running;
     running = (async () => {
-      const able = gates.characters().filter(c => c.canSearch);
-      if (!able.length) return { ok: false, reason: 'noCharacter' };
-      const chosen = pick(able);
+      const everyone = gates.characters();
+      const chosen = mainOf(everyone);
+      if (!chosen) return { ok: false, reason: 'noMain' };
+      if (!chosen.canSearch) {
+        // The main's token predates the search scope (or it must log in again).
+        // Nobody else's gates stand in for ours: keep the networks, say why.
+        const failure = { reason: chosen.needsReauth ? 'reauth' : 'scope', message: null };
+        store.saveState({ ...(store.loadState() || {}), error: { ...failure, at: now() } });
+        const out = { ok: false, ...failure, characterName: chosen.characterName };
+        broadcast('jump-gates-updated', out);
+        return out;
+      }
+      const able = everyone.filter(c => c.canSearch);
       const index = await systemIndex();
       if (!index || !Object.keys(index).length) return { ok: false, reason: 'noGalaxy' };
 

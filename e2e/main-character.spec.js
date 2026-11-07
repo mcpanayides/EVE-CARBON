@@ -88,6 +88,18 @@ test.describe('with two characters', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the ◇ also names the main whose jump gates are ours', async ({ window, electronApp }) => {
+    await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+    await electronApp.evaluate(({ ipcMain }) => {
+      global.__mains = [];
+      ipcMain.removeHandler('jump-gates-esi-set-character');
+      ipcMain.handle('jump-gates-esi-set-character', (_e, id) => { global.__mains.push(String(id)); return { ok: true }; });
+    });
+    await openCharacters(window);
+    await cards(window).nth(1).locator('.character-fav-btn').click();
+    await expect.poll(() => electronApp.evaluate(() => global.__mains)).toEqual([String(SECOND.characterId)]);
+  });
+
   test('a slow paint of the old main never covers the new one', async ({ window, electronApp }) => {
     await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
     await expect(bannerName(window)).toContainText(FAKE_CHAR_NAME);

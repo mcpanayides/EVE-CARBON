@@ -2,7 +2,7 @@
 //
 // Reading jump gate lists (src/shared/jump_gate_list.js): pasted "A » B" lines
 // and Webway-style tables on Settings → Jump Gates, and the in-game Ansiblex
-// names "Find my gates" brings back from ESI.
+// names that Gates from EVE brings back from ESI.
 const test   = require('node:test');
 const assert = require('node:assert');
 

@@ -33,11 +33,17 @@ See `test/updater_critical.test.js`.
 ## [4.1.2] - 2026-11-07
 
 ### Added
-- **A guided tour.** On your first launch it walks the real app: adding a character
-  through EVE's sign-in, the first sync, picking your main, the dashboard and a widget,
-  then Mail, Industry and Settings. A second tour sets up your alliance tools: Jabber,
-  your forum, your sovereignty upgrades sheet and your jump gates. Run either again
-  from Settings → General. Nothing else pops up over a tour.
+- **Guided tours.** On your first launch the basics walk the real app: adding a
+  character through EVE's sign-in, the first sync, picking your main, the dashboard and
+  a widget, then Mail, Industry and Settings. Settings → General lists every tour in
+  order, ticks the ones you've finished and runs any of them again, and nothing else
+  pops up over one. Each tour offers the next when it ends, and each stop opens the
+  tool it's about:
+  - **Alliance tools:** Jabber, your forum, your sovereignty upgrades sheet and your
+    jump gates.
+  - **Industry:** blueprints, jobs, reactions, buying, mining and planets.
+  - **Fleet command:** the fleet tracker, recording an op, fits, early warning, routes
+    and pings.
 - **Alliance packs for more coalitions.** The Goonswarm pack is now **The Imperium**,
   covering its 14 alliances, and **Winter Coalition**, **Brave Collective** and
   **The Initiative** come built in. A pack lists its pages under the picker in Settings
@@ -46,13 +52,14 @@ See `test/updater_critical.test.js`.
   is never replaced. Goonswarm's own pages (the GEZ topic, the Goon Wiki, the Stargate
   page) stay with Goonswarm pilots. Everyone else sees "sovereignty upgrades" where Goons
   see their GEZ tracker. Packs you make can be exported to share.
-- **Jump gates straight from EVE.** Allow one character in Settings → Jump Gates and
-  EVE Carbon reads your alliance's Ansiblexes every hour. They show green on the map
-  and the jump planner routes through them. Other alliances' gates that your other
-  characters can see show as red dashed lines, so you can see where a target's bridge
-  comes out. Nothing ever routes through those. Only the character you allow signs in
-  again; nobody else is asked to re-authorise. Pasted lists read plain "A » B" lines now
-  too, and rows marked not friendly go red.
+- **Jump gates straight from EVE.** EVE Carbon reads your alliance's Ansiblexes every
+  hour through your main character. They show green on the map and the jump planner
+  routes through them. Other alliances' gates that your other characters can see show
+  as red dashed lines, so you can see where a target's bridge comes out. Nothing ever
+  routes through those. Characters you add from now on are ready for it. If your main
+  signed in before this update, Settings → Jump Gates asks it to log in once more, and
+  nobody else has to. Pasted lists read plain "A » B" lines now too, and rows marked not
+  friendly go red.
 - **Your main character.** The ◆ on a character card picks your main. Its portrait takes
   the top of the menu, the dashboard's banner and skill queue switch to it at once, and
   its card moves to the front. Clicking a card no longer changes it.

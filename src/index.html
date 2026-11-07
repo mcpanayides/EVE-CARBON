@@ -670,15 +670,46 @@
 
             <div class="settings-toggle-row">
               <div class="settings-toggle-text">
-                <div class="settings-toggle-label">Tutorial</div>
+                <div class="settings-toggle-label">Guided tours</div>
                 <div class="settings-toggle-desc">
-                  A guided tour that dims the rest of the app while it shows you each control, and waits while you try it.
-                  The basics take about two minutes. Alliance tools covers Jabber, your forum, your <span data-pack-term="sov_upgrades">sovereignty upgrades</span> and jump gates.
+                  Each tour dims the rest of the app while it shows you a control, and waits while you try it.
+                  They run in this order, and each one ends by offering the next, so you can take them all in a row.
                 </div>
-                <div class="tutorial-settings-actions">
-                  <button class="calc-btn" id="tutorialStartBtn">Take the tour</button>
-                  <button class="calc-btn" id="tutorialAdvancedBtn">Set up alliance tools</button>
-                </div>
+                <!-- In the order each tour's closing card offers the next (func/tutorial.js _TUT_TOURS). -->
+                <ol class="tour-list">
+                  <li class="tour-list-item" data-tour="basic">
+                    <span class="tour-list-text">
+                      <span class="tour-list-name">The basics</span>
+                      <span class="tour-list-desc">Your characters and main, the dashboard and getting around. About two minutes.</span>
+                    </span>
+                    <span class="tour-list-done"><span class="material-symbols-outlined" aria-hidden="true">check</span>Done</span>
+                    <button class="calc-btn" id="tutorialStartBtn" aria-label="Start the basics tour">Start</button>
+                  </li>
+                  <li class="tour-list-item" data-tour="advanced">
+                    <span class="tour-list-text">
+                      <span class="tour-list-name">Alliance tools</span>
+                      <span class="tour-list-desc">Jabber, your forum, your <span data-pack-term="sov_upgrades">sovereignty upgrades</span> and jump gates. About two minutes.</span>
+                    </span>
+                    <span class="tour-list-done"><span class="material-symbols-outlined" aria-hidden="true">check</span>Done</span>
+                    <button class="calc-btn" id="tutorialAdvancedBtn" aria-label="Start the alliance tools tour">Start</button>
+                  </li>
+                  <li class="tour-list-item" data-tour="industry">
+                    <span class="tour-list-text">
+                      <span class="tour-list-name">Industry</span>
+                      <span class="tour-list-desc">Blueprints, jobs, buying, mining and planets. About three minutes.</span>
+                    </span>
+                    <span class="tour-list-done"><span class="material-symbols-outlined" aria-hidden="true">check</span>Done</span>
+                    <button class="calc-btn" id="tutorialIndustryBtn" aria-label="Start the industry tour">Start</button>
+                  </li>
+                  <li class="tour-list-item" data-tour="fleet">
+                    <span class="tour-list-text">
+                      <span class="tour-list-name">Fleet command</span>
+                      <span class="tour-list-desc">Tracking a fleet, recording the op, fits, intel and routes. About three minutes.</span>
+                    </span>
+                    <span class="tour-list-done"><span class="material-symbols-outlined" aria-hidden="true">check</span>Done</span>
+                    <button class="calc-btn" id="tutorialFleetBtn" aria-label="Start the fleet command tour">Start</button>
+                  </li>
+                </ol>
               </div>
             </div>
 
@@ -777,20 +808,16 @@
               <span id="beaconImportCount" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);"></span>
             </div>
             <div id="beaconImportResult" style="font-size:12px; color:var(--text-2); margin-top:10px; font-family:var(--mono); white-space:pre-wrap; line-height:1.6;"></div>
-            <!-- Gates from EVE: read every hour by main (src/ipc/jump_gates_ipc.js); func/ui.js. -->
+            <!-- Gates from EVE: read every hour by main through the main character
+                 (src/ipc/jump_gates_ipc.js); func/ui.js. Nothing to pick or allow:
+                 the button shows only for a main signed in before 4.1.2. -->
             <div class="beacon-esi">
               <div class="beacon-esi-title">Gates from EVE</div>
-              <div class="beacon-esi-help">Your alliance's Ansiblex gates, read from EVE every hour for the character picked here: green on the map. Gates only your other characters can see, an alt or a scout in another alliance, show red.</div>
-              <div id="beaconEsiFind" class="beacon-esi-row" hidden>
-                <label for="beaconEsiCharacter" class="beacon-esi-label">Your gates come from</label>
-                <select id="beaconEsiCharacter" class="field-input"></select>
-                <button id="beaconEsiAllowMoreBtn" type="button" class="beacon-esi-more">Allow another character</button>
-              </div>
-              <div id="beaconEsiAllow" class="beacon-esi-row" hidden>
-                <span class="beacon-esi-help">This needs one more permission from EVE, given once per character.</span>
-                <button id="beaconEsiAllowBtn" class="calc-btn">Allow a character</button>
-              </div>
+              <div class="beacon-esi-help">Your alliance's Ansiblex gates, read from EVE every hour through your main character (the ◆ on the Characters page): green on the map. Gates only your other characters can see, an alt or a scout in another alliance, show red.</div>
               <div id="beaconEsiStatus" class="beacon-esi-status" aria-live="polite"></div>
+              <div id="beaconEsiRelogin" class="beacon-esi-row" hidden>
+                <button id="beaconEsiReloginBtn" type="button" class="calc-btn">Log in again</button>
+              </div>
             </div>
           </div>
         </div>

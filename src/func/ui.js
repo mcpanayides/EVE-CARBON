@@ -536,17 +536,13 @@ let _navEsiSubs = null;   // the event subscriptions, taken once
 function populateJumpgatesSettings() {
   const importBtn = document.getElementById('beaconImportBtn');
   const clearBtn  = document.getElementById('beaconClearBtn');
-  const select    = document.getElementById('beaconEsiCharacter');
+  const relogin   = document.getElementById('beaconEsiReloginBtn');
   if (importBtn && !importBtn._bound) { importBtn._bound = true; importBtn.addEventListener('click', importBeaconNetwork); }
   if (clearBtn  && !clearBtn._bound)  { clearBtn._bound  = true; clearBtn.addEventListener('click', clearBeaconNetwork); }
-  if (select    && !select._bound)    { select._bound    = true; select.addEventListener('change', _navEsiPick); }
-  for (const id of ['beaconEsiAllowBtn', 'beaconEsiAllowMoreBtn']) {
-    const btn = document.getElementById(id);
-    if (btn && !btn._bound) { btn._bound = true; btn.addEventListener('click', _navEsiAllow); }
-  }
+  if (relogin   && !relogin._bound)   { relogin._bound   = true; relogin.addEventListener('click', _navEsiRelogin); }
   if (!_navEsiSubs) {
     _navEsiSubs = [
-      // A character signing in from "Allow a character" is read straight away.
+      // A character signing in (the main logging in again from here, say) is read straight away.
       window.eveAPI.on('account-added', () => { _navEsiRefresh(); window.eveAPI.jumpGatesEsiSync?.().catch?.(() => {}); }),
       window.eveAPI.on('jump-gates-esi-progress', (p) => _navEsiProgress(p)),
       window.eveAPI.on('jump-gates-updated', () => {
@@ -642,56 +638,60 @@ async function clearBeaconNetwork() {
 }
 
 // ── Gates from EVE ──────────────────────────────────────────────────────────
-// Read once an hour by main for the characters allowed to search, so there is no
-// button to press. Allowing one takes a permission plain logins don't ask for,
-// given per character through "Allow a character", which opens EVE's login with
-// that one extra scope.
-const _NAV_SEARCH_SCOPE = 'esi-search.search_structures.v1';
+// Read once an hour by main through the main character (the ◆ on the Characters
+// page), so there is nothing to press and nobody to pick. Every login asks for
+// the search permission since 4.1.2; a main signed in before that is asked, here
+// only, to log in once more.
 
 function _navAgo(at) {
   const min = Math.max(0, Math.round((Date.now() - at) / 60000));
   return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.round(min / 60)} h ago`;
 }
 
-function _navEsiFailure(err) {
+function _navEsiFailure(err, name) {
+  const who = name || 'Your main character';
   switch (err && err.reason) {
-    case 'scope':   return 'This character hasn’t allowed structure search yet. Use “Allow another character” and sign in with it.';
-    case 'reauth':  return 'This character needs to log in again, on the Characters page.';
-    case 'unknown': return 'That character is no longer in EVE Carbon.';
+    case 'scope':   return `${who} signed in before jump gates came from EVE. Log in again with ${name || 'your main'} to read your alliance’s gates.`;
+    case 'reauth':  return `${who} needs to log in again before its gates can be read.`;
+    case 'unknown': return 'Your main character is no longer in EVE Carbon.';
     default:        return `ESI didn’t answer (${(err && err.message) || 'unknown error'}). It tries again within the hour.`;
   }
 }
 
 function _navEsiStatusText(s) {
   if (!s) return '';
+  if (!s.main) return 'Add a character and its alliance’s gates are read from EVE every hour.';
+  const name = s.main.characterName;
+  if (!s.main.canSearch) return _navEsiFailure({ reason: s.main.needsReauth ? 'reauth' : 'scope' }, name);
   if (s.running) return 'Reading your gates from EVE…';
-  if (s.error) return _navEsiFailure(s.error);
-  if (!s.checkedAt) return 'Your gates are read from EVE within a couple of minutes, then every hour.';
+  if (s.error) return _navEsiFailure(s.error, name);
+  if (!s.checkedAt) return `${name}’s gates are read from EVE within a couple of minutes, then every hour.`;
   const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
-  let text = `Kept up to date from EVE every hour. Read ${_navAgo(s.checkedAt)}: ${plural(s.mine || 0, 'gate')} ${s.characterName || 'you'} can use, green on the map`;
+  let text = `Kept up to date from EVE every hour. Read ${_navAgo(s.checkedAt)}: ${plural(s.mine || 0, 'gate')} ${s.characterName || name} can use, green on the map`;
   if (s.theirs) text += `, and ${plural(s.theirs, 'gate')} of other alliances your other characters can see, red`;
   text += '.';
   if (s.complete === false) text += ' Some couldn’t be read this time, so nothing was taken off.';
   return text;
 }
 
-// Who may search, whose gates are ours, and how the last read went. With nobody
-// allowed yet, the row that asks EVE for the permission takes the picker's place.
+// How the last read went, through the main. A main that can't search gets the
+// one thing it needs: a fresh login, which since 4.1.2 asks for the permission.
 async function _navEsiRefresh() {
-  const select   = document.getElementById('beaconEsiCharacter');
-  const findRow  = document.getElementById('beaconEsiFind');
-  const allowRow = document.getElementById('beaconEsiAllow');
-  const status   = document.getElementById('beaconEsiStatus');
-  if (!select || !findRow || !allowRow) return;
+  const relogin = document.getElementById('beaconEsiRelogin');
+  const status  = document.getElementById('beaconEsiStatus');
+  if (!relogin && !status) return;
   const s = await window.eveAPI.jumpGatesEsiStatus().catch(() => null);
-  const able = ((s && s.characters) || []).filter(c => c.canSearch);
-  select.innerHTML = able.map(c =>
-    `<option value="${escHtml(String(c.characterId))}">${escHtml(c.characterName || String(c.characterId))}</option>`).join('');
-  if (s && s.characterId != null) select.value = String(s.characterId);
-  findRow.hidden  = !able.length;
-  allowRow.hidden = !!able.length;
-  if (status && !status._reading) status.textContent = able.length ? _navEsiStatusText(s) : '';
+  if (relogin) relogin.hidden = !(s && s.main && !s.main.canSearch);
+  if (status && !status._reading) status.textContent = _navEsiStatusText(s);
 }
+
+// The main character's gates are ours (src/ipc/jump_gates_ipc.js). Main is told
+// on launch and whenever the ◆ moves, and reads straight away only on a change.
+document.addEventListener('main-character-changed', (e) => {
+  const id = e.detail && e.detail.characterId;
+  if (id == null || !window.eveAPI?.jumpGatesEsiSetCharacter) return;
+  Promise.resolve(window.eveAPI.jumpGatesEsiSetCharacter(id)).then(() => _navEsiRefresh()).catch(() => {});
+});
 
 function _navEsiProgress(p) {
   const status = document.getElementById('beaconEsiStatus');
@@ -702,23 +702,12 @@ function _navEsiProgress(p) {
     : 'Reading your gates from EVE…';
 }
 
-// Another character's gates become ours: main saves the pick and reads at once.
-async function _navEsiPick() {
-  const select = document.getElementById('beaconEsiCharacter');
-  const status = document.getElementById('beaconEsiStatus');
-  if (!select?.value) return;
-  if (status) status.textContent = 'Reading your gates from EVE…';
-  await window.eveAPI.jumpGatesEsiSetCharacter(select.value).catch(() => {});
-  if (status) status._reading = false;
-  _navUpdateGateCount();
-  _navEsiRefresh();
-}
-
-async function _navEsiAllow() {
+// The main logs in again: EVE's login, the same one the Characters page opens.
+async function _navEsiRelogin() {
   const status = document.getElementById('beaconEsiStatus');
   try {
-    await window.eveAPI.startSSOLogin({ extraScopes: [_NAV_SEARCH_SCOPE] });
-    if (status) status.textContent = 'EVE’s login is open in your browser. Sign in with the character whose gates you use, then come back here.';
+    await window.eveAPI.startSSOLogin();
+    if (status) status.textContent = 'EVE’s login is open in your browser. Sign in with your main character, then come back here.';
   } catch (e) {
     showToast(`Couldn't open EVE's login: ${e.message}`, 'error');
   }

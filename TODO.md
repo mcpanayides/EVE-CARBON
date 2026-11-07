@@ -997,12 +997,10 @@ than in scrollback.
 - [ ] **Waiting on art:** the animated planet clips, and the PI guides and
       tutorials planned "down the road".
 - [ ] **Decide: corporation type-ahead.** Needs `esi-search.search_structures.v1`.
-      Since 2026-11-06 that scope is an opt-in (`OPTIONAL_SCOPES` in
-      `src/ipc/accounts_ipc.js`), asked for from Settings → Jump Gates → "Allow a
-      character", so type-ahead could use whichever characters have granted it
-      without anyone being forced to re-authorise. It also has to be registered
-      for the app on the EVE developer portal. Until then corporation lookup is
-      exact-match on name or ticker via `/universe/ids`.
+      Since 4.1.2 every login asks for that scope (jump gates read through the
+      main character), without main.js's re-login check demanding it, so
+      type-ahead could use any character signed in since then. Until then
+      corporation lookup is exact-match on name or ticker via `/universe/ids`.
 - [ ] **Polish offered, not taken up:**
       - `temperate.jpg` reads as Earth (Africa, Iberia, the Mediterranean).
       - The collapsed-nav pips are subtle at 1×.

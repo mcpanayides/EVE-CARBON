@@ -3239,8 +3239,8 @@ function _demoAccessToken() {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   let scp = [];
   try {
-    const { SCOPES: asked, OPTIONAL_SCOPES: optIn } = require('./src/ipc/accounts_ipc');
-    scp = [...String(asked || '').split(/\s+/), ...(optIn || [])].filter(Boolean);
+    const { SCOPES: asked } = require('./src/ipc/accounts_ipc');
+    scp = String(asked || '').split(/\s+/).filter(Boolean);
   } catch (_) { /* fall back to no scopes rather than crashing the demo */ }
   const payload = {
     scp,

@@ -6,10 +6,15 @@
 // to do it for real and carries on when it happens: there is no separate
 // tutorial mode, and nothing it shows is staged.
 //
-// Two tours. The basics (about two minutes) run on a first launch and take a new
-// pilot from no characters to their own data on the dashboard. Alliance tools
-// (about two more) walk through Jabber, the forum, the GEZ tracker and jump
-// gates in Settings. Both can be run again from Settings, General.
+// Four tours, in the order they lead into each other (_TUT_TOURS): each one's
+// closing card offers the next, so the whole set runs in a row.
+//   The basics      run on a first launch: from no characters to your own data
+//                   on the dashboard. About two minutes.
+//   Alliance tools  Jabber, the forum, the sov upgrades sheet and jump gates, in
+//                   Settings. About two minutes.
+//   Industry        every industry tool, Planets too, each opened as it's told.
+//   Fleet command   the Fleet Commander tools, the map's routes and pings.
+// All four run again from Settings, General, which lists them in that order.
 //
 // The decisions and the geometry (when it opens by itself, which steps apply,
 // how they are counted, where the spotlight and the card go) live in
@@ -66,6 +71,37 @@ function _tutBlockOf(id) {
 
 async function _tutSettings(tab) {
   if (typeof openSettingsAt === 'function') await openSettingsAt(tab);
+}
+
+// One of a page's tools (Industry, Fleet Commander, Planets), opened the way its
+// own button opens it. A page's first visit opens its default tool on the way
+// in, synchronously, so the one asked for here lands after it and stays.
+function _tutTool(page, tab) {
+  _tutGo(page);
+  if (page === 'industry' && typeof navigateIndustryTab === 'function') {
+    if (currentIndustryTab !== tab) navigateIndustryTab(tab);
+  } else if (page === 'fc' && typeof navigateFcTab === 'function') {
+    if (currentFcTab !== tab) navigateFcTab(tab);
+  } else if (page === 'pi' && typeof navigatePiTab === 'function') {
+    navigatePiTab(tab);
+  }
+}
+
+// The four tours, in the order each one's closing card offers the next.
+const _TUT_TOURS = [
+  { kind: 'basic',    title: 'The basics',     done: 'basicDone',    steps: () => _tutBasicSteps() },
+  { kind: 'advanced', title: 'Alliance tools', done: 'advancedDone', steps: () => _tutAdvancedSteps() },
+  { kind: 'industry', title: 'Industry',       done: 'industryDone', steps: () => _tutIndustrySteps() },
+  { kind: 'fleet',    title: 'Fleet command',  done: 'fleetDone',    steps: () => _tutFleetSteps() },
+];
+const _tutTour = (kind) => _TUT_TOURS.find(t => t.kind === kind) || _TUT_TOURS[0];
+
+/** From a closing card: this tour counts as finished, and the next one skips its welcome. */
+function _tutChain(kind) {
+  exitTutorial('finished', { quiet: true });
+  // Alliance tools skipped at SAVE leave Settings open; every tour but that one starts in the app.
+  if (kind !== 'advanced') document.getElementById('closeSettingsBtn')?.click();
+  startTutorial(kind, { chained: true });
 }
 
 // ── The basics ────────────────────────────────────────────────────────────────
@@ -231,10 +267,7 @@ function _tutBasicSteps() {
       body: ctx => `Next you can connect your alliance tools: Jabber pings, your forum, your ${ctx.sovTerm} and your `
           + 'jump gates, which come straight from EVE. It takes about two more minutes, and you can skip anything '
           + 'your alliance doesn’t use.',
-      primary: { label: 'Set up alliance tools', act: () => {
-        exitTutorial('finished', { quiet: true });
-        startTutorial('advanced', { fromBasic: true });
-      } },
+      primary: { label: 'Set up alliance tools', act: () => _tutChain('advanced') },
       secondary: { label: 'Finish', act: 'finish' },
     },
   ];
@@ -299,7 +332,7 @@ function _tutAdvancedSteps() {
   return [
     {
       id: 'advanced-welcome',
-      when: ctx => !ctx.fromBasic,
+      when: ctx => !ctx.chained,
       kicker: 'About two minutes',
       title: 'Set up your alliance tools',
       body: ctx => `Four connections, each one optional: Jabber for fleet pings, your alliance forum, your ${ctx.sovTerm} `
@@ -376,8 +409,8 @@ function _tutAdvancedSteps() {
       },
       target: _tutBlockOf('beaconImportInput'),
       title: 'Your jump gates',
-      body: 'Allow one character and EVE Carbon reads your alliance’s gates from EVE every hour, green on the map, and '
-          + 'the jump planner routes through them. Other alliances’ gates your other characters can see show red, so '
+      body: 'EVE Carbon reads your alliance’s gates from EVE every hour through your main character: green on the map, '
+          + 'and the jump planner routes through them. Other alliances’ gates your other characters can see show red, so '
           + 'you can see where a target’s bridge comes out. A pasted list works too.',
       hint: ctx => _tutAllianceHint(ctx.gateLink,
         'Your alliance also keeps a gate list on the page below. Sign in, copy it and paste it here: rows marked not friendly show red.'),
@@ -402,7 +435,243 @@ function _tutAdvancedSteps() {
       id: 'advanced-done',
       kicker: 'All set',
       title: 'You’re set up',
-      body: 'You can run either tour again from Settings, General.',
+      body: 'Next is industry: your blueprints, jobs, buying, mining and planets, in about three minutes. '
+          + 'Every tour runs again from Settings, General.',
+      primary: { label: 'Industry tour', act: () => _tutChain('industry') },
+      secondary: { label: 'Finish', act: 'finish' },
+    },
+  ];
+}
+
+// ── Industry ──────────────────────────────────────────────────────────────────
+// Each stop opens the tool it is about and lights it, with the card over the
+// tool list beside it. The calculators that do one job by type (ore, ice, gas,
+// moon, salvage) share a stop rather than taking one each.
+
+function _tutIndustrySteps() {
+  // A tool's stop: open it, light what it shows.
+  const tool = (tab, extra) => Object.assign({
+    before: () => _tutTool('industry', tab),
+    target: '#industryTabContent',
+    placement: ['left', 'bottom', 'right', 'top'],
+  }, extra);
+  return [
+    {
+      id: 'industry-welcome',
+      when: ctx => !ctx.chained,
+      kicker: 'About three minutes',
+      title: 'Industry tools',
+      body: 'Building, buying, mining and planets, with your own characters’ blueprints, jobs and ledgers. '
+          + 'Each stop opens the tool it’s about.',
+      primary: { label: 'Start', act: 'next' },
+      secondary: { label: 'Not now', act: 'exit', reason: 'declined' },
+    },
+    {
+      id: 'industry-nav', chapter: 'Building',
+      when: () => typeof currentPage === 'undefined' || currentPage !== 'industry',
+      target: '.nav-btn[data-page="industry"]',
+      title: 'Open Industry',
+      body: 'Every industry tool lives on this page, in the list down its left side.',
+      prompt: 'Click Industry in the menu.',
+      until: () => typeof currentPage !== 'undefined' && currentPage === 'industry',
+      secondary: { label: 'Skip', act: 'next' },
+    },
+    tool('blueprints', {
+      id: 'ind-blueprints', chapter: 'Building',
+      title: 'Your blueprints',
+      body: 'Every blueprint your characters and corporations hold, originals and copies, with ME and TE. Each one is '
+          + 'costed against Jita with your ME applied, so you can sort by profit or margin. Open one for its full '
+          + 'material tree, down to the raw materials.',
+      hint: ctx => ({ label: 'Where you build', text: 'The bar above the list sets the structure and character every '
+          + `cost assumes. Structures from your ${ctx.sovTerm} sheet bring their rigs.` }),
+    }),
+    tool('search', {
+      id: 'ind-search', chapter: 'Building',
+      title: 'Any blueprint',
+      body: 'BP Search opens the same calculator for any blueprint in the game, whether you own it or not.',
+    }),
+    tool('active-jobs', {
+      id: 'ind-jobs', chapter: 'Building',
+      title: 'Every job, every character',
+      body: 'Manufacturing, research, copying, invention and reactions across all your characters, with the time '
+          + 'left on each. Filter by activity or by character.',
+    }),
+    tool('reactions', {
+      id: 'ind-reactions', chapter: 'Building',
+      title: 'Reactions',
+      body: 'Every reaction formula as a card, with its profit at the market hub you pick. Open one for its inputs, '
+          + 'their volume and what they cost.',
+    }),
+    tool('cost-index', {
+      id: 'ind-cost-index', chapter: 'Building',
+      title: 'Where to build',
+      body: 'Each system’s manufacturing and research cost index, from ESI. Search around a system within a jump '
+          + 'range to find somewhere cheaper to run your jobs.',
+    }),
+    tool('appraisal', {
+      id: 'ind-appraisal', chapter: 'Buying',
+      title: 'Price anything',
+      body: 'Paste a cargo hold, a loot pile or a contract and get its Jita value, to buy and to sell.',
+    }),
+    tool('shopping-lists', {
+      id: 'ind-lists', chapter: 'Buying',
+      title: 'Shopping lists',
+      body: 'Materials gathered into lists you keep. Send to Game copies a list in EVE’s multibuy format.',
+    }),
+    tool('station-checkout', {
+      id: 'ind-checkout', chapter: 'Buying',
+      title: 'What you’re still missing',
+      body: 'Station Checkout holds a shopping list up against what’s already in a station, a structure or a single '
+          + 'container, and gives you only what’s missing: as a multibuy, or as a new list.',
+    }),
+    tool('mining', {
+      id: 'ind-mining', chapter: 'Mining',
+      title: 'Mining ledger',
+      body: 'What each character mined, valued as ore or as refined minerals, with daily trends and your '
+          + 'corporation’s moon extractions.',
+    }),
+    tool('orehold', {
+      id: 'ind-reprocess', chapter: 'Mining',
+      title: 'Reprocessing',
+      body: 'Paste your ore hold and see what it refines into, with no skills, every skill at V, or skills and an '
+          + 'implant. The Ore, Ice, Gas and Moon calculators price each type, and Salvage shows the rigs your '
+          + 'salvage builds.',
+    }),
+    tool('moon', {
+      id: 'ind-moon', chapter: 'Mining',
+      title: 'Moon scans',
+      body: 'Paste a moon scan from the probe scanner and get it back tidy, as an aligned list or a spreadsheet '
+          + 'table, ready to share.',
+    }),
+    {
+      id: 'ind-planets', chapter: 'Planets',
+      before: () => _tutTool('pi', 'colonies'),
+      target: '#piTabContent',
+      placement: ['left', 'bottom', 'right', 'top'],
+      title: 'Planets',
+      body: 'Every colony and extractor timer across your characters, and where your chains run short. The PI '
+          + 'Planner plans a new chain back to its raw materials, and Capacity shows which characters have planets '
+          + 'to spare.',
+    },
+    {
+      id: 'industry-done',
+      kicker: 'Industry, done',
+      title: 'That’s industry',
+      body: 'Last is fleet command: tracking a fleet, recording the op, fits, intel on hostiles and your routes. '
+          + 'About three minutes.',
+      primary: { label: 'Fleet command tour', act: () => _tutChain('fleet') },
+      secondary: { label: 'Finish', act: 'finish' },
+    },
+  ];
+}
+
+// ── Fleet command ─────────────────────────────────────────────────────────────
+// The Fleet Commander page's tools, then the map's routes and overlays and the
+// pings. Fleet Fight Notify is pointed at, not opened: it loads CCP's website,
+// which demo mode must never reach.
+
+function _tutFleetSteps() {
+  const tool = (tab, extra) => Object.assign({
+    before: () => _tutTool('fc', tab),
+    target: '#fcTabContent',
+    placement: ['left', 'bottom', 'right', 'top'],
+  }, extra);
+  return [
+    {
+      id: 'fleet-welcome',
+      when: ctx => !ctx.chained,
+      kicker: 'About three minutes',
+      title: 'Fleet command tools',
+      body: 'Run a fleet from here: who’s in it and in what, a record of the op, doctrine fits, warning of hostiles '
+          + 'closing in, and your routes. Each stop opens the tool it’s about.',
+      primary: { label: 'Start', act: 'next' },
+      secondary: { label: 'Not now', act: 'exit', reason: 'declined' },
+    },
+    {
+      id: 'fleet-nav', chapter: 'Your fleet',
+      when: () => typeof currentPage === 'undefined' || currentPage !== 'fc',
+      target: '.nav-btn[data-page="fc"]',
+      title: 'Open Fleet Commander',
+      body: 'The fleet tools live on this page, in the list down its left side.',
+      prompt: 'Click Fleet Commander in the menu.',
+      until: () => typeof currentPage !== 'undefined' && currentPage === 'fc',
+      secondary: { label: 'Skip', act: 'next' },
+    },
+    tool('composition', {
+      id: 'fc-tracker', chapter: 'Your fleet',
+      title: 'Fleet tracker',
+      body: 'Pick the character who’s fleet boss and press Start Tracking. The fleet fills in by role every few '
+          + 'seconds, tackle, logistics, links and damage, scored against the doctrine you pick, and a ship in the '
+          + 'wrong tank stands out.',
+      hint: { label: 'Your alts', text: 'Invite All Alts invites every other character you have. They accept in game.' },
+    }),
+    {
+      id: 'fc-op', chapter: 'Your fleet',
+      before: () => _tutTool('fc', 'composition'),
+      target: '#fcOpBtn',
+      placement: ['bottom', 'right', 'left', 'top'],
+      title: 'Record the op',
+      body: 'Start Op records the roster, every ship change and where the fleet went. Stop it and the report is '
+          + 'waiting, with the ISK killed and lost.',
+    },
+    tool('ophistory', {
+      id: 'fc-history', chapter: 'Your fleet',
+      title: 'Op history',
+      body: 'Every op you’ve recorded, with its report. A report outlives its fleet: open it days later, or save it '
+          + 'to a file.',
+    }),
+    tool('fitting', {
+      id: 'fc-fitting', chapter: 'Fits and intel',
+      title: 'Fitting simulator',
+      body: 'Fit any hull, found through the market tree. Put on a saved clone and its implants stay in while you '
+          + 'switch between fits. The fits you saved in game come in too.',
+    }),
+    tool('intel', {
+      id: 'fc-intel', chapter: 'Fits and intel',
+      title: 'Early warning',
+      body: 'Reads your intel channels and your own Local from EVE’s chat logs, and warns when hostiles close in: '
+          + 'jumps away first, which is exact, then a rough arrival time. It keeps watching from other pages.',
+      hint: { label: 'Over the game', text: 'The Early Warning widget on the dashboard shows the same, and pops out into its own window.' },
+    }),
+    {
+      id: 'fc-fleetfight', chapter: 'Fits and intel',
+      before: () => _tutGo('fc'),
+      target: '.fc-sub-btn[data-fc-tab="fleetfight"]',
+      placement: ['right', 'bottom', 'left', 'top'],
+      title: 'Fleet fight notice',
+      body: 'Planning something big? Fleet Fight Notify opens CCP’s fleet fight form here, so they can reinforce the '
+          + 'node before you arrive.',
+    },
+    {
+      id: 'fleet-routes', chapter: 'Routes and pings',
+      before: () => _tutGo('map'),
+      target: '.map-toolbar [aria-label="Plan a route"]',
+      placement: ['bottom', 'left', 'right', 'top'],
+      title: 'Plan routes',
+      body: 'Jump… plans a capital route along cynos or your jump beacons. Stargate… finds the safest gate route by '
+          + 'your alliance’s standings, through your jump bridges and Thera when they help.',
+    },
+    {
+      id: 'fleet-map', chapter: 'Routes and pings',
+      before: () => _tutGo('map'),
+      target: ['#mapOverlayGroup', '#mapLayersGroup'],
+      placement: ['bottom', 'right', 'left', 'top'],
+      title: 'Read the map',
+      body: 'Friends & Foes colours sov by your alliance’s standings, and Danger and Traffic show the last hour’s '
+          + 'kills and jumps. Under Layers: your jump bridges, other alliances’ in red, and wormholes.',
+    },
+    {
+      id: 'fleet-pings', chapter: 'Routes and pings',
+      target: '.nav-btn[data-page="jabber"]',
+      title: 'Pings',
+      body: 'Director pings from Jabber pop up over the game. The dashboard’s latest-ping widget sets your '
+          + 'destination to the formup in one click.',
+    },
+    {
+      id: 'fleet-done',
+      kicker: 'Fleet command, done',
+      title: 'That’s the last tour',
+      body: 'Any of them runs again from Settings, General.',
       primary: { label: 'Done', act: 'finish' },
     },
   ];
@@ -689,11 +958,13 @@ async function _tutBegin(kind, opts) {
   if (typeof TutorialModel === 'undefined') return;
 
   const accounts = await window.eveAPI.getAccounts().catch(() => []);
-  const steps = kind === 'advanced' ? _tutAdvancedSteps() : _tutBasicSteps();
+  const tour = _tutTour(kind);
+  kind = tour.kind;
+  const steps = tour.steps();
   const ctx = {
     accountCount: Array.isArray(accounts) ? accounts.length : 0,
     added: null, widgetId: null, signingIn: false, sync: null,
-    fromBasic: !!opts.fromBasic,
+    chained: !!opts.chained,           // from the previous tour's closing card: no welcome
     // GEZ is Goonswarm's word: "GEZ tracker" for its pilots, "sovereignty
     // upgrades" for everyone else. Asked again at that stop, after a pack pick.
     sovTerm: await _tutTerm('sov_upgrades'),
@@ -710,7 +981,7 @@ async function _tutBegin(kind, opts) {
   document.body.classList.add('tour-active');
 
   _tut = {
-    kind, steps, ctx, root, seq: 0, index: -1, marked: !!opts.fromBasic,
+    kind, steps, ctx, root, seq: 0, index: -1, marked: !!opts.chained,
     blockers: [...root.querySelectorAll('.tour-blocker')],
     ring: root.querySelector('.tour-ring'),
     card: root.querySelector('.tour-card'),
@@ -832,8 +1103,8 @@ function exitTutorial(reason = 'closed', { quiet = false } = {}) {
   document.body.classList.remove('tour-active');
 
   const patch = { seen: true };
-  if (reason === 'finished') patch[t.kind === 'advanced' ? 'advancedDone' : 'basicDone'] = true;
-  _tutSave(patch);
+  if (reason === 'finished') patch[_tutTour(t.kind).done] = true;
+  _tutSave(patch).then(_tutMarkDone);
 
   if (!quiet && (reason === 'closed' || reason === 'declined') && typeof pushAppToast === 'function') {
     pushAppToast({ title: 'Tour closed', body: 'You can run it again from Settings, General.', kind: 'info', timeout: 6000 });
@@ -863,14 +1134,26 @@ async function maybeStartTutorialOnFirstLaunch() {
   }
 }
 
-// Settings, General: run either tour again. The basics close Settings first,
-// since the tour starts in the menu; alliance tools open Settings themselves.
+/** Settings, General ticks each tour that has been finished. */
+async function _tutMarkDone() {
+  const state = await _tutState();
+  for (const tour of _TUT_TOURS) {
+    const row = document.querySelector(`.tour-list-item[data-tour="${tour.kind}"]`);
+    if (row) row.classList.toggle('is-done', !!state[tour.done]);
+  }
+}
+
+// Settings, General: any tour, in the order they lead into each other. Alliance
+// tools open Settings themselves; the others start in the app, so Settings
+// closes first.
 (function bindTutorialSettings() {
-  const basic = document.getElementById('tutorialStartBtn');
-  const advanced = document.getElementById('tutorialAdvancedBtn');
-  if (basic) basic.addEventListener('click', () => {
-    document.getElementById('closeSettingsBtn')?.click();
-    startTutorial('basic');
-  });
-  if (advanced) advanced.addEventListener('click', () => startTutorial('advanced'));
+  const buttons = { basic: 'tutorialStartBtn', advanced: 'tutorialAdvancedBtn',
+                    industry: 'tutorialIndustryBtn', fleet: 'tutorialFleetBtn' };
+  for (const [kind, id] of Object.entries(buttons)) {
+    document.getElementById(id)?.addEventListener('click', () => {
+      if (kind !== 'advanced') document.getElementById('closeSettingsBtn')?.click();
+      startTutorial(kind);
+    });
+  }
+  _tutMarkDone();
 })();

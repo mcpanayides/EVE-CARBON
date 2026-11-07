@@ -19,7 +19,7 @@
 ## Relationships
 
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
+- [Jump Gate List](Jump_Gate_List.md) (1 shared connections)
 
 ## Source Files
 

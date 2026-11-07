@@ -1,6 +1,6 @@
 # Demo Data
 
-> 25 nodes · cohesion 0.11
+> 24 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -8,7 +8,6 @@
 - **writeCharacterDb()** (7 connections) — `src/demo_data.js`
 - **seedMain()** (4 connections) — `src/demo_data.js`
 - **seedFleetOps()** (4 connections) — `src/demo_data.js`
-- **sys()** (4 connections) — `test/dashboard_fw.test.js`
 - **seed()** (3 connections) — `src/demo_data.js`
 - **lcg()** (2 connections) — `src/demo_data.js`
 - **pick()** (2 connections) — `src/demo_data.js`
@@ -33,27 +32,24 @@
 ## Relationships
 
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 - [Demo Cast & Names](Demo_Cast_%26_Names.md) (1 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
-- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
 - [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
-- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (1 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
-- [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
+- [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (1 shared connections)
 
 ## Source Files
 
 - `src/demo_data.js`
-- `test/dashboard_fw.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 68 (86%)
-- INFERRED: 11 (14%)
+- EXTRACTED: 67 (89%)
+- INFERRED: 8 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

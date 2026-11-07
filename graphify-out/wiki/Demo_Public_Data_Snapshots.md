@@ -33,7 +33,7 @@
 ## Relationships
 
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (1 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
+- [Intel Resume Test](Intel_Resume_Test.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
 
 ## Source Files

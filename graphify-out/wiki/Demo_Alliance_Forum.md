@@ -29,7 +29,7 @@
 - [Demo Cast & Names](Demo_Cast_%26_Names.md) (2 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)

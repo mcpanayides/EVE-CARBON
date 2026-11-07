@@ -1,20 +1,19 @@
 # Account & Auth IPC
 
-> 20 nodes · cohesion 0.13
+> 19 nodes · cohesion 0.13
 
 ## Key Concepts
 
-- **accounts_ipc.js** (12 connections) — `src/ipc/accounts_ipc.js`
+- **accounts_ipc.js** (11 connections) — `src/ipc/accounts_ipc.js`
 - **{ BrowserWindow }** (11 connections) — `src/ipc/intel_ipc.js`
-- **registerAccountHandlers()** (6 connections) — `src/ipc/accounts_ipc.js`
 - **appIconPath()** (5 connections) — `main.js`
 - **acrylicSupported()** (5 connections) — `main.js`
+- **registerAccountHandlers()** (5 connections) — `src/ipc/accounts_ipc.js`
 - **intel_ipc.js** (5 connections) — `src/ipc/intel_ipc.js`
 - **createPingAlertWindow()** (4 connections) — `main.js`
 - **registerIntelHandlers()** (4 connections) — `src/ipc/intel_ipc.js`
 - **createIntelWidgetWindow()** (3 connections) — `main.js`
 - **applyWidgetPin()** (3 connections) — `main.js`
-- **OPTIONAL_SCOPES** (2 connections) — `src/ipc/accounts_ipc.js`
 - **generateCodeVerifier()** (2 connections) — `src/ipc/accounts_ipc.js`
 - **generateCodeChallenge()** (2 connections) — `src/ipc/accounts_ipc.js`
 - **{ APP_USER_AGENT }** (1 connections) — `src/ipc/accounts_ipc.js`
@@ -44,7 +43,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 66 (93%)
+- EXTRACTED: 62 (93%)
 - INFERRED: 5 (7%)
 - AMBIGUOUS: 0 (0%)
 

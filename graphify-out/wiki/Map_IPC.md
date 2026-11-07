@@ -33,11 +33,11 @@
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
 - [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
-- [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (1 shared connections)
+- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (1 shared connections)
 
 ## Source Files
 

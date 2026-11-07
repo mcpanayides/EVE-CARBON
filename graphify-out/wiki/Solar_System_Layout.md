@@ -31,7 +31,7 @@
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 - [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (1 shared connections)
 
 ## Source Files

@@ -20,7 +20,7 @@
 ## Relationships
 
 - [Character Database](Character_Database.md) (3 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 
 ## Source Files
 

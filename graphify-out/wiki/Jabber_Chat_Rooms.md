@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files
 

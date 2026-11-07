@@ -1,11 +1,12 @@
 # Electron App
 
-> 51 nodes · cohesion 0.05
+> 57 nodes · cohesion 0.05
 
 ## Key Concepts
 
 - **electron-app.js** (51 connections) — `e2e/support/electron-app.js`
 - **test** (40 connections) — `e2e/support/electron-app.js`
+- **force-projection.spec.js** (7 connections) — `e2e/force-projection.spec.js`
 - **seed.js** (5 connections) — `e2e/fixtures/seed.js`
 - **assets.spec.js** (4 connections) — `e2e/assets.spec.js`
 - **widget-popout.spec.js** (4 connections) — `e2e/widget-popout.spec.js`
@@ -28,8 +29,7 @@
 - **seedCharacterDb()** (2 connections) — `e2e/fixtures/seed.js`
 - **popoutState()** (2 connections) — `e2e/widget-popout.spec.js`
 - **{ test, expect, FAKE_CHAR_NAME }** (1 connections) — `e2e/assets.spec.js`
-- **openJitaHangar()** (1 connections) — `e2e/assets.spec.js`
-- *... and 26 more nodes in this community*
+- *... and 32 more nodes in this community*
 
 ## Relationships
 
@@ -37,7 +37,6 @@
 - [Alliance Packs Spec](Alliance_Packs_Spec.md) (2 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (2 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (2 shared connections)
-- [Force Projection Spec](Force_Projection_Spec.md) (2 shared connections)
 - [Intel Patterns Spec](Intel_Patterns_Spec.md) (2 shared connections)
 - [Main Character Spec](Main_Character_Spec.md) (2 shared connections)
 - [Map Jb Shimmer Spec](Map_Jb_Shimmer_Spec.md) (2 shared connections)
@@ -45,6 +44,7 @@
 - [Map Routes Spec](Map_Routes_Spec.md) (2 shared connections)
 - [Map Selection Spec](Map_Selection_Spec.md) (2 shared connections)
 - [Map Sky Spec](Map_Sky_Spec.md) (2 shared connections)
+- [Map Skybox Spec](Map_Skybox_Spec.md) (2 shared connections)
 
 ## Source Files
 
@@ -55,6 +55,7 @@
 - `e2e/faction-warfare.spec.js`
 - `e2e/fixtures/seed.js`
 - `e2e/fleet-commander.spec.js`
+- `e2e/force-projection.spec.js`
 - `e2e/forums.spec.js`
 - `e2e/industry.spec.js`
 - `e2e/jabber.spec.js`
@@ -70,7 +71,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 179 (98%)
+- EXTRACTED: 191 (98%)
 - INFERRED: 4 (2%)
 - AMBIGUOUS: 0 (0%)
 

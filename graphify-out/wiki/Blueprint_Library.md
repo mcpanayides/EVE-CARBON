@@ -36,8 +36,9 @@
 - [Moon & Ore Calculators](Moon_%26_Ore_Calculators.md) (24 shared connections)
 - [Blueprint Economics & Sorting](Blueprint_Economics_%26_Sorting.md) (17 shared connections)
 - [Industry Settings & Structures](Industry_Settings_%26_Structures.md) (14 shared connections)
-- [Blueprint Library UI](Blueprint_Library_UI.md) (14 shared connections)
+- [Blueprint Library UI](Blueprint_Library_UI.md) (13 shared connections)
 - [Blueprint Library (buildTreeFromSdeMaterials)](Blueprint_Library_%28buildTreeFromSdeMaterials%29.md) (6 shared connections)
+- [Tutorial Spec](Tutorial_Spec.md) (1 shared connections)
 
 ## Source Files
 

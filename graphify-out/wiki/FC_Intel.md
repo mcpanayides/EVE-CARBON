@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Intel Row](Intel_Row.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
 - [FC Intel Patterns](FC_Intel_Patterns.md) (1 shared connections)
 
 ## Source Files

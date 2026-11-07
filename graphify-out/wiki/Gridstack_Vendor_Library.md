@@ -37,7 +37,7 @@
 - [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (7 shared connections)
 - [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (5 shared connections)
 - [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (3 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
+- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
 - [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 - [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (1 shared connections)
 

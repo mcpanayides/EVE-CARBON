@@ -16,7 +16,7 @@
 
 ## Relationships
 
-- [Demo Data](Demo_Data.md) (1 shared connections)
+- [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (1 shared connections)
 
 ## Source Files
 

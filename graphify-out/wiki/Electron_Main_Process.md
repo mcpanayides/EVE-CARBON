@@ -42,7 +42,7 @@
 - [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
-- [Jump Gate List](Jump_Gate_List.md) (2 shared connections)
+- [Jump Gates IPC Test](Jump_Gates_IPC_Test.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
 - [Theme Vars](Theme_Vars.md) (2 shared connections)
 

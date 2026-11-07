@@ -19,12 +19,13 @@
 
 ## Relationships
 
-- [Notifications](Notifications.md) (2 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Fleet Ops IPC](Fleet_Ops_IPC.md) (1 shared connections)
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
+- [Notifications](Notifications.md) (1 shared connections)
+- [Alliance Pack](Alliance_Pack.md) (1 shared connections)
 
 ## Source Files
 

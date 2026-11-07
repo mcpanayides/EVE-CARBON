@@ -22,8 +22,8 @@
 
 ## Relationships
 
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (1 shared connections)
+- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (1 shared connections)
 
 ## Source Files
 

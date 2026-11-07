@@ -25,6 +25,10 @@ const IPC_EVENT_CHANNELS = [
   // that the origin every distance is measured from has just moved.
   'intel-characters',
   'intel-origins',
+  // Jump gates read from ESI (src/ipc/jump_gates_ipc.js): { done, total,
+  // characterName } structures read so far, then the round's outcome.
+  'jump-gates-esi-progress',
+  'jump-gates-updated',
 ];
 
 // caller fn → channel → [wrapper, …]. Weak so a handler going out of scope in
@@ -77,7 +81,11 @@ contextBridge.exposeInMainWorld('eveAPI', {
   getAccounts:   ()    => ipcRenderer.invoke('get-accounts'),
   removeAccount: (id)  => ipcRenderer.invoke('remove-account', id),
   removeAllAccounts: () => ipcRenderer.invoke('remove-all-accounts'),
-  startSSOLogin: ()    => ipcRenderer.invoke('start-sso-login'),
+  // opts.extraScopes: an optional scope for this one login, e.g. the Jump Gates
+  // tab's structure search (accounts_ipc.js OPTIONAL_SCOPES).
+  startSSOLogin: (opts) => ipcRenderer.invoke('start-sso-login', opts),
+  // The alliances the pilot's characters are in (what alliance packs go by).
+  getCharacterAlliances: () => ipcRenderer.invoke('get-character-alliances'),
 
   // Dashboard data
   esiFetch:              (url, options)             => ipcRenderer.invoke('esi-fetch', url, options),
@@ -219,6 +227,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // App settings
   getAppConfig:  ()       => ipcRenderer.invoke('app-get-config'),
   saveAppConfig: (config) => ipcRenderer.invoke('app-save-config', config),
+  getTutorialState: ()    => ipcRenderer.invoke('tutorial-get-state'),
 
   // App preferences (General tab): start-with-Windows + minimize-to-tray
   getAppPreferences: ()        => ipcRenderer.invoke('get-app-preferences'),
@@ -309,6 +318,7 @@ contextBridge.exposeInMainWorld('eveAPI', {
   deletePack:          (id)     => ipcRenderer.invoke('delete-pack', id),
   getPackDetail:       (id)     => ipcRenderer.invoke('get-pack-detail', id),
   savePack:            (data)   => ipcRenderer.invoke('save-pack', data),
+  exportPack:          (id)     => ipcRenderer.invoke('export-pack', id),
 
   // App metadata
   getAppVersion:       ()       => ipcRenderer.invoke('get-app-version'),
@@ -316,6 +326,15 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Jump-bridge network (encrypted store in userData — not localStorage)
   getJumpBridges:      ()       => ipcRenderer.invoke('get-jump-bridges'),
   saveJumpBridges:     (arr)    => ipcRenderer.invoke('save-jump-bridges', arr),
+  // Other alliances' gates: red on the map, never in a route.
+  getJumpBridgesOther:  ()    => ipcRenderer.invoke('get-jump-bridges-other'),
+  saveJumpBridgesOther: (arr) => ipcRenderer.invoke('save-jump-bridges-other', arr),
+  // Gates kept up to date from ESI once an hour: who may search, whose gates are
+  // ours, and how the last read went; pick whose gates are ours; read now (after
+  // a character is allowed).
+  jumpGatesEsiStatus:       ()            => ipcRenderer.invoke('jump-gates-esi-status'),
+  jumpGatesEsiSetCharacter: (characterId) => ipcRenderer.invoke('jump-gates-esi-set-character', characterId),
+  jumpGatesEsiSync:         ()            => ipcRenderer.invoke('jump-gates-esi-sync'),
 
   // Theme / palette
   themeGetAll:         ()       => ipcRenderer.invoke('theme-get-all'),

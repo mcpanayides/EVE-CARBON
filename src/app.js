@@ -50,6 +50,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     navigateToPage('characters');
   }
 
+  // A first launch (no characters yet, tour never seen) opens the guided tour.
+  // Not awaited: it decides from saved state and must not hold up Jabber.
+  if (typeof maybeStartTutorialOnFirstLaunch === 'function') maybeStartTutorialOnFirstLaunch();
+
   await autoConnectJabber();
   prefetchAssetsBackground();
 

@@ -16,13 +16,16 @@
    things. They were hardcoded hex at seven separate places in map.js markup, so
    the table could drift from the picture. Declared once here, consumed as a class.
    These are deliberately the canvas's exact current values so nothing shifts —
-   pointing them at --pal-*/--lowsec/--danger and having the canvas resolve them
+   pointing them at --pal-* / --lowsec / --danger and having the canvas resolve them
    too is the follow-up that makes a user palette repaint the map (/impeccable
    colorize), and needs the canvas strokes moved off their rgba literals first. */
 #page-map {
   --map-bridge:      #40dc82;
   --map-bridge-node: #ffd700;
-  --map-wormhole:    #b07cff;
+  /* Other alliances' gates: the palette's red, which the canvas reads as --pal-red
+     too (map.js _refreshThemeVars), so arcs, legend and panel always agree. */
+  --map-bridge-other: var(--pal-red);
+  --map-wormhole:    #bd5cfa;   /* the arcs' violet, 189,92,250 (map.js _WH_RGB) */
   --map-lowsec:      #e8d44a;
   --map-red:         #d0263d;
   --map-incursion:   #dd44aa;
@@ -35,6 +38,7 @@
 
 .map-mark-bridge      { color: var(--map-bridge); }
 .map-mark-bridge-node { color: var(--map-bridge-node); }
+.map-mark-bridge-other { color: var(--map-bridge-other); }
 .map-mark-wormhole    { color: var(--map-wormhole); }
 .map-mark-lowsec      { color: var(--map-lowsec); }
 .map-mark-red         { color: var(--map-red); }
@@ -75,7 +79,15 @@
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
+/* One row, read left to right: View, then Layout (Spatial) or Region
+   (Schematic); Overlay and Layers, which open as menus; Plan; Find. Every
+   control is one flex item, so a narrow window wraps whole controls and never
+   splits a group. The search box is the give: it shrinks before anything wraps. */
 .map-toolbar {
+  /* Every control one height: the row reads even, and Layout and Region, which
+     swap places with the view, never change the header's height, which would
+     resize the map and nudge its camera. */
+  --map-tb-h: 28px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -84,10 +96,12 @@
   min-width: 0;
 }
 
+/* A labelled group: a muted mono label cell, then its buttons, inside one rim. */
 .map-overlay-group {
+  height: var(--map-tb-h);
+  box-sizing: border-box;
   display: flex;
-  align-items: center;
-  gap: 0;
+  align-items: stretch;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -95,7 +109,9 @@
 }
 
 .map-group-label {
-  padding: 5px 8px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
   font-size: 9px;
   font-family: var(--mono);
   letter-spacing: 0.1em;
@@ -105,8 +121,10 @@
   white-space: nowrap;
 }
 
-.map-overlay-btn {
-  padding: 5px 10px;
+/* View (one of two) and Plan (two launchers) as segments. */
+.map-view-btn,
+.map-plan-btn {
+  padding: 0 10px;
   font-size: 11px;
   font-family: var(--mono);
   font-weight: 600;
@@ -120,74 +138,11 @@
   white-space: nowrap;
 }
 
-.map-overlay-btn:last-child {
-  border-right: none;
-}
+.map-view-btn:last-child,
+.map-plan-btn:last-child { border-right: none; }
 
-.map-overlay-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-1);
-}
-
-.map-overlay-btn.active {
-  background: var(--accent);
-  color: var(--text-on-accent);
-}
-
-/* View-style toggle (Classic / Modern) — mirrors the overlay buttons but kept on a
-   separate class so the overlay click-handler doesn't clear its active state. */
-/* Layout level + Flat. Same chrome as the other toolbar groups — these are
-   peers of the overlay and view toggles, not a different kind of control.
-   Flat is a two-state toggle rather than one of a set, so it reads as pressed
-   rather than selected. */
-.map-layout-btn,
-.map-flat-btn {
-  padding: 5px 10px;
-  font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  background: none;
-  border: none;
-  border-right: 1px solid var(--border);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-
-.map-flat-btn { border-right: none; }
-
-.map-layout-btn:hover,
-.map-flat-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-1);
-}
-
-.map-layout-btn.active,
-.map-flat-btn.active {
-  background: var(--accent);
-  color: var(--text-on-accent);
-}
-
-.map-view-btn {
-  padding: 5px 10px;
-  font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  background: none;
-  border: none;
-  border-right: 1px solid var(--border);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-
-.map-view-btn:last-child { border-right: none; }
-
-.map-view-btn:hover {
+.map-view-btn:hover,
+.map-plan-btn:hover {
   background: var(--bg-hover);
   color: var(--text-1);
 }
@@ -197,72 +152,253 @@
   color: var(--text-on-accent);
 }
 
-/* Region picker — shown in the toolbar only while the Modern view is active. */
-.map-region-select {
-  padding: 5px 8px;
-  font-size: 11px;
-  font-family: var(--mono);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  background: var(--bg-deep);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-1);
-  cursor: pointer;
-  max-width: 180px;
+/* ── Toolbar menus ── */
+/* Layout, Overlay and Layers: a labelled trigger that names what's on, and a
+   panel under it. The trigger has the groups' rim and label cell, so a menu
+   reads as the same kind of control as View, only folded. */
+.map-menu {
+  position: relative;
   flex-shrink: 0;
 }
 
-.map-region-select:hover { border-color: var(--accent); }
+.map-menu[hidden],
+.map-select-group[hidden] { display: none; }
 
-.map-toggle-btn {
+.map-menu-trigger {
+  height: var(--map-tb-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.map-menu-value {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  gap: 4px;
+  padding: 0 2px 0 10px;
   font-size: 11px;
   font-family: var(--mono);
   font-weight: 600;
   letter-spacing: 0.06em;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
-/* Material glyphs sit optically small next to 11px mono caps at their natural
-   size, so the toolbar pins them to the app's 18px utility step. */
-.map-toggle-btn .material-symbols-outlined {
+.map-menu-chevron {
+  display: flex;
+  align-items: center;
+  padding: 0 5px 0 2px;
   font-size: 18px;
   line-height: 1;
-}
-
-/* The two planners open a modal; the three toggles beside them switch a layer on
-   and off. They were visually identical at rest, so a launcher read as something
-   that could be "on". The dotted edge and the trailing ellipsis in the label say
-   "this opens something" without adding another lit state to the strip. */
-.map-planner-btn {
-  border-style: dashed;
   color: var(--text-3);
+  transition: transform 0.15s ease, color 0.15s;
 }
 
-.map-planner-btn:hover {
-  border-style: solid;
-}
-
-.map-toggle-btn:hover {
+.map-menu-trigger:hover {
+  border-color: var(--accent-40);
   background: var(--bg-hover);
-  color: var(--text-1);
 }
 
-.map-toggle-btn.active {
-  background: color-mix(in srgb, var(--pal-gold) 12%, transparent);
-  border-color: var(--pal-gold);
-  color: var(--pal-gold);
+.map-menu-trigger:hover .map-menu-chevron { color: var(--text-1); }
+
+.map-menu-trigger[aria-expanded="true"] { border-color: var(--accent); }
+
+.map-menu-trigger[aria-expanded="true"] .map-menu-chevron {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+/* The panel: the search results' surface, blurred behind so its words stay
+   legible over a busy map. */
+.map-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top-color: var(--accent-25);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px var(--shadow-darker);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+}
+
+.map-menu-panel[hidden] { display: none; }
+
+/* Near the right edge a menu opens leftwards, so it never runs off the window. */
+.map-menu-panel.is-end { left: auto; right: 0; }
+
+.map-menu-panel:focus { outline: none; }
+
+.map-menu-heading {
+  padding: 10px 10px 4px;
+  font-size: 9px;
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--label-muted);
+}
+
+.map-menu-heading:first-child { padding-top: 4px; }
+
+.map-menu-rule {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
+}
+
+.map-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: max(2px, calc(var(--radius) - 4px));
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.map-menu-item:hover { background: var(--bg-hover); }
+
+.map-menu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.map-menu-name {
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.map-menu-desc {
+  font-size: 11.5px;
+  font-family: var(--font);
+  line-height: 1.35;
+  color: var(--text-3);
+  white-space: normal;
+}
+
+/* One of a set: the picked one takes the accent and a check. */
+.map-menu-check {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--accent);
+  visibility: hidden;
+}
+
+.map-menu-item.active .map-menu-check { visibility: visible; }
+.map-menu-item.active:not(.is-switch) .map-menu-name { color: var(--accent); }
+
+/* On or off: the app's toggle switch (base.css .switch) at menu size. */
+.map-menu-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.map-menu-switch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transform: translateY(-50%);
+  transition: transform 0.15s ease, background 0.15s;
+}
+
+.map-menu-item.active .map-menu-switch {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.map-menu-item.active .map-menu-switch::after {
+  transform: translate(12px, -50%);
+  background: #fff;
+}
+
+/* A layer's glyph: muted while off, lit while on. Bridges and wormholes take
+   their lines' own colours, so the menu, the legend and the map agree. */
+.map-menu-icon {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-3);
+  transition: color 0.15s;
+}
+
+.map-menu-item.active .map-menu-icon { color: var(--text-1); }
+.map-menu-item.active[data-layer="bridges"] .map-menu-icon,
+.map-layers-on [data-layer="bridges"]     { color: var(--map-bridge); }
+.map-menu-item.active[data-layer="wormholes"] .map-menu-icon,
+.map-layers-on [data-layer="wormholes"]   { color: var(--map-wormhole); }
+
+/* The Layers trigger lists what's on as those glyphs, or says None. */
+.map-layers-on .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+  margin: 0 -1px;   /* four glyphs side by side, no wider than they need */
+}
+
+.map-layers-none { color: var(--text-3); }
+
+/* Region picker (Schematic): the same rim and label cell around a plain select. */
+.map-select-group {
+  height: var(--map-tb-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+
+.map-select-group:hover { border-color: var(--accent-40); }
+
+.map-region-select {
+  height: 100%;
+  padding: 0 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  cursor: pointer;
+  max-width: 150px;   /* sized to its widest option otherwise; long names truncate */
 }
 
 /* ── Search ──────────────────────────────────────────────────────────────── */
@@ -270,12 +406,13 @@
   position: relative;
   flex: 1;
   max-width: 220px;
-  min-width: 120px;
+  min-width: 96px;    /* the give in the row: it shrinks before anything wraps */
 }
 
 .map-search-input {
   width: 100%;
-  padding: 5px 10px;
+  height: var(--map-tb-h);
+  padding: 0 10px;
   background: var(--bg-deep);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -818,6 +955,12 @@
   height: 2px;
   border-radius: 999px;   /* pill — rounds a 2px hairline's ends */
   flex-shrink: 0;
+}
+/* A dashed stroke, as the canvas draws other alliances' gates. */
+.map-legend-line.is-dashed {
+  height: 0;
+  border-top: 2px dashed currentColor;
+  border-radius: 0;
 }
 
 /* The canvas draws these node shapes literally; the legend shows the same marks

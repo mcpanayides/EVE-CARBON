@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="./styles/finances.css"/>
   <link rel="stylesheet" href="./styles/toast.css"/>
   <link rel="stylesheet" href="./styles/contracts.css"/>
+  <link rel="stylesheet" href="./styles/tutorial.css"/><!-- the guided tour; before glass so glass can tint it -->
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
   <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
        comment on the script tag below for why. -->
@@ -650,7 +651,7 @@
         <button class="settings-menu-btn active"  data-settings-tab="jabber">Jabber</button>
         <button class="settings-menu-btn"          data-settings-tab="forums">Forums</button>
         <button class="settings-menu-btn"          data-settings-tab="fleetCommander">Fleet Commander</button>
-        <button class="settings-menu-btn"          data-settings-tab="industry">GEZ Tracker</button>
+        <button class="settings-menu-btn"          data-settings-tab="industry" data-pack-term="sov_upgrades" data-term-case="title">Sovereignty Upgrades</button>
         <button class="settings-menu-btn"          data-settings-tab="calendar">Calendar</button>
         <button class="settings-menu-btn"          data-settings-tab="database">Database</button>
         <!-- Colour Palette tab — the 16-swatch editor (recolour every token).
@@ -665,6 +666,20 @@
             <div class="settings-panel-title">General</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:4px;">
               How EVE Carbon integrates with your desktop.
+            </div>
+
+            <div class="settings-toggle-row">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label">Tutorial</div>
+                <div class="settings-toggle-desc">
+                  A guided tour that dims the rest of the app while it shows you each control, and waits while you try it.
+                  The basics take about two minutes. Alliance tools covers Jabber, your forum, your <span data-pack-term="sov_upgrades">sovereignty upgrades</span> and jump gates.
+                </div>
+                <div class="tutorial-settings-actions">
+                  <button class="calc-btn" id="tutorialStartBtn">Take the tour</button>
+                  <button class="calc-btn" id="tutorialAdvancedBtn">Set up alliance tools</button>
+                </div>
+              </div>
             </div>
 
             <div class="settings-toggle-row">
@@ -743,22 +758,40 @@
           <div class="settings-panel-block">
             <div class="settings-panel-title">Jump Gate / Beacon Network Import</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:8px;">
-              Paste a jump-gate list (e.g. a Webway export). Tab-separated columns, header optional:
-              <code style="font-size:11px;">Region · System/POS · System/POS · Status · Owner · Password · Dist (ly) · Route · Friendly</code>.
-              Each row's two System/POS columns become an Ansiblex bridge used by the Jump Planner's Beacon mode.
+              Paste a jump-gate list: one gate per line, named the way Ansiblex gates are in game
+              (<code style="font-size:11px;">1DQ1-A » 8QT-H4 - Speedway</code>), or a tab-separated table with the two systems
+              in its 2nd and 3rd columns, such as a Webway export
+              (<code style="font-size:11px;">Region · System/POS · System/POS · Status · Owner · Password · Dist (ly) · Route · Friendly</code>).
+              Each gate becomes an Ansiblex bridge used by the Jump Planner's Beacon mode.
             </div>
             <textarea id="beaconImportInput" spellcheck="false"
-                      placeholder="Paste the gate list here…&#10;The Webway&#10;Region&#9;System / POS&#9;System / POS&#9;Status&#9;Owner&#9;Password&#9;Dist (ly)&#9;Route&#9;Friendly&#10;Delve&#9;1DQ1-A&#9;319-3D&#9;Online&#9;…"
+                      placeholder="Paste the gate list here…&#10;1DQ1-A » 8QT-H4 - Speedway&#10;8QT-H4 » 319-3D&#10;&#10;…or a Webway table:&#10;Region&#9;System / POS&#9;System / POS&#9;Status&#9;Owner&#9;Password&#9;Dist (ly)&#9;Route&#9;Friendly&#10;Delve&#9;1DQ1-A&#9;319-3D&#9;Online&#9;…"
                       style="width:100%; box-sizing:border-box; min-height:150px; resize:vertical; background:var(--bg-deep); border:1px solid var(--border); border-radius:6px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:10px; line-height:1.5;"></textarea>
             <label class="jp-check" style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12px; color:var(--text-2); cursor:pointer;">
-              <input type="checkbox" id="beaconImportFriendlyOnly" checked> Only import gates marked Friendly
+              <input type="checkbox" id="beaconImportTheirs"> This list is another alliance's gates
             </label>
+            <div class="beacon-esi-help">Another alliance's gates, and table rows marked not friendly, show red and dashed on the map. Routes never go through them.</div>
             <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
               <button id="beaconImportBtn" class="calc-btn">Import gates</button>
               <button id="beaconClearBtn" class="calc-btn" style="border-color:var(--danger) !important; color:var(--danger) !important;">Clear all</button>
               <span id="beaconImportCount" style="margin-left:auto; font-size:12px; color:var(--text-3); font-family:var(--mono);"></span>
             </div>
             <div id="beaconImportResult" style="font-size:12px; color:var(--text-2); margin-top:10px; font-family:var(--mono); white-space:pre-wrap; line-height:1.6;"></div>
+            <!-- Gates from EVE: read every hour by main (src/ipc/jump_gates_ipc.js); func/ui.js. -->
+            <div class="beacon-esi">
+              <div class="beacon-esi-title">Gates from EVE</div>
+              <div class="beacon-esi-help">Your alliance's Ansiblex gates, read from EVE every hour for the character picked here: green on the map. Gates only your other characters can see, an alt or a scout in another alliance, show red.</div>
+              <div id="beaconEsiFind" class="beacon-esi-row" hidden>
+                <label for="beaconEsiCharacter" class="beacon-esi-label">Your gates come from</label>
+                <select id="beaconEsiCharacter" class="field-input"></select>
+                <button id="beaconEsiAllowMoreBtn" type="button" class="beacon-esi-more">Allow another character</button>
+              </div>
+              <div id="beaconEsiAllow" class="beacon-esi-row" hidden>
+                <span class="beacon-esi-help">This needs one more permission from EVE, given once per character.</span>
+                <button id="beaconEsiAllowBtn" class="calc-btn">Allow a character</button>
+              </div>
+              <div id="beaconEsiStatus" class="beacon-esi-status" aria-live="polite"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -770,7 +803,7 @@
           <div class="settings-panel-block">
             <div class="settings-panel-title">Alliance Pack</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
-              Packs define SIG/Squad groups, icons, and comms channels for your alliance. Select a built-in pack or import one shared by your leadership.
+              Packs define SIG/Squad groups, icons, and comms channels for your alliance, and can name its wiki and forum. Select a built-in pack or import one shared by your leadership.
             </div>
             <div class="ui-settings-grid">
               <div class="ui-settings-row">
@@ -779,9 +812,12 @@
               </div>
             </div>
             <div id="jabberPackInfo" style="font-size:12px; color:var(--text-3); margin-top:8px; min-height:16px;"></div>
+            <!-- The pack's pages; members-only ones for members (func/pack_links.js). -->
+            <div id="jabberPackLinks" class="pack-links"></div>
             <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
               <button id="jabberNewPackBtn" class="calc-btn" style="font-size:12px;">+ New Pack</button>
               <button id="jabberEditPackBtn" class="calc-btn" style="display:none; font-size:12px;">Edit Pack</button>
+              <button id="jabberExportPackBtn" class="calc-btn" style="display:none; font-size:12px;">Export Pack</button>
               <button id="jabberImportPackBtn" class="calc-btn" style="font-size:12px;">Import Pack (.yaml)</button>
               <button id="jabberDeletePackBtn" class="calc-btn" style="display:none; font-size:12px; border-color:var(--danger) !important; color:var(--danger) !important;">Delete Pack</button>
             </div>
@@ -794,6 +830,7 @@
               <div class="ui-settings-row">
                 <label>Service URL</label>
                 <input id="jabberService" class="field-input" type="text" placeholder="xmpp://jabber.example.com:5222" />
+                <div class="pack-default-note" data-pack-note-for="jabberService" aria-live="polite"></div>
               </div>
               <div class="ui-settings-row">
                 <label>JID</label>
@@ -857,6 +894,7 @@
             <label style="font-size:12px; color:var(--text-3); display:block; margin-bottom:6px;">Forum base URL</label>
             <input id="forumUrlInput" type="text" placeholder="https://forum.youralliance.com/" autocomplete="off"
                    style="width:100%; box-sizing:border-box; font-size:13px; padding:8px 10px; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; color:var(--text-1); margin-bottom:14px;"/>
+            <div class="pack-default-note" data-pack-note-for="forumUrlInput" aria-live="polite"></div>
             <div style="font-size:11px; color:var(--text-3); margin-bottom:12px;">Use the <strong>SAVE</strong> button below to save the URL.</div>
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
               <button onclick="forumDoLogin()" style="font-size:12px; font-weight:600; padding:8px 16px; background:transparent; border:1px solid var(--border); color:var(--text-1); border-radius:6px; cursor:pointer;">Log in to forum</button>
@@ -880,10 +918,10 @@
       <div id="settingsTabIndustry" class="settings-tab" style="display:none;">
         <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
           <div class="settings-panel-block">
-            <div class="settings-panel-title">GEZ Tracker</div>
+            <div class="settings-panel-title" data-pack-term="sov_upgrades" data-term-case="title">Sovereignty Upgrades</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:10px;">
-              Paste the link to your GEZ tracker Google Sheet. EVE Carbon reads the
-              <b>“GEZ Rig List”</b> tab (columns <code style="font-size:11px;">System · Structure · Name · Rig Slot 1–3</code>)
+              Paste the link to your <span data-pack-term="sov_upgrades">sovereignty upgrades</span> Google Sheet. EVE Carbon reads its rig list, the
+              <b>“GEZ Rig List”</b> tab in Goonswarm's layout (columns <code style="font-size:11px;">System · Structure · Name · Rig Slot 1–3</code>),
               and turns each structure into a build location in the Blueprints calculator's
               <b>My Structures</b> dropdown — mapping the Upwell structure to its facility/size
               and reading the fitted manufacturing rigs for the ME/TE tier. The sheet only needs
@@ -892,7 +930,7 @@
             </div>
             <div class="ui-settings-grid">
               <div class="ui-settings-row">
-                <label>GEZ sheet link</label>
+                <label><span data-pack-term="sov_upgrades" data-term-case="sentence">Sovereignty upgrades</span> sheet link</label>
                 <input id="industrySheetUrl" class="field-input" type="text" placeholder="https://docs.google.com/spreadsheets/d/…/edit?usp=sharing" />
               </div>
             </div>
@@ -919,6 +957,7 @@
               <div class="ui-settings-row">
                 <label>Forum base URL</label>
                 <input id="calForumUrl" class="field-input" type="text" placeholder="https://forum.example.com" />
+                <div class="pack-default-note" data-pack-note-for="calForumUrl" aria-live="polite"></div>
               </div>
             </div>
             <div style="margin-top:10px;">
@@ -942,6 +981,7 @@
             </div>
             <textarea id="calExtraFeeds" spellcheck="false" placeholder="https://calendar.google.com/calendar/ical/…/public/basic.ics"
                       style="width:100%; box-sizing:border-box; min-height:60px; resize:vertical; background:var(--bg-deep); border:1px solid var(--border); border-radius:6px; color:var(--text-1); font-family:var(--mono); font-size:12px; padding:8px; line-height:1.5;"></textarea>
+            <div class="pack-default-note" data-pack-note-for="calExtraFeeds" aria-live="polite"></div>
             <div style="font-size:11px; color:var(--text-3); margin-top:8px;">
               You can also import a one-off <code>.ics</code> file directly from the Calendar page. Click <b>SAVE</b> to store feeds.
             </div>
@@ -1494,6 +1534,8 @@
 
 <script src="./shared/anim_idle.js"></script><!-- pauses CSS animation while this window is covered or hidden -->
 <script src="./shared/esi.js"></script><!-- BEFORE utils.js: its fetch wrapper needs window.Esi at load -->
+<script src="./shared/alliance_pack.js"></script>  <!-- what an alliance pack offers this pilot (Settings, the tour) -->
+<script src="./shared/jump_gate_list.js"></script> <!-- reads jump gate lists and Ansiblex names (Settings → Jump Gates) -->
 <script src="./utils.js"></script>
 <script src="./shared/theme-vars.js"></script>
 <script src="./func/palette.js"></script>
@@ -1506,6 +1548,8 @@
 <script src="./func/cost-index.js"></script>
 <script src="./func/materials.js"></script>
 <script src="./func/jabber.js"></script>
+<script src="./func/pack_links.js"></script>  <!-- the picked pack's pages and Settings defaults -->
+
 <script src="./shared/message_styling.js"></script><!-- XEP-0393 parser; BEFORE jabber_rooms.js, which renders with it -->
 <script src="./func/jabber_rooms.js"></script><!-- AFTER jabber.js: shares its helpers -->
 <script src="./func/dashboard.js"></script>
@@ -1551,6 +1595,8 @@
 <script src="./func/contracts.js"></script>  <!-- Finances -> Contracts tab -->
 <script src="./func/notifications.js"></script>  <!-- notification feed; must precede mail.js (tab host) -->
 <script src="./func/mail.js"></script>  <!-- EVE Mail client (live ESI, nothing stored) -->
+<script src="./shared/tutorial_model.js"></script>  <!-- pure tour decisions + geometry; must precede tutorial.js -->
+<script src="./func/tutorial.js"></script>  <!-- the guided tour; binds the Settings > General buttons at load -->
 <script src="./pageLoader.js"></script>  <!-- injects pages/*.html → #navPagesContainer -->
 <script src="./app.js"></script>         <!-- must be last -->
 

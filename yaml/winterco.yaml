@@ -1,0 +1,41 @@
+# Winter Coalition: Fraternity., TEST, NC. and the rest of the coalition.
+#
+# Links only. Fraternity's pings go out on Discord rather than Jabber, so there
+# are no SIGs or comms channels here; a pack of your own can add them (Settings →
+# Jabber → + New Pack). Intel channels are not listed either: EVE Carbon reads
+# whichever channels you have joined straight from the game.
+pack_info:
+  id: "winterco"
+  name: "Winter Coalition"
+  alliance: "Winter Coalition"
+  # The coalition's member alliances as its wiki lists them
+  # (https://wiki.winterco.org/en/coalition/alliances, last changed 2026-09-06),
+  # each id looked up through ESI on 2026-11-06. Coalitions change: re-check
+  # the list before relying on it. Picking the pack fills its forum in.
+  alliance_ids:
+    - 99012654    # Ant Tiger [-ANT-]
+    - 154104258   # Apocalypse Now. [APOC]
+    - 99001317    # Banderlogs Alliance [.RU]
+    - 99005393    # Blades of Grass [2GTHR]
+    - 99003581    # Fraternity. [FRT]
+    - 99013537    # Insidious. [EVIL.]
+    - 99009129    # No Visual. [NO]
+    - 1727758877  # Northern Coalition. [NC]
+    - 386292982   # Pandemic Legion [-10.0]
+    - 99007203    # Siberian Squads [SB-SQ]
+    - 1042504553  # Solyaris Chtonium [SLYCE]
+    - 99002685    # Synergy of Steel [SYN]
+    - 498125261   # Test Alliance Please Ignore [TEST]
+  description: "Winter Coalition wiki and forums"
+  author: "EVE-Carbon"
+  version: "1.0"
+  # Public pages, both checked on 2026-11-06. See yaml/gsf_sigs.yaml for the keys.
+  links:
+    forum:
+      label: "Winter Coalition forums"
+      url: "https://forums.winterco.org"
+      public: true
+    wiki:
+      label: "Winter Coalition wiki"
+      url: "https://wiki.winterco.org/en/start"
+      public: true

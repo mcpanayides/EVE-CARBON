@@ -749,6 +749,23 @@ async function getCharacterData(characterId) {
   }
 }
 
+// The alliances these characters are in, each once: one column from each info
+// table, for deciding what an alliance pack offers (src/shared/alliance_pack.js).
+// A character with no info table yet (never synced) adds nothing.
+async function getAllianceIds(characterIds) {
+  if (!charDb) return [];
+  const out = new Set();
+  for (const raw of Array.isArray(characterIds) ? characterIds : []) {
+    const id = Number(raw);
+    if (!Number.isInteger(id) || id <= 0) continue;   // it names the table
+    try {
+      const row = await charDb.get(`SELECT alliance_id FROM char_${id}_info WHERE character_id=?`, id);
+      if (row && row.alliance_id) out.add(Number(row.alliance_id));
+    } catch (_) { /* not synced yet */ }
+  }
+  return [...out];
+}
+
 async function getCharacterAssets(characterId) {
   if (!charDb) return [];
   const p = `char_${characterId}`;
@@ -1447,6 +1464,7 @@ module.exports = {
   getWalletJournalSyncedAt,
   getImplantsSyncedAt,
   getCharacterData,
+  getAllianceIds,
   getCharacterAssets,
   resolveAssetLocationChain,   // pure helper — exported for unit tests
   getAssetSyncedAt,

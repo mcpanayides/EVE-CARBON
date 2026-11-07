@@ -1,0 +1,16 @@
+# The Initiative.
+#
+# Just the alliance for now. It publishes no public pages, Jabber server or
+# SIG list that we know of (checked 2026-11-06), so picking this pack keeps the
+# app's default Jabber server and offers no links. Pilots can add their own SIGs
+# and comms in a pack of their own (Settings → Jabber → + New Pack).
+pack_info:
+  id: "initiative"
+  name: "The Initiative"
+  alliance: "The Initiative"
+  # Looked up through ESI on 2026-11-06: GET /alliances/1900696668/ → "The Initiative." [INIT.]
+  alliance_ids:
+    - 1900696668  # The Initiative. [INIT.]
+  description: "The Initiative: no public pages known yet"
+  author: "EVE-Carbon"
+  version: "1.0"

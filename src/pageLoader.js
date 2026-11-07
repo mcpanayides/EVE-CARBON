@@ -18,9 +18,10 @@ const PAGE_HTML = {
         <div>
           <h2>Characters</h2>
           <div class="page-description">
-            Click a card's ◇ to set it as your default character (◆) — it's
-            auto-selected on startup. Only one character can be default at a
-            time. Drag cards to reorder your character list.
+            The ◆ marks your main character: its portrait sits at the top of
+            the menu, the dashboard shows it, and its card stays first. Click
+            another card's ◇ to make that character your main. Drag the other
+            cards to reorder them.
           </div>
         </div>
         <button class="close-page-btn" onclick="closePage('characters')">✕</button>
@@ -34,18 +35,17 @@ const PAGE_HTML = {
                  style="width:64px; height:64px; border-radius:50%; border:2px solid var(--accent); object-fit:cover;" />
             <div style="flex:1;">
               <div style="font-size:11px; color:var(--text-2); letter-spacing:0.1em; margin-bottom:4px; font-weight:600;">
-                SELECTED CHARACTER
+                MAIN CHARACTER
               </div>
               <div id="selectedCharName"
                    style="font-size:18px; font-weight:600; color:var(--text-1); margin-bottom:4px;">
-                No Character Selected
+                No main character
               </div>
               <div id="selectedCharMeta"
                    style="font-size:10px; color:var(--text-3); font-family:var(--mono);"></div>
               <div id="selectedCharLocation"
                    style="font-size:11px; color:var(--text-2); font-family:var(--mono); margin-top:4px;"></div>
             </div>
-            <button class="char-action-btn" onclick="clearSelectedCharacter()" title="Clear selection">✕</button>
           </div>
         </div>
       </div>

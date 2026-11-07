@@ -1,0 +1,23 @@
+# Brave Collective and Brave United.
+#
+# Links only. Brave's pings go out on Slack rather than Jabber, so there are no
+# SIGs or comms channels here; a pack of your own can add them (Settings →
+# Jabber → + New Pack). Brave has no forum: its news and guides live on the wiki,
+# so that is what the Forums page shows, with your wiki login kept.
+pack_info:
+  id: "brave"
+  name: "Brave Collective"
+  alliance: "Brave Collective"
+  # Looked up through ESI on 2026-11-06. Picking the pack fills its forum in.
+  alliance_ids:
+    - 99003214    # Brave Collective [BRAVE]
+    - 99010079    # Brave United [BRUVE]
+  description: "Brave Collective wiki"
+  author: "EVE-Carbon"
+  version: "1.0"
+  # A public page, checked on 2026-11-06. See yaml/gsf_sigs.yaml for the keys.
+  links:
+    forum:
+      label: "Brave wiki"
+      url: "https://wiki.bravecollective.com/start"
+      public: true

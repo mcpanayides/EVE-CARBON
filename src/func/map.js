@@ -101,6 +101,10 @@ let _incSet      = new Set();
 // _savedBridges now, which is the only real jump-bridge data we have.
 let _jbSet           = new Set();
 let _savedBridges    = [];        // user's saved Ansiblex bridges [[idA,idB],…] drawn as green arcs
+// Other alliances' gates, which the pilot can't use: drawn red and dashed so a
+// hunter can see where a target's bridge comes out, and kept OUT of
+// _savedBridges, which the router reads (src/ipc/jump_gates_ipc.js fills both).
+let _otherBridges    = [];
 let _regions         = {};        // {regionId: name}
 let _constellations  = {};        // {constellationId: name}
 let _sysById         = {};        // {systemId: system}  — O(1) lookup
@@ -1578,7 +1582,20 @@ function _refreshThemeVars() {
   // uses anywhere — and silently, since this is the path that exists for exactly
   // that failure.
   _accentCol = cs.getPropertyValue('--accent').trim() || '#e6a5e6';
+  // Other alliances' gates take the palette's red, so a theme repaints them too.
+  _jbOtherRgb = _rgbTriplet(cs.getPropertyValue('--pal-red').trim()) || '224,86,75';
 }
+
+// "#e0564b", "#e54" or "rgb(224, 86, 75)" → "224,86,75", for rgba() strokes; null otherwise.
+function _rgbTriplet(col) {
+  let m = /^#([0-9a-f]{6})$/i.exec(col);
+  if (m) return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)).join(',');
+  m = /^#([0-9a-f]{3})$/i.exec(col);
+  if (m) return [...m[1]].map(h => parseInt(h + h, 16)).join(',');
+  m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(col);
+  return m ? `${m[1]},${m[2]},${m[3]}` : null;
+}
+let _jbOtherRgb = null;
 function _monoStack() {
   if (!_fontStack) _refreshThemeVars();
   return _fontStack;
@@ -2722,6 +2739,7 @@ function _drawArcs(ctx, W, H, edges, toCanvas, st) {
   ctx.lineCap = 'round';
   ctx.lineWidth = st.width;
   ctx.strokeStyle = st.stroke;
+  if (st.dash) ctx.setLineDash(st.dash);
   for (const [ida, idb] of edges) {
     const a = toCanvas(ida), b = toCanvas(idb);
     if (!a || !b) continue;
@@ -2738,7 +2756,7 @@ function _drawArcs(ctx, W, H, edges, toCanvas, st) {
     ctx.moveTo(ax, ay);
     ctx.quadraticCurveTo(cpx, cpy, bx, by);
     ctx.stroke();
-    if (st.record) st.record.push({ ax, ay, cpx, cpy, bx, by, len, w: st.width, seed: _arcSeed(ida, idb) });
+    if (st.record) st.record.push({ ax, ay, cpx, cpy, bx, by, len, w: st.width, seed: _arcSeed(ida, idb), rgb: st.fx || _JB_RGB });
     if (st.nub) {
       ctx.shadowBlur = 0;
       ctx.fillStyle = st.nubFill;
@@ -2751,23 +2769,45 @@ function _drawArcs(ctx, W, H, edges, toCanvas, st) {
 }
 
 const _JB_RGB = '64,220,130';   // bridge green: the arcs, their end nubs, and the light that runs along them
-const _ARC_JB = { stroke: `rgba(${_JB_RGB},0.85)`, glow: `rgba(${_JB_RGB},0.55)`, blur: 6,
-                  bow: 0.18, bowMax: 140, nubFill: `rgb(${_JB_RGB})` };
-const _ARC_WH = { stroke: 'rgba(138,43,196,0.7)',  glow: 'rgba(138,43,196,0.45)', blur: 4,
-                  bow: 0.16, bowMax: 120 };
+// Wormholes are drawn the bridges' way - the same weight, glow, end nubs and,
+// in Spatial, the same light running along them - in violet: the hue their arcs
+// always had (138,43,196), lifted so they read as clearly as the bridges over
+// the nebula. The colour sets the two apart, and the legend names both.
+const _WH_RGB = '189,92,250';
+/** A bridge-style arc in one colour: the stroke, its glow, the end nubs, and the light (`fx`) Spatial runs along it. */
+function _arcStyle(rgb) {
+  return { stroke: `rgba(${rgb},0.85)`, glow: `rgba(${rgb},0.55)`, blur: 6,
+           bow: 0.18, bowMax: 140, nubFill: `rgb(${rgb})`, fx: rgb };
+}
+const _ARC_JB = _arcStyle(_JB_RGB);
+const _ARC_WH = _arcStyle(_WH_RGB);
+
+/** How heavy the arcs are in the Schematic view, bridges and wormholes alike: heavier as you zoom in. */
+function _modernArcSize() {
+  return { width: Math.max(1, Math.min(3, _zoom * 3)), nub: Math.max(1.5, _zoom * 2.5) };
+}
+
+// Other alliances' gates: the palette's red, quieter than ours and dashed, so
+// colour is never the only thing telling the two apart. No shimmer runs on them.
+function _arcJbOther(extra) {
+  const rgb = _jbOtherRgb || (_refreshThemeVars(), _jbOtherRgb) || '224,86,75';
+  return Object.assign({ stroke: `rgba(${rgb},0.8)`, glow: `rgba(${rgb},0.35)`, blur: 3,
+                         bow: 0.18, bowMax: 140, nubFill: `rgb(${rgb})`, dash: [6, 5] }, extra);
+}
 
 function _drawModernJumpBridgeArcs(ctx, W, H, posMap) {
-  if (!(_showJb && _savedBridges.length)) return;
+  if (!_showJb || !(_savedBridges.length || _otherBridges.length)) return;
   const toCanvas = (id) => { const p = posMap.get(id); return p ? _w2c(p.x, p.z) : null; };
-  _drawArcs(ctx, W, H, _savedBridges, toCanvas, Object.assign({}, _ARC_JB, {
-    width: Math.max(1, Math.min(3, _zoom * 3)), nub: Math.max(1.5, _zoom * 2.5) }));
+  const { width, nub } = _modernArcSize();
+  // Theirs first, so ours draws on top where the two cross.
+  if (_otherBridges.length) _drawArcs(ctx, W, H, _otherBridges, toCanvas, _arcJbOther({ width: Math.max(1, width * 0.8), nub }));
+  if (_savedBridges.length) _drawArcs(ctx, W, H, _savedBridges, toCanvas, Object.assign({}, _ARC_JB, { width, nub }));
 }
 
 function _drawModernWormholeArcs(ctx, W, H, posMap) {
   if (!(_showWh && _whArcEdges && _whArcEdges.length)) return;
   const toCanvas = (id) => { const p = posMap.get(id); return p ? _w2c(p.x, p.z) : null; };
-  _drawArcs(ctx, W, H, _whArcEdges, toCanvas, Object.assign({}, _ARC_WH, {
-    width: Math.max(0.8, Math.min(2.4, _zoom * 2.4)) }));
+  _drawArcs(ctx, W, H, _whArcEdges, toCanvas, Object.assign({}, _ARC_WH, _modernArcSize()));
 }
 
 /** A world offset as camera-space [x, y, z]: the rotation half of _spatialProject. */
@@ -2883,11 +2923,15 @@ function _drawSpatialArcs(ctx, W, H) {
   // At constellation or region level the nodes are aggregates; an arc between
   // two systems has no node to land on, so these are drawn per system only.
   if (_spatialLayout !== 'system') return;
+  _jbFxScale = _jbFxScaleNow();          // the lights' size this frame, on bridges and wormholes alike
   if (_showWh && _whArcEdges && _whArcEdges.length) {
-    _drawArcs(ctx, W, H, _whArcEdges, _spatialCanvasOf, Object.assign({}, _ARC_WH, { width: 1.2 }));
+    _drawArcs(ctx, W, H, _whArcEdges, _spatialCanvasOf,
+      Object.assign({}, _ARC_WH, { width: 1.6, nub: 2, record: _jbArcs }));
+  }
+  if (_showJb && _otherBridges.length) {
+    _drawArcs(ctx, W, H, _otherBridges, _spatialCanvasOf, _arcJbOther({ width: 1.3, nub: 2 }));
   }
   if (_showJb && _savedBridges.length) {
-    _jbFxScale = _jbFxScaleNow();
     _drawArcs(ctx, W, H, _savedBridges, _spatialCanvasOf,
       Object.assign({}, _ARC_JB, { width: 1.6, nub: 2, record: _jbArcs }));
   }
@@ -2924,12 +2968,14 @@ function _zoomScale(fullAtPx) {
   return Math.min(1, _medianGateLen() * _spatialPxPerUnit() / fullAtPx);
 }
 
-// ── Jump-bridge shimmer (Spatial only) ────────────────────────────────────────
+// ── Jump-bridge and wormhole shimmer (Spatial only) ───────────────────────────
 //
 // A light runs along every bridge from its first system to its second - the
 // order the gate list gives them - so the two ends of an arc can be told
 // apart: it leaves one with a bright head and a fading tail, and lands on the
-// other with a brief flare. The Schematic view keeps its arcs still.
+// other with a brief flare. Wormholes carry the same light in their own violet,
+// leaving Thera or Turnur for the system the hole opens into. The Schematic
+// view keeps its arcs still.
 //
 // It is the only thing on the map that moves by itself, so it gets a canvas of
 // its own, laid over the map. The map still redraws only when something
@@ -2957,7 +3003,7 @@ const _JB_FX = {
   frame:    33,   // ms between frames: ~30 fps is plenty for a light this size
   still:  0.68,   // where reduced motion parks every comet - past halfway, pointing on
 };
-let _jbArcs    = [];     // the bridge arcs the last map frame drew: {ax,ay,cpx,cpy,bx,by,len,w,seed}
+let _jbArcs    = [];     // the bridge and wormhole arcs the last map frame drew: {ax,ay,cpx,cpy,bx,by,len,w,seed,rgb}
 let _jbFx      = null;   // the overlay canvas, and its context
 let _jbFxCtx   = null;
 let _jbFxRaf   = 0;      // the pending frame; 0 while stopped
@@ -2995,7 +3041,7 @@ function _jbFxPhase(arc) {
   return ((_jbFxClock + arc.seed * c) % c) / _JB_FX.travel;
 }
 
-/** The light in flight: a white-hot head in a green halo, the tail clearing behind it. */
+/** The light in flight: a white-hot head in a halo of the arc's colour, the tail clearing behind it. */
 function _jbComet(ctx, arc, t) {
   const k = _jbFxScale;
   const fade = Math.min(1, t / 0.12);            // eases out of the first system, no pop
@@ -3003,8 +3049,8 @@ function _jbComet(ctx, arc, t) {
   const [hx, hy] = _arcPoint(arc, t);
   const [sx, sy] = _arcPoint(arc, t0);
   const tail = ctx.createLinearGradient(sx, sy, hx, hy);
-  tail.addColorStop(0, `rgba(${_JB_RGB},0)`);
-  tail.addColorStop(1, `rgba(${_JB_RGB},${(0.9 * fade).toFixed(3)})`);
+  tail.addColorStop(0, `rgba(${arc.rgb},0)`);
+  tail.addColorStop(1, `rgba(${arc.rgb},${(0.9 * fade).toFixed(3)})`);
   ctx.strokeStyle = tail;
   ctx.lineWidth = (arc.w + 1.4) * k;
   ctx.beginPath();
@@ -3017,8 +3063,8 @@ function _jbComet(ctx, arc, t) {
   const r = (3 + arc.w * 1.6) * k;
   const head = ctx.createRadialGradient(hx, hy, 0, hx, hy, r);
   head.addColorStop(0,   `rgba(255,255,255,${(0.95 * fade).toFixed(3)})`);
-  head.addColorStop(0.3, `rgba(${_JB_RGB},${(0.8 * fade).toFixed(3)})`);
-  head.addColorStop(1,   `rgba(${_JB_RGB},0)`);
+  head.addColorStop(0.3, `rgba(${arc.rgb},${(0.8 * fade).toFixed(3)})`);
+  head.addColorStop(1,   `rgba(${arc.rgb},0)`);
   ctx.fillStyle = head;
   ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill();
 }
@@ -3030,8 +3076,8 @@ function _jbFlare(ctx, arc, q) {
   const r = (4 + arc.w * 2 + q * 6) * _jbFxScale;
   const g = ctx.createRadialGradient(arc.bx, arc.by, 0, arc.bx, arc.by, r);
   g.addColorStop(0,    `rgba(255,255,255,${(0.7 * a).toFixed(3)})`);
-  g.addColorStop(0.35, `rgba(${_JB_RGB},${(0.6 * a).toFixed(3)})`);
-  g.addColorStop(1,    `rgba(${_JB_RGB},0)`);
+  g.addColorStop(0.35, `rgba(${arc.rgb},${(0.6 * a).toFixed(3)})`);
+  g.addColorStop(1,    `rgba(${arc.rgb},0)`);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(arc.bx, arc.by, r, 0, Math.PI * 2); ctx.fill();
 }
@@ -3652,10 +3698,8 @@ function _forceGalaxyView() {
   if (_regionView == null) return;   // already at a galaxy-level view, either mode
   _regionView = null;
   const sel = document.getElementById('mapRegionSelect');
-  if (sel) {
-    sel.style.display = (_viewMode === 'modern') ? '' : 'none';
-    sel.value = 'galaxy';
-  }
+  if (sel) sel.value = 'galaxy';
+  _syncViewControls();
 }
 
 // Fill the region dropdown from loaded region data (known space only). Safe to call
@@ -4517,9 +4561,19 @@ function _aggLayerColor(node) {
 }
 
 /** Layout controls belong to the spatial view; hide them elsewhere. */
-function _syncLayoutControls() {
-  const g = document.getElementById('mapLayoutGroup');
-  if (g) g.style.display = (_viewMode === 'spatial') ? '' : 'none';
+/**
+ * The toolbar's view-dependent controls, from _viewMode: the View segments,
+ * Layout (Spatial only) and Region (Schematic only), each shown only where it
+ * does something. Run on load and on every path that changes the view; when the
+ * picker could change the view without it, Layout stayed up in Schematic.
+ */
+function _syncViewControls() {
+  document.querySelectorAll('.map-view-btn').forEach(b => _press(b, b.dataset.view === _viewMode));
+  const layout = document.getElementById('mapLayoutGroup');
+  const region = document.getElementById('mapRegionGroup');
+  if (layout) layout.hidden = _viewMode !== 'spatial';
+  if (region) region.hidden = _viewMode !== 'modern';
+  if (_openMapMenu && _openMapMenu.wrap.hidden) _mapMenuClose(false);
 }
 
 // ── Skybox and region nebulae (Spatial) ───────────────────────────────────────
@@ -7240,7 +7294,16 @@ async function _showInfo(system) {
   const regionName = _regions[system.regionId] || `Region ${system.regionId}`;
   const sov        = _sovMap[system.id];
   const incursion  = _incSet.has(system.id);
-  const jb         = _jbSet.has(system.id);
+  // Where this system's gates go: ours, and other alliances' (where a target's
+  // bridge would bring them out).
+  const jbOurs     = _bridgeEnds(_savedBridges, system.id);
+  const jbTheirs   = _bridgeEnds(_otherBridges, system.id);
+  const jbList     = (names) => names.map(n => escHtml(n)).join(', ');
+  const bridgeHtml = (jbOurs.length || jbTheirs.length)
+    ? [jbOurs.length   ? `<span class="map-mark-bridge-node">◈ Ours, to ${jbList(jbOurs)}</span>` : '',
+       jbTheirs.length ? `<span class="map-mark-bridge-other">◈ Another alliance’s, to ${jbList(jbTheirs)}</span>` : '']
+        .filter(Boolean).join('<br>')
+    : '<span class="map-muted">None</span>';
   // The ramp the canvas is currently painting — the panel used to always show the
   // Classic hue for a value the Modern view had drawn in a different one.
   const secColor   = Orrery.legible((_viewMode === 'modern' ? _secColorModern : _secColor)(system.sec));
@@ -7313,9 +7376,7 @@ async function _showInfo(system) {
     </div>
     <div class="map-info-row">
       <span class="map-info-label">JUMP BRIDGE</span>
-      <span class="map-info-value ${jb ? 'map-mark-bridge-node' : 'map-muted'}">
-        ${jb ? '◈ Bridge endpoint' : 'None'}
-      </span>
+      <span class="map-info-value">${bridgeHtml}</span>
     </div>
     <div class="map-info-row">
       <span class="map-info-label">SYSTEM ID</span>
@@ -7375,6 +7436,7 @@ function _updateLegend() {
   // so they are the one thing here that is legitimately inline.
   const dot  = (col) => `<span class="map-legend-dot" style="background:${col}"></span>`;
   const line = (col) => `<span class="map-legend-line" style="background:${col}"></span>`;
+  const dashLine = (col) => `<span class="map-legend-line is-dashed" style="color:${col}"></span>`;
   const row  = (mark, label) => `<div class="map-legend-row">${mark} ${label}</div>`;
   const glyph = (g) => `<span class="map-legend-glyph" aria-hidden="true">${g}</span>`;
 
@@ -7506,7 +7568,10 @@ function _updateLegend() {
   const lines = [ row(line('rgba(150,160,176,0.42)'), 'Stargate') ];
   lines.push(row(line('rgba(196,140,64,0.65)'), 'Regional gate'));
   if (_showJb)                     lines.push(row(line('rgba(64,220,130,0.85)'),  'Jump bridge'));
-  if (_showWh)                     lines.push(row(line('rgba(138,43,196,0.7)'),   'Wormhole'));
+  if (_showJb && _otherBridges.length) {
+    lines.push(row(dashLine(`rgb(${_jbOtherRgb || '224,86,75'})`), 'Another alliance’s jump bridge'));
+  }
+  if (_showWh)                     lines.push(row(line(`rgba(${_WH_RGB},0.85)`), 'Wormhole'));
   if (_routeIds && _routeIds.length)         lines.push(row(line('rgba(96,200,255,0.95)'), 'Stargate route'));
   if (_jumpRouteIds && _jumpRouteIds.length) lines.push(row(line('rgba(240,120,200,0.92)'), 'Jump route'));
   html += `<div class="map-legend-title map-legend-sub">LINES</div>${lines.join('')}`;
@@ -7724,12 +7789,122 @@ function _press(btn, on) {
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 }
 
+// ── Toolbar menus ─────────────────────────────────────────────────────────────
+// Layout, Overlay and Layers fold into menus under labelled triggers. Each is a
+// disclosure (aria-expanded on the trigger) over a group of toggle buttons that
+// keep their aria-pressed, so Tab walks the open menu and every handler below
+// still works on the buttons themselves. One menu is open at a time. Esc, a
+// press anywhere else, or focus leaving it closes it; picking one of a set
+// closes it too, while flipping a switch leaves it open for the next.
+let _openMapMenu = null;   // { wrap, trigger, panel } of the open menu, or null
+
+function _mapMenuClose(returnFocus) {
+  const m = _openMapMenu;
+  if (!m) return;
+  _openMapMenu = null;
+  m.panel.hidden = true;
+  m.trigger.setAttribute('aria-expanded', 'false');
+  if (returnFocus) m.trigger.focus();
+}
+
+function _mapMenuOpen(m, focusItem) {
+  if (_openMapMenu && _openMapMenu !== m) _mapMenuClose(false);
+  _openMapMenu = m;
+  m.panel.classList.remove('is-end');
+  m.panel.hidden = false;
+  m.trigger.setAttribute('aria-expanded', 'true');
+  // Near the right edge, open leftwards rather than off the window.
+  if (m.panel.getBoundingClientRect().right > window.innerWidth - 8) m.panel.classList.add('is-end');
+  if (focusItem) {
+    const item = m.panel.querySelector('.map-menu-item.active:not(.is-switch)') || m.panel.querySelector('.map-menu-item');
+    if (item) item.focus();
+  }
+}
+
+function _initMapMenu(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  const trigger = wrap && wrap.querySelector('.map-menu-trigger');
+  const panel = wrap && wrap.querySelector('.map-menu-panel');
+  if (!trigger || !panel) return;
+  const m = { wrap, trigger, panel };
+  trigger.addEventListener('click', () => { if (_openMapMenu === m) _mapMenuClose(false); else _mapMenuOpen(m, false); });
+  trigger.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); _mapMenuOpen(m, true); }
+    else if (e.key === 'Escape' && _openMapMenu === m) { e.preventDefault(); e.stopPropagation(); _mapMenuClose(true); }
+  });
+  panel.addEventListener('keydown', (e) => {
+    const items = [...panel.querySelectorAll('.map-menu-item')];
+    const at = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _mapMenuClose(true); return; }
+    let next = null;
+    if (e.key === 'ArrowDown') next = items[(at + 1) % items.length];
+    else if (e.key === 'ArrowUp') next = items[(at - 1 + items.length) % items.length];
+    else if (e.key === 'Home') next = items[0];
+    else if (e.key === 'End') next = items[items.length - 1];
+    if (next) { e.preventDefault(); next.focus(); }
+  });
+  panel.addEventListener('click', (e) => {
+    const item = e.target.closest('.map-menu-item');
+    if (item && !item.classList.contains('is-switch')) _mapMenuClose(true);
+  });
+  wrap.addEventListener('focusout', (e) => {
+    if (_openMapMenu === m && e.relatedTarget && !wrap.contains(e.relatedTarget)) _mapMenuClose(false);
+  });
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (_openMapMenu && !_openMapMenu.wrap.contains(e.target)) _mapMenuClose(false);
+});
+
+/** The overlay buttons' pressed state and the Overlay trigger's name, from _overlay. */
+function _syncOverlayControls() {
+  let name = '';
+  document.querySelectorAll('.map-overlay-btn').forEach(b => {
+    const on = b.dataset.overlay === _overlay;
+    _press(b, on);
+    if (on) name = (b.querySelector('.map-menu-name') || b).textContent.trim();
+  });
+  const value = document.getElementById('mapOverlayValue');
+  if (value && name) value.textContent = name;
+}
+
+/** The Layout trigger names the level that's on. */
+function _syncLayoutValue() {
+  const on = document.querySelector('.map-layout-btn.active .map-menu-name');
+  const value = document.getElementById('mapLayoutValue');
+  if (value && on) value.textContent = on.textContent.trim();
+}
+
+/** The Layers trigger shows the glyph of every layer that's on, and names them for a screen reader. */
+function _syncLayersSummary() {
+  const box = document.getElementById('mapLayersValue');
+  const trigger = document.getElementById('mapLayersTrigger');
+  if (!box) return;
+  const on = [...document.querySelectorAll('#mapLayersMenu .map-menu-item.active')];
+  box.replaceChildren(...on.map(b => {
+    const glyph = b.querySelector('.map-menu-icon').cloneNode(true);
+    glyph.classList.remove('map-menu-icon');
+    glyph.dataset.layer = b.dataset.layer;
+    return glyph;
+  }));
+  if (!on.length) {
+    const none = document.createElement('span');
+    none.className = 'map-layers-none';
+    none.textContent = 'None';
+    box.appendChild(none);
+  }
+  const names = on.map(b => b.querySelector('.map-menu-name').textContent.trim());
+  const label = `Layers: ${names.length ? names.join(', ') : 'none'}`;
+  if (trigger) { trigger.title = label; trigger.setAttribute('aria-label', label); }
+}
+
 function _initToolbar() {
+  ['mapLayoutGroup', 'mapOverlayGroup', 'mapLayersGroup'].forEach(_initMapMenu);
+
   document.querySelectorAll('.map-overlay-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.map-overlay-btn')
-        .forEach(b => _press(b, b === btn));
       _overlay = btn.dataset.overlay;
+      _syncOverlayControls();
       // Friends & Foes needs the alliance standings — load them on first use, then redraw.
       if (_overlay === 'fnf' && !_fnfLoaded) {
         _loadFnfStandings().then(() => { _updateLegend(); _scheduleRender(); });
@@ -7752,22 +7927,17 @@ function _initToolbar() {
       if (_sys) _solarClose();         // back to the view it was opened from, first
       if (mode === _viewMode || !VIEW_MODES.has(mode)) return;
       _viewMode = mode;
-      document.querySelectorAll('.map-view-btn')
-        .forEach(b => _press(b, b.dataset.view === mode));
+      _syncViewControls();
       if (mode === 'spatial') {
-        if (regionSel) regionSel.style.display = 'none';
         _regionView = null;
         _fitSpatial();
-        _syncLayoutControls();
       } else if (mode === 'modern') {
-        _syncLayoutControls();
         _populateRegionSelect();
-        if (regionSel) { regionSel.style.display = ''; regionSel.value = 'galaxy'; }
+        if (regionSel) regionSel.value = 'galaxy';
         _regionView = null;                 // start at the galaxy overview
         _buildGalaxyModern();
         _fitGalaxyModern();
       } else {
-        if (regionSel) regionSel.style.display = 'none';
         _regionView = null;
         _fitGalaxy();
       }
@@ -7776,7 +7946,7 @@ function _initToolbar() {
     });
   });
 
-  // Layout level + flat. Both belong to the spatial view, so the whole group
+  // Layout level + flat. Both belong to the spatial view, so the whole menu
   // hides in the schematic rather than offering controls that do nothing.
   document.querySelectorAll('.map-layout-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -7785,6 +7955,7 @@ function _initToolbar() {
       _spatialLayout = lvl;
       document.querySelectorAll('.map-layout-btn')
         .forEach(b => _press(b, b.dataset.layout === lvl));
+      _syncLayoutValue();
       // Deliberately NOT refitting: the arrangement is identical between
       // levels, so holding the camera still is what makes the change read as
       // detail merging rather than as a new map.
@@ -7815,9 +7986,7 @@ function _initToolbar() {
       if (_sys) _solarClose();
       if (_viewMode !== 'modern') {
         _viewMode = 'modern';
-        document.querySelectorAll('.map-view-btn')
-          .forEach(b => b.classList.toggle('active', b.dataset.view === 'modern'));
-        regionSel.style.display = '';
+        _syncViewControls();
       }
       if (regionSel.value === 'galaxy') { _backToOverview(); _updateLegend(); return; }
       _enterRegion(Number(regionSel.value));
@@ -7833,6 +8002,7 @@ function _initToolbar() {
       _showJb = !_showJb;
       if (_showJb) _loadSavedBridges();   // pick up any newly imported bridges
       _press(jbBtn, _showJb);
+      _syncLayersSummary();
       _updateLegend();
       _scheduleRender();
     });
@@ -7844,6 +8014,7 @@ function _initToolbar() {
     whBtn.addEventListener('click', async () => {
       _showWh = !_showWh;
       _press(whBtn, _showWh);
+      _syncLayersSummary();
       _updateLegend();
       if (_showWh) await _ensureWhArcs();        // lazy-load the connections on first enable
       _scheduleRender();
@@ -7852,9 +8023,11 @@ function _initToolbar() {
 
   const fpBtn = document.getElementById('mapFpToggle');
   if (fpBtn) {
+    _press(fpBtn, _showFp);
     fpBtn.addEventListener('click', () => {
       _showFp = !_showFp;
       _press(fpBtn, _showFp);
+      _syncLayersSummary();
       _updateLegend();      // adds or removes the section, and shows the widget
       _scheduleRender();
     });
@@ -7862,9 +8035,11 @@ function _initToolbar() {
 
   const infBtn = document.getElementById('mapInfToggle');
   if (infBtn) {
+    _press(infBtn, _showInf);
     infBtn.addEventListener('click', () => {
       _showInf = !_showInf;
       _press(infBtn, _showInf);
+      _syncLayersSummary();
       // Under Friends & Foes the field is drawn from the standings, so make sure
       // they're loaded — otherwise the first paint would be all neutral.
       if (_showInf && _overlay === 'fnf' && !_fnfLoaded) {
@@ -7874,6 +8049,12 @@ function _initToolbar() {
       _scheduleRender();
     });
   }
+
+  // The triggers name what's on from the start: the default overlay and layout,
+  // and the layers that open switched on.
+  _syncOverlayControls();
+  _syncLayoutValue();
+  _syncLayersSummary();
 
   const zoomIn  = document.getElementById('mapZoomIn');
   const zoomOut = document.getElementById('mapZoomOut');
@@ -8280,18 +8461,48 @@ function _startLivePolling() {
 // Planner / settings importer). Called on map entry, on toggling the overlay on,
 // and via window.mapReloadBridges() after an import so the arcs update live.
 async function _loadSavedBridges() {
+  const pairs = (b) => (Array.isArray(b)
+    ? b.filter(p => Array.isArray(p) && p.length === 2).map(p => [Number(p[0]), Number(p[1])])
+    : []);
+  try { _savedBridges = pairs(await window.eveAPI.getJumpBridges()); }
+  catch (_) { _savedBridges = []; }
+  // Other alliances' gates are drawn only; one that's also ours is ours.
   try {
-    const b = await window.eveAPI.getJumpBridges() || [];
-    _savedBridges = Array.isArray(b)
-      ? b.filter(p => Array.isArray(p) && p.length === 2).map(p => [Number(p[0]), Number(p[1])])
-      : [];
-  } catch (_) { _savedBridges = []; }
+    const ours = new Set(_savedBridges.map(([a, b]) => (a < b ? `${a}-${b}` : `${b}-${a}`)));
+    _otherBridges = pairs(await window.eveAPI.getJumpBridgesOther?.())
+      .filter(([a, b]) => !ours.has(a < b ? `${a}-${b}` : `${b}-${a}`));
+  } catch (_) { _otherBridges = []; }
   // Endpoint markers follow the bridge list — rebuilt here so an import shows up
   // without a reload, same as the arcs.
   _jbSet = new Set(_savedBridges.flat());
+  // The legend's "Another alliance's jump bridge" row depends on this list. It was
+  // drawn before the list arrived, and nothing else redraws it in time on a slow
+  // load (sovereignty can take longer than the bridges), so redraw it here.
+  if (typeof _updateLegend === 'function') _updateLegend();
   if (_loaded) _scheduleRender();
 }
 window.mapReloadBridges = function () { _loadSavedBridges(); };
+// The hourly read from ESI changes both lists without anyone on this page.
+window.eveAPI?.on?.('jump-gates-updated', () => _loadSavedBridges());
+
+// A new main character (the ◆ on the Characters page) brings its own alliance:
+// Friends & Foes and the safest routes read its standings. Standings not read
+// yet are read from whoever is main when they are first needed. "You are here"
+// follows the main on the next visit to the map (initMapPage).
+document.addEventListener('main-character-changed', () => {
+  if (!_fnfLoaded) return;
+  _loadFnfStandings().then(() => { _infInvalidate(); _updateLegend(); _scheduleRender(); });
+});
+
+// The other ends of the gates in `list` that land in `sysId`, by name.
+function _bridgeEnds(list, sysId) {
+  const out = [];
+  for (const [a, b] of list) {
+    const other = a === sysId ? b : b === sysId ? a : null;
+    if (other != null) out.push((_sysById[other] && _sysById[other].name) || String(other));
+  }
+  return out;
+}
 
 // ── Stargate travel route (safest by standings) ───────────────────────────────
 // Right-click → "Set as start" / "Set as destination". Computes the safest gate
@@ -8413,17 +8624,19 @@ async function _loadWormholes() {
 }
 window.mapReloadWormholes = function () { _whLoaded = false; return _loadWormholes(); };
 
-// Build the deduped edge list of EvE-Scout API connections for the dark-purple map
-// arcs (drawn like jump bridges).
+// Build the deduped edge list of EvE-Scout API connections for the violet map
+// arcs (drawn like jump bridges). Thera or Turnur goes first, so the light that
+// runs along each arc in Spatial leaves the hub and lands where the hole opens.
 function _rebuildWhArcs() {
   const seen = new Set();
   _whArcEdges = [];
+  const hub = (id) => id === _THERA_ID || id === _TURNUR_ID;
   const add = (a, b) => {
     if (a == null || b == null || a === b || !_sysById[a] || !_sysById[b]) return;
     const key = a < b ? `${a}_${b}` : `${b}_${a}`;
     if (seen.has(key)) return;
     seen.add(key);
-    _whArcEdges.push([a, b]);
+    _whArcEdges.push(hub(b) && !hub(a) ? [b, a] : [a, b]);
   };
   for (const c of (_whConns || [])) add(c.inId, c.outId);
 }
@@ -9329,7 +9542,7 @@ async function initMapPage() {
     _buildGalaxyModern();
 
     _loaded = true;
-    _syncLayoutControls();
+    _syncViewControls();
     _onResize(); // Size the canvas now that data is ready; calls _fitGalaxy()
 
     _setMapState('ready');
@@ -9382,9 +9595,7 @@ window.mapJumpToSystem = function (systemId) {
   _forceGalaxyView();   // galaxy-coord jump — leave any Modern region view
   // Always switch to incursions overlay so the context is clear
   _overlay = 'incursions';
-  document.querySelectorAll('.map-overlay-btn').forEach(b => b.classList.remove('active'));
-  const btn = document.querySelector('[data-overlay="incursions"]');
-  if (btn) btn.classList.add('active');
+  _syncOverlayControls();
   if (typeof _updateLegend === 'function') _updateLegend();
 
   if (_loaded && _sysById[systemId]) {

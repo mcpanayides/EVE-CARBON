@@ -65,6 +65,13 @@ const JUMP_BRIDGES = [
   [30004716, 30004762],
 ];
 
+// A rival's Ansiblex pairs next door in Querious (2.6–4.2 LY, checked against the
+// SDE): the gates the scout's search turns up, which the cast can't use. The map
+// draws them red and dashed (src/ipc/jump_gates_ipc.js).
+const JUMP_BRIDGES_OTHER = [
+  [30003947, 30003952], [30003957, 30003985], [30004019, 30003974],
+];
+
 // ── Accounts + config (userData) ──────────────────────────────────────────────
 function writeUserData(userDataDir, now) {
   fs.mkdirSync(userDataDir, { recursive: true });
@@ -131,6 +138,9 @@ function writeUserData(userDataDir, now) {
   // an invented network has nothing to protect.
   fs.writeFileSync(path.join(userDataDir, 'jump_network.dat'), JSON.stringify({
     enc: false, data: Buffer.from(JSON.stringify(JUMP_BRIDGES), 'utf8').toString('base64'),
+  }));
+  fs.writeFileSync(path.join(userDataDir, 'jump_network_other.dat'), JSON.stringify({
+    enc: false, data: Buffer.from(JSON.stringify(JUMP_BRIDGES_OTHER), 'utf8').toString('base64'),
   }));
 }
 
@@ -427,7 +437,7 @@ async function seed({ userDataDir, dataDir, charInfoDb, now = Date.now() }) {
   return { characters: Object.values(CHARS).map(c => ({ id: c.id, name: c.name })) };
 }
 
-module.exports = { seed, seedFleetOps, seedJabber, CHARS, JITA, AMARR, DODIXIE, RENS, STAGING, JUMP_BRIDGES };
+module.exports = { seed, seedFleetOps, seedJabber, CHARS, JITA, AMARR, DODIXIE, RENS, STAGING, JUMP_BRIDGES, JUMP_BRIDGES_OTHER };
 
 // ── Fleet ops (Op History) ────────────────────────────────────────────────────
 // Three closed ops, each showing a different face of the tool: a PvP roam with

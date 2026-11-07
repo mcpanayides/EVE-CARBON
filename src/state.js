@@ -16,8 +16,13 @@ let currentSettingsTab   = 'jabber';
 let selectedCharacterId  = null;
 let currentIndustryTab   = null;
 
+// The Jabber server Settings shows when nothing is saved and the picked alliance
+// pack names none of its own (The Imperium's names goonfleet.com; see
+// src/func/pack_links.js).
+const JABBER_DEFAULT_SERVICE = 'xmpp://jabber.eveonline.com:5222';
+
 let jabberSettings = {
-  service:     'xmpp://jabber.eveonline.com:5222',
+  service:     JABBER_DEFAULT_SERVICE,
   jid:         '',
   password:    '',
 };

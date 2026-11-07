@@ -88,7 +88,10 @@
   color: var(--text-3); transition: color 0.15s ease, transform 0.15s ease;
 }
 .character-id-card .character-fav-btn:hover    { transform: scale(1.18); color: var(--pal-gold); }
-.character-id-card .character-fav-btn.is-fav    { color: var(--pal-gold); text-shadow: 0 0 8px rgba(227,193,77,0.45); }
+.character-id-card .character-fav-btn:focus-visible { outline: none; border-radius: 4px; box-shadow: 0 0 0 2px var(--accent-40); }
+/* The main character's ◆. Clicking it does nothing (there is always a main), so it doesn't grow on hover. */
+.character-id-card .character-fav-btn.is-main   { color: var(--pal-gold); text-shadow: 0 0 8px color-mix(in srgb, var(--pal-gold) 45%, transparent); cursor: default; }
+.character-id-card .character-fav-btn.is-main:hover { transform: none; }
 
 .character-card-actions {
   /* z-index:3, not 2 — see the matching comment on .character-fav-btn above.

@@ -16,7 +16,7 @@
   const set = (k, v) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); } catch (_) {} };
   const now = Date.now(), DAY = 86400000;
 
-  // Kaska is the default character (the ◆ on her card) and the cards run main,
+  // Kaska is the main character (the ◆ on her card) and the cards run main,
   // industrialist, scout. Without this the app opens on whichever id sorts
   // first — the scout.
   set('char_favorites', ['3010026']);

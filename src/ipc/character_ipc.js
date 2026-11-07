@@ -44,6 +44,12 @@ function registerCharacterHandlers({
     return charInfoDb.getCharacterAssets(characterId);
   });
 
+  // The alliances the pilot's characters are in, each once. What an alliance
+  // pack offers (its members-only pages, its Settings defaults) goes by these.
+  ipcHandle('get-character-alliances', async () => {
+    return charInfoDb.getAllianceIds(Object.keys(loadDB().accounts || {}));
+  });
+
   // Cheap freshness probe — one MAX(synced_at) query, no full asset read.
   // The dashboard uses this to decide whether a character's cached asset value
   // is still valid without re-reading (and re-pricing) every asset row.

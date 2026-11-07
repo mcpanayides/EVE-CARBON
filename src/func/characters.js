@@ -182,27 +182,45 @@ async function _performCharacterSync(id) {
   }
 }
 
-// ─── Favorites ────────────────────────────────────────────────────────────────
-// Starred characters are pinned to the top of the list (before the saved drag
-// order). Persisted in localStorage as an array of characterIds.
+// ─── Main character ───────────────────────────────────────────────────────────
+// The main character is the one the app speaks for: its portrait sits in the
+// top-left slot of the menu, the dashboard's banner and skill queue are its, the
+// map reads its alliance's standings, and character pickers start on it. It is
+// the ◆ on its card, and its card always comes first. There is one whenever
+// there is a character: the first card, until another card's ◇ is clicked.
+//
+// Kept in localStorage under char_favorites as a one-id array (the name is from
+// when it was a "favourite"), so map.js, jump-planner.js and blueprints.js read
+// it as favorites[0] unchanged.
 const FAV_KEY = 'char_favorites';
-function getFavorites() {
+function getMainCharacterId() {
   try {
     const arr = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
-    return new Set((Array.isArray(arr) ? arr : []).map(String));
-  } catch (e) { return new Set(); }
+    return Array.isArray(arr) && arr.length ? String(arr[0]) : null;
+  } catch (e) { return null; }
 }
-// Exclusive — at most one default character at a time. Clicking the current
-// default's diamond clears it; clicking any other card's diamond replaces it.
-// (Storage stays an array — with 0 or 1 entries now — so every other reader
-// of char_favorites, e.g. map.js/jump-planner.js/blueprints.js picking
-// favorites[0] as the "main" character, keeps working unchanged.)
-function toggleFavorite(id) {
-  id = String(id);
-  const isCurrentDefault = getFavorites().has(id);
-  const next = isCurrentDefault ? [] : [id];
-  try { localStorage.setItem(FAV_KEY, JSON.stringify(next)); } catch (e) { /* ignore */ }
-  return !isCurrentDefault;
+function _saveMainCharacterId(id) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(id ? [String(id)] : [])); } catch (e) { /* ignore */ }
+}
+
+// The order the cards show in: the main first, then the order they were dragged into.
+function _charCardOrder(accounts, mainId) {
+  const orderMap = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem('char_card_order') || 'null');
+    if (Array.isArray(saved)) saved.forEach((id, i) => { orderMap[String(id)] = i; });
+  } catch (e) { /* ignore */ }
+  const rank = id => (String(id) === String(mainId) ? -1 : (orderMap[String(id)] ?? 999));
+  return [...accounts].sort((a, b) => rank(a.characterId) - rank(b.characterId));
+}
+
+// The ◆ on the main's card and a ◇ on the others, with what clicking each one does.
+function _paintMainDiamond(btn, isMain, name) {
+  btn.classList.toggle('is-main', isMain);
+  btn.textContent = isMain ? '◆' : '◇';
+  btn.title = isMain ? 'Your main character' : 'Make this your main character';
+  btn.setAttribute('aria-pressed', String(isMain));
+  btn.setAttribute('aria-label', isMain ? `${name}, your main character` : `Make ${name} your main character`);
 }
 
 // ─── Resync all ───────────────────────────────────────────────────────────────
@@ -354,22 +372,19 @@ async function loadAccounts() {
           <div class="empty-title">NO CHARACTERS</div>
           <div class="empty-sub">Click + ADD CHARACTER to login with EVE SSO.</div>
         </div>`;
+      // No characters, no main: the menu goes back to its Characters button.
+      if (selectedCharacterId != null || getMainCharacterId()) {
+        _saveMainCharacterId(null);
+        clearSelectedCharacter();
+      }
       return;
     }
 
-    // Sort: favorites first, then the saved drag order within each group.
-    const favs = getFavorites();
-    const orderMap = {};
-    try {
-      const savedOrder = JSON.parse(localStorage.getItem('char_card_order') || 'null');
-      if (savedOrder && Array.isArray(savedOrder)) savedOrder.forEach((id, i) => { orderMap[String(id)] = i; });
-    } catch (e) { /* ignore */ }
-    const orderedAccounts = [...accounts].sort((a, b) => {
-      const fa = favs.has(String(a.characterId)) ? 0 : 1;
-      const fb = favs.has(String(b.characterId)) ? 0 : 1;
-      if (fa !== fb) return fa - fb;                       // favorites pinned to top
-      return (orderMap[String(a.characterId)] ?? 999) - (orderMap[String(b.characterId)] ?? 999);
-    });
+    // The main character: the saved one while it is still here, else the first
+    // card. The main goes first, then the order the cards were dragged into.
+    const savedMain = getMainCharacterId();
+    const mainAcc = accounts.find(a => String(a.characterId) === savedMain) || _charCardOrder(accounts, null)[0];
+    const orderedAccounts = _charCardOrder(accounts, mainAcc.characterId);
 
     // Shared net-worth cache (asset value + escrow per character), computed by
     // the dashboard. Read once; each card adds its own liquid wallet on top.
@@ -377,16 +392,14 @@ async function loadAccounts() {
 
     orderedAccounts.forEach(acc => {
       const id       = acc.characterId;
-      const isActive = String(id) === String(selectedCharacterId);
-      const isFav    = favs.has(String(id));
+      const isMain   = String(id) === String(mainAcc.characterId);
       const item     = document.createElement('div');
-      item.className = 'character-card character-id-card' + (isActive ? ' selected' : '');
+      item.className = 'character-card character-id-card' + (isMain ? ' selected' : '');
       item.dataset.characterId = id;
-      item.draggable = true;
+      item.draggable = !isMain;   // the main's card stays first
 
       item.innerHTML = `
-        <button class="character-fav-btn${isFav ? ' is-fav' : ''}" data-id="${id}"
-                title="${isFav ? 'Default character — click to unset' : 'Set as default character (auto-selected on launch)'}">${isFav ? '◆' : '◇'}</button>
+        <button type="button" class="character-fav-btn" data-id="${id}"></button>
 
         <div class="character-card-actions">
           <button class="character-sync-btn sync-btn bp-view-btn" data-id="${id}">SYNC</button>
@@ -429,18 +442,18 @@ async function loadAccounts() {
             <div class="char-cc-section-label">Current Ship</div>
             <div class="char-cc-ship" data-cc-field="ship">…</div>
           </div>
-          ${isActive ? '<div class="character-active-badge">● ACTIVE</div>' : ''}
+          ${isMain ? '<div class="character-active-badge">● MAIN</div>' : ''}
           ${acc.needsReauth ? '<div class="character-reauth-badge" title="Click to log back in">⚠ RE-LOGIN NEEDED</div>' : ''}
         </div>`;
+      _paintMainDiamond(item.querySelector('.character-fav-btn'), isMain, acc.characterName);
 
       // Fill the async fields (DB + net-worth cache + corp/alliance names).
       _populateCharCard(item, acc, nwCache);
 
-      // Click to select (ignore the action/fav controls).
+      // The ◇ picks the main character (wired below); the card itself only
+      // answers its re-login badge.
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.character-card-actions') || e.target.closest('.character-fav-btn')) return;
-        if (e.target.closest('.character-reauth-badge')) { window.eveAPI.startSSOLogin(); return; }
-        selectCharacter(acc);
+        if (e.target.closest('.character-reauth-badge')) window.eveAPI.startSSOLogin();
       });
 
       // Drag to reorder
@@ -461,7 +474,9 @@ async function loadAccounts() {
           listDiv.querySelectorAll('.character-card').forEach(c => c.classList.remove('drag-over'));
           item.classList.add('drag-over');
           const rect = item.getBoundingClientRect();
-          if (e.clientY < rect.top + rect.height / 2) listDiv.insertBefore(dragging, item);
+          // Nothing goes in front of the main's card.
+          const onMain = String(item.dataset.characterId) === String(selectedCharacterId);
+          if (!onMain && e.clientY < rect.top + rect.height / 2) listDiv.insertBefore(dragging, item);
           else listDiv.insertBefore(dragging, item.nextSibling);
         }
       });
@@ -480,7 +495,9 @@ async function loadAccounts() {
       _applyManualSyncStateIfActive(acc.characterId, item);
     });
 
-    if (!selectedCharacterId && orderedAccounts.length > 0) selectCharacter(orderedAccounts[0]);
+    // Settle the main quietly: on launch, when the saved main was removed, or
+    // the first time there is a character. A click on a ◇ announces itself.
+    setMainCharacter(mainAcc, { announce: false });
 
     // Wire remove buttons
     listDiv.querySelectorAll('.remove-btn').forEach(btn => {
@@ -511,13 +528,15 @@ async function loadAccounts() {
       });
     });
 
-    // Wire favorite stars — toggle persisted state and re-render so the list
-    // re-sorts with favorites pinned to the top.
+    // Wire the diamonds: a ◇ makes that character the main, at once. Clicking
+    // the main's ◆ does nothing: there is always a main.
     listDiv.querySelectorAll('.character-fav-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleFavorite(e.currentTarget.getAttribute('data-id'));
-        loadAccounts();
+        const id = e.currentTarget.getAttribute('data-id');
+        if (String(id) === String(selectedCharacterId)) return;
+        const acc = accounts.find(a => String(a.characterId) === String(id));
+        if (acc) setMainCharacter(acc);
       });
     });
   } catch (err) {
@@ -526,6 +545,43 @@ async function loadAccounts() {
   }
 }
 
+/**
+ * Makes `account` the main character, at once and from what is already here:
+ * saved, its card moved to the first slot with the ◆, its portrait in the
+ * menu's top-left slot, and a 'main-character-changed' event for everything
+ * else that follows the main (the dashboard repaints its banner and skill
+ * queue, the map re-reads its standings, the tour moves on). `announce` shows a
+ * toast; loadAccounts settles the main quietly.
+ */
+function setMainCharacter(account, { announce = true } = {}) {
+  if (!account) return;
+  const id = String(account.characterId);
+  const changed = String(selectedCharacterId ?? '') !== id;
+  if (getMainCharacterId() !== id) _saveMainCharacterId(id);
+  // The panel, the card marks and the menu portrait, when the main is new. The
+  // cards redrawn after every sync come marked already, and the menu portrait
+  // isn't rebuilt each time, so it never flickers.
+  if (changed) selectCharacter(account);
+
+  const listDiv = document.getElementById('accountsListNav');
+  if (listDiv) {
+    // Moves the cards already drawn, in the order the next full draw would use,
+    // so nothing flickers and nothing jumps later.
+    const cards = [...listDiv.querySelectorAll('.character-card[data-character-id]')];
+    const byId = new Map(cards.map(c => [String(c.dataset.characterId), c]));
+    _charCardOrder(cards.map(c => ({ characterId: c.dataset.characterId })), id)
+      .forEach(a => listDiv.appendChild(byId.get(String(a.characterId))));
+  }
+
+  if (!changed) return;
+  if (announce) showToast(`Main character: ${account.characterName}`, 'success');
+  document.dispatchEvent(new CustomEvent('main-character-changed', {
+    detail: { characterId: id, characterName: account.characterName },
+  }));
+}
+
+// Shows `account` as the main: the panel above the cards, the card marks and
+// the menu portrait. setMainCharacter is what makes it the main.
 function selectCharacter(account) {
   selectedCharacterId = account.characterId;
 
@@ -557,25 +613,27 @@ function selectCharacter(account) {
   document.querySelectorAll('.character-card').forEach(card => {
     const isThis = String(card.dataset.characterId) === String(account.characterId);
     card.classList.toggle('selected', isThis);
-    const portrait = card.querySelector('.character-card-portrait');
-    if (portrait) portrait.style.borderColor = isThis ? getComputedStyle(document.documentElement).getPropertyValue('--teal').trim() : '';
+    card.draggable = !isThis;
+    const diamond = card.querySelector('.character-fav-btn');
+    if (diamond) _paintMainDiamond(diamond, isThis, card.querySelector('.character-card-name')?.textContent || 'this character');
     const content = card.querySelector('.character-card-content');
     if (!content) return;
     const existing = content.querySelector('.character-active-badge');
     if (isThis && !existing) {
       const badge = document.createElement('div');
       badge.className = 'character-active-badge';
-      badge.textContent = '● ACTIVE';
-      content.appendChild(badge);
+      badge.textContent = '● MAIN';
+      // Before the re-login badge, where the first draw puts it.
+      content.insertBefore(badge, content.querySelector('.character-reauth-badge'));
     } else if (!isThis && existing) {
       existing.remove();
     }
   });
 
   updateNavCharacterBtn(account);
-  showToast(`Active: ${account.characterName}`, 'success');
 }
 
+// No characters left: no main, and the menu shows its Characters button again.
 function clearSelectedCharacter() {
   selectedCharacterId = null;
   const section = document.getElementById('selectedCharacterSection');
@@ -586,11 +644,8 @@ function clearSelectedCharacter() {
     card.classList.remove('selected');
     const badge    = card.querySelector('.character-active-badge');
     if (badge) badge.remove();
-    const portrait = card.querySelector('.character-card-portrait');
-    if (portrait) portrait.style.borderColor = '';
   });
   updateNavCharacterBtn(null);
-  showToast('Character selection cleared', 'info');
 }
 
 function saveCharacterOrder() {
@@ -631,7 +686,7 @@ function saveCharacterOrder() {
 
     if (typeof logToConsole === 'function') logToConsole(msg, level);
     if (step === 'done' && typeof loadAccounts === 'function') {
-      // Refresh the card list so ACTIVE badge / portrait updates
+      // Refresh the card list so the MAIN badge / portrait updates
       loadAccounts();
     }
   });

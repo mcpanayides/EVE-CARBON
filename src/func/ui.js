@@ -492,9 +492,15 @@ function _initIdleAnimationPause() {
 })();
 
 // ─── Jump Gates / Beacon Network Import ────────────────────────────────────────
-// Imports a pasted jump-gate list (e.g. a Webway export) into the encrypted
-// main-process bridge store the Jump Planner's Beacon mode reads (stored as
-// [[idA, idB], …]). Not localStorage — the network can be sensitive alliance intel.
+// Jump gates, kept in two encrypted main-process stores (never localStorage: a
+// network is alliance intel), both [[idA, idB], …]:
+//   • ours: the planner routes through these, and the map draws them green;
+//   • theirs: other alliances' gates, drawn red and dashed, never routed through.
+// Ours come from EVE once an hour for the character picked here, and other
+// alliances' from the pilot's other characters (src/ipc/jump_gates_ipc.js). A
+// pasted list adds to either: rows marked not friendly, or a whole list marked
+// as another alliance's, go to theirs. Gate names read with
+// src/shared/jump_gate_list.js.
 let _navGalaxyIndex = null;   // lowercase system name → solarSystemID
 
 async function _navGetBridges() {
@@ -502,6 +508,13 @@ async function _navGetBridges() {
 }
 async function _navSaveBridges(b) {
   try { return await window.eveAPI.saveJumpBridges(b); }
+  catch (e) { return { ok: false, error: e.message }; }
+}
+async function _navGetOtherBridges() {
+  try { return await window.eveAPI.getJumpBridgesOther() || []; } catch (_) { return []; }
+}
+async function _navSaveOtherBridges(b) {
+  try { return await window.eveAPI.saveJumpBridgesOther(b); }
   catch (e) { return { ok: false, error: e.message }; }
 }
 
@@ -518,34 +531,67 @@ async function _navLoadGalaxyIndex() {
   return idx;
 }
 
-// A "System / POS" cell can be the bare system, "System @ 1-1" (POS moon notation),
-// or "System - Moon - POS". The system is the leading token. We strip an "@ …"
-// suffix and a " - …" suffix, but NOT bare hyphens — system names contain hyphens
-// (MN-Q26, 1DQ1-A, G-ME2K), so only spaced " - " counts as a POS separator.
-function _navCleanSystemName(cell) {
-  let s = String(cell || '').trim();
-  s = s.split(/\s*@\s*/)[0];     // "MN-Q26 @ 1-1" → "MN-Q26"
-  s = s.split(/\s[-–]\s/)[0];    // "1DQ1-A - Moon 1 - POS" → "1DQ1-A"
-  return s.trim();
-}
+let _navEsiSubs = null;   // the event subscriptions, taken once
 
 function populateJumpgatesSettings() {
   const importBtn = document.getElementById('beaconImportBtn');
   const clearBtn  = document.getElementById('beaconClearBtn');
+  const select    = document.getElementById('beaconEsiCharacter');
   if (importBtn && !importBtn._bound) { importBtn._bound = true; importBtn.addEventListener('click', importBeaconNetwork); }
   if (clearBtn  && !clearBtn._bound)  { clearBtn._bound  = true; clearBtn.addEventListener('click', clearBeaconNetwork); }
+  if (select    && !select._bound)    { select._bound    = true; select.addEventListener('change', _navEsiPick); }
+  for (const id of ['beaconEsiAllowBtn', 'beaconEsiAllowMoreBtn']) {
+    const btn = document.getElementById(id);
+    if (btn && !btn._bound) { btn._bound = true; btn.addEventListener('click', _navEsiAllow); }
+  }
+  if (!_navEsiSubs) {
+    _navEsiSubs = [
+      // A character signing in from "Allow a character" is read straight away.
+      window.eveAPI.on('account-added', () => { _navEsiRefresh(); window.eveAPI.jumpGatesEsiSync?.().catch?.(() => {}); }),
+      window.eveAPI.on('jump-gates-esi-progress', (p) => _navEsiProgress(p)),
+      window.eveAPI.on('jump-gates-updated', () => {
+        const status = document.getElementById('beaconEsiStatus');
+        if (status) status._reading = false;
+        _navUpdateGateCount();
+        _navEsiRefresh();
+      }),
+    ];
+  }
   _navUpdateGateCount();
+  _navEsiRefresh();
 }
 
 async function _navUpdateGateCount() {
   const el = document.getElementById('beaconImportCount');
-  if (el) el.textContent = `${(await _navGetBridges()).length} gates saved`;
+  if (!el) return;
+  const [ours, theirs] = await Promise.all([_navGetBridges(), _navGetOtherBridges()]);
+  el.textContent = `${ours.length} gate${ours.length === 1 ? '' : 's'} saved`
+    + (theirs.length ? ` · ${theirs.length} of other alliances` : '');
+}
+
+// Parsed gates → [idA, idB] pairs, and the names that matched no system.
+function _navResolveGates(pairs, idx) {
+  const idPairs = [], unresolvedNames = new Set();
+  let unresolved = 0;
+  for (const p of pairs) {
+    const pair = JumpGateList.resolvePair(p, idx);
+    if (pair) { idPairs.push(pair); continue; }
+    if (!JumpGateList.resolveSystem(p.a, idx)) unresolvedNames.add(p.a);
+    if (!JumpGateList.resolveSystem(p.b, idx)) unresolvedNames.add(p.b);
+    unresolved++;
+  }
+  return { idPairs, unresolved, unresolvedNames };
+}
+
+function _navUnresolvedLine(names) {
+  const list = [...names].filter(Boolean);
+  return list.length ? `Unresolved: ${list.slice(0, 15).join(', ')}${list.length > 15 ? '…' : ''}` : '';
 }
 
 async function importBeaconNetwork() {
   const ta       = document.getElementById('beaconImportInput');
   const resultEl = document.getElementById('beaconImportResult');
-  const friendlyOnly = document.getElementById('beaconImportFriendlyOnly')?.checked;
+  const allTheirs = !!document.getElementById('beaconImportTheirs')?.checked;
   if (!ta || !ta.value.trim()) { showToast('Paste a gate list first.', 'error'); return; }
 
   const idx = await _navLoadGalaxyIndex();
@@ -553,64 +599,129 @@ async function importBeaconNetwork() {
     showToast('Galaxy data unavailable — update the SDE in Settings → Database.', 'error');
     return;
   }
-  const resolve = (cell) => idx[_navCleanSystemName(cell).toLowerCase()] ?? null;
+  const parsed = JumpGateList.parseList(ta.value);
+  const oursIn   = allTheirs ? [] : parsed.pairs;
+  const theirsIn = allTheirs ? parsed.pairs.concat(parsed.theirs) : parsed.theirs;
+  const ours   = _navResolveGates(oursIn, idx);
+  const theirs = _navResolveGates(theirsIn, idx);
 
-  const existing = await _navGetBridges();
-  const pairKey  = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
-  const seen     = new Set(existing.map(([a, b]) => pairKey(a, b)));
-  let added = 0, dup = 0, notFriendly = 0, unresolved = 0;
-  const unresolvedNames = new Set();
-
-  for (const raw of ta.value.split(/\r?\n/)) {
-    if (!raw.includes('\t')) continue;            // title row / blank — needs columns
-    const cols = raw.split('\t');
-    const aRaw = cols[1], bRaw = cols[2];
-    if (!aRaw || !bRaw) continue;
-    if (/^region$/i.test((cols[0] || '').trim()) || /system\s*\/\s*pos/i.test(aRaw)) continue; // header
-
-    if (friendlyOnly) {
-      const fr = (cols[8] || '').trim().toLowerCase();
-      if (fr && !/^(y|yes|true|1|friendly)$/.test(fr)) { notFriendly++; continue; }
-    }
-
-    const a = resolve(aRaw), b = resolve(bRaw);
-    if (!a) unresolvedNames.add(_navCleanSystemName(aRaw));
-    if (!b) unresolvedNames.add(_navCleanSystemName(bRaw));
-    if (!a || !b) { unresolved++; continue; }
-    if (a === b) continue;
-    const k = pairKey(a, b);
-    if (seen.has(k)) { dup++; continue; }
-    seen.add(k);
-    existing.push([a, b]);
-    added++;
-  }
-
-  const saved = await _navSaveBridges(existing);
+  const savedOurs = await _navGetBridges();
+  const o = JumpGateList.addPairs(savedOurs, ours.idPairs);
+  // A gate that's ours is never also theirs.
+  const oursKeys = new Set(o.merged.map(([a, b]) => JumpGateList.pairKey(a, b)));
+  const t = JumpGateList.addPairs(await _navGetOtherBridges(),
+    theirs.idPairs.filter(([a, b]) => !oursKeys.has(JumpGateList.pairKey(a, b))));
+  const results = await Promise.all([o.added ? _navSaveBridges(o.merged) : null, t.added ? _navSaveOtherBridges(t.merged) : null]);
+  const failed = results.find(r => r && r.ok === false);
+  if (failed) showToast(`Couldn't save the gate network to disk: ${failed.error || 'unknown error'}`, 'error');
   await _navUpdateGateCount();
   if (typeof window.mapReloadBridges === 'function') window.mapReloadBridges();
-  if (saved && saved.ok === false) {
-    showToast(`Couldn't save the gate network to disk: ${saved.error || 'unknown error'}`, 'error');
-  }
 
-  const parts = [`✓ Imported ${added} gate${added === 1 ? '' : 's'}.`];
-  if (dup)         parts.push(`${dup} already saved.`);
-  if (notFriendly) parts.push(`${notFriendly} skipped (not friendly).`);
-  if (unresolved)  parts.push(`${unresolved} row(s) skipped — system not found.`);
-  if (unresolvedNames.size) {
-    const names = [...unresolvedNames].filter(Boolean).slice(0, 15);
-    parts.push(`Unresolved: ${names.join(', ')}${unresolvedNames.size > 15 ? '…' : ''}`);
+  const parts = [`✓ Imported ${o.added} gate${o.added === 1 ? '' : 's'} of yours.`];
+  if (t.added)      parts.push(`${t.added} of another alliance's, red on the map.`);
+  if (o.dup + t.dup) parts.push(`${o.dup + t.dup} already saved.`);
+  const unresolved = ours.unresolved + theirs.unresolved;
+  if (unresolved) parts.push(`${unresolved} row(s) skipped — system not found.`);
+  const unknown = _navUnresolvedLine(new Set([...ours.unresolvedNames, ...theirs.unresolvedNames]));
+  if (unknown) parts.push(unknown);
+  if (!parsed.pairs.length && !parsed.theirs.length && parsed.unreadable) {
+    parts.push('No gates in that text. Use lines like “1DQ1-A » 8QT-H4”, or a table with the two systems in its 2nd and 3rd columns.');
   }
   if (resultEl) resultEl.textContent = parts.join('\n');
-  showToast(`Imported ${added} gate${added === 1 ? '' : 's'} into the beacon network.`, added ? 'success' : 'info');
+  const total = o.added + t.added;
+  showToast(`Imported ${total} gate${total === 1 ? '' : 's'} into the beacon network.`, total ? 'success' : 'info');
 }
 
 async function clearBeaconNetwork() {
-  await _navSaveBridges([]);
+  await Promise.all([_navSaveBridges([]), _navSaveOtherBridges([])]);
   await _navUpdateGateCount();
   if (typeof window.mapReloadBridges === 'function') window.mapReloadBridges();
   const resultEl = document.getElementById('beaconImportResult');
-  if (resultEl) resultEl.textContent = 'Beacon network cleared.';
+  if (resultEl) resultEl.textContent = 'Beacon network cleared. Gates from EVE come back at the next hourly read.';
   showToast('Beacon network cleared.', 'success');
+}
+
+// ── Gates from EVE ──────────────────────────────────────────────────────────
+// Read once an hour by main for the characters allowed to search, so there is no
+// button to press. Allowing one takes a permission plain logins don't ask for,
+// given per character through "Allow a character", which opens EVE's login with
+// that one extra scope.
+const _NAV_SEARCH_SCOPE = 'esi-search.search_structures.v1';
+
+function _navAgo(at) {
+  const min = Math.max(0, Math.round((Date.now() - at) / 60000));
+  return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : `${Math.round(min / 60)} h ago`;
+}
+
+function _navEsiFailure(err) {
+  switch (err && err.reason) {
+    case 'scope':   return 'This character hasn’t allowed structure search yet. Use “Allow another character” and sign in with it.';
+    case 'reauth':  return 'This character needs to log in again, on the Characters page.';
+    case 'unknown': return 'That character is no longer in EVE Carbon.';
+    default:        return `ESI didn’t answer (${(err && err.message) || 'unknown error'}). It tries again within the hour.`;
+  }
+}
+
+function _navEsiStatusText(s) {
+  if (!s) return '';
+  if (s.running) return 'Reading your gates from EVE…';
+  if (s.error) return _navEsiFailure(s.error);
+  if (!s.checkedAt) return 'Your gates are read from EVE within a couple of minutes, then every hour.';
+  const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
+  let text = `Kept up to date from EVE every hour. Read ${_navAgo(s.checkedAt)}: ${plural(s.mine || 0, 'gate')} ${s.characterName || 'you'} can use, green on the map`;
+  if (s.theirs) text += `, and ${plural(s.theirs, 'gate')} of other alliances your other characters can see, red`;
+  text += '.';
+  if (s.complete === false) text += ' Some couldn’t be read this time, so nothing was taken off.';
+  return text;
+}
+
+// Who may search, whose gates are ours, and how the last read went. With nobody
+// allowed yet, the row that asks EVE for the permission takes the picker's place.
+async function _navEsiRefresh() {
+  const select   = document.getElementById('beaconEsiCharacter');
+  const findRow  = document.getElementById('beaconEsiFind');
+  const allowRow = document.getElementById('beaconEsiAllow');
+  const status   = document.getElementById('beaconEsiStatus');
+  if (!select || !findRow || !allowRow) return;
+  const s = await window.eveAPI.jumpGatesEsiStatus().catch(() => null);
+  const able = ((s && s.characters) || []).filter(c => c.canSearch);
+  select.innerHTML = able.map(c =>
+    `<option value="${escHtml(String(c.characterId))}">${escHtml(c.characterName || String(c.characterId))}</option>`).join('');
+  if (s && s.characterId != null) select.value = String(s.characterId);
+  findRow.hidden  = !able.length;
+  allowRow.hidden = !!able.length;
+  if (status && !status._reading) status.textContent = able.length ? _navEsiStatusText(s) : '';
+}
+
+function _navEsiProgress(p) {
+  const status = document.getElementById('beaconEsiStatus');
+  if (!status || !p) return;
+  status._reading = !!p.total && p.done < p.total;
+  status.textContent = p.total
+    ? `Reading gates from EVE… ${p.done} of ${p.total}${p.characterName ? ` (${p.characterName})` : ''}`
+    : 'Reading your gates from EVE…';
+}
+
+// Another character's gates become ours: main saves the pick and reads at once.
+async function _navEsiPick() {
+  const select = document.getElementById('beaconEsiCharacter');
+  const status = document.getElementById('beaconEsiStatus');
+  if (!select?.value) return;
+  if (status) status.textContent = 'Reading your gates from EVE…';
+  await window.eveAPI.jumpGatesEsiSetCharacter(select.value).catch(() => {});
+  if (status) status._reading = false;
+  _navUpdateGateCount();
+  _navEsiRefresh();
+}
+
+async function _navEsiAllow() {
+  const status = document.getElementById('beaconEsiStatus');
+  try {
+    await window.eveAPI.startSSOLogin({ extraScopes: [_NAV_SEARCH_SCOPE] });
+    if (status) status.textContent = 'EVE’s login is open in your browser. Sign in with the character whose gates you use, then come back here.';
+  } catch (e) {
+    showToast(`Couldn't open EVE's login: ${e.message}`, 'error');
+  }
 }
 
 // ─── Background wallpaper ─────────────────────────────────────────────────────
@@ -904,15 +1015,7 @@ function bindUISettings() {
   const saveBtn  = document.getElementById('saveSettingsBtn');
   const closeBtn = document.getElementById('closeSettingsBtn');
 
-  if (openBtn) {
-    openBtn.addEventListener('click', async () => {
-      if (drawer) {
-        drawer.style.display = 'flex';
-        await populateSettingsInputs();
-        setSettingsTab(currentSettingsTab);
-      }
-    });
-  }
+  if (openBtn) openBtn.addEventListener('click', () => openSettingsAt(currentSettingsTab));
   // Leaving the drawer discards an unsaved palette edit and takes its live
   // preview with it. Without this the preview <style> stayed injected for the
   // rest of the session: the app went on wearing colours that were never saved,
@@ -949,13 +1052,30 @@ function bindUISettings() {
   }
 }
 
+// Open the Settings drawer on a given tab. The menu button and the tutorial both
+// come through here, so the drawer is always filled in before it is shown, and
+// switching tab while it is already open does not reload what is in it.
+async function openSettingsAt(tab) {
+  const drawer = document.getElementById('uiSettingsDrawer');
+  if (!drawer) return;
+  const wasOpen = drawer.style.display === 'flex';
+  drawer.style.display = 'flex';
+  if (!wasOpen) await populateSettingsInputs();
+  setSettingsTab(tab || currentSettingsTab);
+}
+
 async function populateSettingsInputs() {
   await populateJabberSettings();
   if (currentSettingsTab === 'database') await populateDatabaseSettings();
   if (currentSettingsTab === 'palette')  await populatePaletteSettings();
   if (typeof populateIndustrySettings === 'function') populateIndustrySettings();
-  if (typeof populateCalendarSettings === 'function') populateCalendarSettings();
-  if (typeof populateForumSettings === 'function') populateForumSettings();
+  if (typeof populateCalendarSettings === 'function') await populateCalendarSettings();
+  if (typeof populateForumSettings === 'function') await populateForumSettings();
+  // Last, once every field holds its saved value: the picked alliance pack fills
+  // in the empty ones it has defaults for, and its words go in (GEZ for Goons,
+  // sovereignty upgrades for everyone else; src/func/pack_links.js).
+  if (typeof applyPackDefaults === 'function') await applyPackDefaults();
+  if (typeof applyPackTerms === 'function') await applyPackTerms();
 }
 
 async function saveAllSettings() {
@@ -1396,7 +1516,7 @@ function updateNavCharacterBtn(account) {
     nameSpan.textContent = account.characterName;
     btn.appendChild(img);
     btn.appendChild(nameSpan);
-    btn.title = `Active: ${account.characterName}`;
+    btn.title = `Main character: ${account.characterName}`;
   } else {
     const icon = document.createElement('span');
     icon.className = 'nav-icon';

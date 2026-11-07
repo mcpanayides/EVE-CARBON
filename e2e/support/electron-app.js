@@ -43,14 +43,22 @@ async function removeProfile(dir, attempts = 12) {
 }
 
 const test = base.test.extend({
+  // The fixture character's alliance. Made up by default; a spec that needs a
+  // real one sets it with test.use({ allianceId: … }) (the guided tour's
+  // Goonswarm hint does).
+  allianceId: [99000001, { option: true }],
+  // More characters on the profile, after the fixture one: [{ characterId,
+  // characterName }] (the main character's ◆ needs two to choose from).
+  extraCharacters: [[], { option: true }],
+
   // Fresh isolated userData + character DB per test, torn down after.
-  electronApp: async ({}, use) => {
+  electronApp: async ({ allianceId, extraCharacters }, use) => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-carbon-e2e-'));
     const userDataDir = path.join(tmpRoot, 'userData');
     const dataDir = path.join(tmpRoot, 'data');
 
-    await seedUserData(userDataDir);
-    const charInfoDb = await seedCharacterDb(dataDir);
+    await seedUserData(userDataDir, { extraCharacters });
+    const charInfoDb = await seedCharacterDb(dataDir, { allianceId });
     // Close our seeding connection before the app opens its own — avoids two
     // writable handles to the same WAL-mode file across processes at startup
     // (Windows file locking is stricter here than POSIX).

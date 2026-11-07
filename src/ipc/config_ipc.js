@@ -40,6 +40,16 @@ function registerConfigHandlers({
     saveConfig(cfg);
     return true;
   });
+
+  // ─── IPC: Tutorial ────────────────────────────────────────────────────────
+  // What the guided tour remembers (seen, basicDone, advancedDone; written back
+  // through app-save-config), plus one fact only this process knows: an e2e run
+  // never opens the tour by itself, or it would sit over every test that removes
+  // its last character and reloads.
+  ipcHandle('tutorial-get-state', () => ({
+    ...(loadConfig()?.app?.tutorial || {}),
+    suppressAutoStart: process.env.EVE_CARBON_E2E === '1',
+  }));
 }
 
 module.exports = { registerConfigHandlers };

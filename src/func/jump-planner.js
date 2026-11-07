@@ -81,6 +81,9 @@ async function _jpLoadBridges() {
   try { _jpBridgeCache = await window.eveAPI.getJumpBridges() || []; }
   catch (_) { _jpBridgeCache = []; }
 }
+// The hourly read from ESI can change our network while the planner is open.
+// Other alliances' gates are never loaded here: a route can't use them.
+window.eveAPI?.on?.('jump-gates-updated', () => { _jpLoadBridges(); });
 function _jpGetBridges() { return _jpBridgeCache; }
 function _jpSaveBridges(b) {
   _jpBridgeCache = Array.isArray(b) ? b : [];

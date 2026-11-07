@@ -1,0 +1,318 @@
+/* ─── Tutorial ─────────────────────────────────────────────────────────────────
+   The guided tour (func/tutorial.js). Everything but the control being explained
+   sits under four panels that dim and blur it and take its clicks, per the
+   Focus-Stack rule: the subject is sharp, the rest is context. A thin accent
+   ring marks the control, and pulses only while the tour is waiting for it to
+   be clicked. The card is a glass sheet beside it.
+
+   Every colour comes from the theme, so a user palette restyles the tour too.
+   It sits above Settings (10010) and below nothing it needs to cover; toasts and
+   the confirm dialog are lifted over it while it runs, see the end of the file. */
+
+.tour-root {
+  --tour-scrim: color-mix(in srgb, var(--bg-body) 70%, transparent);
+  --tour-ease:  cubic-bezier(0.16, 1, 0.3, 1);        /* exponential ease-out */
+  --tour-move:  260ms;
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  pointer-events: none;
+}
+
+/* ── The dimmed page ── */
+.tour-blocker {
+  position: fixed;
+  pointer-events: auto;
+  background: var(--tour-scrim);
+  backdrop-filter: blur(3px) saturate(85%);
+  -webkit-backdrop-filter: blur(3px) saturate(85%);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease),
+              width var(--tour-move) var(--tour-ease), height var(--tour-move) var(--tour-ease);
+}
+
+/* ── The ring around the control ──
+   A focus ring, not a glow: the same 1px accent edge and soft outer band the
+   inputs use for focus, opened out to the control's own corners. */
+.tour-ring {
+  position: fixed;
+  pointer-events: none;
+  border: 1px solid var(--accent-50);
+  box-shadow: 0 0 0 3px var(--accent-12);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease),
+              width var(--tour-move) var(--tour-ease), height var(--tour-move) var(--tour-ease),
+              border-radius var(--tour-move) var(--tour-ease);
+}
+.tour-ring.is-waiting {
+  border-color: var(--accent);
+  animation: tour-ring-wait 1.8s ease-in-out infinite;
+}
+@keyframes tour-ring-wait {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-12); }
+  50%      { box-shadow: 0 0 0 6px var(--accent-20); }
+}
+/* Nothing animates unwatched: this app spends most of its life behind the game. */
+body.app-unfocused .tour-ring { animation-play-state: paused; }
+
+/* ── The card ── */
+.tour-card {
+  position: fixed;
+  width: 344px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 14px 16px 12px;
+  pointer-events: auto;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-top-color: var(--accent-25);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px var(--glass-shadow), inset 0 1px 0 var(--glass-specular);
+  color: var(--text-1);
+  font-family: var(--font);
+  transition: left var(--tour-move) var(--tour-ease), top var(--tour-move) var(--tour-ease);
+}
+body.glass-on .tour-card {
+  backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(28px * var(--glass-blur-scale, 1))) saturate(150%);
+  border-color: var(--glass-edge);
+  border-top-color: var(--accent-25);
+}
+.tour-card:focus-visible { outline: none; box-shadow: 0 12px 36px var(--glass-shadow), 0 0 0 2px var(--accent-40); }
+
+/* The welcome and closing cards frame the tour, so they are a little larger. */
+.tour-card.is-framing { width: 400px; padding: 18px 20px 14px; }
+
+/* Arrives from the control's side, once per step. */
+.tour-card.is-entering { animation: tour-card-in 280ms var(--tour-ease); }
+@keyframes tour-card-in {
+  from { opacity: 0; translate: var(--tour-from, 0 6px); }
+  to   { opacity: 1; translate: 0 0; }
+}
+.tour-card[data-side="right"]  { --tour-from: -8px 0; }
+.tour-card[data-side="left"]   { --tour-from: 8px 0; }
+.tour-card[data-side="bottom"] { --tour-from: 0 -8px; }
+.tour-card[data-side="top"]    { --tour-from: 0 8px; }
+
+/* A click on the dimmed page is held: the card nudges to say so. */
+.tour-card.is-nudged { animation: tour-card-nudge 320ms ease-in-out; }
+@keyframes tour-card-nudge {
+  0%, 100% { translate: 0 0; }
+  25%      { translate: -4px 0; }
+  75%      { translate: 4px 0; }
+}
+
+.tour-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  margin-bottom: 8px;
+}
+.tour-chapter {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--label-muted);
+}
+.tour-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.tour-close {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tour-close .material-symbols-outlined { font-size: 14px; }
+.tour-close:hover { color: var(--text-1); border-color: var(--border); }
+.tour-close:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40); }
+
+/* One segment per counted step, a gap where a chapter starts. */
+.tour-progress { display: flex; gap: 3px; margin-bottom: 12px; }
+.tour-seg {
+  flex: 1;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.tour-seg.is-done    { background: var(--accent-40); }
+.tour-seg.is-current { background: var(--accent); }
+.tour-seg.starts-chapter { margin-left: 5px; }
+
+.tour-title {
+  margin: 0 0 6px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-name);
+  text-wrap: balance;
+}
+.tour-card.is-framing .tour-title { font-size: 20px; line-height: 1.2; margin-bottom: 8px; }
+
+.tour-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+/* A labelled aside: which EVE account, what Goonswarm members enter. Recessed,
+   because it sits below the step's main point rather than competing with it. */
+.tour-hint {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--surface-well);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.tour-hint-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--label-muted);
+}
+.tour-hint-text { font-size: 12px; line-height: 1.45; color: var(--text-1); }
+
+/* A web page the hint points to. A button, not a link: the app hands it to the
+   browser, and a plain link would take this window there instead. Only the
+   words are underlined; the open-in-new glyph says where it goes. */
+.tour-hint-link {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  /* The padding is room for the focus ring; the negative margin keeps the
+     words in line with the hint text above. */
+  margin: 2px 0 0 -3px;
+  padding: 1px 3px;
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--accent);
+  cursor: pointer;
+}
+.tour-hint-link-text {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-40);
+  text-underline-offset: 3px;
+}
+.tour-hint-link:hover .tour-hint-link-text { text-decoration-color: currentColor; }
+.tour-hint-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40); }
+.tour-hint-link .material-symbols-outlined { font-size: 14px; }
+
+/* What the step is waiting for, or live news such as the first sync. */
+.tour-status {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+.tour-status::before {
+  content: '';
+  flex: 0 0 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translateY(-1px);
+}
+/* The app has no global [hidden] rule, and display:flex above would beat the
+   browser's own, leaving an empty line with a lone dot on every quiet step. */
+.tour-status[hidden] { display: none; }
+.tour-status[data-tone="ok"]::before    { background: var(--success); }
+.tour-status[data-tone="error"]          { color: var(--danger); }
+.tour-status[data-tone="error"]::before  { background: var(--danger); }
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.tour-actions-gap { flex: 1; }
+.tour-btn {
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.tour-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40); }
+.tour-btn-primary {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.tour-btn-primary:hover { background: var(--accent); color: var(--text-on-accent); }
+.tour-btn-ghost {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-3);
+}
+.tour-btn-ghost:hover { color: var(--text-1); border-color: var(--border); }
+
+/* The pointer on the card's facing edge, aimed at the control. A clipped
+   triangle of the card's own surface, so it reads as part of the sheet. */
+.tour-arrow {
+  position: absolute;
+  width: 8px;
+  height: 14px;
+  background: inherit;
+  backdrop-filter: inherit;
+  -webkit-backdrop-filter: inherit;
+  pointer-events: none;
+}
+.tour-card[data-side="right"] .tour-arrow  { left: -8px;  top: calc(var(--tour-arrow, 50%) - 7px); clip-path: polygon(100% 0, 0 50%, 100% 100%); }
+.tour-card[data-side="left"] .tour-arrow   { right: -8px; top: calc(var(--tour-arrow, 50%) - 7px); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.tour-card[data-side="bottom"] .tour-arrow { top: -8px;    left: calc(var(--tour-arrow, 50%) - 7px); width: 14px; height: 8px; clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+.tour-card[data-side="top"] .tour-arrow    { bottom: -8px; left: calc(var(--tour-arrow, 50%) - 7px); width: 14px; height: 8px; clip-path: polygon(0 0, 50% 100%, 100% 0); }
+.tour-card[data-side="center"] .tour-arrow { display: none; }
+
+/* ── Settings, General: run a tour again ── */
+.tutorial-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tutorial-settings-actions .calc-btn { width: auto; }
+
+/* ── While a tour runs ──
+   The corner toasts and the confirm dialog normally sit under modals; a tour
+   would bury them under its dimming, so they are lifted above it. So is the
+   donate window: the menu stays clickable on the "Everything else" step, and a
+   donate click there must not open a window whose close button the tour covers.
+   (The automatic donate prompts wait for the tour to end; see donation.js.) */
+body.tour-active .app-toast-stack,
+body.tour-active .center-toast { z-index: 10130; }
+body.tour-active .cf-backdrop,
+body.tour-active #donateBackdrop { z-index: 10140; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-blocker, .tour-ring, .tour-card { transition: none; }
+  .tour-ring.is-waiting, .tour-card.is-entering, .tour-card.is-nudged { animation: none; }
+}

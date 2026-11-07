@@ -299,15 +299,41 @@ EVE type icons (ore, ice, gas, moon ore, blueprints, modules) sit **bare** in li
 - **Border:** cool white-alpha hairline (`--border-d/e`); selected cards get an accent-25 border + faint accent glow.
 - **Depth:** structural panels carry backdrop blur, a specular rim, and the panel-lift shadow; inner cards inherit the panel's blur. Lift follows the focus stack, not decoration.
 - **Padding:** 10–12px. Certain cards (KPI, character, blueprint, PI) carry the diagonal hatch overlay.
+- **The main character:** a gold ◆ (`--pal-gold`, with a soft glow from the same token) in the card's top-left corner marks the character the app speaks for, with the selected-card border and a "● MAIN" pill; every other card shows a muted ◇ that turns gold and grows on hover. The main's card always sits first and can't be dragged, and nothing drops in front of it. Its ◆ doesn't grow on hover: clicking it does nothing, since there is always a main.
 
 ### Inputs / Fields
 - **Style:** deep translucent fill, cool hairline border, 8px glass radius (2px flat), Fira Code text.
 - **Focus:** border shifts to `--accent-40` and a 2px `--accent-08` focus ring appears — a quiet accent glow, no outline.
 - **Toggle switch:** 42×24px pill track; off = deep fill + gray knob, on = solid accent track + white knob; focus-visible adds an accent ring.
+- **Filled in for you:** a field an alliance pack filled in carries an 11px muted note beneath it ("Filled in from your pack (The Imperium)."). Typing makes the field the pilot's own and the note goes. The Jabber server and the forum address belong to their pack: picking a pack replaces another pack's server or forum, even a saved one (the server also replaces the app's default). Anything else a pilot typed or saved, including an address no pack names, is never replaced.
+
+### Map Lines
+- **Jump bridges:** ours are solid green with end nubs, and the planner routes through them. Other alliances' gates are the palette red (`--pal-red`), dashed, a little thinner, with no shimmer, and drawn beneath ours. Nothing routes through them: they show a hunter where a target's bridge comes out.
+- **Never colour alone:** the dash carries the difference for colour-blind pilots, and the legend and the system panel name both kinds ("Ours, to …", "Another alliance's, to …").
+- **Wormholes:** drawn the bridges' way, with the same weight, glow, bow and end nubs and, in Spatial, the same light running along them. They're violet (`189,92,250`), the hue their arcs always had, lifted to read as clearly as the bridges over the nebula. The light leaves Thera or Turnur and lands where the hole opens. Wormholes and bridges are different kinds of line, told apart by colour and named in the legend. (Classic keeps its original arcs.)
+
+### Links Out
+- **Style:** a web page the app points to is a button, never a plain link, since a link would take the app window there. Accent words with a quiet `--accent-40` underline that firms up on hover, then the 14px open-in-new glyph. Focus is a 2px `--accent-40` ring.
+- **Behaviour:** the browser opens it, and the title says which site. Used by tour hints and by the alliance pack's pages under the pack picker in Settings.
+
+### Toolbars
+- **Character:** one row of labelled controls, read left to right: how you look, what it shows, what you do. The Galaxy Map is the reference: View | Layout (Spatial) or Region (Schematic) | Overlay | Layers | Plan | Find.
+- **Labelled group:** a muted 9px mono label cell on `--bg-deep`, then 11px mono segments, all inside one hairline rim (`--radius`). The selected segment fills with the accent. A segment that opens something ends in an ellipsis and never stays lit.
+- **Menus fold big sets:** a set of more than a few options (eleven overlays, four layers) becomes a menu under a labelled trigger, and the trigger names what's on: the overlay's name, or the glyphs of the layers that are on (bridges and wormholes in their line colours). A one-of-a-set menu closes when an option is picked and shows a check on the current one. A menu of switches stays open for the next switch. Every option carries a one-line description, so what a tooltip used to hide is readable at the point of choice. They're built as disclosures over toggle buttons (`aria-expanded` on the trigger, `aria-pressed` on the options). Arrow keys move through the options, Esc closes back to the trigger, and only one menu is open at a time.
+- **Show only what works:** a control that does nothing in the current state is hidden, not disabled (Layout in Schematic, Region in Spatial).
+- **Wrapping:** every control is one flex item, so a narrow window wraps whole controls and never splits a group. The search box is the give: it shrinks before anything wraps.
 
 ### Navigation
 - **Style:** vertical rail of nav buttons; Dashboard is always the 2nd item. Icons are a deliberate hybrid — EVE neocom SVG sprite (28px) for game pages, Material Symbols (18px) for app-utility. No emoji anywhere in the chrome.
 - **States:** default gray → hover accent → active accent on blue-tint. Collapsed mode drops labels and centers icons in a 64px rail.
+
+### Guided Tour
+- **Character:** the real app with one control in focus. The tour never stages a screen; where a step asks for something (add a character, add a widget), it waits for the real action.
+- **Scrim:** four panels around the focused control dim the rest of the window (`--bg-body` at 70%), blur it lightly and hold its clicks, so a click in the hole reaches the real control and a click anywhere else nudges the card. The title bar is never covered, so the window can always be moved, minimised or closed.
+- **Ring:** a 1px accent edge and a 3px `--accent-12` band, following the control's own corners: a focus ring, not a glow. It widens to 6px and back only while the step waits for a click, and pauses when the window is unfocused.
+- **Card:** a glass sheet beside the control (14px corners, `--accent-25` top edge, toast lift) with a pointer aimed at it. A muted chapter label and "n of m" sit over one progress segment per step; the title is 14px bold Fira Sans (20px on the welcome and closing cards) and the body 13px. Hints sit in a recessed well under a mono label. A hint can carry one link out: accent words with a quiet underline and the open-in-new glyph, opened in the browser and never in the app window.
+- **Behaviour:** a first launch (no characters, tour never seen) opens the basics once; both tours run again from Settings, General. Esc leaves the tour, except while typing in a field.
+- **Interruptions:** nothing opens over a tour uninvited. The automatic donate prompts wait until a few minutes after it ends (the basics running on into alliance tools count as one tour). The corner toasts and anything the user opens on purpose (a confirm, the donate window) sit above the dimming, and a dialog open there takes Esc for itself.
 
 ### Signature: The Market Ticker
 A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKET" label with an accent glyph, then an infinitely scrolling track of item icon + name + price + signed percentage (green up / red down / gray flat). Pauses on hover, and pauses again whenever the window loses focus (per the Nothing-Animates-Unwatched Rule) — this app spends most of its life behind the game. It is the terminal's heartbeat: live data always in motion at the bottom of the frame.

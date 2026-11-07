@@ -108,6 +108,33 @@ const MAIL_BODIES = {
 // ── Notifications ────────────────────────────────────────────────────────────
 // Read-only in the app (ESI exposes no write route), so these only ever render.
 const STG = W.PLACES.STAGING;
+
+// ── Ansiblex gates ───────────────────────────────────────────────────────────
+// What the hourly read of the cast's gates from ESI finds (src/ipc/jump_gates_ipc.js):
+// for Kaska and Sirene, the network the demo profile is seeded with
+// (demo_data.js JUMP_BRIDGES), so every gate is already saved, as it would be
+// for a real pilot; for Tovan, the scout, a rival's gates in Querious
+// (JUMP_BRIDGES_OTHER), which the map draws red. Each gate stands at both ends,
+// named "A » B - label" the way the game names them; the labels are invented.
+const ANSIBLEX_TYPE_ID = 35841;
+const DEMO_SYSTEM_NAMES = {                                // from the SDE
+  30004716: '4K-TRB', 30004734: '23G-XC', 30004759: '1DQ1-A', 30004760: '8WA-Z6', 30004761: '5BTK-M',
+  30004762: 'N-8YET', 30004773: 'M2-XFE', 30004774: '5-CQDA', 30004775: 'I-E3TG', 30004776: 'S-6HHN',   // Delve
+  30003947: '0-WT2D', 30003952: '1M4-FK', 30003957: '0TKF-6', 30003985: '8-SNUD', 30004019: '3-FKCZ',
+  30003974: '8B-SAJ',                                                                                     // Querious
+};
+function _demoGates(pairs, firstId, labelOf, ownerId) {
+  return pairs.flatMap(([aId, bId], i) => {
+    const a = DEMO_SYSTEM_NAMES[aId], b = DEMO_SYSTEM_NAMES[bId], label = labelOf(i);
+    return [
+      { id: firstId + i * 2,     name: `${a} » ${b} - ${label}`, systemId: aId, ownerId },
+      { id: firstId + i * 2 + 1, name: `${b} » ${a} - ${label}`, systemId: bId, ownerId },
+    ];
+  });
+}
+const _DEMO_NET = require('./demo_data');
+const DEMO_GATES  = _demoGates(_DEMO_NET.JUMP_BRIDGES, 1_049_000_000_100, (i) => `Vaelin Gate ${i + 1}`, VAELIN.id);
+const RIVAL_GATES = _demoGates(_DEMO_NET.JUMP_BRIDGES_OTHER, 1_049_000_000_300, (i) => `Bastion ${i + 1}`, RIVAL.alliance);
 function notifications(now, characterId = MAIN) {
   const key = keyOf(characterId) || 'main';
   const n = (notification_id, type, sender_id, sender_type, ago, is_read, text) =>
@@ -273,6 +300,11 @@ function match(url, { now = Date.now() } = {}) {
     return { name: STG.stationName, owner_id: VAELIN.id, solar_system_id: STG.systemId, type_id: STG.typeId,
              position: { x: 1.2e11, y: -3.4e9, z: 8.8e10 } };
   }
+  const gate = m && (DEMO_GATES.find(g => g.id === Number(m[1])) || RIVAL_GATES.find(g => g.id === Number(m[1])));
+  if (gate) {
+    return { name: gate.name, owner_id: gate.ownerId, solar_system_id: gate.systemId, type_id: ANSIBLEX_TYPE_ID,
+             position: { x: 4.1e11, y: 2.2e10, z: -7.3e11 } };
+  }
 
   // ── Fleets (the Fleet Tracker's "Start Tracking") ──
   m = path.match(/^\/fleets\/(\d+)(\/members|\/wings)?$/);
@@ -364,6 +396,11 @@ function characterRoute(id, rest, search, now) {
       const f = W.fleet(now).members.find(x => x.character_id === id);
       return f ? { fleet_id: W.FLEET_ID, fleet_boss_id: MAIN, role: f.role, squad_id: f.squad_id, wing_id: f.wing_id } : undefined;
     }
+    // The hourly gate read searches each character's structures for " » ". The
+    // scout sees a rival's gates, everyone else the cast's own.
+    case 'search':
+      return (search.get('categories') || '').split(',').includes('structure') && (search.get('search') || '').includes('»')
+        ? { structure: (id === CAST.scout.id ? RIVAL_GATES : DEMO_GATES).map(g => g.id) } : {};
   }
   let m = rest.match(/^contracts\/(\d+)\/items$/);
   if (m) return W.contractItems(Number(m[1]));

@@ -635,7 +635,7 @@ async function populateJabberSettings() {
   const jabber = cfg?.app?.jabber || cfg?.jabber || {};
 
   jabberSettings = {
-    service:      jabber.service      || 'xmpp://jabber.eveonline.com:5222',
+    service:      jabber.service      || JABBER_DEFAULT_SERVICE,
     jid:          jabber.jid          || '',
     password:     jabber.password     || '',
     pack:         jabber.pack         || 'gsf_sigs',
@@ -656,7 +656,7 @@ async function populateJabberSettings() {
 
 function gatherJabberSettings() {
   return {
-    service:      document.getElementById('jabberService')?.value.trim()   || 'xmpp://jabber.eveonline.com:5222',
+    service:      document.getElementById('jabberService')?.value.trim()   || JABBER_DEFAULT_SERVICE,
     jid:          document.getElementById('jabberJid')?.value.trim()       || '',
     password:     document.getElementById('jabberPassword')?.value         || '',
     pack:         document.getElementById('jabberPackSelect')?.value       || 'gsf_sigs',
@@ -765,14 +765,21 @@ async function populatePackDropdown(selectedPackId) {
       select.appendChild(opt);
     }
 
-    // If nothing matched the saved id, default to first option
+    // If nothing matched the saved id, fall back to Goonswarm's pack, the one
+    // main reads when none is saved (resolvePackFile), else the first listed.
     if (!_cachedPacks.find(p => p.id === selectedPackId) && _cachedPacks.length) {
-      select.value = _cachedPacks[0].id;
+      select.value = (_cachedPacks.find(p => p.id === 'gsf_sigs') || _cachedPacks[0]).id;
     }
 
     updatePackInfo(select.value);
 
-    select.onchange = () => updatePackInfo(select.value);
+    // Another pack swaps the defaults the last one filled in, and its words
+    // (src/func/pack_links.js).
+    select.onchange = () => {
+      updatePackInfo(select.value);
+      if (typeof applyPackDefaults === 'function') applyPackDefaults(_cachedPacks.find(p => p.id === select.value) || null);
+      if (typeof applyPackTerms === 'function') applyPackTerms();
+    };
   } catch (e) {
     console.warn('[jabber] populatePackDropdown failed:', e.message);
   }
@@ -792,10 +799,15 @@ function updatePackInfo(packId) {
     infoEl.textContent = parts.join(' · ');
   }
 
-  // Built-in packs (e.g. the Goonswarm pack shipped with the app) aren't
+  // Built-in packs (e.g. The Imperium's, shipped with the app) aren't
   // user-editable/deletable in place — only packs created/imported here are.
+  // Export is for those too: the built-in ones ship with the app.
+  const exportBtn = document.getElementById('jabberExportPackBtn');
   if (deleteBtn) deleteBtn.style.display = pack?.source === 'user' ? 'inline-block' : 'none';
   if (editBtn)   editBtn.style.display   = pack?.source === 'user' ? 'inline-block' : 'none';
+  if (exportBtn) exportBtn.style.display = pack?.source === 'user' ? 'inline-block' : 'none';
+
+  if (typeof renderPackLinks === 'function') renderPackLinks(pack || null);
 }
 
 // ── Pack Editor (Settings ▸ Jabber ▸ Alliance Pack) ────────────────────────────
@@ -1127,19 +1139,26 @@ function bindJabberEvents() {
   const wipeBtn = document.getElementById('jabberWipeBtn');
   if (wipeBtn) {
     wipeBtn.addEventListener('click', async () => {
-      if (!confirm('Wipe ALL Jabber messages from the database and clear saved credentials? This cannot be undone.')) return;
+      const ok = await showConfirm({
+        title: 'Wipe all Jabber messages?',
+        body: 'This removes every Jabber message from the database and clears your saved Jabber login. It cannot be undone.',
+        confirmText: 'Wipe', danger: true,
+      });
+      if (!ok) return;
       try {
         await window.eveAPI.wipeJabberData();
         await window.eveAPI.saveAppConfig({ jabber: { service: '', jid: '', password: '' } });
         jabberMessages = [];
         renderJabberTable();
-        // Clear the settings inputs so they visually reflect the wipe
+        // Clear the settings inputs so they visually reflect the wipe; the picked
+        // pack then puts its own server back (The Imperium's goonfleet.com).
         const s = document.getElementById('jabberService');
         const j = document.getElementById('jabberJid');
         const p = document.getElementById('jabberPassword');
-        if (s) s.value = 'xmpp://jabber.eveonline.com:5222';
+        if (s) { s.value = JABBER_DEFAULT_SERVICE; delete s.dataset.packDefault; }
         if (j) j.value = '';
         if (p) p.value = '';
+        if (typeof applyPackDefaults === 'function') applyPackDefaults();
         showToast('Jabber database and credentials wiped.', 'success');
       } catch (e) {
         showToast(`Wipe failed: ${e.message}`, 'error');
@@ -1180,7 +1199,12 @@ function bindJabberEvents() {
       const packId = select?.value;
       const pack   = _cachedPacks.find(p => p.id === packId);
       if (!pack || pack.source !== 'user') return;
-      if (!confirm(`Delete the pack "${pack.name}"? This cannot be undone.`)) return;
+      const ok = await showConfirm({
+        title: `Delete the pack "${pack.name}"?`,
+        body: 'This cannot be undone. Export it first if you may want it back.',
+        confirmText: 'Delete', danger: true,
+      });
+      if (!ok) return;
       try {
         const result = await window.eveAPI.deletePack(packId);
         if (!result.success) {
@@ -1191,6 +1215,26 @@ function bindJabberEvents() {
         showToast(`Pack "${pack.name}" deleted.`, 'success');
       } catch (e) {
         showToast(`Delete error: ${e.message}`, 'error');
+      }
+    });
+  }
+
+  // Export pack button: a pack made or imported here, saved wherever the pilot
+  // chooses, for corp mates to bring in with Import Pack.
+  const exportPackBtn = document.getElementById('jabberExportPackBtn');
+  if (exportPackBtn && !exportPackBtn._packBound) {
+    exportPackBtn._packBound = true;
+    exportPackBtn.addEventListener('click', async () => {
+      const packId = document.getElementById('jabberPackSelect')?.value;
+      const pack   = _cachedPacks.find(p => p.id === packId);
+      if (!pack || pack.source !== 'user') return;
+      try {
+        const result = await window.eveAPI.exportPack(packId);
+        if (result.canceled) return;
+        if (!result.success) { showToast(`Export failed: ${result.error}`, 'error'); return; }
+        showToast(`Pack "${pack.name}" exported.`, 'success');
+      } catch (e) {
+        showToast(`Export error: ${e.message}`, 'error');
       }
     });
   }

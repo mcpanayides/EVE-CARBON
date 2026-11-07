@@ -71,6 +71,8 @@ const { registerMapHandlers }       = require('./src/ipc/map_ipc');
 const { registerUpdaterHandlers }   = require('./src/ipc/updater_ipc');
 const { registerThemeHandlers }     = require('./src/ipc/theme_ipc');
 const { registerForumHandlers }     = require('./src/ipc/forum_ipc');
+const { registerJumpGateHandlers }  = require('./src/ipc/jump_gates_ipc');
+const AlliancePack                  = require('./src/shared/alliance_pack');
 const { initPresence, getPresenceCount, getPresenceState } = require('./src/presence');
 const eveStatusWatch = require('./src/eve_status_watch');
 const netLog = require('./src/net_log');
@@ -2227,6 +2229,34 @@ app.whenReady().then(async () => {
     readCache,
     writeCache,
   });
+  // Jump gates from ESI, read once an hour for the characters allowed to search:
+  // ours green on the map, other alliances' red (src/ipc/jump_gates_ipc.js).
+  // Never under e2e, where every login is fake and nothing may reach ESI.
+  const jumpGateSync = registerJumpGateHandlers({
+    ipcHandle,
+    loadDB,
+    getValidToken,
+    decodeTokenScopes,
+    httpGet,
+    esiAuthHeaders: _esiAuthHeaders,
+    esiBudget,
+    readCache,
+    writeCache,
+    ESI_BASE,
+    loadConfig,
+    saveConfig,
+    systemIndex: jumpGateSystemIndex,
+    store: {
+      loadFriendly: loadJumpBridges,      saveFriendly: saveJumpBridges,
+      loadOther:    loadOtherJumpBridges, saveOther:    saveOtherJumpBridges,
+      loadState:    loadJumpGateSyncState, saveState:   saveJumpGateSyncState,
+    },
+    broadcast: (channel, payload) => BrowserWindow.getAllWindows().forEach(win => {
+      if (!win.isDestroyed()) win.webContents.send(channel, payload);
+    }),
+    enabled: !process.env.EVE_CARBON_E2E,
+  });
+  jumpGateSync.start();
   const { fetchHubPrices, fetchTypeMetadata } = registerEsiHandlers({
     ipcHandle,
     httpGet,
@@ -2441,6 +2471,12 @@ app.whenReady().then(async () => {
 
   // Alliance pack management ─────────────────────────────────────────────────
 
+  // A pack has SIG groups or comms channels for the Jabber page, or names its
+  // alliances and pages (src/shared/alliance_pack.js), or both. The Winter
+  // Coalition and Brave packs are links only: neither pings over Jabber.
+  const isAlliancePack = (data) => !!data && !!(data.groups || data.comms_channels
+    || data.pack_info?.links || AlliancePack.allianceIds(data.pack_info).length);
+
   // Returns all available packs: built-in (yaml/) + user-imported (userData/packs/)
   ipcHandle('get-packs', async () => {
     const jsy   = require('js-yaml');
@@ -2453,7 +2489,7 @@ app.whenReady().then(async () => {
           try {
             const raw  = fs.readFileSync(path.join(dir, file), 'utf8');
             const data = jsy.load(raw);
-            if (!data || (!data.groups && !data.comms_channels)) continue;
+            if (!isAlliancePack(data)) continue;
             const id = source === 'user' ? `user:${file}` : file.replace(/\.(yaml|yml)$/, '');
             packs.push({
               id,
@@ -2464,6 +2500,14 @@ app.whenReady().then(async () => {
               description: data.pack_info?.description  || '',
               author:      data.pack_info?.author       || '',
               version:     data.pack_info?.version      || '',
+              // What the pack offers (src/shared/alliance_pack.js): its pages, to
+              // members or to all, and defaults for empty Settings fields.
+              alliance_id:  Number(data.pack_info?.alliance_id) || null,
+              alliance_ids: AlliancePack.allianceIds(data.pack_info),
+              links:        data.pack_info?.links        || null,
+              calendar:     data.pack_info?.calendar     || null,
+              terms:        data.pack_info?.terms        || null,
+              jabber:       data.pack_info?.jabber       || null,
             });
           } catch {}
         }
@@ -2492,8 +2536,8 @@ app.whenReady().then(async () => {
     try {
       const raw  = fs.readFileSync(srcPath, 'utf8');
       const data = jsy.load(raw);
-      if (!data || (!data.groups && !data.comms_channels)) {
-        return { success: false, error: 'Invalid pack: must contain groups or comms_channels sections' };
+      if (!isAlliancePack(data)) {
+        return { success: false, error: 'Invalid pack: it has no groups, comms channels, alliances or links' };
       }
       const fileName = path.basename(srcPath);
       fs.copyFileSync(srcPath, path.join(userPacksDir, fileName));
@@ -2524,6 +2568,30 @@ app.whenReady().then(async () => {
       if (!fs.existsSync(filePath)) return { success: false, error: 'Pack file not found' };
       fs.unlinkSync(filePath);
       return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // Pack Editor export: copies a pack made or imported here wherever the pilot
+  // chooses, to share with corp mates, who bring it in with Import Pack. Built-in
+  // packs ship with the app, and their icons live beside them, so they don't export.
+  ipcHandle('export-pack', async (event, packId) => {
+    if (!packId?.startsWith('user:')) return { success: false, error: 'Only packs made or imported here can be exported.' };
+    const fileName = path.basename(packId.slice(5));
+    const srcPath  = path.join(userPacksDir, fileName);
+    if (!fs.existsSync(srcPath)) return { success: false, error: 'Pack file not found' };
+    const { dialog } = require('electron');
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Export Alliance Pack',
+      defaultPath: fileName,
+      filters: [{ name: 'YAML Pack Files', extensions: ['yaml', 'yml'] }],
+    });
+    if (result.canceled || !result.filePath) return { success: false, canceled: true };
+    try {
+      fs.copyFileSync(srcPath, result.filePath);
+      return { success: true, path: result.filePath };
     } catch (e) {
       return { success: false, error: e.message };
     }
@@ -2575,8 +2643,19 @@ app.whenReady().then(async () => {
       }
     }
 
+    // An edit keeps what the form doesn't show, such as an alliance id and
+    // links written into the YAML (the guided tour reads them).
+    let kept = {};
+    if (id?.startsWith('user:')) {
+      try {
+        const old = (jsy.load(fs.readFileSync(path.join(userPacksDir, fileName), 'utf8')) || {}).pack_info;
+        if (old && typeof old === 'object' && !Array.isArray(old)) kept = old;
+      } catch (_) {}
+    }
+
     const data = {
       pack_info: {
+        ...kept,
         id:          fileName.replace(/\.(yaml|yml)$/, ''),
         name,
         alliance:    packInfo.alliance?.trim() || '',
@@ -2687,29 +2766,59 @@ function saveConfig(cfg) { fs.writeFileSync(configPath, JSON.stringify(cfg, null
 // encrypted with the OS keychain via Electron safeStorage when available (falls
 // back to plaintext only on platforms without an OS secret store, e.g. some Linux
 // setups). Shape on disk: { enc:bool, data:base64 }. Decrypted value is [[idA,idB],…].
-function jumpBridgesPath() { return path.join(userDataPath, 'jump_network.dat'); }
-
-function loadJumpBridges() {
+// One sealed JSON value per file, in the shape above. Other alliances' gates and
+// what the hourly read from ESI saw last (src/ipc/jump_gates_ipc.js) are the same
+// kind of intel, so they are kept the same way.
+function _readSealed(file, fallback) {
   try {
-    const wrap = JSON.parse(fs.readFileSync(jumpBridgesPath(), 'utf8'));
+    const wrap = JSON.parse(fs.readFileSync(path.join(userDataPath, file), 'utf8'));
     const buf  = Buffer.from(wrap.data, 'base64');
     const json = (wrap.enc && safeStorage.isEncryptionAvailable())
       ? safeStorage.decryptString(buf)
       : buf.toString('utf8');
-    const arr = JSON.parse(json);
-    return Array.isArray(arr) ? arr : [];
-  } catch (_) { return []; }
+    return JSON.parse(json);
+  } catch (_) { return fallback; }
 }
 
-function saveJumpBridges(arr) {
-  const json = JSON.stringify(Array.isArray(arr) ? arr : []);
-  let wrap;
-  if (safeStorage.isEncryptionAvailable()) {
-    wrap = { enc: true,  data: safeStorage.encryptString(json).toString('base64') };
-  } else {
-    wrap = { enc: false, data: Buffer.from(json, 'utf8').toString('base64') };
-  }
-  fs.writeFileSync(jumpBridgesPath(), JSON.stringify(wrap), 'utf8');
+function _writeSealed(file, value) {
+  const json = JSON.stringify(value);
+  const wrap = safeStorage.isEncryptionAvailable()
+    ? { enc: true,  data: safeStorage.encryptString(json).toString('base64') }
+    : { enc: false, data: Buffer.from(json, 'utf8').toString('base64') };
+  fs.writeFileSync(path.join(userDataPath, file), JSON.stringify(wrap), 'utf8');
+}
+
+function loadJumpBridges() {
+  const arr = _readSealed('jump_network.dat', []);
+  return Array.isArray(arr) ? arr : [];
+}
+function saveJumpBridges(arr) { _writeSealed('jump_network.dat', Array.isArray(arr) ? arr : []); }
+
+// Gates the pilot can't use: red on the map, never in a route.
+function loadOtherJumpBridges() {
+  const arr = _readSealed('jump_network_other.dat', []);
+  return Array.isArray(arr) ? arr : [];
+}
+function saveOtherJumpBridges(arr) { _writeSealed('jump_network_other.dat', Array.isArray(arr) ? arr : []); }
+
+// What the last read from ESI saw, so the next one can tell a gate that's gone
+// from one pasted by hand.
+function loadJumpGateSyncState() {
+  const s = _readSealed('jump_network_esi.dat', null);
+  return s && typeof s === 'object' && !Array.isArray(s) ? s : null;
+}
+function saveJumpGateSyncState(s) { _writeSealed('jump_network_esi.dat', s || {}); }
+
+// Lower-case system name → id, from the SDE, for reading gate names.
+let _systemNameIndex = null;
+async function jumpGateSystemIndex() {
+  if (_systemNameIndex) return _systemNameIndex;
+  if (!sdeDb) return {};
+  const rows = await sdeDb.all('SELECT solarSystemID AS id, solarSystemName AS name FROM mapSolarSystems');
+  const idx = {};
+  for (const r of rows || []) if (r.name) idx[String(r.name).toLowerCase()] = r.id;
+  if (Object.keys(idx).length) _systemNameIndex = idx;
+  return idx;
 }
  
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
@@ -3121,15 +3230,18 @@ const callbackServerState = { server: null, start: null };
 // pure waste racing to overwrite each other.
 const _tokenRefreshes = new Map();   // characterId -> Promise<accessToken>
 
-// An unsigned JWT for demo mode, carrying every scope the app asks for. Built
-// once: nothing about it varies, and it never leaves this process.
+// An unsigned JWT for demo mode, carrying every scope the app asks for, the
+// opt-in ones too (Find my gates' structure search), so every feature fills in.
+// Built once: nothing about it varies, and it never leaves this process.
 let _demoTokenCache = null;
 function _demoAccessToken() {
   if (_demoTokenCache) return _demoTokenCache;
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   let scp = [];
-  try { scp = String(require('./src/ipc/accounts_ipc').SCOPES || '').split(/\s+/).filter(Boolean); }
-  catch (_) { /* fall back to no scopes rather than crashing the demo */ }
+  try {
+    const { SCOPES: asked, OPTIONAL_SCOPES: optIn } = require('./src/ipc/accounts_ipc');
+    scp = [...String(asked || '').split(/\s+/), ...(optIn || [])].filter(Boolean);
+  } catch (_) { /* fall back to no scopes rather than crashing the demo */ }
   const payload = {
     scp,
     sub: 'CHARACTER:EVE:2118400001',

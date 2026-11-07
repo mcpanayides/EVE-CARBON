@@ -817,6 +817,9 @@ function addDashboardWidget(id, config = null) {
   _saveDashLayout();
   hideAddWidgetMenu();
   loadDashboard();                                 // refetch + fill the new widget
+  // The tutorial waits for this: it is how the tour knows a widget was really
+  // added, rather than the menu merely opened.
+  document.dispatchEvent(new CustomEvent('dashboard-widget-added', { detail: { id: instId, base: id } }));
 }
 
 function removeDashboardWidget(id) {
@@ -1826,6 +1829,455 @@ async function refreshDashboardPage() {
   }
 }
 
+// ─── Welcome banner ───────────────────────────────────────────────────────────
+// The main character's banner: portrait, corp and alliance, stats, implants and
+// ship. Painted from the local DB (character_information.db, kept up to date by
+// autoRefreshStaleCharacters()), so it never waits on ESI; `live` then refreshes
+// location, ship and implants and paints again. Its own function so a new main
+// character repaints the banner alone (refreshDashboardMain). The newest paint
+// wins: an older one still waiting on the DB or ESI drops out rather than
+// painting the previous main over the new one.
+let _welcomePaintSeq = 0;
+async function _paintWelcomeBanner(mainAccount, { live = true } = {}) {
+  const welcomeBanner = document.getElementById('dashboardWelcomeBanner');
+  const seq = ++_welcomePaintSeq;
+  const current = () => seq === _welcomePaintSeq;
+
+  // ── Static bloodline lookup (EVE data never changes) ─────────────────
+  // From the SDE's bloodlines; the guessed table it replaced named most
+  // pilots wrong. Kept in step with CHAR_BLOODLINE_NAMES in characters.js.
+  const BLOODLINE_NAMES = {
+    1:'Deteis', 2:'Civire', 3:'Sebiestor', 4:'Brutor', 5:'Amarr', 6:'Ni-Kunni',
+    7:'Gallente', 8:'Intaki', 11:'Achura', 12:'Jin-Mei', 13:'Khanid', 14:'Vherokior',
+  };
+
+  // ── Helper: render the banner from DB data ────────────────────────────
+  // implants: array of DB rows { implant_id, type_name, slot }
+  function renderBanner({ charId, charName, birthday, gender, secStatus, corpId, corpName,
+                           allianceId, allianceName, homeStationName, homeSystemSec,
+                           homeSystemName = null, currentSystem = null,
+                           bloodlineName = null, implants = [], currentShipTypeId = null,
+                           currentShipTypeName = null,
+                           stale = false }) {
+    if (!welcomeBanner) return;
+    console.log('[implants] renderBanner received:', JSON.stringify(implants));
+
+    const charSecColor = (s) => {
+      const n = parseFloat(s);
+      if (isNaN(n)) return 'var(--text-2)';
+      if (n >= 5.0) return 'var(--pal-green)';
+      if (n >= 0.1) return 'var(--pal-blue)';
+      if (n == 0.0) return 'var(--text-3)';
+      if (n <= 0.0) return 'var(--pal-red)';
+      return 'var(--pal-red)';
+    };
+
+
+    const systemSecMeta = (sec) => {
+      if (sec === null || sec === undefined) return { color: 'var(--text-2)', label: null, cls: '' };
+      if (sec < 0.0)    return { color: 'var(--lawless)',  label: 'Lawless',  cls: 'sec-lawless'  };
+      if (sec < 0.1)    return { color: 'var(--nullsec)',  label: 'Null Sec', cls: 'sec-nullsec'  };
+      if (sec < 0.45)   return { color: 'var(--lowsec)',   label: 'Low Sec',  cls: 'sec-lowsec'   };
+      if (sec >= 0.999) return { color: 'var(--newbie)',   label: 'Newbie',   cls: 'sec-newbie'   };
+      return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
+    };
+
+    // ── New Gender Helper ──────────────────────────────────────────────
+   const genderMeta = (g) => {
+    if (!g) return null;
+    const gLower = String(g).toLowerCase();
+    // Using 'color' for both text and border
+    if (gLower === 'male')   return { color: 'var(--pal-blue)', label: 'Male' };
+    if (gLower === 'female') return { color: 'var(--pal-pink)', label: 'Female' };
+    return { color: 'var(--text-3)', label: g };
+  };
+
+  const gMeta = genderMeta(gender);
+  const genderBreadcrumb = gMeta 
+    ? `<span class="sec-breadcrumb" style="border: 1px solid ${gMeta.color}; color: ${gMeta.color}; background-color: transparent; padding: 2px 6px; border-radius: 4px;">${escHtml(gMeta.label)}</span>` 
+    : '<span style="color:var(--text-2);">—</span>';
+
+    const sysMeta = systemSecMeta(homeSystemSec);
+    const homeSecValueDisplay = homeSystemSec != null
+      ? `<span style="color:${sysMeta.color};">${Number(homeSystemSec).toFixed(1)}</span>` : '';
+    const homeSecBreadcrumb = sysMeta.label
+      ? `<span class="sec-breadcrumb ${sysMeta.cls}"${homeSystemName ? ` data-system="${escHtml(homeSystemName)}" title="Show ${escHtml(homeSystemName)} on the map"` : ''}>${sysMeta.label}</span>`
+      : '';
+    const staleNote = stale
+      ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
+
+    // ── Implant slot grid HTML (slots 1-5 top row, 6-10 bottom row) ────────
+    // Builds a slot→implant lookup using the real slot number stored in the DB
+    // (written by resolveImplantSlots() in main.js via dogma attribute 331).
+    // If a slot number is missing/null (old pre-fix DB data), implants are
+    // placed into the first available free slot as a graceful fallback.
+    function buildImplantGrid(implants) {
+      const bySlot = {};
+      const unslotted = [];
+      for (const row of implants) {
+        const s = Number(row.slot);
+        // Log each row so issues with id/slot are immediately visible in DevTools
+        console.log(`[implants] slot=${row.slot} implant_id=${row.implant_id} type_id=${row.type_id} type_name=${row.type_name}`);
+        if (s >= 1 && s <= 10) { bySlot[s] = row; }
+        else { unslotted.push(row); }
+      }
+      let nextFree = 1;
+      for (const row of unslotted) {
+        while (bySlot[nextFree] && nextFree <= 10) nextFree++;
+        if (nextFree <= 10) { bySlot[nextFree] = row; nextFree++; }
+      }
+      function slotHtml(slot) {
+        const row = bySlot[slot];
+        if (!row) {
+          return `<div class="implant-slot implant-slot--empty" title="Slot ${slot}"><span class="implant-slot-num">${slot}</span></div>`;
+        }
+        // Resolve the type ID: normalisation already ran above but guard all
+        // possible field names so a DB schema mismatch never silently breaks icons.
+        const id = row.implant_id || row.type_id || row.id || row.implantId || null;
+        const label = escHtml(row.type_name || (id ? `Implant ${id}` : `Slot ${slot}`));
+
+        if (!id) {
+          // ID is genuinely missing — render as a visually distinct unknown slot
+          return `<div class="implant-slot implant-slot--filled implant-slot--unknown" title="${label}">
+            <span class="implant-slot-num">${slot}</span>
+            <span class="implant-slot-unknown-icon">?</span>
+          </div>`;
+        }
+
+        // Use size=64: broader CDN coverage than size=32.
+        // On error: swap to the 32px fallback first, then show the "?" placeholder
+        // so a broken image is never silently invisible.
+        const icon64 = `https://images.evetech.net/types/${id}/icon?size=64`;
+        const icon32 = `https://images.evetech.net/types/${id}/icon?size=32`;
+        return `<div class="implant-slot implant-slot--filled" title="${label}" data-implant-id="${id}">
+          <span class="implant-slot-num">${slot}</span>
+          <img class="banner-implant-icon" src="${icon64}" alt="${label}"
+               onerror="if(this.src!=='${icon32}'){this.src='${icon32}';}else{this.style.display='none';this.parentElement.classList.add('implant-slot--icon-error');}"/>
+        </div>`;
+      }
+      return `<div class="implant-grid-row">${[1,2,3,4,5].map(slotHtml).join('')}</div>` +
+             `<div class="implant-grid-row">${[6,7,8,9,10].map(slotHtml).join('')}</div>`;
+    }
+    const implantIconsHtml = buildImplantGrid(implants);
+
+    // ── Ship column HTML ─────────────────────────────────────────────────
+    const shipColHtml = currentShipTypeId ? `
+      <div class="banner-ship-col">
+        <img class="banner-ship-icon"
+             src="https://images.evetech.net/types/${currentShipTypeId}/render?size=256"
+             alt="${escHtml(currentShipTypeName || 'Current Ship')}"
+             title="${escHtml(currentShipTypeName || 'Current Ship')}"
+             onerror="this.onerror=null;this.src='https://images.evetech.net/types/${currentShipTypeId}/icon?size=64'"/>
+        <div class="banner-ship-name">${escHtml(currentShipTypeName || 'Unknown Ship')}</div>
+      </div>`
+      : `<div class="banner-ship-col banner-ship-col--empty">
+           <div class="banner-ship-placeholder">
+             <span class="banner-ship-placeholder-icon">◈</span>
+             <span class="banner-ship-placeholder-label">No Ship Data</span>
+           </div>
+         </div>`;
+
+    // Place names in the banner (and the sec chip beside them) open the Map on
+    // that system. Delegated from the banner, and re-assigned rather than
+    // added, so repeated renders never stack up listeners.
+    welcomeBanner.onclick = (ev) => {
+      const link = ev.target.closest('.dash-syslink, .sec-breadcrumb[data-system]');
+      const name = link?.dataset?.system;
+      if (name && typeof mapGoToSystem === 'function') mapGoToSystem(name);
+    };
+
+    welcomeBanner.innerHTML = `
+      <div class="banner-portrait-col">
+        <img class="dashboard-portrait"
+             src="https://images.evetech.net/characters/${charId}/portrait?size=256"
+             alt="${escHtml(charName)}"
+             onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${charId}/portrait?size=128'"/>
+      </div>
+      <div class="banner-main-col">
+        <div class="banner-identity-col">
+          <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+          <div class="dashboard-welcome-name">${escHtml(charName)}${staleNote}</div>
+          <div class="banner-org-logos">
+            ${corpId     ? `<img class="banner-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=128" alt="${escHtml(corpName || '')}" onerror="this.style.display='none'"/>` : ''}
+            ${allianceId ? `<img class="banner-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=128" alt="${escHtml(allianceName || '')}" onerror="this.style.display='none'"/>` : ''}
+          </div>
+          <div class="banner-org-names">
+            ${corpName     ? `<span class="banner-org-name-text">${escHtml(corpName)}</span>` : ''}
+            ${allianceName ? `<span class="banner-org-sep">//</span><span class="banner-org-name-text">${escHtml(allianceName)}</span>` : ''}
+          </div>
+        </div>
+        <div class="banner-stats-outer">
+          <div class="banner-stats-col">
+            <div class="banner-stat-row"><span class="banner-stat-label">Born</span><span class="banner-stat-value">${escHtml(birthday || '—')}</span></div>
+            <div class="banner-stat-row"><span class="banner-stat-label">Sec Status</span><span class="banner-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus ?? '—'))}</span></div>
+            <div class="banner-stat-row">
+              <span class="banner-stat-label">Home</span>
+              <span class="banner-stat-value banner-home-value">
+                ${homeSystemName
+                  ? `<button class="dash-syslink" data-system="${escHtml(homeSystemName)}"
+                             title="Show ${escHtml(homeSystemName)} on the map">${escHtml(homeStationName || homeSystemName)}</button>`
+                  : `<span>${escHtml(homeStationName || '—')}</span>`}
+                ${homeSecValueDisplay}
+                ${homeSecBreadcrumb}
+              </span>
+            </div>
+            <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${
+              currentSystem
+                ? `<button class="dash-syslink" data-system="${escHtml(currentSystem)}"
+                           title="Show ${escHtml(currentSystem)} on the map">${escHtml(currentSystem)}</button>`
+                : '—'}</span></div>
+            <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
+            <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span class="banner-loading-note">Calculating…</span></span></div>
+          </div>
+        </div>
+        <div class="banner-killboard-col" id="bannerKillboardCol" style="display:none;"
+             title="Open on zKillboard">
+          <div class="banner-extra-section">
+            <div class="banner-extra-label">Killboard</div>
+            <div id="bannerKillboardGrid"></div>
+          </div>
+        </div>
+        <div class="banner-extra-col">
+          <div class="banner-extra-section">
+            <div class="banner-extra-label">Bloodline</div>
+            <div class="banner-extra-value" id="bannerBloodlineName">${escHtml(bloodlineName || '—')}</div>
+          </div>
+          <div class="banner-extra-section banner-implants-section">
+            <div class="banner-extra-label">Active Implants</div>
+            <div class="banner-implant-grid" id="bannerImplantIcons">${implantIconsHtml}</div>
+          </div>
+        </div>
+      </div>
+      ${shipColHtml}`;
+  }
+
+  // Fill the banner's zKillboard column (all-time PvP counts + ranks — the
+  // same numbers as the character's zKill "Alltime" row). Stays hidden unless
+  // zKill returns a real PvP record, so quiet characters keep a clean banner.
+  // Clicking the section opens the character's zKillboard page.
+  async function loadBannerKillboard(charId) {
+    const col  = document.getElementById('bannerKillboardCol');
+    const grid = document.getElementById('bannerKillboardGrid');
+    if (!col || !grid) return;
+    let s = null;
+    try { s = await window.eveAPI.getZkillStats(charId); } catch (_) {}
+    if (!current()) return;
+    if (!s || (!s.shipsDestroyed && !s.shipsLost)) return;
+    const num  = n => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString() : '—';
+    const eff  = (s.shipsDestroyed + s.shipsLost) > 0
+      ? ((s.shipsDestroyed / (s.shipsDestroyed + s.shipsLost)) * 100).toFixed(1) + '%'
+      : '—';
+    // Trend arrows (movement over zKill's ~week rank history) — same ticker
+    // arrows + colours as the wallet balances widget (↗ up / ↘ down).
+    const arrow = t => t > 0 ? ' <span class="banner-kb-trend up">↗</span>'
+                 : t < 0 ? ' <span class="banner-kb-trend down">↘</span>' : '';
+    const chip  = (rank, trend) => (typeof rank === 'number')
+      ? `<span class="banner-kb-rank">#${rank.toLocaleString()}${arrow(trend)}</span>` : '';
+    const overallCell = p => (p && typeof p.overall === 'number')
+      ? `#${p.overall.toLocaleString()}${arrow(p.trend && p.trend.overall)}`
+      : '—';
+    const at = (s.periods && s.periods.alltime) || null;
+    const rc = (s.periods && s.periods.recent)  || null;
+    const wk = (s.periods && s.periods.weekly)  || null;
+    grid.innerHTML = `
+      <div class="banner-stat-row"><span class="banner-stat-label">Destroyed</span>
+        <span class="banner-stat-value"><span class="banner-kb-pos">${num(s.shipsDestroyed)}</span>${chip(at && at.shipsDestroyed, at && at.trend.shipsDestroyed)}</span></div>
+      <div class="banner-stat-row"><span class="banner-stat-label">Lost</span>
+        <span class="banner-stat-value"><span class="banner-kb-neg">${num(s.shipsLost)}</span>${chip(at && at.shipsLost, at && at.trend.shipsLost)}</span></div>
+      <div class="banner-stat-row"><span class="banner-stat-label">Efficiency</span>
+        <span class="banner-stat-value">${eff}${arrow(at && at.trend && at.trend.efficiency)}</span></div>
+      <div class="banner-stat-row"><span class="banner-stat-label">Rank · All</span>
+        <span class="banner-stat-value banner-kb-overall">${overallCell(at)}</span></div>
+      <div class="banner-stat-row"><span class="banner-stat-label">Rank · 90d</span>
+        <span class="banner-stat-value banner-kb-overall">${overallCell(rc)}</span></div>
+      <div class="banner-stat-row"><span class="banner-stat-label">Rank · 7d</span>
+        <span class="banner-stat-value banner-kb-overall">${overallCell(wk)}</span></div>`;
+    col.style.display = 'flex';
+    col.onclick = () => { try { window.eveAPI.openExternalUrl(`https://zkillboard.com/character/${charId}/`); } catch (_) {} };
+  }
+
+  // Build/paint the banner from the local DB. Called immediately for a fast
+  // paint, then again after a live status refresh so ship / location / implants
+  // are the latest ESI pull on every load.
+  async function paintBanner() {
+    // ── DB READ: single call, all tables ────────────────────────────────
+    const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
+    if (!current()) return;
+    if (!dbData?.info) {
+      // No DB row yet — character hasn't been synced. Show minimal banner.
+      if (welcomeBanner) {
+        welcomeBanner.innerHTML = `
+          <div class="banner-portrait-col">
+            <img class="dashboard-portrait"
+                 src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
+                 alt="${escHtml(mainAccount.characterName)}"
+                 onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=128'"/>
+          </div>
+          <div class="banner-main-col">
+            <div class="banner-identity-col">
+              <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+              <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
+              <div style="color:var(--text-3);font-size:10px;font-family:var(--mono);margin-top:8px;">Sync character data to populate stats.</div>
+            </div>
+          </div>`;
+      }
+      return;
+    }
+
+    const info = dbData.info;
+    const loc  = dbData.location;   // most-recent location row (char_{id}_location)
+    const ship = dbData.ship;       // most-recent ship row (char_{id}_ship)
+
+    // ── Birthday ──────────────────────────────────────────────────────────
+    const birthday = info.birthday
+      ? new Date(info.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
+      : '—';
+
+    // ── Security status ───────────────────────────────────────────────────
+    const secStatus = typeof info.security_status === 'number'
+      ? info.security_status.toFixed(1) : '—';
+
+    // ── Home location — from location table (station_name preferred) ──────
+    // Guard against stale/poison names leaking into the UI: an ESI error body
+    // ("No structure found with that ID!") or a generic "Structure 12345" /
+    // "Location 99" fallback is not a real place — fall back to the solar
+    // system name, then a dash. Mirrors the locator's _isUnresolvedName guard.
+    const _badLocName = (s) => !s
+      || /^(structure|location)\s/i.test(s)
+      || /no structure found|not found|forbidden|error/i.test(s);
+    const homeStationName =
+      (!_badLocName(loc?.station_name) && loc.station_name)
+      || loc?.solar_system_name
+      || '—';
+    // Security for colour-coding: stored as security_status in assets table;
+    // location table doesn't store sec — leave null (no breadcrumb, just name)
+    const homeSystemSec = null;
+
+    // ── Corp / Alliance names — resolve from cached names IPC ────────────
+    let corpName = '', allianceName = '';
+    try {
+      const ids   = [info.corporation_id, info.alliance_id].filter(Boolean);
+      const names = ids.length ? await window.eveAPI.getNames(ids) : {};
+      corpName     = names[info.corporation_id]  || '';
+      allianceName = names[info.alliance_id]     || '';
+    } catch (_) {}
+    if (!current()) return;   // a newer main was picked while the names came back
+
+    // ── Bloodline — static lookup, no network call ────────────────────────
+    const bloodlineName = info.bloodline_id
+      ? (BLOODLINE_NAMES[info.bloodline_id] || `ID ${info.bloodline_id}`)
+      : null;
+
+    // ── Implants — normalise all possible DB key/shape variants ────────────
+    // getCharacterData may return implants under several key names depending
+    // on the DB table naming convention used in the main process.
+    // We try each in priority order and normalise every row to { implant_id, type_name }.
+    let implants = [];
+    const _rawImplants =
+      dbData.implants          ||   // expected key
+      dbData.implantsList      ||   // alt key
+      dbData.character_implants||   // alt key
+      info.implants            ||   // sometimes nested under info
+      null;
+
+    if (Array.isArray(_rawImplants) && _rawImplants.length > 0) {
+      implants = _rawImplants.map(row => ({
+        implant_id: row.implant_id || row.type_id || row.id || row.implantId,
+        type_name:  row.type_name  || row.name    || row.typeName || null,
+        slot:       row.slot != null ? Number(row.slot) : null,
+      })).filter(r => r.implant_id);
+      logToConsole(`Implants from DB: ${implants.length} found`, 'info');
+    } else {
+      logToConsole('Implants array empty or missing — character may have none or needs a sync.', 'info');
+    }
+
+    // ── Current ship — from char_{id}_ship (most recent row) ─────────────
+    const currentShipTypeId   = ship?.ship_type_id   || null;
+    const currentShipTypeName = ship?.ship_type_name || null;
+
+    renderBanner({
+      charId:    mainAccount.characterId,
+      charName:  mainAccount.characterName,
+      birthday,  secStatus,
+      gender:    info.gender,
+      corpId:    info.corporation_id,    corpName,
+      allianceId: info.alliance_id,       allianceName,
+      homeStationName, homeSystemSec,
+      homeSystemName: loc?.solar_system_name || null,
+      currentSystem: loc?.solar_system_name || null,
+      bloodlineName,
+      implants,
+      currentShipTypeId, currentShipTypeName,
+      stale: false,
+    });
+
+    logToConsole('Welcome banner loaded from local DB.', 'info');
+
+    // Re-apply the already-computed net worth to the freshly-painted span so it
+    // doesn't flash back to "Calculating…" — and so a value computed before this
+    // paint (the banner-paint race) lands instead of being lost.
+    _applyWelcomeNetWorth(null);
+
+    // Check if alliance holds sov with active incursions — fire-and-forget
+    renderAllianceIncursionAlert(info.alliance_id).catch(() => {});
+
+    // zKillboard column — fire-and-forget (1h-cached in main, instant repaint)
+    loadBannerKillboard(mainAccount.characterId).catch(() => {});
+  }
+
+  try {
+    if (!mainAccount) return;
+    await paintBanner();   // instant paint from the local DB
+
+    // Live-refresh location / ship / active implants (bypasses the implant
+    // stale-gate), then repaint just the banner with the fresh data.
+    if (live) {
+      window.eveAPI.syncCharacterStatus(mainAccount.characterId)
+        .then(() => { if (current()) return paintBanner(); })
+        .catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[dashboard] Banner render failed:', e.message);
+    if (welcomeBanner && mainAccount && current()) {
+      welcomeBanner.innerHTML = `
+        <div class="banner-portrait-col">
+          <img class="dashboard-portrait"
+               src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
+               alt="${escHtml(mainAccount.characterName)}"
+               onerror="this.style.display='none'"/>
+        </div>
+        <div class="banner-main-col">
+          <div class="banner-identity-col">
+            <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
+            <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
+          </div>
+        </div>`;
+    }
+  }
+}
+
+/**
+ * A new main character (the ◆ on the Characters page): repaints what the
+ * dashboard shows for the main, its banner and its skill queue, in place, so
+ * the dashboard already shows the new main when it opens. Everything else on
+ * the dashboard covers every character and stays as it is. A dashboard not
+ * drawn yet this session draws whoever is main when it first opens.
+ */
+async function refreshDashboardMain(main) {
+  if (!main || typeof _pageInitialized === 'undefined' || !_pageInitialized.has('dashboard')) return;
+  _paintWelcomeBanner(main);
+  const skillEl = document.getElementById('dashboardSkillQueueWidget');
+  if (!skillEl) return;
+  // Straight to the render: the saved snapshot is the previous main's queue.
+  try {
+    await renderSkillQueueWidget(skillEl, main);
+    _saveSnapshot('dash_snap_skill_queue', skillEl);
+  } catch (e) {
+    console.warn('[dashboard] Skill queue for the new main failed:', e?.message || e);
+  }
+}
+document.addEventListener('main-character-changed', (e) => { refreshDashboardMain(e.detail).catch(() => {}); });
+
 async function loadDashboard() {
   // Build the widget grid first so every widget's target element exists before
   // the cache render and the data sections below try to fill them.
@@ -1841,7 +2293,6 @@ async function loadDashboard() {
   if (document.querySelector('#dashboardGrid [data-widget-base^="fw"], #dashPopoutHost [data-widget-base^="fw"]')) initFwWidgets();
 
   const summaryPanel   = document.getElementById('dashboardNetworthSummary');
-  const welcomeBanner  = document.getElementById('dashboardWelcomeBanner');
 
   // Render from cache immediately if available
   try {
@@ -1863,418 +2314,8 @@ async function loadDashboard() {
   // ── Kick off silent background auto-refresh (non-blocking) ───────────────
   autoRefreshStaleCharacters(accounts).catch(() => {});
 
-  // ── Section 1: Welcome banner — DB only, no ESI calls ───────────────────
-  // All data is read from character_information.db which is kept up-to-date
-  // by autoRefreshStaleCharacters(). The banner never hits ESI directly.
-  (async () => {
-
-    // ── Static bloodline lookup (EVE data never changes) ─────────────────
-    // From the SDE's bloodlines; the guessed table it replaced named most
-    // pilots wrong. Kept in step with CHAR_BLOODLINE_NAMES in characters.js.
-    const BLOODLINE_NAMES = {
-      1:'Deteis', 2:'Civire', 3:'Sebiestor', 4:'Brutor', 5:'Amarr', 6:'Ni-Kunni',
-      7:'Gallente', 8:'Intaki', 11:'Achura', 12:'Jin-Mei', 13:'Khanid', 14:'Vherokior',
-    };
-
-    // ── Helper: render the banner from DB data ────────────────────────────
-    // implants: array of DB rows { implant_id, type_name, slot }
-    function renderBanner({ charId, charName, birthday, gender, secStatus, corpId, corpName,
-                             allianceId, allianceName, homeStationName, homeSystemSec,
-                             homeSystemName = null, currentSystem = null,
-                             bloodlineName = null, implants = [], currentShipTypeId = null,
-                             currentShipTypeName = null,
-                             stale = false }) {
-      if (!welcomeBanner) return;
-      console.log('[implants] renderBanner received:', JSON.stringify(implants));
-
-      const charSecColor = (s) => {
-        const n = parseFloat(s);
-        if (isNaN(n)) return 'var(--text-2)';
-        if (n >= 5.0) return 'var(--pal-green)';
-        if (n >= 0.1) return 'var(--pal-blue)';
-        if (n == 0.0) return 'var(--text-3)';
-        if (n <= 0.0) return 'var(--pal-red)';
-        return 'var(--pal-red)';
-      };
-
-
-      const systemSecMeta = (sec) => {
-        if (sec === null || sec === undefined) return { color: 'var(--text-2)', label: null, cls: '' };
-        if (sec < 0.0)    return { color: 'var(--lawless)',  label: 'Lawless',  cls: 'sec-lawless'  };
-        if (sec < 0.1)    return { color: 'var(--nullsec)',  label: 'Null Sec', cls: 'sec-nullsec'  };
-        if (sec < 0.45)   return { color: 'var(--lowsec)',   label: 'Low Sec',  cls: 'sec-lowsec'   };
-        if (sec >= 0.999) return { color: 'var(--newbie)',   label: 'Newbie',   cls: 'sec-newbie'   };
-        return               { color: 'var(--hisec)',    label: 'High Sec', cls: 'sec-hisec'    };
-      };
-
-      // ── New Gender Helper ──────────────────────────────────────────────
-     const genderMeta = (g) => {
-      if (!g) return null;
-      const gLower = String(g).toLowerCase();
-      // Using 'color' for both text and border
-      if (gLower === 'male')   return { color: 'var(--pal-blue)', label: 'Male' };
-      if (gLower === 'female') return { color: 'var(--pal-pink)', label: 'Female' };
-      return { color: 'var(--text-3)', label: g };
-    };
-
-    const gMeta = genderMeta(gender);
-    const genderBreadcrumb = gMeta 
-      ? `<span class="sec-breadcrumb" style="border: 1px solid ${gMeta.color}; color: ${gMeta.color}; background-color: transparent; padding: 2px 6px; border-radius: 4px;">${escHtml(gMeta.label)}</span>` 
-      : '<span style="color:var(--text-2);">—</span>';
-
-      const sysMeta = systemSecMeta(homeSystemSec);
-      const homeSecValueDisplay = homeSystemSec != null
-        ? `<span style="color:${sysMeta.color};">${Number(homeSystemSec).toFixed(1)}</span>` : '';
-      const homeSecBreadcrumb = sysMeta.label
-        ? `<span class="sec-breadcrumb ${sysMeta.cls}"${homeSystemName ? ` data-system="${escHtml(homeSystemName)}" title="Show ${escHtml(homeSystemName)} on the map"` : ''}>${sysMeta.label}</span>`
-        : '';
-      const staleNote = stale
-        ? `<span style="color:var(--text-3);font-size:9px;font-family:var(--mono);margin-left:6px;">● LIVE</span>` : '';
-
-      // ── Implant slot grid HTML (slots 1-5 top row, 6-10 bottom row) ────────
-      // Builds a slot→implant lookup using the real slot number stored in the DB
-      // (written by resolveImplantSlots() in main.js via dogma attribute 331).
-      // If a slot number is missing/null (old pre-fix DB data), implants are
-      // placed into the first available free slot as a graceful fallback.
-      function buildImplantGrid(implants) {
-        const bySlot = {};
-        const unslotted = [];
-        for (const row of implants) {
-          const s = Number(row.slot);
-          // Log each row so issues with id/slot are immediately visible in DevTools
-          console.log(`[implants] slot=${row.slot} implant_id=${row.implant_id} type_id=${row.type_id} type_name=${row.type_name}`);
-          if (s >= 1 && s <= 10) { bySlot[s] = row; }
-          else { unslotted.push(row); }
-        }
-        let nextFree = 1;
-        for (const row of unslotted) {
-          while (bySlot[nextFree] && nextFree <= 10) nextFree++;
-          if (nextFree <= 10) { bySlot[nextFree] = row; nextFree++; }
-        }
-        function slotHtml(slot) {
-          const row = bySlot[slot];
-          if (!row) {
-            return `<div class="implant-slot implant-slot--empty" title="Slot ${slot}"><span class="implant-slot-num">${slot}</span></div>`;
-          }
-          // Resolve the type ID: normalisation already ran above but guard all
-          // possible field names so a DB schema mismatch never silently breaks icons.
-          const id = row.implant_id || row.type_id || row.id || row.implantId || null;
-          const label = escHtml(row.type_name || (id ? `Implant ${id}` : `Slot ${slot}`));
-
-          if (!id) {
-            // ID is genuinely missing — render as a visually distinct unknown slot
-            return `<div class="implant-slot implant-slot--filled implant-slot--unknown" title="${label}">
-              <span class="implant-slot-num">${slot}</span>
-              <span class="implant-slot-unknown-icon">?</span>
-            </div>`;
-          }
-
-          // Use size=64: broader CDN coverage than size=32.
-          // On error: swap to the 32px fallback first, then show the "?" placeholder
-          // so a broken image is never silently invisible.
-          const icon64 = `https://images.evetech.net/types/${id}/icon?size=64`;
-          const icon32 = `https://images.evetech.net/types/${id}/icon?size=32`;
-          return `<div class="implant-slot implant-slot--filled" title="${label}" data-implant-id="${id}">
-            <span class="implant-slot-num">${slot}</span>
-            <img class="banner-implant-icon" src="${icon64}" alt="${label}"
-                 onerror="if(this.src!=='${icon32}'){this.src='${icon32}';}else{this.style.display='none';this.parentElement.classList.add('implant-slot--icon-error');}"/>
-          </div>`;
-        }
-        return `<div class="implant-grid-row">${[1,2,3,4,5].map(slotHtml).join('')}</div>` +
-               `<div class="implant-grid-row">${[6,7,8,9,10].map(slotHtml).join('')}</div>`;
-      }
-      const implantIconsHtml = buildImplantGrid(implants);
-
-      // ── Ship column HTML ─────────────────────────────────────────────────
-      const shipColHtml = currentShipTypeId ? `
-        <div class="banner-ship-col">
-          <img class="banner-ship-icon"
-               src="https://images.evetech.net/types/${currentShipTypeId}/render?size=256"
-               alt="${escHtml(currentShipTypeName || 'Current Ship')}"
-               title="${escHtml(currentShipTypeName || 'Current Ship')}"
-               onerror="this.onerror=null;this.src='https://images.evetech.net/types/${currentShipTypeId}/icon?size=64'"/>
-          <div class="banner-ship-name">${escHtml(currentShipTypeName || 'Unknown Ship')}</div>
-        </div>`
-        : `<div class="banner-ship-col banner-ship-col--empty">
-             <div class="banner-ship-placeholder">
-               <span class="banner-ship-placeholder-icon">◈</span>
-               <span class="banner-ship-placeholder-label">No Ship Data</span>
-             </div>
-           </div>`;
-
-      // Place names in the banner (and the sec chip beside them) open the Map on
-      // that system. Delegated from the banner, and re-assigned rather than
-      // added, so repeated renders never stack up listeners.
-      welcomeBanner.onclick = (ev) => {
-        const link = ev.target.closest('.dash-syslink, .sec-breadcrumb[data-system]');
-        const name = link?.dataset?.system;
-        if (name && typeof mapGoToSystem === 'function') mapGoToSystem(name);
-      };
-
-      welcomeBanner.innerHTML = `
-        <div class="banner-portrait-col">
-          <img class="dashboard-portrait"
-               src="https://images.evetech.net/characters/${charId}/portrait?size=256"
-               alt="${escHtml(charName)}"
-               onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${charId}/portrait?size=128'"/>
-        </div>
-        <div class="banner-main-col">
-          <div class="banner-identity-col">
-            <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
-            <div class="dashboard-welcome-name">${escHtml(charName)}${staleNote}</div>
-            <div class="banner-org-logos">
-              ${corpId     ? `<img class="banner-org-logo" src="https://images.evetech.net/corporations/${corpId}/logo?size=128" alt="${escHtml(corpName || '')}" onerror="this.style.display='none'"/>` : ''}
-              ${allianceId ? `<img class="banner-org-logo" src="https://images.evetech.net/alliances/${allianceId}/logo?size=128" alt="${escHtml(allianceName || '')}" onerror="this.style.display='none'"/>` : ''}
-            </div>
-            <div class="banner-org-names">
-              ${corpName     ? `<span class="banner-org-name-text">${escHtml(corpName)}</span>` : ''}
-              ${allianceName ? `<span class="banner-org-sep">//</span><span class="banner-org-name-text">${escHtml(allianceName)}</span>` : ''}
-            </div>
-          </div>
-          <div class="banner-stats-outer">
-            <div class="banner-stats-col">
-              <div class="banner-stat-row"><span class="banner-stat-label">Born</span><span class="banner-stat-value">${escHtml(birthday || '—')}</span></div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Sec Status</span><span class="banner-stat-value" style="color:${charSecColor(secStatus)};">${escHtml(String(secStatus ?? '—'))}</span></div>
-              <div class="banner-stat-row">
-                <span class="banner-stat-label">Home</span>
-                <span class="banner-stat-value banner-home-value">
-                  ${homeSystemName
-                    ? `<button class="dash-syslink" data-system="${escHtml(homeSystemName)}"
-                               title="Show ${escHtml(homeSystemName)} on the map">${escHtml(homeStationName || homeSystemName)}</button>`
-                    : `<span>${escHtml(homeStationName || '—')}</span>`}
-                  ${homeSecValueDisplay}
-                  ${homeSecBreadcrumb}
-                </span>
-              </div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Location</span><span class="banner-stat-value">${
-                currentSystem
-                  ? `<button class="dash-syslink" data-system="${escHtml(currentSystem)}"
-                             title="Show ${escHtml(currentSystem)} on the map">${escHtml(currentSystem)}</button>`
-                  : '—'}</span></div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Gender</span><span class="banner-stat-value">${genderBreadcrumb}</span></div>
-              <div class="banner-stat-row"><span class="banner-stat-label">Net Worth</span><span class="banner-stat-value" id="welcomeNetWorthValue"><span class="banner-loading-note">Calculating…</span></span></div>
-            </div>
-          </div>
-          <div class="banner-killboard-col" id="bannerKillboardCol" style="display:none;"
-               title="Open on zKillboard">
-            <div class="banner-extra-section">
-              <div class="banner-extra-label">Killboard</div>
-              <div id="bannerKillboardGrid"></div>
-            </div>
-          </div>
-          <div class="banner-extra-col">
-            <div class="banner-extra-section">
-              <div class="banner-extra-label">Bloodline</div>
-              <div class="banner-extra-value" id="bannerBloodlineName">${escHtml(bloodlineName || '—')}</div>
-            </div>
-            <div class="banner-extra-section banner-implants-section">
-              <div class="banner-extra-label">Active Implants</div>
-              <div class="banner-implant-grid" id="bannerImplantIcons">${implantIconsHtml}</div>
-            </div>
-          </div>
-        </div>
-        ${shipColHtml}`;
-    }
-
-    // Fill the banner's zKillboard column (all-time PvP counts + ranks — the
-    // same numbers as the character's zKill "Alltime" row). Stays hidden unless
-    // zKill returns a real PvP record, so quiet characters keep a clean banner.
-    // Clicking the section opens the character's zKillboard page.
-    async function loadBannerKillboard(charId) {
-      const col  = document.getElementById('bannerKillboardCol');
-      const grid = document.getElementById('bannerKillboardGrid');
-      if (!col || !grid) return;
-      let s = null;
-      try { s = await window.eveAPI.getZkillStats(charId); } catch (_) {}
-      if (!s || (!s.shipsDestroyed && !s.shipsLost)) return;
-      const num  = n => (typeof n === 'number' && isFinite(n)) ? n.toLocaleString() : '—';
-      const eff  = (s.shipsDestroyed + s.shipsLost) > 0
-        ? ((s.shipsDestroyed / (s.shipsDestroyed + s.shipsLost)) * 100).toFixed(1) + '%'
-        : '—';
-      // Trend arrows (movement over zKill's ~week rank history) — same ticker
-      // arrows + colours as the wallet balances widget (↗ up / ↘ down).
-      const arrow = t => t > 0 ? ' <span class="banner-kb-trend up">↗</span>'
-                   : t < 0 ? ' <span class="banner-kb-trend down">↘</span>' : '';
-      const chip  = (rank, trend) => (typeof rank === 'number')
-        ? `<span class="banner-kb-rank">#${rank.toLocaleString()}${arrow(trend)}</span>` : '';
-      const overallCell = p => (p && typeof p.overall === 'number')
-        ? `#${p.overall.toLocaleString()}${arrow(p.trend && p.trend.overall)}`
-        : '—';
-      const at = (s.periods && s.periods.alltime) || null;
-      const rc = (s.periods && s.periods.recent)  || null;
-      const wk = (s.periods && s.periods.weekly)  || null;
-      grid.innerHTML = `
-        <div class="banner-stat-row"><span class="banner-stat-label">Destroyed</span>
-          <span class="banner-stat-value"><span class="banner-kb-pos">${num(s.shipsDestroyed)}</span>${chip(at && at.shipsDestroyed, at && at.trend.shipsDestroyed)}</span></div>
-        <div class="banner-stat-row"><span class="banner-stat-label">Lost</span>
-          <span class="banner-stat-value"><span class="banner-kb-neg">${num(s.shipsLost)}</span>${chip(at && at.shipsLost, at && at.trend.shipsLost)}</span></div>
-        <div class="banner-stat-row"><span class="banner-stat-label">Efficiency</span>
-          <span class="banner-stat-value">${eff}${arrow(at && at.trend && at.trend.efficiency)}</span></div>
-        <div class="banner-stat-row"><span class="banner-stat-label">Rank · All</span>
-          <span class="banner-stat-value banner-kb-overall">${overallCell(at)}</span></div>
-        <div class="banner-stat-row"><span class="banner-stat-label">Rank · 90d</span>
-          <span class="banner-stat-value banner-kb-overall">${overallCell(rc)}</span></div>
-        <div class="banner-stat-row"><span class="banner-stat-label">Rank · 7d</span>
-          <span class="banner-stat-value banner-kb-overall">${overallCell(wk)}</span></div>`;
-      col.style.display = 'flex';
-      col.onclick = () => { try { window.eveAPI.openExternalUrl(`https://zkillboard.com/character/${charId}/`); } catch (_) {} };
-    }
-
-    // Build/paint the banner from the local DB. Called immediately for a fast
-    // paint, then again after a live status refresh so ship / location / implants
-    // are the latest ESI pull on every load.
-    async function paintBanner() {
-      // ── DB READ: single call, all tables ────────────────────────────────
-      const dbData = await window.eveAPI.getCharacterData(mainAccount.characterId);
-      if (!dbData?.info) {
-        // No DB row yet — character hasn't been synced. Show minimal banner.
-        if (welcomeBanner) {
-          welcomeBanner.innerHTML = `
-            <div class="banner-portrait-col">
-              <img class="dashboard-portrait"
-                   src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
-                   alt="${escHtml(mainAccount.characterName)}"
-                   onerror="this.onerror=null;this.src='https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=128'"/>
-            </div>
-            <div class="banner-main-col">
-              <div class="banner-identity-col">
-                <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
-                <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
-                <div style="color:var(--text-3);font-size:10px;font-family:var(--mono);margin-top:8px;">Sync character data to populate stats.</div>
-              </div>
-            </div>`;
-        }
-        return;
-      }
-
-      const info = dbData.info;
-      const loc  = dbData.location;   // most-recent location row (char_{id}_location)
-      const ship = dbData.ship;       // most-recent ship row (char_{id}_ship)
-
-      // ── Birthday ──────────────────────────────────────────────────────────
-      const birthday = info.birthday
-        ? new Date(info.birthday).toISOString().slice(0, 10).replace(/-/g, '.')
-        : '—';
-
-      // ── Security status ───────────────────────────────────────────────────
-      const secStatus = typeof info.security_status === 'number'
-        ? info.security_status.toFixed(1) : '—';
-
-      // ── Home location — from location table (station_name preferred) ──────
-      // Guard against stale/poison names leaking into the UI: an ESI error body
-      // ("No structure found with that ID!") or a generic "Structure 12345" /
-      // "Location 99" fallback is not a real place — fall back to the solar
-      // system name, then a dash. Mirrors the locator's _isUnresolvedName guard.
-      const _badLocName = (s) => !s
-        || /^(structure|location)\s/i.test(s)
-        || /no structure found|not found|forbidden|error/i.test(s);
-      const homeStationName =
-        (!_badLocName(loc?.station_name) && loc.station_name)
-        || loc?.solar_system_name
-        || '—';
-      // Security for colour-coding: stored as security_status in assets table;
-      // location table doesn't store sec — leave null (no breadcrumb, just name)
-      const homeSystemSec = null;
-
-      // ── Corp / Alliance names — resolve from cached names IPC ────────────
-      let corpName = '', allianceName = '';
-      try {
-        const ids   = [info.corporation_id, info.alliance_id].filter(Boolean);
-        const names = ids.length ? await window.eveAPI.getNames(ids) : {};
-        corpName     = names[info.corporation_id]  || '';
-        allianceName = names[info.alliance_id]     || '';
-      } catch (_) {}
-
-      // ── Bloodline — static lookup, no network call ────────────────────────
-      const bloodlineName = info.bloodline_id
-        ? (BLOODLINE_NAMES[info.bloodline_id] || `ID ${info.bloodline_id}`)
-        : null;
-
-      // ── Implants — normalise all possible DB key/shape variants ────────────
-      // getCharacterData may return implants under several key names depending
-      // on the DB table naming convention used in the main process.
-      // We try each in priority order and normalise every row to { implant_id, type_name }.
-      let implants = [];
-      const _rawImplants =
-        dbData.implants          ||   // expected key
-        dbData.implantsList      ||   // alt key
-        dbData.character_implants||   // alt key
-        info.implants            ||   // sometimes nested under info
-        null;
-
-      if (Array.isArray(_rawImplants) && _rawImplants.length > 0) {
-        implants = _rawImplants.map(row => ({
-          implant_id: row.implant_id || row.type_id || row.id || row.implantId,
-          type_name:  row.type_name  || row.name    || row.typeName || null,
-          slot:       row.slot != null ? Number(row.slot) : null,
-        })).filter(r => r.implant_id);
-        logToConsole(`Implants from DB: ${implants.length} found`, 'info');
-      } else {
-        logToConsole('Implants array empty or missing — character may have none or needs a sync.', 'info');
-      }
-
-      // ── Current ship — from char_{id}_ship (most recent row) ─────────────
-      const currentShipTypeId   = ship?.ship_type_id   || null;
-      const currentShipTypeName = ship?.ship_type_name || null;
-
-      renderBanner({
-        charId:    mainAccount.characterId,
-        charName:  mainAccount.characterName,
-        birthday,  secStatus,
-        gender:    info.gender,
-        corpId:    info.corporation_id,    corpName,
-        allianceId: info.alliance_id,       allianceName,
-        homeStationName, homeSystemSec,
-        homeSystemName: loc?.solar_system_name || null,
-        currentSystem: loc?.solar_system_name || null,
-        bloodlineName,
-        implants,
-        currentShipTypeId, currentShipTypeName,
-        stale: false,
-      });
-
-      logToConsole('Welcome banner loaded from local DB.', 'info');
-
-      // Re-apply the already-computed net worth to the freshly-painted span so it
-      // doesn't flash back to "Calculating…" — and so a value computed before this
-      // paint (the banner-paint race) lands instead of being lost.
-      _applyWelcomeNetWorth(null);
-
-      // Check if alliance holds sov with active incursions — fire-and-forget
-      renderAllianceIncursionAlert(info.alliance_id).catch(() => {});
-
-      // zKillboard column — fire-and-forget (1h-cached in main, instant repaint)
-      loadBannerKillboard(mainAccount.characterId).catch(() => {});
-    }
-
-    try {
-      if (!mainAccount) return;
-      await paintBanner();   // instant paint from the local DB
-
-      // Live-refresh location / ship / active implants on every load (bypasses the
-      // implant stale-gate), then repaint just the banner with the fresh data.
-      window.eveAPI.syncCharacterStatus(mainAccount.characterId)
-        .then(() => paintBanner())
-        .catch(() => {});
-    } catch (e) {
-      console.warn('[dashboard] Banner render failed:', e.message);
-      if (welcomeBanner && mainAccount) {
-        welcomeBanner.innerHTML = `
-          <div class="banner-portrait-col">
-            <img class="dashboard-portrait"
-                 src="https://images.evetech.net/characters/${mainAccount.characterId}/portrait?size=256"
-                 alt="${escHtml(mainAccount.characterName)}"
-                 onerror="this.style.display='none'"/>
-          </div>
-          <div class="banner-main-col">
-            <div class="banner-identity-col">
-              <div class="dashboard-welcome-greeting">WELCOME BACK, COMMANDER</div>
-              <div class="dashboard-welcome-name">${escHtml(mainAccount.characterName)}</div>
-            </div>
-          </div>`;
-      }
-    }
-  })();
+  // ── Section 1: Welcome banner (the main character), from the local DB ───
+  _paintWelcomeBanner(mainAccount);
 
   // ── Section 2: Net worth calculation ────────────────────────────────────
   _renderNetWorthSection(accounts, mainAccount).catch(() => {});

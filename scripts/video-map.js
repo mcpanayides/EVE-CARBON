@@ -75,13 +75,14 @@ function install() {
     body.take-stage #mapLegend { display: none !important; }
     body.take-stage #mapCtxMenu { z-index: 2147483100 !important; }
 
-    /* ...plus the two button rows a take clicks, across the top. */
+    /* ...plus the two controls a take clicks, across the top: the View segments
+       and the Overlay menu (its list drops down over the map). */
     body.take-bar .page-header { position: fixed !important; inset: 0 0 auto 0 !important; z-index: 2147483001 !important;
                                  margin: 0 !important; border-radius: 0 !important; }
     body.take-bar .page-header > *:not(.map-toolbar) { display: none !important; }
     body.take-bar .map-toolbar > * { display: none !important; }
-    body.take-bar .map-toolbar > [aria-label="Map overlay"],
-    body.take-bar .map-toolbar > [aria-label="Map view style"] { display: flex !important; flex-wrap: wrap !important; max-width: 100%; }
+    body.take-bar .map-toolbar > [aria-label="Map view"] { display: flex !important; }
+    body.take-bar .map-toolbar > #mapOverlayGroup { display: block !important; }
   `;
   document.head.appendChild(style);
 
@@ -302,6 +303,9 @@ function install() {
     async overlays() {
       // Only the overlays that read on a phone; Danger and Incursions are mostly dark at this zoom.
       for (const overlay of ['security', 'sovereignty', 'traffic', 'natural']) {
+        // The overlays live in the toolbar's Overlay menu: open it, then pick.
+        await press('#mapOverlayTrigger');
+        await sleep(350);
         await press(`.map-overlay-btn[data-overlay="${overlay}"]`);
         await sleep(1600);
         if (await win.evaluate(() => _overlay) !== overlay) throw new Error(`the ${overlay} overlay did not switch on`);

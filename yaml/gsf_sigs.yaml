@@ -1,10 +1,83 @@
+# The Imperium: Goonswarm Federation and its coalition. The file keeps its old
+# name and id (gsf_sigs) so every saved setting that points at it still works.
 pack_info:
   id: "gsf_sigs"
-  name: "Goonswarm Federation"
-  alliance: "Goonswarm Federation"
-  description: "GSF SIGs, Squads, and comms channels"
+  name: "The Imperium"
+  alliance: "The Imperium"
+  # The coalition's alliances as EVE Monthly listed them for September 2026, each
+  # id looked up through ESI on 2026-11-06. Coalitions change: re-check the list
+  # before relying on it. Anything Goonswarm's own (the GEZ word, the GEZ topic,
+  # the Goon Wiki, the Stargate page, the forum's calendar) names Goonswarm alone
+  # below, so the rest of the coalition isn't sent to pages it can't sign in to.
+  alliance_ids:
+    - 1354830081  # Goonswarm Federation [CONDI], checked: GET /alliances/1354830081/
+    - 99009163    # Dracarys. [D.C]
+    - 99003214    # Brave Collective [BRAVE]
+    - 99003995    # Invidia Gloriae Comes [IGC]
+    - 99011223    # Sigma Grindset [5IGMA]
+    - 99010079    # Brave United [BRUVE]
+    - 99010877    # Out of the Blue. [VAPOR]
+    - 131511956   # Tactical Narcotics Team [TNT]
+    - 99012042    # Fanatic Legion. [FNT]
+    - 99011239    # Ligma Grindset [L1GMA]
+    - 99001969    # SONS of BANE [.S0B.]
+    - 99008165    # Young Miners Christian Association [YM.CA]
+    - 99009331    # Scumlords [SCUM]
+    - 99012849    # Invidia consilium perdit [INVI]
+  description: "Goonswarm's SIGs, squads and comms channels, and the Imperium's Jabber server"
   author: "EVE-Carbon"
-  version: "1.0"
+  version: "1.1"
+  # Settings → Jabber's server, filled in whenever this pack is picked (and set
+  # back to the app's default when another pack is), unless the pilot typed
+  # their own. Not members-only: picking the pack is the choice.
+  jabber:
+    service: "xmpp://goonfleet.com:5222"
+  # The pages (src/shared/alliance_pack.js reads them). A link is for members
+  # unless it says public; a link that names its own alliance_ids is for pilots
+  # in those alliances only, and `owner` is whose it is.
+  #   forum       the Forums page's address, filled in for anyone who picks the
+  #               pack, and the tour's forum stop. Public: applicants need it too.
+  #   wiki        listed under the pack in Settings → Jabber
+  #   gez         the tour's GEZ stop
+  #   jump_gates  the tour's jump gate stop
+  # The GEZ topic and the Stargate page need a Goonswarm sign-in, which keeps the
+  # GEZ sheet and the gate list with members: link these pages, never the sheet
+  # or the list.
+  links:
+    forum:
+      label: "goonfleet.com"
+      url: "https://goonfleet.com/"
+      public: true
+      owner: "Goonswarm Federation"
+    wiki:
+      label: "Goon Wiki"
+      url: "https://wiki.goonswarm.org/w/Main_Page"
+      owner: "Goonswarm Federation"
+      alliance_ids: [1354830081]
+    gez:
+      label: "Goonswarm Economic Zones MkII"
+      url: "https://goonfleet.com/index.php/topic/361575-gez-goonswarm-economic-zones-mkii"
+      owner: "Goonswarm Federation"
+      alliance_ids: [1354830081]
+    jump_gates:
+      label: "Alliance:Stargate"
+      url: "https://wiki.goonswarm.org/w/Alliance:Stargate"
+      owner: "Goonswarm Federation"
+      alliance_ids: [1354830081]
+  # Words of the alliance's own for the app's things. GEZ (Goonswarm Economic
+  # Zones) is Goonswarm's name for sovereignty upgrades, so only Goonswarm pilots
+  # see it; everyone else, the rest of the coalition included, sees
+  # "sovereignty upgrades".
+  terms:
+    sov_upgrades:
+      word: "GEZ tracker"
+      alliance_ids: [1354830081]
+  # Settings → Calendar's forum address, filled in for Goonswarm pilots when it
+  # is empty, so "Log in to forum" works straight away. The calendar also reads
+  # Goonswarm's events and moon timers from the forum itself.
+  calendar:
+    forum_base: "https://goonfleet.com"
+    alliance_ids: [1354830081]
 
 groups:
   - name: "All"

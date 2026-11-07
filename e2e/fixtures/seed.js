@@ -21,21 +21,28 @@ const path = require('path');
 const FAKE_CHAR_ID = 90000001;
 const FAKE_CHAR_NAME = 'E2E Test Pilot';
 
-async function seedUserData(userDataDir) {
+// `extraCharacters` ([{ characterId, characterName }]) are more characters on the
+// same profile, with logins as fake as the first one's and nothing in the
+// character DB, for specs about more than one character (the main character's
+// ◆ in e2e/main-character.spec.js).
+async function seedUserData(userDataDir, { extraCharacters = [] } = {}) {
   fs.mkdirSync(userDataDir, { recursive: true });
+
+  const account = (characterId, characterName) => ({
+    characterId,
+    characterName,
+    accessToken: 'e2e-fake-access-token',
+    refreshToken: 'e2e-fake-refresh-token',
+    expiresAt: Date.now() - 1000,   // already expired — forces fallback to local DB
+    addedAt: Date.now() - 30 * 86400 * 1000,
+  });
 
   // ── accounts store (main.js loadDB()/dbPath — historically named blueprints.json) ──
   const accountsPath = path.join(userDataDir, 'blueprints.json');
   fs.writeFileSync(accountsPath, JSON.stringify({
     accounts: {
-      [FAKE_CHAR_ID]: {
-        characterId: FAKE_CHAR_ID,
-        characterName: FAKE_CHAR_NAME,
-        accessToken: 'e2e-fake-access-token',
-        refreshToken: 'e2e-fake-refresh-token',
-        expiresAt: Date.now() - 1000,   // already expired — forces fallback to local DB
-        addedAt: Date.now() - 30 * 86400 * 1000,
-      },
+      [FAKE_CHAR_ID]: account(FAKE_CHAR_ID, FAKE_CHAR_NAME),
+      ...Object.fromEntries(extraCharacters.map(c => [c.characterId, account(c.characterId, c.characterName)])),
     },
     blueprints: {},
     assets: {},
@@ -50,7 +57,9 @@ async function seedUserData(userDataDir) {
 
 // dataDir = the app's /data folder (character_information.db lives beside
 // sde.sql, NOT in userData — see main.js initPaths()).
-async function seedCharacterDb(dataDir) {
+// `allianceId` is the fixture character's alliance: a made-up one unless a spec
+// asks for a real one (test.use({ allianceId }) in e2e/support/electron-app.js).
+async function seedCharacterDb(dataDir, { allianceId = 99000001 } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const charInfoDb = require('../../src/character_info_db');
   // Prices are seeded through the app's own writer for the same reason the
@@ -66,7 +75,7 @@ async function seedCharacterDb(dataDir) {
     // the fixture's info row for every spec that reads it.
     name: FAKE_CHAR_NAME,
     corporation_id: 98000001,
-    alliance_id: 99000001,
+    alliance_id: allianceId,
     birthday: '2020-01-01T00:00:00Z',
     description: '',
     gender: 'female',

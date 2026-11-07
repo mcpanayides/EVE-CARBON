@@ -1,5 +1,7 @@
 // Jump-bridge shimmer: in the Spatial view a light runs along each bridge from
 // its first system to its second, so the two ends of an arc can be told apart.
+// Wormholes are drawn the bridges' way and carry the same light, in violet,
+// leaving Thera or Turnur.
 //
 // Where a frame has to be pinned down, the tests set the animation clock and
 // draw; where what matters is whether the loop runs at all, they watch the real
@@ -34,6 +36,8 @@ async function openWithBridge(window) {
     };
     _savedBridges = [[near(0.4, 0.55), near(0.62, 0.42)]];
     _showJb = true;
+    // Wormholes off: whatever EvE-Scout answered would carry lights of their own.
+    _showWh = false;
     _render();
     return _jbArcs[0];
   });
@@ -197,6 +201,52 @@ test('reduced motion gets a still frame with a light on every bridge, live', asy
 
   await window.emulateMedia({ reducedMotion: 'no-preference' });
   await expect.poll(() => running(window), 'and back').toBe(true);
+});
+
+test('a wormhole is drawn the bridges’ way and carries the same light, in violet', async ({ window }) => {
+  // The bridge set up above, made a wormhole: bridges off, the same pair as a hole.
+  await openWithBridge(window);
+  const arc = await window.evaluate(() => {
+    _whArcEdges = _savedBridges; _savedBridges = [];
+    _showWh = true; _showJb = false;
+    _render();
+    return _jbArcs[0];
+  });
+  expect(arc, 'the wormhole arc was drawn and recorded for the light').toBeTruthy();
+  expect(arc.rgb).toBe('189,92,250');
+  expect(arc.w, 'the bridges’ line weight').toBe(1.6);
+  // Same weight, glow, bow and end nubs as a bridge; only the colour differs.
+  const style = await window.evaluate(() => {
+    const shape = (s) => ({ blur: s.blur, bow: s.bow, bowMax: s.bowMax, nub: !!s.nubFill });
+    return { wh: shape(_ARC_WH), jb: shape(_ARC_JB), stroke: _ARC_WH.stroke };
+  });
+  expect(style.wh).toEqual(style.jb);
+  expect(style.stroke).toBe('rgba(189,92,250,0.85)');
+
+  // The light in flight: a bright head, and a violet tail behind it.
+  await drawAt(window, 0.5);
+  expect(await alphaOnArc(window, 0.5), 'bright head').toBeGreaterThan(200);
+  const [r, g, b] = await window.evaluate(() => {
+    const [x, y] = _arcPoint(_jbArcs[0], 0.44);
+    return Array.from(_jbFxCtx.getImageData(Math.round(x), Math.round(y), 1, 1).data);
+  });
+  expect(b, 'violet, not bridge green').toBeGreaterThan(g + 60);
+  expect(r).toBeGreaterThan(g + 40);
+});
+
+test('a wormhole’s light leaves Thera or Turnur, and the legend shows it in violet', async ({ window }) => {
+  await openWithBridge(window);
+  const edges = await window.evaluate(() => {
+    // EvE-Scout names a hole from either end; Turnur and Thera go first either way.
+    _whConns = [{ inId: 30000142, outId: _TURNUR_ID }, { inId: _THERA_ID, outId: 30002187 },
+                { inId: 30000142, outId: 30002187 }];
+    _rebuildWhArcs();
+    _showWh = true; _updateLegend();
+    return _whArcEdges;
+  });
+  expect(edges).toEqual([[30002086, 30000142], [31000005, 30002187], [30000142, 30002187]]);
+  const swatch = window.locator('#mapLegend .map-legend-row', { hasText: 'Wormhole' }).locator('.map-legend-line');
+  await expect(swatch).toHaveCSS('background-color', 'rgba(189, 92, 250, 0.85)');
 });
 
 test('the overlay sits exactly on the map and never takes the mouse', async ({ window }) => {

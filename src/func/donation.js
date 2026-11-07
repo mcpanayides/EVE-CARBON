@@ -10,16 +10,53 @@
 //
 // State persists in localStorage; the recipient + in-game "Open" action live in
 // the donate modal itself (see index.html → openDonateCharInGame).
+//
+// Neither prompt shows during the guided tour (func/tutorial.js), which is
+// someone setting the app up: the modal would bury the card they are reading,
+// and the tour's dimming would cover its close button. A prompt that falls due
+// while a tour runs, or while a first launch is still deciding whether to open
+// one, is held, then shown a few minutes after the tour ends. Its "shown" key is
+// written only when it really shows, so one still held when the app closes is
+// due again next time.
 
-const DONATION_USAGE_MS = 30 * 60 * 1000;   // 30 minutes
-let   _donationUsageTimer = null;
+const DONATION_USAGE_MS      = 30 * 60 * 1000;  // 30 minutes
+const DONATION_AFTER_TOUR_MS =  3 * 60 * 1000;  // a held prompt waits this long after the tour
+let   _donationUsageTimer   = null;
+let   _donationHeld         = null;             // { reason, markShown } held for the tour
+let   _donationReleaseTimer = null;
 
 function _dayKey(d = new Date())   { return d.toISOString().slice(0, 10); }            // YYYY-MM-DD
 function _monthKey(d = new Date()) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 
-function _showDonate(reason) {
-  if (typeof window.openDonateModal === 'function') window.openDonateModal(reason);
+function _donationTourBusy() {
+  return typeof tutorialBusy === 'function' && tutorialBusy();
 }
+
+function _showDonate(reason, markShown) {
+  if (_donationTourBusy()) {
+    // One held at a time. Another that falls due meanwhile is dropped without
+    // being marked shown, so it comes round again on its own schedule.
+    if (!_donationHeld) _donationHeld = { reason, markShown };
+    return;
+  }
+  if (typeof window.openDonateModal !== 'function') return;
+  try { markShown?.(); } catch (_) {}
+  window.openDonateModal(reason);
+}
+
+// Sent by the tour once nothing is left running (not between the basics and
+// alliance tools, which count as one go). The wait means the first thing after
+// the last card is the app, not a request for ISK.
+document.addEventListener('tutorial-idle', () => {
+  if (!_donationHeld) return;
+  clearTimeout(_donationReleaseTimer);
+  _donationReleaseTimer = setTimeout(() => {
+    const held = _donationHeld;
+    if (!held || _donationTourBusy()) return;  // another tour began; its end sends this again
+    _donationHeld = null;
+    _showDonate(held.reason, held.markShown);
+  }, DONATION_AFTER_TOUR_MS);
+});
 
 function initDonationPrompts() {
   // Not under the e2e harness. Both prompts are gated on localStorage keys, and
@@ -38,8 +75,7 @@ function initDonationPrompts() {
       _donationUsageTimer = setTimeout(() => {
         // Re-check the day in case the app was left running past midnight.
         if (localStorage.getItem('donationUsageShownDay') === _dayKey()) return;
-        try { localStorage.setItem('donationUsageShownDay', _dayKey()); } catch (_) {}
-        _showDonate('usage');
+        _showDonate('usage', () => localStorage.setItem('donationUsageShownDay', _dayKey()));
       }, DONATION_USAGE_MS);
     }
   } catch (_) {}
@@ -52,8 +88,7 @@ function initDonationPrompts() {
       if (localStorage.getItem('donationMonthlyShown') !== key) {
         // Small delay so it doesn't fight the initial page render.
         setTimeout(() => {
-          try { localStorage.setItem('donationMonthlyShown', key); } catch (_) {}
-          _showDonate('monthly');
+          _showDonate('monthly', () => localStorage.setItem('donationMonthlyShown', key));
         }, 4000);
       }
     }

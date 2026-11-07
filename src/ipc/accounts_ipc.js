@@ -45,6 +45,16 @@ const SCOPES = [
   'esi-characters.read_fw_stats.v1',            // personal Faction Warfare stats (rank, kills, VP) for the FW tool
 ].join(' ');
 
+// Scopes asked for only when the pilot opts in from the feature that needs one,
+// never on a plain login. They are not in main.js's SCOPES either, so a token
+// without one is never flagged for re-login: the feature says so itself. A login
+// asking for a scope the app isn't registered for on the EVE developer portal
+// fails outright, so keeping these out of every login also keeps a missing
+// registration from breaking sign-in for everyone.
+//   esi-search.search_structures.v1  Settings → Jump Gates → "Find my gates"
+//                                    (src/ipc/jump_gates_ipc.js)
+const OPTIONAL_SCOPES = ['esi-search.search_structures.v1'];
+
 // ─── PKCE helpers ─────────────────────────────────────────────────────────────
 function generateCodeVerifier() {
   return crypto.randomBytes(32).toString('base64url');
@@ -119,7 +129,8 @@ function registerAccountHandlers({
   });
 
   // ─── IPC: Start SSO login ───────────────────────────────────────────────────
-  ipcHandle('start-sso-login', (event) => {
+  // opts.extraScopes: optional scopes for this one login (OPTIONAL_SCOPES only).
+  ipcHandle('start-sso-login', (event, opts) => {
     // Ensure the local OAuth callback server is running
     callbackServerState.start();
 
@@ -130,11 +141,12 @@ function registerAccountHandlers({
     const win = BrowserWindow.fromWebContents(event.sender);
     pendingAuth[state] = { codeVerifier, win };
 
+    const extra = (Array.isArray(opts?.extraScopes) ? opts.extraScopes : []).filter(s => OPTIONAL_SCOPES.includes(s));
     const params = new URLSearchParams({
       response_type:         'code',
       redirect_uri:          CALLBACK_URL,
       client_id:             CLIENT_ID,
-      scope:                 SCOPES,
+      scope:                 [SCOPES, ...new Set(extra)].join(' '),
       code_challenge:        codeChallenge,
       code_challenge_method: 'S256',
       state,
@@ -271,4 +283,4 @@ function registerAccountHandlers({
   callbackServerState.start = startCallbackServer;
 }
 
-module.exports = { registerAccountHandlers, SCOPES };
+module.exports = { registerAccountHandlers, SCOPES, OPTIONAL_SCOPES };

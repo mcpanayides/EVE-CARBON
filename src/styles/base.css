@@ -733,6 +733,48 @@ input[type="range"] { accent-color: var(--accent); }
 .ui-settings-row input[type="color"] { width: 100%; height: 32px; border: none; border-radius: 4px; padding: 0; cursor: pointer; }
 .ui-settings-row input[type="text"]  { width: 100%; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; color: var(--text-1); padding: 8px; }
 
+/* ── ALLIANCE PACK PAGES (Settings → Jabber) ──────────────────────────────────
+   The picked pack's pages (func/pack_links.js). Buttons, not links: the app hands
+   each page to the browser, and a plain link would take this window there. The
+   same look as the guided tour's hint link: accent words with a quiet underline,
+   and the open-in-new glyph saying where it goes. */
+.pack-links       { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pack-links:empty { display: none; }
+.pack-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: -3px; padding: 1px 3px;
+  background: none; border: 0; border-radius: 3px;
+  font: inherit; font-size: 12px; line-height: 1.45; color: var(--accent); cursor: pointer;
+}
+.pack-link-text { text-decoration: underline; text-decoration-color: var(--accent-40); text-underline-offset: 3px; }
+.pack-link:hover .pack-link-text { text-decoration-color: currentColor; }
+.pack-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40); }
+.pack-link .material-symbols-outlined { font-size: 14px; }
+
+/* "Filled in from your pack (…)." under a field the pack filled in. */
+.pack-default-note        { font-size: 11px; color: var(--label-muted); }
+.pack-default-note:empty  { display: none; }
+
+/* ── FIND MY GATES (Settings → Jump Gates) ────────────────────────────────────
+   The ESI half of the gate import, under the paste box in the same block, so the
+   guided tour's spotlight on that block covers both. */
+.beacon-esi        { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+.beacon-esi-title  { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.beacon-esi-help   { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+.beacon-esi-row    { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.beacon-esi-row[hidden] { display: none; }
+.beacon-esi-row select  { flex: 0 1 240px; min-width: 160px; }
+.beacon-esi-label  { font-size: 12px; color: var(--text-2); }
+.beacon-esi-more {
+  background: none; border: 0; padding: 1px 3px; border-radius: 3px;
+  font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px;
+}
+.beacon-esi-more:hover { color: var(--text-1); text-decoration-color: currentColor; }
+.beacon-esi-more:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-40); }
+.beacon-esi-status        { font-size: 12px; font-family: var(--mono); color: var(--text-2); white-space: pre-wrap; line-height: 1.6; }
+.beacon-esi-status:empty  { display: none; }
+
 /* ── SETTINGS TOGGLE ROWS (General tab) ───────────────────────────────────────── */
 .settings-toggle-row     { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); }
 .settings-toggle-row:first-of-type { border-top: none; }

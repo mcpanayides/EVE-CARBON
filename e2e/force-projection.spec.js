@@ -7,6 +7,19 @@
 // than an overlay — that it combines with every other layer at once.
 const { test, expect } = require('./support/electron-app');
 
+// The overlay and the layers live in toolbar menus: open one and pick. A layer
+// is a switch, which leaves its menu open, so that one is closed again before
+// the next step reaches for the map beneath it.
+async function pickOverlay(window, overlay) {
+  await window.locator('#mapOverlayTrigger').click();
+  await window.locator(`.map-overlay-btn[data-overlay="${overlay}"]`).click();
+}
+async function toggleLayer(window, id) {
+  await window.locator('#mapLayersTrigger').click();
+  await window.locator(id).click();
+  await window.keyboard.press('Escape');
+}
+
 async function openMap(window) {
   await window.locator('.nav-btn[data-page="map"]').click();
   await expect(window.locator('#page-map')).toBeVisible({ timeout: 15_000 });
@@ -94,11 +107,11 @@ test('it is a LAYER: the overlay keeps the system colours', async ({ window }) =
   // Sovereignty. It now draws rings on top of whatever the overlay paints.
   await openMap(window);
   await seed(window);
-  await window.locator('.map-overlay-btn[data-overlay="sovereignty"]').click();
+  await pickOverlay(window, 'sovereignty');
   const before = await window.evaluate(() =>
     _systems.slice(0, 400).map(s => _systemColor(s)));
 
-  await window.locator('#mapFpToggle').click();
+  await toggleLayer(window, '#mapFpToggle');
   const after = await window.evaluate(() => ({
     overlay: _overlay, fp: _showFp,
     colours: _systems.slice(0, 400).map(s => _systemColor(s)),
@@ -118,6 +131,9 @@ test('jump bridges draw in the spatial view, with force projection on', async ({
   const drawn = await window.evaluate((ids) => {
     _viewMode = 'spatial'; _spatialLayout = 'system'; _camFlat = false;
     _showJb = true; _showFp = true;
+    // Wormholes off: they're drawn the bridges' way now, end nubs and all, so
+    // whatever EvE-Scout answered would be counted here as a bridge.
+    _showWh = false;
     _savedBridges = [[ids.jita, ids.perimeter], [ids.perimeter, ids.hek]];
     const cap = _sysById[ids.jita];
     _camCancelTween(); _camFocusX = cap.tx; _camFocusY = cap.ty; _camFocusZ = cap.tz;
@@ -155,7 +171,7 @@ test('the toggle opens the widget, which picks an alliance by name', async ({ wi
   await seed(window);
   await window.evaluate(() => { _fpSelected.clear(); _fpSaveSelected(); });
 
-  await window.locator('#mapFpToggle').click();
+  await toggleLayer(window, '#mapFpToggle');
   const widget = window.locator('#mapFpWidget');
   await expect(widget).toBeVisible();
   await expect(widget).toContainText('FORCE PROJECTION');
@@ -174,7 +190,7 @@ test('the toggle opens the widget, which picks an alliance by name', async ({ wi
   expect(JSON.parse(stored)).toEqual([1001]);
 
   // Off again, and it goes with the layer rather than lingering over the map.
-  await window.locator('#mapFpToggle').click();
+  await toggleLayer(window, '#mapFpToggle');
   await expect(widget).toBeHidden();
 });
 

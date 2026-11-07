@@ -33,12 +33,11 @@
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (37 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (38 shared connections)
 - [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (25 shared connections)
-- [Fitting Simulator (_fitEffCargo)](Fitting_Simulator_%28_fitEffCargo%29.md) (9 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (12 shared connections)
 - [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (8 shared connections)
 - [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (7 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (4 shared connections)
 - [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
 
 ## Source Files

@@ -31,13 +31,13 @@
 
 ## Relationships
 
-- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
+- [Demo Cast & Names](Demo_Cast_%26_Names.md) (3 shared connections)
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
-- [Demo Cast & Names](Demo_Cast_%26_Names.md) (1 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
+- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (1 shared connections)
 - [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 - [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (1 shared connections)

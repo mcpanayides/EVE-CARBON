@@ -1,48 +1,46 @@
 # Galaxy Map (_c2w)
 
-> 32 nodes · cohesion 0.12
+> 23 nodes · cohesion 0.12
 
 ## Key Concepts
 
-- **_renderSpatial()** (25 connections) — `src/func/map.js`
-- **_spatialProject()** (12 connections) — `src/func/map.js`
-- **_fpDrawSpheres()** (10 connections) — `src/func/map.js`
-- **_orbitPivotAt()** (10 connections) — `src/func/map.js`
-- **_spatialScale()** (10 connections) — `src/func/map.js`
-- **_spatialToCanvas()** (10 connections) — `src/func/map.js`
-- **_hitTest()** (8 connections) — `src/func/map.js`
-- **_spatialPoint()** (8 connections) — `src/func/map.js`
-- **_fitSpatialTo()** (8 connections) — `src/func/map.js`
-- **_drawRegionNebulae()** (8 connections) — `src/func/map.js`
-- **_spatialCanvasOf()** (7 connections) — `src/func/map.js`
-- **_medianGateLen()** (7 connections) — `src/func/map.js`
-- **_spatialPxPerUnit()** (7 connections) — `src/func/map.js`
-- **_spatialSystems()** (7 connections) — `src/func/map.js`
-- **_fpCol()** (6 connections) — `src/func/map.js`
-- **_fpCapitalOf()** (6 connections) — `src/func/map.js`
-- **_fpReach()** (5 connections) — `src/func/map.js`
-- **_fpRing()** (5 connections) — `src/func/map.js`
-- **_drawSpatialArcs()** (5 connections) — `src/func/map.js`
-- **_zoomScale()** (5 connections) — `src/func/map.js`
-- **_solarDeep()** (5 connections) — `src/func/map.js`
-- **_solarGlare()** (5 connections) — `src/func/map.js`
-- **_drawModernSystemMarkers()** (4 connections) — `src/func/map.js`
-- **_spatialNodes()** (4 connections) — `src/func/map.js`
-- **_solarPivotAt()** (4 connections) — `src/func/map.js`
-- *... and 7 more nodes in this community*
+- **_initCanvas()** (32 connections) — `src/func/map.js`
+- **_camCancelTween()** (10 connections) — `src/func/map.js`
+- **_fitCurrentView()** (9 connections) — `src/func/map.js`
+- **_solarClick()** (7 connections) — `src/func/map.js`
+- **_showMapMenu()** (7 connections) — `src/func/map.js`
+- **_adjustZoom()** (6 connections) — `src/func/map.js`
+- **_enterRegion()** (5 connections) — `src/func/map.js`
+- **_spatialFocusOn()** (5 connections) — `src/func/map.js`
+- **_solarTip()** (5 connections) — `src/func/map.js`
+- **_solarHover()** (5 connections) — `src/func/map.js`
+- **_fitRegion()** (4 connections) — `src/func/map.js`
+- **_solarFit()** (4 connections) — `src/func/map.js`
+- **_closeMapMenu()** (4 connections) — `src/func/map.js`
+- **_openMapMenuAt()** (4 connections) — `src/func/map.js`
+- **_c2w()** (3 connections) — `src/func/map.js`
+- **_camFromView()** (3 connections) — `src/func/map.js`
+- **_orbitHold()** (3 connections) — `src/func/map.js`
+- **_regionZoomFloor()** (3 connections) — `src/func/map.js`
+- **_solarHit()** (3 connections) — `src/func/map.js`
+- **_pushEndpointsToPlanners()** (3 connections) — `src/func/map.js`
+- **_mapMenuOutside()** (3 connections) — `src/func/map.js`
+- **_regionExitAt()** (2 connections) — `src/func/map.js`
+- **_isTypingTarget()** (2 connections) — `src/func/map.js`
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (37 shared connections)
-- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (12 shared connections)
-- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (11 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (10 shared connections)
-- [Galaxy Map (_camSnap)](Galaxy_Map_%28_camSnap%29.md) (6 shared connections)
-- [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (6 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (4 shared connections)
-- [Map Dust & Lens Flares Tests](Map_Dust_%26_Lens_Flares_Tests.md) (2 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
-- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (24 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_%26_Drawing.md) (15 shared connections)
+- [Galaxy Map (_hitTest)](Galaxy_Map_%28_hitTest%29.md) (8 shared connections)
+- [Galaxy Map (_allianceColor)](Galaxy_Map_%28_allianceColor%29.md) (8 shared connections)
+- [Galaxy Map (_arcPoint)](Galaxy_Map_%28_arcPoint%29.md) (5 shared connections)
+- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (2 shared connections)
+- [Galaxy Map (_nebGet)](Galaxy_Map_%28_nebGet%29.md) (2 shared connections)
+- [Galaxy Map (_drawRoutes)](Galaxy_Map_%28_drawRoutes%29.md) (2 shared connections)
+- [Galaxy Map](Galaxy_Map.md) (2 shared connections)
+- [Map Colours & Modern Drawing](Map_Colours_%26_Modern_Drawing.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -50,8 +48,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 203 (96%)
-- INFERRED: 9 (4%)
+- EXTRACTED: 128 (97%)
+- INFERRED: 4 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

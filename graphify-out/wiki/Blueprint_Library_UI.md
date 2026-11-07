@@ -15,7 +15,7 @@
 - **_bpIconFallback()** (3 connections) — `src/func/blueprints.js`
 - **togglePerfectFilter()** (3 connections) — `src/func/blueprints.js`
 - **bindLibraryEvents()** (3 connections) — `src/func/blueprints.js`
-- **initIndustryPage()** (2 connections) — `src/func/blueprints.js`
+- **initIndustryPage()** (3 connections) — `src/func/blueprints.js`
 - **renderMoonReformatter()** (2 connections) — `src/func/blueprints.js`
 - **renderActiveJobsPage()** (2 connections) — `src/func/blueprints.js`
 
@@ -27,6 +27,7 @@
 - [Moon & Ore Calculators](Moon_%26_Ore_Calculators.md) (4 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Blueprint Library (buildTreeFromSdeMaterials)](Blueprint_Library_%28buildTreeFromSdeMaterials%29.md) (1 shared connections)
+- [Tutorial Spec](Tutorial_Spec.md) (1 shared connections)
 - [Materials & Reprocessing](Materials_%26_Reprocessing.md) (1 shared connections)
 
 ## Source Files
@@ -35,8 +36,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 71 (97%)
-- INFERRED: 2 (3%)
+- EXTRACTED: 71 (96%)
+- INFERRED: 3 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

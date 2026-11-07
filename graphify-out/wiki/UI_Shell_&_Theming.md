@@ -1,39 +1,43 @@
 # UI Shell & Theming
 
-> 71 nodes · cohesion 0.05
+> 27 nodes · cohesion 0.09
 
 ## Key Concepts
 
-- **ui.js** (70 connections) — `src/func/ui.js`
-- **setSettingsTab()** (7 connections) — `src/func/ui.js`
-- **importBeaconNetwork()** (7 connections) — `src/func/ui.js`
-- **populateGlassSettings()** (7 connections) — `src/func/ui.js`
-- **populateBackgroundSettings()** (6 connections) — `src/func/ui.js`
-- **navigateToPage()** (6 connections) — `src/func/ui.js`
-- **refreshApp()** (6 connections) — `src/func/ui.js`
-- **populateJumpgatesSettings()** (5 connections) — `src/func/ui.js`
-- **_navUpdateGateCount()** (5 connections) — `src/func/ui.js`
-- **applyBackground()** (5 connections) — `src/func/ui.js`
-- **_renderBgGrid()** (5 connections) — `src/func/ui.js`
-- **applyGlass()** (5 connections) — `src/func/ui.js`
-- **populateGeneralSettings()** (4 connections) — `src/func/ui.js`
-- **clearBeaconNetwork()** (4 connections) — `src/func/ui.js`
-- **_getBgSettings()** (4 connections) — `src/func/ui.js`
-- **_saveBgSettings()** (4 connections) — `src/func/ui.js`
-- **initBackground()** (4 connections) — `src/func/ui.js`
-- **_applyDefaultBackground()** (4 connections) — `src/func/ui.js`
-- **bindUISettings()** (4 connections) — `src/func/ui.js`
-- **bindNavigation()** (4 connections) — `src/func/ui.js`
-- **populateDatabaseSettings()** (4 connections) — `src/func/ui.js`
+- **ui.js** (81 connections) — `src/func/ui.js`
 - **openEveStatusPage()** (3 connections) — `src/func/ui.js`
 - **_presenceVersionRows()** (3 connections) — `src/func/ui.js`
 - **_updatePresenceCount()** (3 connections) — `src/func/ui.js`
-- **_navGetBridges()** (3 connections) — `src/func/ui.js`
-- *... and 46 more nodes in this community*
+- **openEveStatusModal()** (2 connections) — `src/func/ui.js`
+- **eveStatusModalNav()** (2 connections) — `src/func/ui.js`
+- **_paintEveStatusLight()** (2 connections) — `src/func/ui.js`
+- **_pollEveStatus()** (2 connections) — `src/func/ui.js`
+- **_presenceVersionParts()** (2 connections) — `src/func/ui.js`
+- **_presencePlatformRows()** (2 connections) — `src/func/ui.js`
+- **setNavStatusLight()** (2 connections) — `src/func/ui.js`
+- **updateNavStatusIndicators()** (2 connections) — `src/func/ui.js`
+- **openPlexForGood()** (1 connections) — `src/func/ui.js`
+- **closeEveStatusModal()** (1 connections) — `src/func/ui.js`
+- **openDiscordInvite()** (1 connections) — `src/func/ui.js`
+- **_initIdleAnimationPause()** (1 connections) — `src/func/ui.js`
+- **GLASS_DEFAULTS** (1 connections) — `src/func/ui.js`
+- **GLASS_GLOW_ALPHAS** (1 connections) — `src/func/ui.js`
+- **_pageInitialized** (1 connections) — `src/func/ui.js`
+- **_spinState** (1 connections) — `src/func/ui.js`
+- **_navSettled** (1 connections) — `src/func/ui.js`
+- **PAGE_REFRESHERS** (1 connections) — `src/func/ui.js`
+- **updateNavCharacterBtn()** (1 connections) — `src/func/ui.js`
+- **triggerUpwellSync()** (1 connections) — `src/func/ui.js`
+- **autoSeedNpcStations()** (1 connections) — `src/func/ui.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [UI Shell & Theming (_navGetBridges)](UI_Shell_%26_Theming_%28_navGetBridges%29.md) (18 shared connections)
+- [UI Shell & Theming (_prefersReducedMotion)](UI_Shell_%26_Theming_%28_prefersReducedMotion%29.md) (12 shared connections)
+- [UI Shell & Theming (setSettingsTab)](UI_Shell_%26_Theming_%28setSettingsTab%29.md) (10 shared connections)
+- [UI Shell & Theming (_getGlassSettings)](UI_Shell_%26_Theming_%28_getGlassSettings%29.md) (8 shared connections)
+- [UI Shell & Theming (_getBgSettings)](UI_Shell_%26_Theming_%28_getBgSettings%29.md) (7 shared connections)
 
 ## Source Files
 
@@ -41,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 262 (98%)
-- INFERRED: 6 (2%)
+- EXTRACTED: 121 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,18 +1,16 @@
 # Electron Main Process
 
-> 98 nodes · cohesion 0.02
+> 102 nodes · cohesion 0.02
 
 ## Key Concepts
 
-- **main.js** (178 connections) — `main.js`
+- **main.js** (189 connections) — `main.js`
 - **loadConfig()** (4 connections) — `main.js`
+- **_readSealed()** (4 connections) — `main.js`
+- **_writeSealed()** (4 connections) — `main.js`
 - **createTray()** (4 connections) — `main.js`
 - **applyMinimizeToTray()** (4 connections) — `main.js`
-- **jumpBridgesPath()** (3 connections) — `main.js`
 - **_esiNoteResponseCore()** (3 connections) — `main.js`
-- **_etagCachePathFor()** (3 connections) — `main.js`
-- **_readEtagEntry()** (3 connections) — `main.js`
-- **_writeEtagEntry()** (3 connections) — `main.js`
 - **showMainWindow()** (3 connections) — `main.js`
 - **config_ipc.js** (3 connections) — `src/ipc/config_ipc.js`
 - **station_ipc.js** (3 connections) — `src/ipc/station_ipc.js`
@@ -24,27 +22,29 @@
 - **_setDemoForumCookies()** (2 connections) — `main.js`
 - **loadJumpBridges()** (2 connections) — `main.js`
 - **saveJumpBridges()** (2 connections) — `main.js`
+- **loadOtherJumpBridges()** (2 connections) — `main.js`
+- **saveOtherJumpBridges()** (2 connections) — `main.js`
+- **loadJumpGateSyncState()** (2 connections) — `main.js`
+- **saveJumpGateSyncState()** (2 connections) — `main.js`
 - **_esiNoteFetchResponse()** (2 connections) — `main.js`
 - **destroyTray()** (2 connections) — `main.js`
 - **registerConfigHandlers()** (2 connections) — `src/ipc/config_ipc.js`
-- **registerStationHandlers()** (2 connections) — `src/ipc/station_ipc.js`
-- **path** (1 connections) — `main.js`
-- *... and 73 more nodes in this community*
+- *... and 77 more nodes in this community*
 
 ## Relationships
 
-- [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (37 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (10 shared connections)
+- [Main Process ESI & Cache Layer](Main_Process_ESI_%26_Cache_Layer.md) (38 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (10 shared connections)
 - [Demo Fixtures Test](Demo_Fixtures_Test.md) (6 shared connections)
 - [PI IPC](PI_IPC.md) (4 shared connections)
 - [Presence](Presence.md) (4 shared connections)
 - [Demo Mode](Demo_Mode.md) (2 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (2 shared connections)
+- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [Fleet Ops IPC](Fleet_Ops_IPC.md) (2 shared connections)
+- [Jump Gate List](Jump_Gate_List.md) (2 shared connections)
 - [Map IPC](Map_IPC.md) (2 shared connections)
 - [Theme Vars](Theme_Vars.md) (2 shared connections)
-- [Auto Updater](Auto_Updater.md) (2 shared connections)
 
 ## Source Files
 
@@ -54,7 +54,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 306 (98%)
+- EXTRACTED: 323 (98%)
 - INFERRED: 6 (2%)
 - AMBIGUOUS: 0 (0%)
 

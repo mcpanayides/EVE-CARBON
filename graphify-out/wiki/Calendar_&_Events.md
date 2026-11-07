@@ -33,8 +33,8 @@
 
 ## Relationships
 
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (3 shared connections)
-- [Demo Snapshot Refresh](Demo_Snapshot_Refresh.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (3 shared connections)
+- [Net Log](Net_Log.md) (1 shared connections)
 
 ## Source Files
 

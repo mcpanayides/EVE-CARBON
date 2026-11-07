@@ -1,6 +1,6 @@
 # Main Process ESI & Cache Layer
 
-> 33 nodes · cohesion 0.13
+> 36 nodes · cohesion 0.12
 
 ## Key Concepts
 
@@ -28,12 +28,12 @@
 - **getCachePath()** (3 connections) — `main.js`
 - **_mailAuth()** (3 connections) — `main.js`
 - **_esiCompatHeader()** (3 connections) — `main.js`
-- **httpGetFullWithRetry()** (3 connections) — `main.js`
-- *... and 8 more nodes in this community*
+- **_etagCachePathFor()** (3 connections) — `main.js`
+- *... and 11 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (37 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (38 shared connections)
 - [HTTP Request Broker](HTTP_Request_Broker.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (2 shared connections)
 
@@ -43,8 +43,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 167 (92%)
-- INFERRED: 14 (8%)
+- EXTRACTED: 176 (93%)
+- INFERRED: 14 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

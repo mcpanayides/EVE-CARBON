@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (3 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [ESI IPC](ESI_IPC.md) (2 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)

@@ -1,10 +1,10 @@
 # Demo Data
 
-> 24 nodes · cohesion 0.11
+> 25 nodes · cohesion 0.11
 
 ## Key Concepts
 
-- **demo_data.js** (31 connections) — `src/demo_data.js`
+- **demo_data.js** (33 connections) — `src/demo_data.js`
 - **writeCharacterDb()** (7 connections) — `src/demo_data.js`
 - **seedMain()** (4 connections) — `src/demo_data.js`
 - **seedFleetOps()** (4 connections) — `src/demo_data.js`
@@ -24,6 +24,7 @@
 - **Cal** (1 connections) — `src/demo_data.js`
 - **Forum** (1 connections) — `src/demo_data.js`
 - **JUMP_BRIDGES** (1 connections) — `src/demo_data.js`
+- **JUMP_BRIDGES_OTHER** (1 connections) — `src/demo_data.js`
 - **seedJabber()** (1 connections) — `src/demo_data.js`
 - **OPS_SYS** (1 connections) — `src/demo_data.js`
 - **OPS_SHIP** (1 connections) — `src/demo_data.js`
@@ -31,16 +32,16 @@
 
 ## Relationships
 
-- [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
-- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
+- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 - [Demo Cast & Names](Demo_Cast_%26_Names.md) (1 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
 - [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
 - [Fleet Mining](Fleet_Mining.md) (1 shared connections)
-- [Galaxy Map (_forceGalaxyView)](Galaxy_Map_%28_forceGalaxyView%29.md) (1 shared connections)
+- [Galaxy Map (_orbSprite)](Galaxy_Map_%28_orbSprite%29.md) (1 shared connections)
 - [PI IPC](PI_IPC.md) (1 shared connections)
 - [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
 
@@ -51,7 +52,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 65 (86%)
+- EXTRACTED: 68 (86%)
 - INFERRED: 11 (14%)
 - AMBIGUOUS: 0 (0%)
 

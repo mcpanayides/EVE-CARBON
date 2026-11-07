@@ -39,11 +39,10 @@
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Jabber Chat Rooms](Jabber_Chat_Rooms.md) (2 shared connections)
 - [Message Styling Test](Message_Styling_Test.md) (2 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (2 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
 - [Message Styling](Message_Styling.md) (1 shared connections)
-- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
-- [Electron Main Process (appIconPath)](Electron_Main_Process_%28appIconPath%29.md) (1 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

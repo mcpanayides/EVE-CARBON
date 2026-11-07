@@ -1,10 +1,10 @@
 # Character Database
 
-> 38 nodes · cohesion 0.05
+> 39 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **character_info_db.js** (70 connections) — `src/character_info_db.js`
+- **character_info_db.js** (71 connections) — `src/character_info_db.js`
 - **path** (1 connections) — `src/character_info_db.js`
 - **fs** (1 connections) — `src/character_info_db.js`
 - **sqlite3** (1 connections) — `src/character_info_db.js`
@@ -20,6 +20,7 @@
 - **replacePiColonies()** (1 connections) — `src/character_info_db.js`
 - **updateAssetLocation()** (1 connections) — `src/character_info_db.js`
 - **getUnresolvedAssetLocations()** (1 connections) — `src/character_info_db.js`
+- **getAllianceIds()** (1 connections) — `src/character_info_db.js`
 - **getAssetSyncedAt()** (1 connections) — `src/character_info_db.js`
 - **getCharacterBlueprints()** (1 connections) — `src/character_info_db.js`
 - **getAllBlueprints()** (1 connections) — `src/character_info_db.js`
@@ -28,8 +29,7 @@
 - **getMiningLedger()** (1 connections) — `src/character_info_db.js`
 - **getMiningLedgerSyncedAt()** (1 connections) — `src/character_info_db.js`
 - **getLoyaltyPoints()** (1 connections) — `src/character_info_db.js`
-- **getWalletJournalSyncedAt()** (1 connections) — `src/character_info_db.js`
-- *... and 13 more nodes in this community*
+- *... and 14 more nodes in this community*
 
 ## Relationships
 
@@ -49,7 +49,7 @@
 ## Audit Trail
 
 - EXTRACTED: 24 (22%)
-- INFERRED: 83 (78%)
+- INFERRED: 85 (78%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,14 +1,15 @@
 # Donation
 
-> 5 nodes · cohesion 0.70
+> 6 nodes · cohesion 0.60
 
 ## Key Concepts
 
-- **donation.js** (4 connections) — `src/func/donation.js`
+- **donation.js** (5 connections) — `src/func/donation.js`
 - **initDonationPrompts()** (4 connections) — `src/func/donation.js`
+- **_showDonate()** (3 connections) — `src/func/donation.js`
 - **_dayKey()** (2 connections) — `src/func/donation.js`
 - **_monthKey()** (2 connections) — `src/func/donation.js`
-- **_showDonate()** (2 connections) — `src/func/donation.js`
+- **_donationTourBusy()** (2 connections) — `src/func/donation.js`
 
 ## Relationships
 
@@ -20,7 +21,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 14 (100%)
+- EXTRACTED: 18 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

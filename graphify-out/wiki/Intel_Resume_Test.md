@@ -22,9 +22,8 @@
 ## Relationships
 
 - [Chatlog Reader](Chatlog_Reader.md) (4 shared connections)
-- [Intel Test](Intel_Test.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (4 shared connections)
 - [Alert Rules](Alert_Rules.md) (2 shared connections)
-- [Intel Service](Intel_Service.md) (1 shared connections)
 
 ## Source Files
 

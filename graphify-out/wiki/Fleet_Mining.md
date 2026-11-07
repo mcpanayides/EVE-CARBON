@@ -4,8 +4,8 @@
 
 ## Key Concepts
 
+- **key()** (8 connections) — `src/fleet_mining.js`
 - **fleet_mining.js** (7 connections) — `src/fleet_mining.js`
-- **key()** (7 connections) — `src/fleet_mining.js`
 - **fleet_mining.test.js** (5 connections) — `test/fleet_mining.test.js`
 - **buildWalks()** (3 connections) — `src/intel/patterns.js`
 - **computeDelta()** (2 connections) — `src/fleet_mining.js`
@@ -19,12 +19,12 @@
 
 ## Relationships
 
+- [Notifications](Notifications.md) (2 shared connections)
 - [Intel Patterns Test](Intel_Patterns_Test.md) (2 shared connections)
 - [Fleet Ops IPC](Fleet_Ops_IPC.md) (1 shared connections)
 - [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
 - [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (1 shared connections)
-- [Notifications](Notifications.md) (1 shared connections)
 
 ## Source Files
 
@@ -34,8 +34,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 16 (52%)
-- INFERRED: 15 (48%)
+- EXTRACTED: 16 (50%)
+- INFERRED: 16 (50%)
 - AMBIGUOUS: 0 (0%)
 
 ---

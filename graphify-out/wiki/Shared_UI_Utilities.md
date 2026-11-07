@@ -1,6 +1,6 @@
 # Shared UI Utilities
 
-> 14 nodes · cohesion 0.22
+> 15 nodes · cohesion 0.20
 
 ## Key Concepts
 
@@ -9,6 +9,7 @@
 - **escHtml()** (4 connections) — `src/utils.js`
 - **logToConsole()** (4 connections) — `src/utils.js`
 - **pushCenterToast()** (3 connections) — `src/utils.js`
+- **countUp()** (2 connections) — `src/utils.js`
 - **showToast()** (2 connections) — `src/utils.js`
 - **pushAppToast()** (2 connections) — `src/utils.js`
 - **cacheSet()** (2 connections) — `src/utils.js`
@@ -21,8 +22,8 @@
 
 ## Relationships
 
-- [Chart Umd (countUp)](Chart_Umd_%28countUp%29.md) (1 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
+- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (1 shared connections)
 
 ## Source Files
 
@@ -30,8 +31,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 41 (98%)
-- INFERRED: 1 (2%)
+- EXTRACTED: 42 (95%)
+- INFERRED: 2 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

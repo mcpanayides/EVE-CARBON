@@ -1,13 +1,12 @@
 # Electron App
 
-> 55 nodes · cohesion 0.05
+> 51 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **electron-app.js** (47 connections) — `e2e/support/electron-app.js`
-- **test** (36 connections) — `e2e/support/electron-app.js`
+- **electron-app.js** (51 connections) — `e2e/support/electron-app.js`
+- **test** (40 connections) — `e2e/support/electron-app.js`
 - **seed.js** (5 connections) — `e2e/fixtures/seed.js`
-- **navigation.spec.js** (5 connections) — `e2e/navigation.spec.js`
 - **assets.spec.js** (4 connections) — `e2e/assets.spec.js`
 - **widget-popout.spec.js** (4 connections) — `e2e/widget-popout.spec.js`
 - **calendar.spec.js** (3 connections) — `e2e/calendar.spec.js`
@@ -29,22 +28,23 @@
 - **seedCharacterDb()** (2 connections) — `e2e/fixtures/seed.js`
 - **popoutState()** (2 connections) — `e2e/widget-popout.spec.js`
 - **{ test, expect, FAKE_CHAR_NAME }** (1 connections) — `e2e/assets.spec.js`
-- *... and 30 more nodes in this community*
+- **openJitaHangar()** (1 connections) — `e2e/assets.spec.js`
+- *... and 26 more nodes in this community*
 
 ## Relationships
 
-- [Stargate Ansiblex Spec](Stargate_Ansiblex_Spec.md) (4 shared connections)
+- [Map Route Reveal](Map_Route_Reveal.md) (4 shared connections)
+- [Alliance Packs Spec](Alliance_Packs_Spec.md) (2 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (2 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (2 shared connections)
 - [Force Projection Spec](Force_Projection_Spec.md) (2 shared connections)
 - [Intel Patterns Spec](Intel_Patterns_Spec.md) (2 shared connections)
+- [Main Character Spec](Main_Character_Spec.md) (2 shared connections)
 - [Map Jb Shimmer Spec](Map_Jb_Shimmer_Spec.md) (2 shared connections)
 - [Map Route Reveal Spec](Map_Route_Reveal_Spec.md) (2 shared connections)
 - [Map Routes Spec](Map_Routes_Spec.md) (2 shared connections)
 - [Map Selection Spec](Map_Selection_Spec.md) (2 shared connections)
 - [Map Sky Spec](Map_Sky_Spec.md) (2 shared connections)
-- [Map Skybox Spec](Map_Skybox_Spec.md) (2 shared connections)
-- [Map Solar System Spec](Map_Solar_System_Spec.md) (2 shared connections)
 
 ## Source Files
 
@@ -60,7 +60,6 @@
 - `e2e/jabber.spec.js`
 - `e2e/market.spec.js`
 - `e2e/mining.spec.js`
-- `e2e/navigation.spec.js`
 - `e2e/pi.spec.js`
 - `e2e/shopping-lists.spec.js`
 - `e2e/station-checkout.spec.js`

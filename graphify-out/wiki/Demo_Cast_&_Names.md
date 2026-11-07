@@ -1,11 +1,16 @@
 # Demo Cast & Names
 
-> 13 nodes · cohesion 0.15
+> 18 nodes · cohesion 0.14
 
 ## Key Concepts
 
 - **cast.js** (26 connections) — `src/demo/cast.js`
+- **allianceInfo()** (5 connections) — `src/demo/cast.js`
+- **corpInfo()** (5 connections) — `src/demo/cast.js`
+- **nameOf()** (5 connections) — `src/demo/cast.js`
 - **VAELIN** (3 connections) — `src/demo/cast.js`
+- **_ticker()** (3 connections) — `src/demo/cast.js`
+- **resolveNames()** (3 connections) — `src/demo_fixtures.js`
 - **VAELIN_CORP** (2 connections) — `src/demo/cast.js`
 - **NPC_CORPS** (2 connections) — `src/demo/cast.js`
 - **PILOT_BY_ID** (2 connections) — `src/demo/cast.js`
@@ -20,23 +25,24 @@
 
 ## Relationships
 
-- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (9 shared connections)
-- [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
+- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (12 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo World Test](Demo_World_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/demo/cast.js`
+- `src/demo_fixtures.js`
 
 ## Audit Trail
 
-- EXTRACTED: 39 (91%)
-- INFERRED: 4 (9%)
+- EXTRACTED: 56 (88%)
+- INFERRED: 8 (12%)
 - AMBIGUOUS: 0 (0%)
 
 ---

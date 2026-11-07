@@ -12,11 +12,11 @@
 - **lineTimestamp()** (4 connections) — `src/intel/chatlog_reader.js`
 - **scanForSystem()** (4 connections) — `src/intel/local_position.js`
 - **createLocalPositionWatcher()** (4 connections) — `src/intel/local_position.js`
+- **line()** (4 connections) — `test/intel.test.js`
+- **status()** (3 connections) — `src/demo/universe.js`
 - **channelOf()** (3 connections) — `src/intel/chatlog_reader.js`
 - **discoverChannels()** (3 connections) — `src/intel/chatlog_reader.js`
 - **newestLocalPerCharacter()** (3 connections) — `src/intel/local_position.js`
-- **line()** (3 connections) — `test/intel.test.js`
-- **status()** (2 connections) — `src/demo/universe.js`
 - **newestPerChannel()** (2 connections) — `src/intel/chatlog_reader.js`
 - **readHeader()** (2 connections) — `src/intel/chatlog_reader.js`
 - **detectOnlineCharacters()** (2 connections) — `src/intel/chatlog_reader.js`
@@ -34,12 +34,12 @@
 ## Relationships
 
 - [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
-- [Intel Service](Intel_Service.md) (2 shared connections)
-- [Chart Umd (countUp)](Chart_Umd_%28countUp%29.md) (2 shared connections)
+- [Intel Test](Intel_Test.md) (3 shared connections)
+- [Jump Gate List](Jump_Gate_List.md) (2 shared connections)
+- [Chart Umd (_update)](Chart_Umd_%28_update%29.md) (2 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
 - [Chart Umd (registerCharacterHandlers)](Chart_Umd_%28registerCharacterHandlers%29.md) (1 shared connections)
 - [Ics Parse](Ics_Parse.md) (1 shared connections)
-- [Intel Test](Intel_Test.md) (1 shared connections)
 
 ## Source Files
 
@@ -51,8 +51,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 77 (70%)
-- INFERRED: 33 (30%)
+- EXTRACTED: 77 (69%)
+- INFERRED: 35 (31%)
 - AMBIGUOUS: 0 (0%)
 
 ---

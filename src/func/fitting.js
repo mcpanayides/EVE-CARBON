@@ -23,9 +23,16 @@
 // Ascendancy, Halo, Rapture, Hydra, Genolution, HG/LG navy sensor sets…) apply
 // their full set mechanic: every piece's set multiplier amplifies all worn
 // pieces of that set, Omega included.
-// Not simulated: cap-use bonuses, reload time, EWAR strength, boosters (drugs),
-// and specialization-skill (T2) damage. Everything else is exact SDE values
-// with EVE's stacking-penalty formula.
+// Fitting bonuses a hull, subsystem or rig gives OTHER modules (the attack
+// battlecruisers' 95% powergrid role bonus, plate mass, weapon-rig powergrid
+// drawbacks, rig capacitor bonuses) come from CCP's own modifierInfo
+// (dgmEffectModifiers) rather than trait text. Every rig drawback applies,
+// shrunk by its rigging skill; Synchronizer rigs scale with their matching
+// faction modules; 'Vigilant' Vital modules add their burst while active.
+// Not simulated: reload time, EWAR strength, drone speed, boosters (drugs).
+// Everything else is exact SDE values, with EVE's stacking penalty applied
+// where the game applies it — on non-stackable attributes only, one chain per
+// operator.
 
 const FIT_SLOTS = [
   { key: 'high', label: 'High Slots' },
@@ -87,6 +94,13 @@ const FIT_SK = {
   // Cap-use skills: Controlled Bursts (turrets −5%), Fuel Conservation (AB −10%),
   // High Speed Maneuvering (MWD −5%), Shield Compensation (boosters −2%)
   ctrlBursts: 3316, fuelCons: 3451, hsm: 3454, shieldComp: 21059,
+  // Armor Layering: −5%/lvl armour plate mass (massPenaltyReduction 1856 on
+  // group 329 — dgmEffectModifiers, verified).
+  armorLayering: 33078,
+  // Rigging skills: −10%/lvl to the drawback of the rig groups each covers
+  // (rigDrawbackBonus 1139 = −10 on every one). See FIT_RIG_DRAWBACK_SKILL.
+  rigArmor: 26253, rigAstro: 26254, rigDrones: 26255, rigElec: 26256, rigProj: 26257,
+  rigEnergy: 26258, rigHybrid: 26259, rigLauncher: 26260, rigShield: 26261, rigSync: 96100,
 };
 const FIT_SK_IDS = Object.values(FIT_SK);
 
@@ -394,6 +408,11 @@ async function _fitLoadSkillProfile() {
   for (const r of (_fitState.hull?.traits || [])) if (r.skillID > 0) ids.add(r.skillID);
   for (const m of _fitState.modules.subsystem || []) {
     if (m) for (const r of (m.f?.traits || [])) if (r.skillID > 0) ids.add(r.skillID);
+  }
+  // …and the per-level fitting bonuses (Talos Navy Issue plate mass) theirs.
+  for (const r of (_fitState.hull?.fittingMods || [])) if (r.scaleSkill) ids.add(r.scaleSkill);
+  for (const m of _fitState.modules.subsystem || []) {
+    if (m) for (const r of (m.f?.fittingMods || [])) if (r.scaleSkill) ids.add(r.scaleSkill);
   }
   const want = [...ids].filter(id => !s.fetched.has(id));
   if (!want.length) return;
@@ -832,8 +851,13 @@ function _fitPassesFilters(t) {
     if (!t.slot || !(effS[t.slot] > 0)) return false;
     if (_fitFilled(t.slot).length >= effS[t.slot]) return false;
     const u = _fitComputeUsage(), eff = _fitEffOutputs();
-    if ((t.cpu || 0) > eff.cpu - u.cpu + 1e-6) return false;
-    if ((t.pg  || 0) > eff.pg  - u.pg  + 1e-6) return false;
+    // What the module would cost ON THIS FIT — an Oracle Navy Issue takes a Mega
+    // Pulse Laser at 5% of its powergrid, so the raw 2,750 MW would hide the very
+    // guns the hull is for. The tree row carries its group and required skills.
+    const need = _fitModuleCpuPg({ cpu: t.cpu, pg: t.pg, hardpoint: t.hp, f: {
+      groupId: t.groupId, attrs: Object.fromEntries((t.sk || []).map(([id], i) => [[182, 183, 184][i], id])) } });
+    if (need.cpu > eff.cpu - u.cpu + 1e-6) return false;
+    if (need.pg  > eff.pg  - u.pg  + 1e-6) return false;
     if (t.hp === 'turret'   && u.turret   >= effS.turret)   return false;
     if (t.hp === 'launcher' && u.launcher >= effS.launcher) return false;
   }
@@ -1070,6 +1094,10 @@ function _fitTubeUnits(i, delta) {
 function _fitDroneCtrlRange() {
   let r = 20000 + 5000 * _fitSkill(FIT_SK.avionics) + 3000 * _fitSkill(FIT_SK.advAvionics);
   for (const m of _fitAllMods()) if (m.state !== 'offline' && m.f?.attrs?.[459]) r += m.f.attrs[459];
+  // Dread Guristas Synchronizer: −60% control range (PostPercent on a stackable
+  // character attribute, after the flat adds; the set count never touches it).
+  const sync = _fitSync();
+  if (sync?.a[6397]) r *= 1 + sync.a[6397] / 100;
   return r;
 }
 // Max drones in space = Drones skill level (0 with no skills, 5 at V).
@@ -1133,7 +1161,13 @@ function _fitDroneSim() {
   // plus Drone Interfacing (+10%/lvl, never penalized), hull drone-damage traits
   // (Gila/Ishtar/Rattlesnake…) and drone-tuner implants.
   const dda = [];
-  for (const m of _fitAllMods()) if (m.state !== 'offline' && m.f?.attrs?.[1255]) dda.push(m.f.attrs[1255] / 100);
+  for (const m of _fitAllMods()) {
+    if (m.state !== 'offline' && m.f?.groupId !== FIT_SYNC_GROUP && m.f?.attrs?.[1255]) dda.push(m.f.attrs[1255] / 100);
+  }
+  // Dread Guristas Synchronizer: the same attribute, operator and target as a
+  // DDA, so the same chain — with its set points added.
+  const sync = _fitSync();
+  if (sync?.a[1255]) dda.push(sync.v(1255) / 100);
   const dmgMult = _fitStackChain(dda) * _fitSkMult('interfacing', 10) * _fitImplantBonuses().droneDmg;
   for (const d of _fitState.drones) {
     if (!d.active || _fitIsFighter(d)) continue;                     // fighters live in tubes now
@@ -1267,8 +1301,28 @@ function _fitCanFit(facts, ignoreMod = null) {
         : `No free ${facts.hardpoint} hardpoints (${used}/${max}).`;
     }
   }
+  // Rig size (attr 1547) has to match the hull's: Synchronizers come in all three
+  // sizes, and a Large one does not go on a frigate.
+  if (facts.slot === 'rig') {
+    const want = hull.rigSize || 0, size = facts.attrs?.[1547] || 0;
+    if (want && size && want !== size) {
+      return `${facts.name} is a ${FIT_RIG_SIZE[size] || 'different'} rig — ${hull.name} takes ${FIT_RIG_SIZE[want] || 'other'} rigs.`;
+    }
+  }
+  // Per-ship limits the game enforces: maxGroupFitted (1544 — one Synchronizer,
+  // one Damage Control) and maxTypeFitted (2431 — one of each 'Vigilant' Vital).
+  const fitted = _fitAllMods().filter(m => m.ref !== ignoreMod);
+  const maxG = facts.attrs?.[1544];
+  if (maxG && fitted.filter(m => m.f?.groupId === facts.groupId).length >= maxG) {
+    return maxG === 1 ? `Only one ${facts.groupName} per ship.` : `Only ${maxG} ${facts.groupName} modules per ship.`;
+  }
+  const maxT = facts.attrs?.[2431];
+  if (maxT && fitted.filter(m => m.id === facts.id).length >= maxT) {
+    return maxT === 1 ? `Only one ${facts.name} per ship.` : `Only ${maxT} of ${facts.name} per ship.`;
+  }
   return null;
 }
+const FIT_RIG_SIZE = { 1: 'small', 2: 'medium', 3: 'large', 4: 'capital' };
 
 // Subsystems have a CANONICAL position: attr 1366 (125=Core, 126=Defensive, …)
 // maps to rack index. Fitting one of the same category swaps it in place — never
@@ -1291,13 +1345,15 @@ function _fitAddModule(facts, atIdx = null) {
 }
 
 // Build a fitted-module record. `f` keeps the FULL facts (range/heat/bonus attrs)
-// for the sim engine. Activatable modules default to 'active'; passive to 'online'.
+// for the sim engine. Activatable modules default to 'active'; passive to 'online'
+// — and so do the 'Vigilant' Vital modules, whose activation is a 20-second burst
+// rather than something the ship runs (see _fitIsAberrant).
 function _fitMod(facts) {
   const activatable  = !!facts.activatable;
   const overloadable = !!facts.overloadable;
   return { id: facts.id, name: facts.name, cpu: facts.cpu, pg: facts.pg, hardpoint: facts.hardpoint,
            dmgMult: facts.dmgMult, rof: facts.rof, charge: null, f: facts,
-           activatable, overloadable, state: activatable ? 'active' : 'online' };
+           activatable, overloadable, state: activatable && !_fitIsAberrant(facts) ? 'active' : 'online' };
 }
 
 // A copy of a fitted module: same type, same state, same loaded charge.
@@ -1559,12 +1615,13 @@ function _fitTraitMatches(rec, rsSet, kindWord) {
   return rec.text.includes(kindWord);
 }
 
-// Required-skill id set (requiredSkill1-3 = attrs 182/183/184) for facts objects.
+// Required-skill id set (requiredSkill1-6 = attrs 182/183/184/1285/1289/1290)
+// for facts objects — what dogma's LocationRequiredSkillModifier matches on.
 function _fitRsSet(...factsList) {
   const s = new Set();
   for (const f of factsList) {
     const a = f?.attrs || {};
-    for (const id of [a[182], a[183], a[184]]) if (id) s.add(id);
+    for (const id of [a[182], a[183], a[184], a[1285], a[1289], a[1290]]) if (id) s.add(id);
   }
   return s;
 }
@@ -1624,6 +1681,250 @@ function _fitTraitRes(layer, res) {
     for (const t of rec.dtypes) if (res[t] != null) res[t] *= k;
   }
   return res;
+}
+
+// A plain product of (1 + fraction) — for chains on STACKABLE attributes, which
+// take no stacking penalty however many modules feed them. The SDE's flag, not a
+// guess: cpuOutput, powerOutput, shield/armor/hull HP, capacitor capacity and
+// recharge, cargo capacity, module power/cpu/capacitorNeed and duration are all
+// stackable=1, which is why three Co-Processors are 1.1³ and three Reinforced
+// Bulkheads are 1.25³ in game.
+function _fitPlainChain(fractions) {
+  return fractions.reduce((prod, v) => prod * (1 + v), 1);
+}
+
+// ─── Module-on-module modifiers: hull, subsystems and rigs ────────────────────
+// Rows from main's _fitHullFittingMods — CCP's own modifierInfo — for what a
+// hull, an online subsystem or a rig does to OTHER modules:
+//   • hull / subsystem → module powergrid (30), CPU (50), plate mass (796): the
+//     attack battlecruisers' 95% powergrid / 50% CPU role bonuses, T3 fitting
+//     reductions, plate-mass bonuses (per level when the row has a scaleSkill).
+//     Hull capacitor bonuses stay with the trait engine, which already applies
+//     them — main sends attr 6 for rigs only, so nothing counts twice.
+//   • rigs → module powergrid, CPU and capacitor need (6): weapon rigs' +10%
+//     powergrid drawback, launcher rigs' +10% CPU, the Imperial Navy
+//     Synchronizer's laser capacitor bonus, the True Sansha afterburner cost.
+// All four targets are stackable, so the rows multiply plainly.
+const FIT_DRAWBACK_ATTR = 1138;     // drawback — what rigging skills shrink
+const FIT_PLATE_GROUP   = 329;      // Armor Plate
+
+function _fitModRows() {
+  const hull = _fitState.hull;
+  if (!hull) return [];
+  const out = [];
+  const scaled = (r) => (r.scaleSkill ? r.value * _fitSkill(r.scaleSkill) : r.value);
+  for (const r of hull.fittingMods || []) out.push({ ...r, k: scaled(r) });
+  for (const m of _fitState.modules.subsystem || []) {
+    if (!m || m.state === 'offline') continue;
+    for (const r of m.f?.fittingMods || []) out.push({ ...r, k: scaled(r) });
+  }
+  const sync = _fitSync();
+  for (const m of _fitState.modules.rig || []) {
+    if (!m || m.state === 'offline') continue;
+    const dk = _fitRigDrawbackMult(m.f);
+    for (const r of m.f?.fittingMods || []) {
+      let k = r.value;
+      if (r.byAttr === FIT_DRAWBACK_ATTR) k *= dk;
+      else if (sync && sync.m === m) k = sync.v(r.byAttr);
+      out.push({ ...r, k });
+    }
+  }
+  return out;
+}
+
+// Does a row reach this module? LocationGroupModifier rows name a group,
+// LocationRequiredSkillModifier rows a skill the module must require.
+function _fitModRowHits(r, f) {
+  if (r.group) return f?.groupId === r.group;
+  if (r.skill) return _fitRsSet(f).has(r.skill);
+  return false;
+}
+
+// `base` (module attribute `attr`) after every matching row, in dogma's operator
+// order: PreMul/PreDiv, ModAdd/ModSub, then PostMul/PostDiv and PostPercent.
+function _fitApplyModRows(base, attr, f, rows = _fitModRows()) {
+  let pre = 1, add = 0, post = 1, pct = 1;
+  for (const r of rows) {
+    if (r.attr !== attr || !_fitModRowHits(r, f)) continue;
+    switch (r.op) {
+      case 0: pre *= r.k; break;
+      case 1: if (r.k) pre /= r.k; break;
+      case 2: add += r.k; break;
+      case 3: add -= r.k; break;
+      case 4: post *= r.k; break;
+      case 5: if (r.k) post /= r.k; break;
+      case 6: pct *= 1 + r.k / 100; break;
+      default: break;   // assignments — none target these attributes
+    }
+  }
+  return (base * pre + add) * post * pct;
+}
+
+// Effective CPU / powergrid of one fitted module: the rows above, then Weapon
+// Upgrades (−5%/lvl CPU) and Advanced Weapon Upgrades (−2%/lvl PG) on weapons.
+function _fitModuleCpuPg(m, rows = _fitModRows()) {
+  const weapon = !!m.hardpoint;
+  return {
+    cpu: _fitApplyModRows(m.cpu || 0, 50, m.f, rows) * (weapon ? _fitSkMult('wu', -5) : 1),
+    pg:  _fitApplyModRows(m.pg  || 0, 30, m.f, rows) * (weapon ? _fitSkMult('awu', -2) : 1),
+  };
+}
+
+// Mass a module adds (attr 796): plates shed it through hull/subsystem rows
+// (Talos Navy Issue −15%/lvl, Proteus Augmented Plating −37.5%) and Armor
+// Layering (−5%/lvl). Prop mods carry 796 too; every plate row names group 329,
+// so their mass is left alone.
+function _fitMassAdd(f, rows = _fitModRows()) {
+  const a = f?.attrs || {};
+  if (!a[796]) return 0;
+  let v = _fitApplyModRows(a[796], 796, f, rows);
+  if (f.groupId === FIT_PLATE_GROUP) v *= _fitSkMult('armorLayering', -5);
+  return v;
+}
+
+// ─── Rig drawbacks ─────────────────────────────────────────────────────────────
+// Every rig carries a drawback (attr 1138). Each rigging skill shrinks the
+// drawback of the rig groups it covers by 10%/lvl, and each 'Xyston' Cyber
+// Rigging implant by a further 20% (rigDrawbackBonus 1139). The groups per skill
+// are the skills' own rigDrawbackReduction* effects (dgmEffectModifiers).
+const FIT_RIG_DRAWBACK_SKILL = {
+  773: FIT_SK.rigArmor, 1232: FIT_SK.rigArmor,           // Rig Armor, Rig Resource Processing
+  782: FIT_SK.rigAstro, 1308: FIT_SK.rigAstro,           // Rig Navigation, Rig Anchor
+  778: FIT_SK.rigDrones,
+  1234: FIT_SK.rigElec, 786: FIT_SK.rigElec, 1233: FIT_SK.rigElec,   // Targeting, Electronic Systems, Scanning
+  777: FIT_SK.rigProj, 775: FIT_SK.rigEnergy, 776: FIT_SK.rigHybrid,
+  779: FIT_SK.rigLauncher, 774: FIT_SK.rigShield,
+  5140: FIT_SK.rigSync,                                  // Rig Synchronizer
+};
+// The implants carry the same effect names as the skills.
+const FIT_RIG_DRAWBACK_EFFECT = {
+  rigDrawbackReductionArmor: [773, 1232], rigDrawbackReductionAstronautics: [782, 1308],
+  rigDrawbackReductionDrones: [778], rigDrawbackReductionElectronic: [1234, 786, 1233],
+  rigDrawbackReductionProjectile: [777], rigDrawbackReductionEnergyWeapon: [775],
+  rigDrawbackReductionHybrid: [776], rigDrawbackReductionLauncher: [779],
+  rigDrawbackReductionShield: [774], rigDrawbackReductionModuleSet: [5140],
+};
+function _fitRigDrawbackMult(f) {
+  const g = f?.groupId;
+  let k = 1;
+  const sk = FIT_RIG_DRAWBACK_SKILL[g];
+  if (sk) k *= 1 - 0.10 * _fitSkill(sk);
+  for (const imp of _fitState.implants || []) {
+    const v = imp?.f?.attrs?.[1139];
+    if (v && (imp.f.effects || []).some(e => (FIT_RIG_DRAWBACK_EFFECT[e] || []).includes(g))) k *= 1 + v / 100;
+  }
+  return k;
+}
+// Drawbacks that land on the SHIP — every effect in the SDE that applies attr
+// 1138 to a ship attribute. The module-scoped ones (weapon rigs' powergrid,
+// launcher rigs' CPU, repair rigs' powergrid) arrive as rows instead.
+const FIT_RIG_DRAWBACKS = {
+  drawbackArmorHP:           'armorHp',
+  drawbackShieldCapacity:    'shieldHp',
+  drawbackCPUOutput:         'cpuOut',      // drone rigs, every Synchronizer
+  moduleBonusCapitalDroneDurabilityEnhancer: 'cpuOut',
+  moduleBonusCapitalDroneScopeChip:          'cpuOut',
+  moduleBonusCapitalDroneSpeedAugmentor:     'cpuOut',
+  drawbackSigRad:            'sig',         // signatureRadius — penalised
+  drawbackAgility:           'agi',         // agility — penalised (armour rigs)
+  drawbackCapacitorRecharge: 'capTime',
+  drawbackCargoCapacity:     'cargo',
+  drawbackWarpSpeed:         'warp',        // warpSpeedMultiplier — penalised
+};
+// Ship-level drawback fractions by stat, rigging skills and implants applied.
+function _fitShipDrawbacks() {
+  const out = {};
+  for (const m of _fitState.modules.rig || []) {
+    if (!m || m.state === 'offline') continue;
+    const d = m.f?.attrs?.[FIT_DRAWBACK_ATTR];
+    if (!d) continue;
+    const k = _fitRigDrawbackMult(m.f);
+    for (const e of m.f.effects || []) {
+      const stat = FIT_RIG_DRAWBACKS[e];
+      if (stat) (out[stat] || (out[stat] = [])).push((d * k) / 100);
+    }
+  }
+  return out;
+}
+
+// ─── Synchronizer rigs (Fractured Skies) ──────────────────────────────────────
+// One per ship (maxGroupFitted 1). Each rig carries a set attribute
+// (rigSet…Bonus, 0) and every matching faction module a rigSet…Module = 1:
+// the module adds its 1 to the rig's set attribute, and the rig's own effect
+// adds that to each BONUS — a flat +1 percentage point per module, gains up
+// (modAdd) and reductions further down (modSub). Drawbacks and penalties are
+// not in that effect and never move. Verified on every Large rig in the SDE.
+const FIT_SYNC_GROUP = 5140;
+const FIT_SYNC_SETS = {   // rig's set attribute → the attribute its modules carry
+  6316: 6312,   // Imperial Navy
+  6317: 6313,   // Caldari Navy
+  6318: 6314,   // Federation Navy
+  6319: 6315,   // Republic Fleet
+  6377: 6372,   // Dark Blood
+  6378: 6373,   // True Sansha
+  6379: 6374,   // Dread Guristas
+  6380: 6375,   // Shadow Serpentis
+  6381: 6376,   // Domination
+};
+// Every bonus some rig's set effect scales.
+const FIT_SYNC_SCALED = new Set([
+  335, 1079, 317, 6405,              // Imperial Navy: armour HP, capacitor, laser cap use, laser damage
+  20, 6407, 337, 309,                // Caldari Navy: missile velocity, missile damage, shield HP, lock range
+  6404, 327, 806, 767,               // Federation Navy: hybrid damage, hull HP, armour reps, tracking
+  6406, 315, 312,                    // Republic Fleet: projectile damage, velocity, booster cycle
+  349, 624, 6398,                    // Domination: falloff, warp speed, signature
+  1255, 294, 828, 984, 985, 986, 987,   // Dread Guristas: drone damage, ECM, shield resists
+  6393,                              // Shadow Serpentis: web resistance
+  6389, 6390,                        // True Sansha: afterburner speed and overheat
+  6384, 6385, 6386, 6387,            // Dark Blood: neut/nos amount, overheat, range
+]);
+// Turret damage / tracking / falloff by weapon flavor — the rig's own effect
+// names say which group each one targets.
+const FIT_SYNC_TURRET = {
+  energy:     { dmg: 6405, track: 'trackingSpeedBonusEffectLasers',      fall: 'falloffBonusEffectLasers' },
+  hybrid:     { dmg: 6404, track: 'trackingSpeedBonusEffectHybrids',     fall: 'falloffBonusEffectHybrids' },
+  projectile: { dmg: 6406, track: 'trackingSpeedBonusEffectProjectiles', fall: 'falloffBonusEffectProjectiles' },
+};
+
+// The fitted Synchronizer, the matching modules counted, and v(attr): a bonus
+// with its set points added (penalties come back untouched). null when none.
+function _fitSync() {
+  let m = null;
+  for (const x of _fitState.modules.rig || []) {
+    if (x && x.state !== 'offline' && x.f?.groupId === FIT_SYNC_GROUP) { m = x; break; }
+  }
+  if (!m) return null;
+  const a = m.f.attrs || {};
+  const setAttr = Object.keys(FIT_SYNC_SETS).find(id => a[id] !== undefined);
+  const modAttr = setAttr ? FIT_SYNC_SETS[setAttr] : null;
+  // The set attribute's effect is passive: any ONLINE module counts.
+  let n = 0;
+  if (modAttr) {
+    for (const x of _fitAllMods()) if (x.state !== 'offline' && x.f?.attrs?.[modAttr]) n += x.f.attrs[modAttr];
+  }
+  const v = (id) => {
+    const b = a[id] || 0;
+    if (!b || !FIT_SYNC_SCALED.has(id)) return b;
+    return b > 0 ? b + n : b - n;
+  };
+  return { m, a, n, effects: new Set(m.f.effects || []), v };
+}
+
+// ─── 'Vigilant' Vital modules (Aberrant, Fractured Skies) ─────────────────────
+// A weaker-than-Tech-I passive that applies whenever the module is online, plus
+// a burst while active: 20 s (attr 73), then 2 minutes before it can run again
+// (669). The burst attribute is what makes one: 6481 overdrive velocity % ·
+// 6482 shield boost amplification % · 6483 drone velocity % (drone speed is
+// not simulated) · 6484 capacitor recharge multiplier. One of each per ship
+// (maxTypeFitted 2431). They fit ONLINE by default: a 20-second burst every
+// 140 is not the ship's standing speed.
+const FIT_ABERRANT_ATTRS = [6481, 6482, 6483, 6484];
+function _fitIsAberrant(f) {
+  const a = f?.attrs || {};
+  return FIT_ABERRANT_ATTRS.some(id => a[id] != null);
+}
+function _fitBursting(m) {
+  return (m.state === 'active' || m.state === 'overheated') && _fitIsAberrant(m.f);
 }
 
 // ─── Implants ──────────────────────────────────────────────────────────────────
@@ -1930,14 +2231,16 @@ function _fitAllMods() {
   return out;
 }
 
-// Range/tracking modifier chains for one weapon kind ('turret' | 'missile').
+// Range/tracking modifier chains for one weapon kind ('turret' | 'missile') and
+// flavor ('energy' | 'hybrid' | 'projectile' | 'missile' …).
 // Each returned array is a list of bonus FRACTIONS to feed the stacking chain.
-function _fitRangeBonuses(kind) {
+function _fitRangeBonuses(kind, flavor = null) {
   const opt = [], fall = [], track = [], vel = [], flight = [];
   for (const m of _fitAllMods()) {
     const f = m.f || {};
     const b = f.bonus || {};
     const g = (f.groupName || '').toLowerCase();
+    if (f.groupId === FIT_SYNC_GROUP) continue;          // scaled by its set — below
     const heatK = _fitIsHot(m.ref) && f.heat?.trackModBonus ? 1 + f.heat.trackModBonus / 100 : 1;
 
     if (kind === 'turret') {
@@ -1957,8 +2260,11 @@ function _fitRangeBonuses(kind) {
         if (fB) fall.push(fB * heatK / 100);
         if (tB) track.push(tB * heatK / 100);
       }
-      // Weapon rigs (Locus Coordinator = optimal, Metastasis = tracking, …).
-      if (m._slot === 'rig' && g.includes('rig') && !g.includes('rig launcher')) {
+      // Weapon rigs (Locus Coordinator = optimal, Ambit Extension = falloff,
+      // Metastasis Adjuster = tracking). Each one's effect targets ONE weapon
+      // group, so a laser rig does nothing for blasters — this used to apply
+      // every turret rig to every turret.
+      if (m._slot === 'rig' && (flavor ? _fitModMatchesFlavor(f.groupName, flavor) : g.includes('rig') && !g.includes('rig launcher'))) {
         if (b.optimal)  opt.push(b.optimal / 100);
         if (b.falloff)  fall.push(b.falloff / 100);
         if (b.tracking) track.push(b.tracking / 100);
@@ -1982,6 +2288,18 @@ function _fitRangeBonuses(kind) {
       }
     }
   }
+  // Synchronizer: tracking / falloff for the one turret group its effects name,
+  // missile velocity on every missile (the Caldari Navy rig) — same attributes
+  // and operators as the modules above, so the same chains.
+  const sync = _fitSync();
+  if (sync && kind === 'turret') {
+    const t = FIT_SYNC_TURRET[flavor];
+    if (t && sync.a[767] && sync.effects.has(t.track)) track.push(sync.v(767) / 100);
+    if (t && sync.a[349] && sync.effects.has(t.fall))  fall.push(sync.v(349) / 100);
+  }
+  if (sync && kind === 'missile' && sync.a[20] && sync.effects.has('missileSkillMissileProjectileVelocityBonus')) {
+    vel.push(sync.v(20) / 100);
+  }
   return { opt, fall, track, vel, flight };
 }
 
@@ -2002,6 +2320,16 @@ function _fitDamageBonuses(flavor) {
     if (dm)        dmg.push(dm - 1);
     if (f.rofMult) rofM.push(f.rofMult - 1);   // 0.895 → −0.105 (faster cycle)
   }
+  // Synchronizer damage. The rig turns its percent into a hidden multiplier
+  // (rigHidden…DamageMultiplier) and applies it with the operator a Heat Sink
+  // uses on the turret's damageMultiplier (PostMul), or a Ballistic Control
+  // System on the pilot's missileDamageMultiplier (PreMul) — so it joins that
+  // stacking chain rather than getting a clean run of its own.
+  const sync = _fitSync();
+  if (sync) {
+    const id = flavor === 'missile' ? 6407 : FIT_SYNC_TURRET[flavor]?.dmg;
+    if (id && sync.a[id]) dmg.push(sync.v(id) / 100);
+  }
   return { dmg, rofM };
 }
 
@@ -2012,6 +2340,9 @@ function _fitCalUsed() {
 
 // Effective hull CPU/PG output: subsystems ADD raw output (T3 hulls get most of
 // theirs this way), then Co-Processors / RCU / PDS / rigs multiply, then skills.
+// cpuOutput and powerOutput are stackable in the SDE, so none of it is
+// stacking-penalised — three Co-Processor IIs are 1.1³, not 1.1 × 1.087 × 1.057.
+// Rig drawbacks on CPU output (drone rigs, every Synchronizer) multiply in too.
 function _fitEffOutputs() {
   const hull = _fitState.hull;
   const cpuB = [], pgB = [];
@@ -2029,10 +2360,11 @@ function _fitEffOutputs() {
     if (f.cpuOutBonus) cpuB.push(f.cpuOutBonus / 100);
     if (f.pgOutBonus)  pgB.push(f.pgOutBonus / 100);
   }
+  cpuB.push(...(_fitShipDrawbacks().cpuOut || []));
   const I = _fitImplantBonuses();
   return {
-    cpu: (hull.output.cpu + cpuAdd) * _fitStackChain(cpuB) * _fitSkMult('cpuMgmt', 5) * I.cpuOut,
-    pg:  (hull.output.pg  + pgAdd)  * _fitStackChain(pgB)  * _fitSkMult('pgMgmt', 5)  * I.pgOut,
+    cpu: (hull.output.cpu + cpuAdd) * _fitPlainChain(cpuB) * _fitSkMult('cpuMgmt', 5) * I.cpuOut,
+    pg:  (hull.output.pg  + pgAdd)  * _fitPlainChain(pgB)  * _fitSkMult('pgMgmt', 5)  * I.pgOut,
   };
 }
 
@@ -2060,7 +2392,7 @@ function _fitWeaponSim(heatAll = false) {
   for (const g of groups.values()) {
     const { m, f, count, hot, kind } = g;
     const flavor = _fitWeaponFlavor(f.groupName);
-    const rb  = _fitRangeBonuses(kind);
+    const rb  = _fitRangeBonuses(kind, flavor);
     const db  = _fitDamageBonuses(flavor);
     const c   = m.charge, cf = c?.f || {};
     // Hull-trait matching context: skills required by the weapon OR its charge
@@ -2761,12 +3093,26 @@ function _fitShowTip(el, slot, idx) {
       if (a[105]) rows.push(['Warp scramble', `−${a[105]} pt${a[105] > 1 ? 's' : ''}`]);
       if (a[20] < 0) rows.push(['Target velocity', `${a[20]}%`]);
       if (a[97]) rows.push(['Neutralized', `${_fitNum(a[97])} GJ`]);
-      if (a[73] > 0 && m.activatable) rows.push(['Cycle', `${_fitNum(a[73] / 1000)} s`]);
+      // Synchronizer: how many matching modules are feeding it right now.
+      if (m.f?.groupId === FIT_SYNC_GROUP) {
+        const s = _fitSync();
+        if (s && s.m === m) rows.push(['Matching modules', s.n ? `${s.n} · +${s.n}% to each bonus` : 'none fitted']);
+      }
+      // A rig's drawback after rigging skills and Cyber Rigging implants.
+      if (slot === 'rig' && a[FIT_DRAWBACK_ATTR]) {
+        const d = a[FIT_DRAWBACK_ATTR] * _fitRigDrawbackMult(m.f);
+        rows.push(['Drawback', `${d > 0 ? '+' : '−'}${_fitNum(Math.abs(d))}% after skills`, 'dim']);
+      }
+      if (_fitIsAberrant(m.f)) {
+        rows.push(['Burst', `${_fitNum((a[73] || 0) / 1000)} s, then ${_fitNum((a[669] || 0) / 60000)} min cooldown`]);
+        if (a[6483]) rows.push(['Drone speed', 'not simulated', 'dim']);
+      } else if (a[73] > 0 && m.activatable) rows.push(['Cycle', `${_fitNum(a[73] / 1000)} s`]);
     }
+    const use = _fitModuleCpuPg(m);   // after hull bonuses, rig drawbacks and skills
     tip.innerHTML = `
       <div class="fw-tip-name">${_fitEsc(m.name)}</div>
       ${m.charge ? `<div class="fw-tip-sub">↳ ${_fitEsc(m.charge.name)}</div>` : ''}
-      <div class="fw-tip-sub">state: <b class="fw-tip-${m.state}">${m.state}</b> · ${_fitNum(m.cpu)} tf · ${_fitNum(m.pg)} MW</div>
+      <div class="fw-tip-sub">state: <b class="fw-tip-${m.state}">${m.state}</b> · ${_fitNum(use.cpu)} tf · ${_fitNum(use.pg)} MW</div>
       ${rows.length ? `<div class="fw-tip-grid">${rows.map(([k, v, cls]) =>
         `<span class="fw-tip-k">${k}</span><span class="fw-tip-v ${cls || ''}">${_fitEsc(String(v))}</span>`).join('')}</div>` : ''}
       ${m.state === 'overheated' ? `<div class="fw-tip-sub" style="color:#ff5b50;">⚠ heat bleeds into adjacent slots — buffer with empty/passive slots</div>` : ''}
@@ -3385,13 +3731,19 @@ function _fitShipDerived(buffs = null) {
   // the penalized chain, and its "Shield Boost Bonus" (attr 548, the same id a
   // Shield Boost Amplifier uses) was counted as an amplifier.
   const mode = _fitModeMod();
+  const modRows = _fitModRows();
 
   for (const m of _fitAllMods()) {
     if (m.state === 'offline') continue;
     if (m.f?.groupId === FIT_MODE_GROUP) continue;
+    // A Synchronizer reuses attribute ids other rigs carry (335, 337, 309,
+    // 312, 984-987…) with its set points added on top — read it below instead.
+    if (m.f?.groupId === FIT_SYNC_GROUP) continue;
     const a = m.f?.attrs || {};
     const g = (m.f?.groupName || '').toLowerCase();
-    const running = !m.ref.activatable || m.state === 'active' || m.state === 'overheated';
+    // A 'Vigilant' Vital module is activatable, but its passive half applies
+    // whenever it is online — only the burst needs it running.
+    const running = !m.ref.activatable || m.state === 'active' || m.state === 'overheated' || _fitIsAberrant(m.f);
     const hot = m.state === 'overheated';
 
     // T3 subsystems contribute raw hull stats (shield / armor / capacitor /
@@ -3408,7 +3760,7 @@ function _fitShipDerived(buffs = null) {
     // (plate/prop-mod mass, MWD cap penalty, extender HP+sig are "fitted" costs).
     // Extender/plate HP adds are scaled by module-HP hull traits ("+100% Shield
     // Extender hitpoints" role bonuses on Raven/Machariel/etc).
-    if (a[796]) flat.mass += a[796];
+    if (a[796]) flat.mass += _fitMassAdd(m.f, modRows);   // plate mass bonuses + Armor Layering
     if (a[72])  flat.shield += a[72] * _fitModHpMult(m.f);
     if (a[983]) flat.sig += a[983];
     if (a[1159]) flat.armor += a[1159] * _fitModHpMult(m.f);
@@ -3439,6 +3791,20 @@ function _fitShipDerived(buffs = null) {
     if (a[150]) add('structMult', a[150] - 1);
     if (a[147]) add('capMult',    a[147] - 1);
     if (a[144]) add('capTime',    a[144] - 1);
+    // Rig percents that nothing read: Semiconductor Memory Cell (1079, capacitor),
+    // Capacitor Control Circuit (314, recharge time), Auxiliary Thrusters (315,
+    // velocity), Hyperspatial Velocity Optimizer (624, warp speed). Each is the
+    // only module family carrying its attribute.
+    if (a[1079]) add('capMult', a[1079] / 100);
+    if (a[314])  add('capTime', a[314] / 100);
+    if (a[315])  add('vel',     a[315] / 100);
+    if (a[624])  add('warp',    a[624] / 100);
+    // 'Vigilant' Vital bursts, while active: overdrive +15% velocity (the same
+    // chain as its own passive), cap recharger ×0.75 recharge time.
+    if (_fitBursting(m)) {
+      if (a[6481]) add('vel', a[6481] / 100);
+      if (a[6484]) add('capTime', a[6484] - 1);
+    }
 
     if (!running) continue;   // everything below needs the module actually running
 
@@ -3449,10 +3815,15 @@ function _fitShipDerived(buffs = null) {
     for (const [d, id] of Object.entries(RB)) {
       if (a[id]) add(`res:${layer}:${d}`, (-a[id] / 100) * heatK);
     }
+    // Direct resonances (Damage Control, Reactive Armor Hardener) are a PreMul
+    // (dgmEffects operation 0), where hardeners and membranes are a PostPercent
+    // (operation 6). The game penalises each operator's modifiers among
+    // themselves, so a Damage Control never takes a hardener's penalty — it
+    // keeps a chain of its own.
     for (const [ly, ids] of Object.entries(RES_IDS)) {
       for (const [d, idList] of Object.entries(ids)) {
         for (const id of idList) {
-          if (a[id] != null && a[id] !== 1) add(`res:${ly}:${d}`, 1 - a[id]);
+          if (a[id] != null && a[id] !== 1) add(`resPre:${ly}:${d}`, 1 - a[id]);
         }
       }
     }
@@ -3479,23 +3850,67 @@ function _fitShipDerived(buffs = null) {
     if (strAttr && a[strAttr]) add('sensor', (sMode === 'eccm' ? 2 : sMode ? 0 : 1) * (a[strAttr] / 100) * sHeat);
   }
 
+  // Rig drawbacks on the ship, shrunk by the rigging skills: armour rigs'
+  // inertia, shield rigs' signature, navigation rigs' armour, electronics rigs'
+  // shield… Each joins its stat's chain, penalised or not as the stat is.
+  const DRAWBACK_CHAIN = { armorHp: 'armorMult', shieldHp: 'shieldMult', sig: 'sig', agi: 'agi',
+                           capTime: 'capTime', cargo: 'cargoMult', warp: 'warp' };
+  for (const [stat, fracs] of Object.entries(_fitShipDrawbacks())) {
+    const key = DRAWBACK_CHAIN[stat];
+    if (key) for (const fr of fracs) add(key, fr);
+  }
+
+  // Synchronizer: every bonus with its set points (+1 per matching module),
+  // into the same chain the equivalent module or rig feeds; then its penalties,
+  // which never scale.
+  const sync = _fitSync();
+  if (sync) {
+    const { a: sa, v, effects: se } = sync;
+    if (sa[335])  add('armorMult',  v(335) / 100);          // Imperial Navy
+    if (sa[1079]) add('capMult',    v(1079) / 100);
+    if (sa[337])  add('shieldMult', v(337) / 100);          // Caldari Navy
+    if (sa[309])  add('lock',       v(309) / 100);
+    // 327 is ship hull HP on the Federation Navy rig but DRONE hit points on
+    // the Dread Guristas one — the effect says which.
+    if (sa[327] && se.has('mechanicHullHpBonusPostPercentHpShip')) add('structMult', v(327) / 100);
+    if (sa[315])  add('vel',  v(315) / 100);                // Republic Fleet, Shadow Serpentis
+    if (sa[624])  add('warp', v(624) / 100);                // Domination
+    if (sa[6398]) add('sig',  v(6398) / 100);
+    if (se.has('modifyShieldResonancePostPercentPassive')) { // Dread Guristas: shield resists, a hardener's operator
+      for (const [d, id] of Object.entries(RB)) if (sa[id]) add(`res:shield:${d}`, -v(id) / 100);
+    }
+    if (sa[6388]) add('capTime', sa[6388] / 100);           // Dark Blood: +200% recharge time
+    if (sa[6394]) add('lock',    sa[6394] / 100);           // Shadow Serpentis: −60% lock range
+    if (sa[6399]) {                                         // Domination: −30% shield, armour, hull
+      add('shieldMult', sa[6399] / 100); add('armorMult', sa[6399] / 100); add('structMult', sa[6399] / 100);
+    }
+  }
+
+  // Penalised chains: the stats whose attribute is NOT stackable in the SDE —
+  // velocity, agility, signature, lock range, scan resolution, sensor strength,
+  // warp speed, resonances.
   const mult = (key) => _fitStackChain(chains[key] || []);
-  // The same product WITHOUT the stacking penalty, for the chains that do not
-  // take one. Kept separate rather than flagged per entry so the penalised path
-  // stays exactly as it was.
-  const multNp = (key) => (chains[key] || []).reduce((prod, v) => prod * (1 + v), 1);
-  // Resonance after resist bonuses: base × Π(1 − b·penalty).
+  // Plain products for the stackable ones — shield / armour / hull HP,
+  // capacitor capacity and recharge time, cargo. These used to go through the
+  // penalised chain too, so a second Reinforced Bulkhead, Cap Recharger or
+  // Expanded Cargohold was quietly worth a fraction of the first.
+  const multNp = (key) => _fitPlainChain(chains[key] || []);
+  // Resonance after resist bonuses: base × Π(1 − b·penalty), one penalty chain
+  // per operator — PostPercent (hardeners, membranes, resist rigs) and PreMul
+  // (Damage Control, Reactive Armor Hardener) never penalise each other.
   const resOf = (layer, baseRes) => {
     const out = {};
     for (const d of ['em', 'th', 'kin', 'exp']) {
-      const bs = (chains[`res:${layer}:${d}`] || []);
-      if (baseRes[d] == null) { out[d] = bs.length ? 1 : null; }
+      const lists = [chains[`resPre:${layer}:${d}`] || [], chains[`res:${layer}:${d}`] || []];
+      if (baseRes[d] == null) { out[d] = (lists[0].length || lists[1].length) ? 1 : null; }
       else out[d] = baseRes[d];
       if (out[d] == null) continue;
-      const pos = bs.filter(x => x > 0).sort((x, y) => y - x);
-      const neg = bs.filter(x => x < 0).sort((x, y) => x - y);
-      pos.forEach((v, i) => { out[d] *= 1 - v * Math.exp(-((i / 2.67) ** 2)); });
-      neg.forEach((v, i) => { out[d] *= 1 - v * Math.exp(-((i / 2.67) ** 2)); });
+      for (const bs of lists) {
+        const pos = bs.filter(x => x > 0).sort((x, y) => y - x);
+        const neg = bs.filter(x => x < 0).sort((x, y) => x - y);
+        pos.forEach((v, i) => { out[d] *= 1 - v * Math.exp(-((i / 2.67) ** 2)); });
+        neg.forEach((v, i) => { out[d] *= 1 - v * Math.exp(-((i / 2.67) ** 2)); });
+      }
     }
     return out;
   };
@@ -3503,13 +3918,13 @@ function _fitShipDerived(buffs = null) {
   // Skills (Shield Management / Hull Upgrades / Mechanics +5%/lvl), hull-trait
   // HP bonuses ("15% bonus to armor hitpoints" per level) and HP implants.
   const I = _fitImplantBonuses();
-  const shieldHp = (b.shieldHp + flat.shield) * mult('shieldMult') * multNp('shieldMultNp')
+  const shieldHp = (b.shieldHp + flat.shield) * multNp('shieldMult') * multNp('shieldMultNp')
                    * _fitSkMult('shieldMgmt', 5)
                    * _fitTraitLayerMult('hp', 'shield') * I.shieldHp * (1 + bf(12));
-  const armorHp  = (b.armorHp + flat.armor) * mult('armorMult')    * multNp('armorMultNp')
+  const armorHp  = (b.armorHp + flat.armor) * multNp('armorMult')   * multNp('armorMultNp')
                    * _fitSkMult('hullUp', 5)
                    * _fitTraitLayerMult('hp', 'armor') * I.armorHp * (1 + bf(15));
-  const structHp = b.structureHp * mult('structMult')              * _fitSkMult('mechanics', 5)
+  const structHp = b.structureHp * multNp('structMult')             * _fitSkMult('mechanics', 5)
                    * _fitTraitLayerMult('hp', 'struct') * I.hullHp;
   // Resonances: module chains (stacking-penalized), hull resist traits, then
   // Shield/Armor Harmonizing burst buffs (all plain multipliers).
@@ -3559,8 +3974,13 @@ function _fitShipDerived(buffs = null) {
     if (!(a[20] && a[567])) continue;
     if (m.state !== 'active' && m.state !== 'overheated') continue;
     const propRs = _fitRsSet(m.f);
-    let sf = a[20] * accelK * I.propBoost * _fitTraitMult('propBoost', propRs) * (1 + bf(22))
-             * (m.state === 'overheated' && a[1223] ? 1 + a[1223] / 100 : 1);
+    // True Sansha Synchronizer: +10% (+set) afterburner thrust and +10% (+set)
+    // to its overheat bonus — afterburners only (modules requiring Afterburner).
+    const ab = sync && propRs.has(3450);
+    const sfK = ab && sync.a[6389] ? 1 + sync.v(6389) / 100 : 1;
+    const ohK = ab && sync.a[6390] ? 1 + sync.v(6390) / 100 : 1;
+    let sf = a[20] * accelK * I.propBoost * _fitTraitMult('propBoost', propRs) * (1 + bf(22)) * sfK
+             * (m.state === 'overheated' && a[1223] ? 1 + (a[1223] * ohK) / 100 : 1);
     maxVel *= 1 + (sf / 100) * (a[567] / (mass || 1));
     if (a[554]) {
       // MWD signature bloom — hull traits can shrink the penalty (Cerberus −50%).
@@ -3578,9 +3998,11 @@ function _fitShipDerived(buffs = null) {
               * _fitTraitReduceMult('sigRad');
   const align = (mass && agility) ? (Math.log(4) * agility * mass) / 1e6 : 0;
 
-  const capCap = (b.capacitor + flat.cap) * mult('capMult') * _fitSkMult('capMgmt', 5)
+  // capacitorCapacity and rechargeRate are stackable: a third Cap Recharger is
+  // worth exactly what the first was.
+  const capCap = (b.capacitor + flat.cap) * multNp('capMult') * _fitSkMult('capMgmt', 5)
                  * _fitTraitMult('cap') * I.cap;
-  const rechargeSec = ((b.rechargeMs || 0) * mult('capTime') * _fitSkMult('capSys', -5)
+  const rechargeSec = ((b.rechargeMs || 0) * multNp('capTime') * _fitSkMult('capSys', -5)
                  * _fitTraitMult('capTime') * I.capTime) / 1000;
   const peakRegen = rechargeSec > 0 ? (2.5 * capCap) / rechargeSec : 0;
 
@@ -3600,16 +4022,24 @@ function _fitShipDerived(buffs = null) {
   const modeRepDur = (armor) => _fitModeMult(armor ? FIT_MODE_ATTR.armorRepDur : FIT_MODE_ATTR.shieldDur, mode)
                               * _fitModeMult(FIT_MODE_ATTR.repDuration, mode);
 
+  // shieldBonus (68) and armorDamageAmount (84) are NOT stackable — amplifiers
+  // and nano pumps taper. duration (73) is, so the cycle-time rigs multiply.
   const sbaChain = [], armorAmpChain = [], boostDurChain = [], repDurChain = [];
   for (const m of _fitAllMods()) {
     if (m.state === 'offline') continue;
     if (m.f?.groupId === FIT_MODE_GROUP) continue;   // its 548 is a mode bonus, not an amplifier
+    if (m.f?.groupId === FIT_SYNC_GROUP) continue;   // set-scaled — below
     const a = m.f?.attrs || {};
     if (a[548] && !a[68]) sbaChain.push(a[548] / 100);                 // Shield Boost Amplifier
+    if (a[6482] && _fitBursting(m)) sbaChain.push(a[6482] / 100);      // 'Vigilant' Vital SBA burst — same operator
     if (m._slot !== 'rig') continue;
     const g = (m.f?.groupName || '').toLowerCase();
     if (a[806]) armorAmpChain.push(a[806] / 100);                      // Aux Nano Pump
     if (a[312]) (g.includes('shield') ? boostDurChain : repDurChain).push(a[312] / 100);   // Solidifier / Nanobot Accelerator
+  }
+  if (sync?.a[806]) armorAmpChain.push(sync.v(806) / 100);             // Federation Navy: armour repair amount
+  if (sync?.a[312] && sync.effects.has('shieldBoosterDurationBonusShieldSkills')) {
+    boostDurChain.push(sync.v(312) / 100);                             // Republic Fleet: shield booster cycle
   }
   for (const m of _fitAllMods()) {
     if (m.state !== 'active' && m.state !== 'overheated') continue;
@@ -3619,14 +4049,14 @@ function _fitShipDerived(buffs = null) {
     if (a[68] && a[73] && (m.f.groupId === 40 || m.f.groupId === 1156)) {
       const amt = a[68] * _fitStackChain(sbaChain) * _fitTraitMult('repAmount', _fitRsSet(m.f))
                   * I.shieldBoostAmt * (hot && a[1231] ? 1 + a[1231] / 100 : 1) * modeRepAmt(false);
-      const dur = a[73] * _fitStackChain(boostDurChain) * heatDur * (1 - bf(11)) * modeRepDur(false);
+      const dur = a[73] * _fitPlainChain(boostDurChain) * heatDur * (1 - bf(11)) * modeRepDur(false);
       if (dur > 0) rep.boost += (amt / dur) * 1000;
     }
     if (a[84] && a[73] && (m.f.groupId === 62 || m.f.groupId === 1199)) {
       const paste = m.f.groupId === 1199 && m.charge && a[1886] ? a[1886] : 1;   // AAR ×3 with Nanite Paste
       const amt = a[84] * paste * _fitStackChain(armorAmpChain) * _fitTraitMult('repAmount', _fitRsSet(m.f))
                   * I.armorRepAmt * (hot && a[1230] ? 1 + a[1230] / 100 : 1) * modeRepAmt(true);
-      const dur = a[73] * _fitStackChain(repDurChain) * _fitSkMult('repSys', -5) * I.repDur * heatDur
+      const dur = a[73] * _fitPlainChain(repDurChain) * _fitSkMult('repSys', -5) * I.repDur * heatDur
                   * (1 - bf(14)) * modeRepDur(true);
       if (dur > 0) rep.armor += (amt / dur) * 1000;
     }
@@ -3635,20 +4065,24 @@ function _fitShipDerived(buffs = null) {
       if (dur > 0) rep.hull += (a[83] / dur) * 1000;
     }
   }
-  // Passive shield regen — peak ≈ 2.5 × shield HP / recharge time. SPRs, flux
-  // coils and purger rigs (attr 338, stack-penalized) + Shield Operation −5%/lvl.
+  // Passive shield regen — peak ≈ 2.5 × shield HP / recharge time. Purger rigs
+  // (attr 338) + Shield Operation −5%/lvl. shieldRechargeRate is stackable, so
+  // the rigs multiply plainly.
   const srChain = [];
   for (const m of _fitAllMods()) {
     if (m.state !== 'offline' && m.f?.attrs?.[338]) srChain.push(m.f.attrs[338] / 100);
   }
-  const shieldRechargeSec = ((b.shieldRechargeMs || 0) * _fitStackChain(srChain) * _fitSkMult('shieldOp', -5)) / 1000;
+  const shieldRechargeSec = ((b.shieldRechargeMs || 0) * _fitPlainChain(srChain) * _fitSkMult('shieldOp', -5)) / 1000;
   rep.passive = shieldRechargeSec > 0 ? (2.5 * shieldHp) / shieldRechargeSec : 0;
 
   return {
     shieldHp, armorHp, structHp, shieldRes, armorRes, hullRes, ehp,
-    cargo: (hull.cargo || 0) * mult('cargoMult') * _fitTraitMult('cargo'),
+    // capacity is stackable — five Expanded Cargoholds are 1.275⁵.
+    cargo: (hull.cargo || 0) * multNp('cargoMult') * _fitTraitMult('cargo'),
     mass, maxVel, agility, sig, align,
-    warp: (nav.warpMult || 0) * _fitTraitMult('warp') * I.warp,
+    // warpSpeedMultiplier is not stackable: optimizer rigs, the Domination
+    // Synchronizer and the Higgs Anchor's drawback share a penalised chain.
+    warp: (nav.warpMult || 0) * mult('warp') * _fitTraitMult('warp') * I.warp,
     capCap, rechargeSec, peakRegen,
     rep, shieldRechargeSec,
     lockRange: (tgt.lockRange || 0) * mult('lock') * _fitSkMult('lrt', 5) * I.lock * (1 + bf(16)),
@@ -3675,13 +4109,20 @@ function _fitCapSim(D) {
   // it as a trickle hides both the sawtooth and the moment the charges run out.
   let injectCont = 0;
   const boosters = [];
+  const rows = _fitModRows();
+  // Dark Blood Synchronizer: +10% (+set) nosferatu drain, and +10% (+set) to the
+  // overheat bonus of nosferatu and neutralizers.
+  const sync = _fitSync();
+  const nosK = sync?.a[6384] ? 1 + sync.v(6384) / 100 : 1;
+  const nosHotK = sync?.a[6385] ? 1 + sync.v(6385) / 100 : 1;
   for (const m of _fitAllMods()) {
     if (m.state !== 'active' && m.state !== 'overheated') continue;
     const f = m.f || {}, a = f.attrs || {};
     const hot = m.state === 'overheated';
     let cyc = f.hardpoint ? (f.rof || 0) : (a[73] || 0);
     if (!cyc) continue;
-    if (hot && a[1206]) cyc *= 1 + a[1206] / 100;
+    const drainMod = f.groupId === FIT_NOS_GROUP || f.groupId === 71;   // nosferatu / neutralizer
+    if (hot && a[1206]) cyc *= 1 + (a[1206] * (drainMod ? nosHotK : 1)) / 100;
     // A module with a reactivation delay (attr 669) cannot run back-to-back, so
     // its load has to be spread over cycle + cooldown. A Large Micro Jump Drive
     // is 786 GJ once every 192s, not every 12s — charged at its raw cycle it
@@ -3708,13 +4149,17 @@ function _fitCapSim(D) {
     // fit. Optimistic by nature — it assumes a target in range with cap to
     // take, which is what the game's own readout assumes too.
     if (f.groupId === FIT_NOS_GROUP && a[90]) {
-      const v = a[90] / (cyc / 1000);
+      const v = (a[90] * nosK) / (cyc / 1000);
       inject += v;
       injectCont += v;      // a nos really is continuous, unlike a booster
       continue;
     }
     let need = a[6] || 0;
     if (!need) continue;                                       // missiles, passives…
+    // Rigs on this module's capacitor need: discharge rigs, the Imperial Navy
+    // Synchronizer (−5% −set on lasers), the True Sansha one (+400% on
+    // afterburners). capacitorNeed is stackable, so they simply multiply.
+    need = _fitApplyModRows(need, 6, f, rows);
     // Hull traits scoped to this module's required skill ("10% reduction in
     // Large Energy Turret activation cost" — 50% at V on a Paladin). 93 hulls
     // carry one; none of them reached the cap sim before.
@@ -3969,17 +4414,19 @@ function _fitComputeOffense() {
 }
 
 function _fitComputeUsage() {
-  // Weapon Upgrades −5%/lvl weapon CPU need; Advanced Weapon Upgrades −2%/lvl PG.
-  const wuK  = _fitSkMult('wu', -5);
-  const awuK = _fitSkMult('awu', -2);
+  // Each module through _fitModuleCpuPg: hull / subsystem fitting bonuses (an
+  // Oracle's Mega Pulse Laser at 5% of its powergrid), rig drawbacks (+10% laser
+  // powergrid per Collision Accelerator), then Weapon Upgrades (−5%/lvl weapon
+  // CPU) and Advanced Weapon Upgrades (−2%/lvl weapon PG).
+  const rows = _fitModRows();
   let cpu = 0, pg = 0, turret = 0, launcher = 0;
   for (const key of Object.keys(_fitState.modules)) {
     for (const m of _fitState.modules[key]) {
       if (!m) continue;
       if (m.state !== 'offline') {
-        const weapon = !!m.hardpoint;
-        cpu += (m.cpu || 0) * (weapon ? wuK : 1);
-        pg  += (m.pg  || 0) * (weapon ? awuK : 1);
+        const u = _fitModuleCpuPg(m, rows);
+        cpu += u.cpu;
+        pg  += u.pg;
       }
       if (m.hardpoint === 'turret') turret++;
       else if (m.hardpoint === 'launcher') launcher++;

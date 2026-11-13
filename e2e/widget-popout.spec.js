@@ -77,6 +77,58 @@ test('nano mode collapses a popout to its bar and restores it exactly', async ({
   await window.evaluate(() => window.eveAPI.widgetPopoutClose('beehive'));
 });
 
+// Pinned, a popout trades its acrylic for an opaque dark background (glass over
+// a game is a per-frame tax), and Performance mode does the same all the time.
+// Dropping the material RESETS Electron's background colour to white, so the
+// order of those two calls decided whether the widget came out dark or white —
+// it came out white, behind a transparent page: grey panels, unreadable text.
+// Read what the window actually paints, not just what it was told.
+async function popoutPaint(electronApp) {
+  return electronApp.evaluate(async ({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows()
+      .find(w => !w.isDestroyed() && /BEEHIVE/i.test(w.getTitle()));
+    if (!win) return null;
+    const img = await win.webContents.capturePage();
+    const { width, height } = img.getSize();
+    const px = img.toBitmap();   // BGRA
+    const at = (fx, fy) => {
+      const i = (Math.floor(height * fy) * width + Math.floor(width * fx)) * 4;
+      return Math.max(px[i], px[i + 1], px[i + 2]);   // brightest channel
+    };
+    return { color: win.getBackgroundColor(), title: at(0.3, 0.03), body: at(0.5, 0.97) };
+  });
+}
+
+test('a pinned popout stays dark, in Quality and in Performance mode', async ({ window, electronApp }) => {
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 15_000 });
+  await window.evaluate(() => window.eveAPI.widgetPopoutOpen({
+    id: 'beehive', title: 'BEEHIVE STATUS', w: 280, h: 200,
+  }));
+  await expect.poll(async () => (await popoutPaint(electronApp)) !== null, { timeout: 10_000 }).toBe(true);
+
+  const dark = async (label) => {
+    // Give the compositor a frame to land the change before reading it.
+    await window.waitForTimeout(300);
+    const p = await popoutPaint(electronApp);
+    expect(p.color, `${label}: window colour`).not.toBe('#FFFFFF');
+    expect(p.title, `${label}: title bar`).toBeLessThan(60);
+    expect(p.body, `${label}: body`).toBeLessThan(60);
+  };
+  const pin = (pinned) => window.evaluate((p) => window.eveAPI.widgetPopoutPin({ id: 'beehive', pinned: p }), pinned);
+
+  await dark('quality, unpinned');
+  await pin(true);
+  await dark('quality, pinned');
+  await window.evaluate(() => window.eveAPI.setPerformanceMode('performance'));
+  await dark('performance, pinned');
+  await pin(false);
+  await dark('performance, unpinned');
+  await window.evaluate(() => window.eveAPI.setPerformanceMode('quality'));
+  await dark('quality again');
+
+  await window.evaluate(() => window.eveAPI.widgetPopoutClose('beehive'));
+});
+
 test('nano on a popout that has gone away does not throw', async ({ window }) => {
   // The button lives in the popout, but the channel is reachable from anywhere,
   // and a window can be closed between a click and the IPC landing.

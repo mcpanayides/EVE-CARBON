@@ -18,8 +18,10 @@
        the Early Warning widget when it is mirrored into this shell. -->
   <link rel="stylesheet" href="../styles/fc.css"/>
   <link rel="stylesheet" href="../styles/glass.css"/>
+  <link rel="stylesheet" href="../styles/performance.css"/><!-- Performance mode; after glass, which it switches off -->
   <link rel="stylesheet" href="../styles/widget-window.css"/>
   <script src="../shared/anim_idle.js"></script><!-- pauses CSS animation while this window is covered or hidden -->
+  <script src="../shared/perf_mode_window.js"></script><!-- follows Quality / Performance from Settings -->
   <script>
   (function () {
     try {
@@ -39,9 +41,12 @@
   <script>
   (function () {
     try {
+      /* Performance mode (Settings → General) keeps glass off; perf_mode_window.js follows changes */
+      var perf = !!(window.eveAPI && window.eveAPI.performanceMode === 'performance');
+      if (perf) document.body.classList.add('perf-mode');
       var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
       if (!g || g.enabled !== false) {
-        document.body.classList.add('glass-on');
+        if (!perf) document.body.classList.add('glass-on');
         var r = document.documentElement.style;
         if (g && g._surfaceRgb)       r.setProperty('--glass-tint-rgb',   g._surfaceRgb);
         if (g && g.tintAlpha != null) r.setProperty('--glass-tint-alpha', g.tintAlpha);

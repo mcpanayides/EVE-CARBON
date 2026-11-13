@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Main→renderer push channels the renderer is allowed to listen on.
 const IPC_EVENT_CHANNELS = [
   'app-refresh',        // Ctrl+R, routed through main so it beats the menu's Reload
+  'performance-mode',   // Settings → General switched Quality/Performance; every window follows
   'account-added',
   'auth-error',
   'char-sync-progress',
@@ -269,6 +270,12 @@ contextBridge.exposeInMainWorld('eveAPI', {
   // Suppresses nag prompts, nothing else — never branch real behaviour on this,
   // or the suite stops testing the app the user actually runs.
   isAutomated:       process.argv.includes('--automated'),
+  // Synchronous, like isDemo: main passes --perf-mode when the window is made, so
+  // the pre-paint script can set body.perf-mode before anything animates. Later
+  // changes arrive on the 'performance-mode' event.
+  performanceMode:   process.argv.includes('--perf-mode=performance') ? 'performance' : 'quality',
+  getPerformanceMode: ()     => ipcRenderer.invoke('get-performance-mode'),
+  setPerformanceMode: (mode) => ipcRenderer.invoke('set-performance-mode', mode),
   getDemoMode:       ()        => ipcRenderer.invoke('get-demo-mode'),
   setDemoMode:       (enabled) => ipcRenderer.invoke('set-demo-mode', enabled),
   restartApp:        ()        => ipcRenderer.invoke('restart-app'),

@@ -54,6 +54,39 @@ test('the demo opens on the main pilot, seeded', async () => {
   await expect(win.locator('.dashboard-welcome-name')).toHaveText('Kaska Vaelin', { timeout: 20_000 });
 });
 
+test('the Total line in Wealth Growth glows in the main colour, not red', async () => {
+  // The glow was hard-coded red (rgba 255, 32, 16) and stayed red after the line
+  // itself moved to the accent: a pink line glowing red. Both now come from --accent.
+  const total = () => win.evaluate(() => {
+    const c = document.querySelector('#dashboardWealthGrowth canvas');
+    const ds = c && c._chartInstance && c._chartInstance.data.datasets.find(x => x._isTotal);
+    return ds ? { line: ds.borderColor, glow: ds._glow } : null;
+  });
+  await expect.poll(total, { timeout: 20_000 }).toEqual({ line: '#e6a5e6', glow: 'rgba(230, 165, 230, 0.8)' });
+
+  // Another main colour, as the palette's picker sets it: the glow goes with it.
+  await win.evaluate(() => { document.documentElement.style.setProperty('--accent', '#33ccff'); loadDashboard(); });
+  await expect.poll(total, { timeout: 20_000 }).toEqual({ line: '#33ccff', glow: 'rgba(51, 204, 255, 0.8)' });
+  // And what is actually painted: just above each point is glow, and it is blue.
+  // (A red shadow hard-coded in the plugin again would paint it red.)
+  await expect.poll(() => win.evaluate(() => {
+    const c = document.querySelector('#dashboardWealthGrowth canvas');
+    const chart = c && c._chartInstance;
+    if (!chart || chart.animating) return null;
+    const i = chart.data.datasets.findIndex(x => x._isTotal);
+    const r = chart.currentDevicePixelRatio || 1;
+    const ctx = c.getContext('2d');
+    let red = 0, blue = 0;
+    for (const p of chart.getDatasetMeta(i).data) {
+      const px = ctx.getImageData(Math.round(p.x * r), Math.round((p.y - 9) * r), 1, 1).data;
+      red += px[0]; blue += px[2];
+    }
+    return blue > red * 1.5;
+  }), { timeout: 10_000 }).toBe(true);
+  await win.evaluate(() => { document.documentElement.style.removeProperty('--accent'); loadDashboard(); });
+  await expect.poll(total, { timeout: 20_000 }).toEqual({ line: '#e6a5e6', glow: 'rgba(230, 165, 230, 0.8)' });
+});
+
 test('skill queues train, on all three pilots', async () => {
   await openPage('skills');
   await tool('skills', 'Active Queues');

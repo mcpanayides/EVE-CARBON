@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="../styles/palette.css"/>
   <link rel="stylesheet" id="themeStylesheet" href="../styles/theme-default.css"/>
   <link rel="stylesheet" href="../styles/ping-alert.css"/>
+  <link rel="stylesheet" href="../styles/performance.css"/><!-- Performance mode: no glow animation, no glass -->
+  <script src="../shared/perf_mode_window.js"></script>
   <script>
   (function () {
     try {
@@ -35,9 +37,12 @@
   <script>
   (function () {
     try {
+      /* Performance mode (Settings → General) keeps glass off; perf_mode_window.js follows changes */
+      var perf = !!(window.eveAPI && window.eveAPI.performanceMode === 'performance');
+      if (perf) document.body.classList.add('perf-mode');
       var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
       if (!g || g.enabled !== false) {
-        document.body.classList.add('glass-on');
+        if (!perf) document.body.classList.add('glass-on');
         if (g && g.blurScale != null) {
           document.documentElement.style.setProperty('--glass-blur-scale', g.blurScale);
         }

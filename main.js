@@ -50,6 +50,32 @@ if (demoPaths) demoMode.reset(demoPaths);
 // changes (passed as --demo-seed when the window is created).
 const DEMO_LAUNCH = String(Date.now());
 
+// ─── Performance mode (Settings → General) ──────────────────────────────────
+// Quality is EVE Carbon as designed. Performance gives up the glass, the
+// wallpaper and every animation for the least CPU, graphics and memory, for
+// someone running it beside many EVE clients. Read here, before anything else
+// starts: windows are told at creation (--perf-mode, read synchronously by the
+// preload, so nothing animates or blurs before the setting lands), and anything
+// Chromium itself has to decide must be decided before the app is ready.
+function readPerformanceMode() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'config.json'), 'utf8'));
+    return cfg && cfg.app && cfg.app.performanceMode === 'performance' ? 'performance' : 'quality';
+  } catch (_) { return 'quality'; }
+}
+const PERFORMANCE_AT_LAUNCH = readPerformanceMode();
+let performanceMode = PERFORMANCE_AT_LAUNCH;
+// The one part Chromium decides at startup, so it changes on the next launch.
+// Measured on the demo profile, Performance against Quality: memory as Task
+// Manager counts it 289-400 MB -> 175-244 MB, graphics memory 85-222 MB -> none
+// (all of it back for the EVE clients), idle CPU 2.5-6% of a core -> 0.1-0.2%.
+// The cost is the map: dragging it draws about half as many frames. Nothing in
+// the app uses WebGL, so nothing stops working. (Chromium's low-end device mode
+// was measured too: 20-30 MB of graphics memory, nothing else. Not worth it.)
+if (PERFORMANCE_AT_LAUNCH === 'performance') app.disableHardwareAcceleration();
+/** Launch arguments every window's preload reads synchronously. */
+const perfModeArgs = () => (performanceMode === 'performance' ? ['--perf-mode=performance'] : []);
+
 const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE, Esi } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 const resfileBackgrounds      = require('./src/resfile_backgrounds');
 const sdeFetch                = require('./src/sde_fetch');
@@ -751,6 +777,28 @@ ipcMain.handle('set-minimize-to-tray', (_, enabled) => {
   return cfg.app.minimizeToTray;
 });
 
+// ── Performance mode ──────────────────────────────────────────────────────────
+// What you can see follows at once: the renderer switches its own CSS, the map's
+// loops and the main window's glass, and the secondary windows are told here.
+// `atLaunch` lets Settings say what waits for a restart: anything Chromium had
+// to decide before the app was ready.
+ipcMain.handle('get-performance-mode', () => ({ mode: performanceMode, atLaunch: PERFORMANCE_AT_LAUNCH }));
+
+ipcMain.handle('set-performance-mode', (_, mode) => {
+  const next = mode === 'performance' ? 'performance' : 'quality';
+  const cfg = loadConfig();
+  cfg.app = cfg.app || {};
+  cfg.app.performanceMode = next;
+  saveConfig(cfg);
+  performanceMode = next;
+  for (const w of widgetPopouts.values()) applyWidgetGlass(w);
+  applyWidgetGlass(intelWidgetWin);
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send('performance-mode', next);
+  }
+  return { mode: next, atLaunch: PERFORMANCE_AT_LAUNCH };
+});
+
 // ── Demo mode ────────────────────────────────────────────────────────────────
 // `active` is what this session actually booted into; `enabled` is what the
 // toggle is set to. They differ between flipping the switch and restarting,
@@ -1216,6 +1264,69 @@ const FIT_CATS = {
   any: [4, 7, 8, 18, 20, 22, 32, 87],
 };
 
+// ─── Hull / subsystem fitting modifiers (dgmEffectModifiers) ─────────────────
+// What a hull or T3 subsystem does to the fitting cost of OTHER modules: module
+// powergrid (30), CPU (50) and armour-plate mass (796). Read from the effects'
+// modifierInfo rather than the trait text, because the text cannot name the
+// target reliably — the Naga Navy Issue's "95% reduction in Cruise Missile and
+// Torpedo Launcher powergrid" targets launcher GROUPS 506/508, and a Torpedo
+// Launcher II requires neither of the skills its showinfo links point at.
+//
+// Each row: { attr, op, value, group | skill (the filter), scaleSkill }. A
+// per-level bonus is the hull attribute PreMul'd by a skill's level: the skill
+// carries an effect modifying that attribute on the ship (domain shipID) by
+// skillLevel (280). Role bonuses have no such skill and apply flat.
+//
+// [] when the SDE predates the table: the renderer then applies no fitting
+// bonuses, as it did before, and sde-check-update reports the database out of
+// date so the launch check rebuilds it.
+const FIT_MOD_TARGET_ATTRS = [30, 50, 796];
+// Rigs: powergrid / CPU (weapon-rig drawbacks, launcher-rig CPU, fitting rigs)
+// and capacitor need (discharge rigs, the Synchronizers). Hulls never send 6 —
+// their capacitor bonuses are already applied from the trait text.
+const FIT_MOD_RIG_ATTRS = [30, 50, 6];
+const _fitModScaleCache = new Map();   // bonus attribute id → scaling skill id | null
+let _fitHasModTable = null;
+async function _fitHullFittingMods(typeId, targetAttrs = FIT_MOD_TARGET_ATTRS) {
+  if (!sdeDb) return [];
+  if (_fitHasModTable === null) {
+    const t = await sdeDb.get(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'dgmEffectModifiers'`).catch(() => null);
+    _fitHasModTable = !!t;
+  }
+  if (!_fitHasModTable) return [];
+  const rows = await sdeDb.all(
+    `SELECT m.modifiedAttributeID attr, m.modifyingAttributeID byAttr, m.operation op,
+            m.groupID grp, m.skillTypeID skill, COALESCE(a.valueInt, a.valueFloat) value
+       FROM dgmTypeEffects te
+       JOIN dgmEffectModifiers m ON m.effectID = te.effectID
+       LEFT JOIN dgmTypeAttributes a ON a.typeID = te.typeID AND a.attributeID = m.modifyingAttributeID
+      WHERE te.typeID = ? AND m.domain = 'shipID'
+        AND m.func IN ('LocationRequiredSkillModifier', 'LocationGroupModifier')
+        AND m.modifiedAttributeID IN (${targetAttrs.map(Number).join(',')})`, [typeId]).catch(() => []);
+  const out = [];
+  for (const r of rows) {
+    // An absent attribute falls back to its dogma default, which for every
+    // modifier here (cpuNeedBonus on the Talos Navy Issue, say) is a no-op.
+    if (r.value == null) continue;
+    if (!_fitModScaleCache.has(r.byAttr)) {
+      const s = await sdeDb.get(
+        `SELECT te.typeID skill
+           FROM dgmEffectModifiers m
+           JOIN dgmTypeEffects te ON te.effectID = m.effectID
+           JOIN invTypes t ON t.typeID = te.typeID
+           JOIN invGroups g ON g.groupID = t.groupID AND g.categoryID = 16
+          WHERE m.modifiedAttributeID = ? AND m.modifyingAttributeID = 280
+            AND m.domain = 'shipID' LIMIT 1`, [r.byAttr]).catch(() => null);
+      _fitModScaleCache.set(r.byAttr, s ? s.skill : null);
+    }
+    // byAttr rides along: the renderer scales a rig's drawback (1138) by the
+    // rigging skills and a Synchronizer's bonuses by its matching modules.
+    out.push({ attr: r.attr, op: r.op, value: r.value, byAttr: r.byAttr, group: r.grp || null,
+               skill: r.skill || null, scaleSkill: _fitModScaleCache.get(r.byAttr) });
+  }
+  return out;
+}
+
 // Per-type fitting facts used by the renderer to place & cost a module.
 async function _fitItemFacts(typeId) {
   if (!sdeDb) return null;
@@ -1267,10 +1378,16 @@ async function _fitItemFacts(typeId) {
   // Subsystems carry the T3 hull's trait bonuses (invTraits rows keyed by the
   // subsystem skill); implants need their effect names so the renderer can scope
   // their bonuses (e.g. "…RequiringGunnery" → turrets only).
-  let traits = null;
+  let traits = null, fittingMods = null;
   if (row.categoryID === 32) {
     traits = await sdeDb.all(
       `SELECT skillID, bonus, unitID, bonusText FROM invTraits WHERE typeID = ?`, [typeId]).catch(() => []);
+    // A subsystem's fitting bonuses (Liquid Crystal Magnifiers −25% medium
+    // laser fitting, Augmented Plating −37.5% plate mass) — see _fitHullFittingMods.
+    fittingMods = await _fitHullFittingMods(typeId);
+  } else if (slot === 'rig') {
+    // What a rig does to other modules' powergrid / CPU / capacitor use.
+    fittingMods = await _fitHullFittingMods(typeId, FIT_MOD_RIG_ATTRS);
   }
   // Per-level damage / rate-of-fire carried by the skills this item REQUIRES
   // (292 damageMultiplierBonus, 293 speedMultiplierBonus — both %/level).
@@ -1292,7 +1409,7 @@ async function _fitItemFacts(typeId) {
     id: row.typeID, name: row.typeName, groupName: row.groupName,
     groupId: row.groupID, categoryId: row.categoryID, attrs,
     effects: effs.map(e => e.effectName),
-    traits, skillBonuses,
+    traits, fittingMods, skillBonuses,
     volume: row.volume || 0,   // m³ (drone-bay accounting)
     slot, hardpoint, cpu: a[50] || 0, pg: a[30] || 0,
     dmgMult: a[64] || 0, rof: a[51] || 0,
@@ -1313,8 +1430,11 @@ async function _fitItemFacts(typeId) {
       optimal: a[351] || 0, falloff: a[349] || 0, tracking: a[767] || 0,
       mslVel: a[547] || 0, mslFlight: a[596] || 0, mslVelRig: a[20] || 0,
     },
-    // Damage-mod multipliers (Gyro/Heat Sink/Mag Stab: 64+204; BCS: 213+204)
-    dmgMultMod: a[64] && slot === 'low' ? a[64] : null,
+    // Damage-mod multipliers (Gyro/Heat Sink/Mag Stab: 64+204; BCS: 213+204).
+    // Rigs too: a Collision Accelerator carries the same 64 as a Heat Sink (op
+    // PostMul on group 53, same chain). The guard stays on low/rig because every
+    // weapon carries a 64 of its own — its base damage multiplier, not a mod.
+    dmgMultMod: a[64] && (slot === 'low' || slot === 'rig') ? a[64] : null,
     mslDmgMult: a[213] || null, rofMult: a[204] || null,
     // Fitting resource modifiers (Co-Proc / RCU / PDS / fitting rigs)
     cpuMult: a[202] || null, pgMult: a[145] || null,
@@ -1383,7 +1503,7 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
         WHERE typeID = ? AND attributeID IN (
           14,13,12,1137,1367,102,101,48,11,263,265,9,482,55,479,
           271,274,273,272,267,270,269,268,113,110,109,111,
-          76,564,192,208,209,210,211,37,70,600,552,1132,283,1271,2055,2216,2217,2218,2219)`, [typeId]);
+          76,564,192,208,209,210,211,37,70,600,552,1132,283,1271,2055,2216,2217,2218,2219,1547)`, [typeId]);
     const a = {}; attrRows.forEach(r => { a[r.attributeID] = r.v; });
 
     // Sensor strength = the single non-zero sensor type (ships have exactly one).
@@ -1410,6 +1530,7 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
       slots: { high: a[14] || 0, med: a[13] || 0, low: a[12] || 0, rig: a[1137] || 0, subsystem: subCount },
       hardpoints: { turret: a[102] || 0, launcher: a[101] || 0 },
       output: { cpu: a[48] || 0, pg: a[11] || 0, calibration: a[1132] || 0 },
+      rigSize: a[1547] || 0,                                           // 1 small · 2 medium · 3 large · 4 capital
       cargo: row.capacity || 0,                                        // cargo hold m³
       drone: { bay: a[283] || 0, bandwidth: a[1271] || 0 },            // drone bay m³ / Mbit
       // Fighter bay m³ / launch tubes / squadron-slot limits by fighter type.
@@ -1432,6 +1553,10 @@ ipcMain.handle('fit-get-hull', async (_, typeId) => {
       // trait engine matches on those.
       traits: await sdeDb.all(
         `SELECT skillID, bonus, unitID, bonusText FROM invTraits WHERE typeID = ?`, [typeId]).catch(() => []),
+      // Module powergrid / CPU / plate-mass bonuses, from dogma rather than
+      // trait text — the attack battlecruisers' 95% powergrid role bonus lives
+      // here. See _fitHullFittingMods.
+      fittingMods: await _fitHullFittingMods(typeId),
     };
   } catch (e) { console.warn('[fit-get-hull]', e.message); return null; }
 });
@@ -1474,7 +1599,7 @@ async function _fitBuildTree(kind) {
     mgKids.get(m.p).push(m.id);
   }
   const typeRows = await sdeDb.all(
-    `SELECT typeID id, typeName n, marketGroupID mg FROM invTypes WHERE published = 1 AND marketGroupID IS NOT NULL`);
+    `SELECT typeID id, typeName n, marketGroupID mg, groupID g FROM invTypes WHERE published = 1 AND marketGroupID IS NOT NULL`);
   const typesByMg = new Map();
   for (const t of typeRows) {
     if (!typesByMg.has(t.mg)) typesByMg.set(t.mg, []);
@@ -1505,7 +1630,9 @@ async function _fitBuildTree(kind) {
       if (a[182] && a[277]) sk.push([a[182], a[277]]);
       if (a[183] && a[278]) sk.push([a[183], a[278]]);
       if (a[184] && a[279]) sk.push([a[184], a[279]]);
-      return { id: t.id, name: t.n, slot, hp, cpu: a[50] || 0, pg: a[30] || 0, sk };
+      // groupId: the "fits" filter costs a module the way the sim does, and
+      // hull bonuses such as the Naga Navy Issue's target launcher groups.
+      return { id: t.id, name: t.n, slot, hp, cpu: a[50] || 0, pg: a[30] || 0, sk, groupId: t.g };
     };
   }
 
@@ -3378,14 +3505,13 @@ ipcHandle('widget-popout-open', (_e, { id, title, w, h }) => {
     resizable:  true,
     skipTaskbar: false,
     transparent: false,
-    ...(acrylicSupported()
-      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
-      : { frame: false, backgroundColor: '#070b14' }),
+    ...widgetMaterialOptions(),
     icon: appIconPath() || undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
       nodeIntegration:  false,
+      additionalArguments: perfModeArgs(),
     },
   });
 
@@ -3441,7 +3567,6 @@ let intelWidgetWin = null;
 
 function createIntelWidgetWindow() {
   if (intelWidgetWin && !intelWidgetWin.isDestroyed()) { intelWidgetWin.focus(); return intelWidgetWin; }
-  const glass = acrylicSupported();
   intelWidgetWin = new BrowserWindow({
     // Wide enough for the whole row — time, system, ships, size, type, ETA —
     // without the role tags clipping. Still narrow enough to sit beside the
@@ -3450,14 +3575,13 @@ function createIntelWidgetWindow() {
     minWidth: 300, minHeight: 180,
     resizable: true,
     skipTaskbar: false,
-    ...(glass
-      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
-      : { frame: false, backgroundColor: '#070b14' }),
+    ...widgetMaterialOptions(),
     icon: appIconPath() || undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
       nodeIntegration:  false,
+      additionalArguments: perfModeArgs(),
     },
   });
   intelWidgetWin.loadFile(path.join(__dirname, 'src', 'html', 'intel-widget.html'));
@@ -3490,21 +3614,40 @@ function createIntelWidgetWindow() {
 //     for an opaque background and puts it back when you unpin.
 const WIDGET_OPAQUE_BG = '#070b14';
 
+// Performance mode keeps every secondary window opaque for the same reason, all
+// the time rather than only while pinned.
+function applyWidgetGlass(win) {
+  if (!win || win.isDestroyed() || !acrylicSupported()) return;
+  // Material FIRST, colour second, in both directions. setBackgroundMaterial()
+  // resets the window's background colour: after 'none', getBackgroundColor()
+  // reads #FFFFFF (Electron 43, measured). Setting the dark colour first and
+  // dropping the material second therefore left every pinned popout, and every
+  // popout in Performance mode, white behind its transparent page — light grey
+  // panels and unreadable text. glass-set-material does the main window in this
+  // order and never had the problem.
+  if (win.__pinned || performanceMode === 'performance') {
+    win.setBackgroundMaterial('none');
+    win.setBackgroundColor(WIDGET_OPAQUE_BG);
+  } else {
+    win.setBackgroundMaterial('acrylic');
+    win.setBackgroundColor('#00000000');
+  }
+}
+
 function applyWidgetPin(win, pinned) {
   if (!win || win.isDestroyed()) return !!pinned;
   win.setAlwaysOnTop(!!pinned, 'floating');
-  if (acrylicSupported()) {
-    // Colour first when going opaque, material first when going back to glass -
-    // either way the window never renders a frame with neither in effect.
-    if (pinned) {
-      win.setBackgroundColor(WIDGET_OPAQUE_BG);
-      win.setBackgroundMaterial('none');
-    } else {
-      win.setBackgroundMaterial('acrylic');
-      win.setBackgroundColor('#00000000');
-    }
-  }
+  win.__pinned = !!pinned;
+  applyWidgetGlass(win);
   return !!pinned;
+}
+
+/** Window material for a secondary window at creation: glass, or opaque in Performance mode. */
+function widgetMaterialOptions() {
+  if (!acrylicSupported()) return { frame: false, backgroundColor: WIDGET_OPAQUE_BG };
+  return performanceMode === 'performance'
+    ? { titleBarStyle: 'hidden', backgroundColor: WIDGET_OPAQUE_BG }
+    : { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' };
 }
 
 ipcHandle('intel-widget-open',  () => { createIntelWidgetWindow(); return { success: true }; });
@@ -3600,14 +3743,13 @@ function createPingAlertWindow(msg) {
     // gives the same chromeless look and lets the material work (this is why
     // the main window's glass worked and this popup's didn't). Solid-color
     // frameless fallback for pre-22H2 Windows.
-    ...(acrylicSupported()
-      ? { titleBarStyle: 'hidden', backgroundMaterial: 'acrylic', backgroundColor: '#00000000' }
-      : { frame: false, backgroundColor: '#070b14' }),
+    ...widgetMaterialOptions(),
     icon:            appIconPath() || undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'src', 'preload.js'),
       contextIsolation: true,
       nodeIntegration:  false,
+      additionalArguments: perfModeArgs(),
       // The alert plays its notification sound the moment it opens, with no
       // click first, so the popup must be allowed to autoplay audio.
       autoplayPolicy:   'no-user-gesture-required',
@@ -3738,6 +3880,7 @@ function createWindow() {
         ...(demoPaths ? ['--demo-active'] : []),
         ...(demoPaths && !demoMode.shouldKeep() ? [`--demo-seed=${DEMO_LAUNCH}`] : []),
         ...(process.env.EVE_CARBON_E2E ? ['--automated'] : []),
+        ...perfModeArgs(),
       ],
     }
   }));
@@ -4746,7 +4889,11 @@ ipcHandle('sde-check-update', async () => {
   // Demo mode never checks: the check reaches CCP, and an "out of date" answer
   // slides a toast over the take and starts rebuilding the SDE — which demo mode
   // SHARES with the real profile (see demo_mode.js) — mid-recording.
-  if (demoPaths) {
+  // Nor does the e2e suite, like the server-status watch: the day CCP publishes
+  // a new SDE, every test's app would start a 95 MB download and rebuild the one
+  // data/sde.sql every other test reads, some of them at once, with the progress
+  // card sitting over the top-right corner the tests click in.
+  if (demoPaths || process.env.EVE_CARBON_E2E) {
     let local = null;
     try { local = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* none yet */ }
     return { upToDate: true, remoteMd5: local, localMd5: local };
@@ -4756,11 +4903,38 @@ ipcHandle('sde-check-update', async () => {
     const remoteMd5 = String(manifest.buildNumber);
     let localMd5 = null;
     try { localMd5 = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* no local version yet */ }
-    return { upToDate: remoteMd5 === localMd5, remoteMd5, localMd5 };
+    // Same CCP build, but built before the app needed a table it now reads:
+    // rebuild anyway. Released apps ship a fresh SDE from CI, so in practice
+    // this is a dev checkout whose data/sde.sql outlived a schema change.
+    const schemaOk = await _sdeHasCurrentSchema(getSdePath());
+    return { upToDate: remoteMd5 === localMd5 && schemaOk, remoteMd5, localMd5, schemaOk };
   } catch (e) {
     return { error: e.message };
   }
 });
+
+// Tables the app reads that older sde_build.js versions did not create. Checked
+// on the FILE, through a short-lived connection rather than the open sdeDb: after
+// an update the new file is on disk but the old handle serves until restart, and
+// asking the handle would keep reporting the database out of date.
+const SDE_REQUIRED_TABLES = ['dgmEffectModifiers'];
+function _sdeHasCurrentSchema(sdePath) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(sdePath)) return resolve(false);
+    // Any failure to read answers "fine": can't tell is never a reason to start
+    // a 95 MB download. (The open callback also keeps a failed open from being
+    // emitted as an unhandled 'error' event.)
+    const db = new sqlite3.Database(sdePath, sqlite3.OPEN_READONLY, (openErr) => {
+      if (openErr) return resolve(true);
+      const ph = SDE_REQUIRED_TABLES.map(() => '?').join(',');
+      db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${ph})`, SDE_REQUIRED_TABLES, (err, rows) => {
+        db.close(() => {});
+        if (err) return resolve(true);
+        resolve((rows || []).length === SDE_REQUIRED_TABLES.length);
+      });
+    });
+  });
+}
 
 // sde-download-update — downloads CCP's JSONL export, converts it to sde.sql,
 // saves the version token. Sends 'sde-update-progress' push events: { stage, percent }
@@ -4769,19 +4943,20 @@ ipcHandle('sde-download-update', async (event) => {
   const sdePath = getSdePath();
   const md5Path = getSdeMd5Path();
   const win     = BrowserWindow.fromWebContents(event.sender);
-  const push    = (stage, percent) => {
-    if (win && !win.isDestroyed()) win.webContents.send('sde-update-progress', { stage, percent });
+  // `info` (phase, bytes, build step) feeds the progress toast's estimate.
+  const push    = (stage, percent, info) => {
+    if (win && !win.isDestroyed()) win.webContents.send('sde-update-progress', { ...(info || {}), stage, percent });
   };
 
   try {
     const manifest = await sdeFetch.fetchAndBuildSde({
       userAgent: APP_USER_AGENT,
       outSqlitePath: sdePath,
-      onProgress: (stage, pct) => push(stage, pct ?? undefined),
+      onProgress: (stage, pct, info) => push(stage, pct ?? undefined, info),
     });
 
     fs.writeFileSync(md5Path, String(manifest.buildNumber), 'utf8');
-    push('Done', 100);
+    push('Done', 100, { phase: 'done' });
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };

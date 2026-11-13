@@ -2530,6 +2530,28 @@ function _renderWealthByChar(container, d) {
 }
 
 // Widget 3: the 12-month compounded wealth growth chart.
+/**
+ * Any CSS colour with `alpha` applied, as an rgba() a canvas can paint.
+ *
+ * --accent comes from the palette's colour picker (hex) or a theme file (any
+ * notation). A 2D context normalises whatever it can parse, to "#rrggbb" or
+ * "rgba(r, g, b, a)"; a colour it can't read comes back as given, so the worst
+ * case is an opaque glow in the right colour rather than the wrong colour.
+ */
+function _cssColorWithAlpha(color, alpha) {
+  const given = String(color || '').trim();
+  const ctx = _cssColorWithAlpha.ctx || (_cssColorWithAlpha.ctx = document.createElement('canvas').getContext('2d'));
+  ctx.fillStyle = '#000001';                 // a sentinel: an unreadable colour leaves it in place
+  ctx.fillStyle = given;
+  const c = ctx.fillStyle;
+  if (c === '#000001' && given.toLowerCase() !== '#000001') return given;
+  if (c[0] === '#') {
+    return `rgba(${parseInt(c.slice(1, 3), 16)}, ${parseInt(c.slice(3, 5), 16)}, ${parseInt(c.slice(5, 7), 16)}, ${alpha})`;
+  }
+  const m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(c);
+  return m ? `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${alpha})` : given;
+}
+
 function _renderWealthGrowth(container, d, compact = false) {
   if (!container) return;
   const { top } = _wealthCharData(d);
@@ -2558,15 +2580,19 @@ function _renderWealthGrowth(container, d, compact = false) {
   // --accent doesn't collide with the character lines either: those take
   // --chart-2..7 and never used chart-1.
   if (top.length > 1) {
-    const TOTAL      = getCSSVar('--accent') || '#e6a5e6';
-    const TOTAL_GLOW = (window.ThemeVars && TOTAL.startsWith('#'))
-      ? window.ThemeVars.hexToRgba(TOTAL, 0.45) : 'rgba(230,165,230,0.45)';
+    const TOTAL = getCSSVar('--accent') || '#e6a5e6';
+    // The ring round each point and the glow under the line are the same main
+    // colour, made translucent. The glow used to be hard-coded red (rgba 255,
+    // 32, 16): it was never moved when the line went from --chart-1 to the
+    // accent, so a line in the colour picker's colour glowed red.
+    const TOTAL_RING = _cssColorWithAlpha(TOTAL, 0.45);
+    const TOTAL_GLOW = _cssColorWithAlpha(TOTAL, 0.80);
     charDatasets.push({
       label: 'Total',
       data: growthFactors.map(f => Math.round(d.grandTotal * f)),
       borderColor: TOTAL, borderWidth: 2, borderDash: [],
-      pointBackgroundColor: TOTAL, pointBorderColor: TOTAL_GLOW, pointBorderWidth: 3,
-      pointRadius: 4, pointHoverRadius: 7, fill: false, tension: 0.3, _isTotal: true,
+      pointBackgroundColor: TOTAL, pointBorderColor: TOTAL_RING, pointBorderWidth: 3,
+      pointRadius: 4, pointHoverRadius: 7, fill: false, tension: 0.3, _isTotal: true, _glow: TOTAL_GLOW,
     });
   }
 
@@ -2606,14 +2632,16 @@ function _renderWealthGrowth(container, d, compact = false) {
     if (!canvas) return;
     if (canvas._chartInstance) canvas._chartInstance.destroy();
 
-    // Neon glow plugin — only fires for the Total dataset (_isTotal flag)
+    // Neon glow plugin — only fires for the Total dataset (_isTotal flag), in
+    // its own colour (_glow, the accent made translucent above).
     const totalGlowPlugin = {
       id: 'totalGlow',
       beforeDatasetDraw(chart, args) {
-        if (!chart.data.datasets[args.index]._isTotal) return;
+        const ds = chart.data.datasets[args.index];
+        if (!ds._isTotal) return;
         const c = chart.ctx;
         c.save();
-        c.shadowColor   = 'rgba(255, 32, 16, 0.80)';
+        c.shadowColor   = ds._glow;
         c.shadowBlur    = 16;
         c.shadowOffsetX = 0;
         c.shadowOffsetY = 0;

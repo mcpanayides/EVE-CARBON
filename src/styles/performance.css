@@ -1,0 +1,66 @@
+/* ══════════════════════════════════════════════════════════════════
+   performance.css — PERFORMANCE MODE (Settings → General)
+   Loaded after glass.css. Every rule is scoped to body.perf-mode, set
+   before first paint from the saved setting; Quality is the app as
+   designed, untouched.
+
+   For people running EVE Carbon beside many EVE clients. Measured idle,
+   on the demo profile (share of one CPU core, all processes):
+     dashboard   3.5% → 0.1%    nine CSS animations, the ticker among them
+     industry    2.5% → 0.2%    the market ticker alone, on every page
+     Spatial map 6.0% → 0.2%    ~330 animation frames a second of drift,
+                                 sky and bridge light (stopped in map.js)
+   Glass costs about half a percent on top. Memory (Task Manager) falls
+   about 40%, 289-400 MB → 175-244 MB, and graphics memory to none, mostly
+   from graphics acceleration going off at the next launch (main.js).
+
+   1. Motion. Durations go to a hundredth of a millisecond rather than
+      `none`, so every animationend / transitionend still fires: code
+      that waits for a toast to slide out before removing it keeps
+      working. Looping animations play once and stop.
+   2. Glass. No backdrop blur anywhere. ui.js also keeps body.glass-on
+      off and the OS acrylic material off while this mode is on, without
+      touching the saved glass settings, so Quality brings them back.
+   3. The wallpaper is not painted: no full-screen image to decode, hold
+      and composite under every panel.
+   ══════════════════════════════════════════════════════════════════ */
+
+body.perf-mode *,
+body.perf-mode *::before,
+body.perf-mode *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Spinners mean "working". A frozen one reads as hung, and they only run
+   while something is actually loading, so they keep turning. */
+body.perf-mode .spin,
+body.perf-mode .sync-spinner.spin,
+body.perf-mode .page-spinner.loading,
+body.perf-mode .page-header-btn.spinning .material-symbols-outlined,
+body.perf-mode .forum-spinner,
+body.perf-mode .map-loading-spinner {
+  animation-duration: 0.8s !important;
+  animation-iteration-count: infinite !important;
+}
+
+body.perf-mode #appBackground { display: none !important; }
+
+/* Settings → Wallpaper and Colour says why its choices aren't showing. */
+.perf-mode-note { display: none; }
+body.perf-mode .perf-mode-note {
+  display: block;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-deep);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+}

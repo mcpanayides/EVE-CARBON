@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="./styles/contracts.css"/>
   <link rel="stylesheet" href="./styles/tutorial.css"/><!-- the guided tour; before glass so glass can tint it -->
   <link rel="stylesheet" href="./styles/glass.css"/><!-- app-wide glass; must load last -->
+  <link rel="stylesheet" href="./styles/performance.css"/><!-- Performance mode switches glass and motion off, so it comes after glass -->
   <!-- Vendored locally (src/vendor/gridstack/), not loaded from cdnjs — see the
        comment on the script tag below for why. -->
   <link rel="stylesheet" href="./vendor/gridstack/gridstack.min.css"/>
@@ -402,8 +403,13 @@
 <script>
 (function () {
   try {
+    /* Performance mode (Settings → General) comes from main as a launch argument,
+       so it is known here, before anything animates or blurs. It keeps glass
+       off without touching the saved glass settings. */
+    var perf = !!(window.eveAPI && window.eveAPI.performanceMode === 'performance');
+    if (perf) document.body.classList.add('perf-mode');
     var g = JSON.parse(localStorage.getItem('eve-glass') || 'null');
-    if (!g || g.enabled !== false) {   /* glass is the default look */
+    if (!perf && (!g || g.enabled !== false)) {   /* glass is the default look */
       document.body.classList.add('glass-on');
       var r = document.documentElement.style;
       g = g || {};
@@ -666,6 +672,23 @@
             <div class="settings-panel-title">General</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:4px;">
               How EVE Carbon integrates with your desktop.
+            </div>
+
+            <div class="settings-toggle-row is-stacked">
+              <div class="settings-toggle-text">
+                <div class="settings-toggle-label" id="perfModeLabel">Quality or performance</div>
+                <div class="settings-toggle-desc">
+                  Quality is EVE Carbon as designed: glass, your wallpaper, and everything that moves, the map's light included.
+                  Performance turns all of that off for the least CPU, graphics and memory, for when EVE Carbon shares a PC with a lot of EVE clients.
+                </div>
+              </div>
+              <!-- Potato mode: EVE's own joke name for running at the lowest settings. The
+                   potato is the one emoji in the app's chrome, on purpose (DESIGN.md). -->
+              <div class="perf-switch" id="perfModeSwitch" role="radiogroup" aria-labelledby="perfModeLabel" data-mode="quality">
+                <button type="button" class="perf-switch-opt" role="radio" aria-checked="true" tabindex="0" data-perf-mode="quality">Quality</button>
+                <button type="button" class="perf-switch-opt" role="radio" aria-checked="false" tabindex="-1" data-perf-mode="performance">Performance <span class="perf-switch-aside">(Potato mode <span aria-hidden="true">🥔</span>)</span></button>
+              </div>
+              <div class="settings-toggle-desc" id="perfModeNotice" hidden></div>
             </div>
 
             <div class="settings-toggle-row">
@@ -1262,6 +1285,11 @@
       <!-- Background tab -->
       <div id="settingsTabBackground" class="settings-tab" style="display:none;">
         <div class="panel" style="padding:16px; margin:0; background:var(--bg-panel); border:none; box-shadow:none;">
+          <!-- Shown only in Performance mode (performance.css): why nothing here shows. -->
+          <p class="perf-mode-note" role="note">
+            Performance (Potato mode 🥔) is on, so the wallpaper and glass stay off. Your choices
+            here are kept, and come back when you switch to Quality in General.
+          </p>
           <div class="settings-panel-block">
             <div class="settings-panel-title">Background Wallpaper</div>
             <div style="font-size:12px; color:var(--text-3); margin-bottom:12px;">
@@ -1567,6 +1595,9 @@
 <script src="./shared/theme-vars.js"></script>
 <script src="./func/palette.js"></script>
 <script src="./func/ui.js"></script>
+<script src="./func/perf_mode.js"></script>  <!-- Quality / Performance; after ui.js, whose applyGlass it re-runs -->
+<script src="./shared/sde_eta.js"></script>    <!-- SDE update: percentage and time left (pure) -->
+<script src="./func/sde_progress.js"></script> <!-- SDE update: the top-right progress card -->
 <script src="./func/characters.js"></script>
 <script src="./func/assets.js"></script>
 <script src="./func/trade-math.js"></script>  <!-- pure tax/price math; must precede blueprints.js -->
@@ -1674,24 +1705,31 @@
   async function autoUpdateSde() {
     setSdeLight('downloading');
     if (typeof showToast === 'function') showToast('Star map (SDE) out of date — downloading update in the background…', 'info');
-    const onProgress = () => setSdeLight('downloading');
+    // The top-right card: stage, progress and time left (func/sde_progress.js).
+    const card = typeof SdeProgress !== 'undefined' ? SdeProgress : null;
+    card?.begin('auto');
+    const onProgress = (evt) => { setSdeLight('downloading'); card?.update(evt); };
     const stopSdeProgress = window.eveAPI.on('sde-update-progress', onProgress);
     try {
       const res = await window.eveAPI.sdeDownloadUpdate();
       if (res && res.success) {
         setSdeLight('ok');
+        card?.done({ restarting: false });
         if (typeof showToast === 'function') showToast('✓ Star map database updated — restart EVE Carbon to apply.', 'success');
         try { updateSdeSettingsLabel(await window.eveAPI.sdeCheckUpdate()); } catch (_) {}
       } else {
         setSdeLight('error');
+        card?.fail(res && res.error ? res.error : 'Unknown error');
         if (typeof showToast === 'function') showToast('Star map update failed' + (res && res.error ? `: ${res.error}` : '') + '.', 'error');
       }
     } catch (e) {
       if (_sdeUpdateWasInterrupted(e)) {
         // App reloaded/restarted mid-download — not a failure, just retry next launch.
+        card?.end();
         setSdeLight('checking');
       } else {
         setSdeLight('error');
+        card?.fail(e.message);
         if (typeof showToast === 'function') showToast(`Star map update failed: ${e.message}`, 'error');
       }
     } finally {
@@ -1755,10 +1793,21 @@
     if (statusEl) { statusEl.textContent = 'Downloading…'; }
     setSdeLight('downloading');
 
-    // Listen for streaming progress updates from main process
-    const onProgress = ({ stage, percent }) => {
-      if (progressLbl) progressLbl.textContent = stage;
-      if (progressBar) progressBar.style.width = percent + '%';
+    // Listen for streaming progress updates from main process. The top-right card
+    // (func/sde_progress.js) and this bar show the same percentage and time left:
+    // the bar used to move only while downloading, a sixth of the job.
+    const card = typeof SdeProgress !== 'undefined' ? SdeProgress : null;
+    card?.begin('manual');
+    const onProgress = (evt) => {
+      card?.update(evt);
+      const d = card?.describe();
+      if (d) {
+        if (progressLbl) progressLbl.textContent = `${d.stage}${d.detail ? ` · ${d.detail}` : ''} · ${d.eta}`;
+        if (progressBar) progressBar.style.width = d.percent + '%';
+      } else {
+        if (progressLbl) progressLbl.textContent = evt.stage;
+        if (progressBar && evt.percent != null) progressBar.style.width = evt.percent + '%';
+      }
     };
     const stopSdeProgress = window.eveAPI.on('sde-update-progress', onProgress);
 
@@ -1771,10 +1820,12 @@
         if (statusEl)    statusEl.textContent = 'Restarting…';
         if (versionEl)   { versionEl.textContent = 'Restarting app…'; versionEl.style.color = 'var(--success)'; }
         setSdeLight('ok');
+        card?.done({ restarting: true });
         // Brief pause so the user sees 100% before the app restarts
         setTimeout(() => window.eveAPI.sdeRestartApp(), 1200);
       } else {
         const msg = (result && result.error) ? result.error : 'Unknown error';
+        card?.fail(msg);
         if (progressLbl) progressLbl.textContent = `Error: ${msg}`;
         if (progressBar) progressBar.style.background = 'var(--danger)';
         if (statusEl)    statusEl.textContent = 'Update failed';
@@ -1786,10 +1837,12 @@
     } catch (e) {
       if (_sdeUpdateWasInterrupted(e)) {
         // App reloaded/restarted mid-download — not a real failure.
+        card?.end();
         if (progressLbl) progressLbl.textContent = 'Interrupted by app restart — click Update again.';
         if (statusEl)    statusEl.textContent = 'Interrupted — try again';
         setSdeLight('checking');
       } else {
+        card?.fail(e.message);
         if (progressLbl) progressLbl.textContent = `Error: ${e.message}`;
         if (progressBar) progressBar.style.background = 'var(--danger)';
         setSdeLight('error');

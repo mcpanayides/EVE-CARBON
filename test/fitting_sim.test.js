@@ -402,27 +402,27 @@ test('loading the hold stacks by type and counts volume', () => {
   assert.strictEqual(sb._fitCargoUsedM3(), 3 * 5 + 50);
 });
 
-test('each extra cargo expander does less than the last', () => {
-  // EVE's stacking penalty: the i-th strongest module of a kind is scaled by
-  // e^-(i/2.67)^2 → 100%, 86.9%, 57.1%, 28.3%, 10.6%. Five expanders are worth
-  // about two, not five.
+test('every cargo expander adds its full 27.5% — but each speed cost tapers', () => {
+  // capacity (38) is stackable in the SDE, so the game never penalises it:
+  // five Expanded Cargohold IIs are 1.275^5 ≈ 3.37x, which is how an Iteron
+  // Mark V reaches ~38,000 m³. This test used to assert the opposite, and the
+  // engine agreed with it. maxVelocity (37) is NOT stackable, so the
+  // expanders' −18% speed cost DOES taper: 82%, then 84.4%, 89.7%…
   const sb = loadSim();
-  const capWith = (n) => {
+  const withN = (n) => {
     rig(sb, {});
     for (let i = 0; i < n; i++) sb._fitState.modules.low.push(sb._fitMod(EXPANDER()));
-    return sb._fitShipDerived().cargo;
+    return sb._fitShipDerived();
   };
-  const base = capWith(0);
-  let prev = base;
+  const base = withN(0);
   for (let n = 1; n <= 5; n++) {
-    const cur = capWith(n);
-    const marginal = cur / prev - 1;
-    const expected = 0.275 * Math.exp(-(((n - 1) / 2.67) ** 2));
-    assert.ok(Math.abs(marginal - expected) < 1e-9,
-      `expander #${n} should add ${(expected * 100).toFixed(2)}%, added ${(marginal * 100).toFixed(2)}%`);
-    prev = cur;
+    const d = withN(n);
+    assert.ok(Math.abs(d.cargo / base.cargo - 1.275 ** n) < 1e-9,
+      `${n} expanders should hold ${(1.275 ** n).toFixed(4)}x, got ${(d.cargo / base.cargo).toFixed(4)}x`);
+    let vel = 1;
+    for (let i = 0; i < n; i++) vel *= 1 - 0.18 * Math.exp(-((i / 2.67) ** 2));
+    assert.ok(Math.abs(d.maxVel / base.maxVel - vel) < 1e-9, `the speed cost of ${n} expanders is penalised`);
   }
-  assert.ok(capWith(5) / base < 2.1, 'five expanders are worth about two, not five');
 });
 
 test('weapons and flat HP adds are linear, never penalized', () => {
@@ -1362,4 +1362,340 @@ test('"stable" distinguishes self-sustaining from injector-dependent', () => {
     'this fit does not hold without injecting');
   // A load it can answer.
   assert.ok(sb._fitCapStablePct(20, tau, capMax) > 0, 'this one holds on its own');
+});
+
+// ── Fractured Skies (Nov 2026): navy attack battlecruisers, Synchronizer rigs,
+//    'Vigilant' Vital modules — and the dogma-driven fitting rows under them ──
+// Every value below was read from data/sde.sql build 3698585: hull fittingMods
+// are the rows main's _fitHullFittingMods returns (dgmEffectModifiers joined to
+// the hull's own attribute values), rig rows the same for the rig.
+
+// Mega Pulse Laser II (3057): cpu 50 = 53, power 30 = 2750, requires 3309.
+const MPL = () => ({ ...LASER(), cpu: 53, pg: 2750 });
+// Torpedo Launcher II (2420), group 508: cpu 82, power 1709. Requires 3319 +
+// 20213 — neither of the skills the Naga's trait text links.
+const TORP = () => facts({ id: 2420, name: 'Torpedo Launcher II', groupName: 'Missile Launcher Torpedo',
+  groupId: 508, hardpoint: 'launcher', activatable: true, cpu: 82, pg: 1709, attrs: { 182: 3319, 183: 20213 } });
+const navyBc = (sb, fittingMods, extra = {}) => {
+  rig(sb, {});
+  sb._fitState.modules.high = [];
+  sb._fitState.hull = { ...HULL(), rigSize: 2, ...extra, fittingMods };
+};
+// Oracle Navy Issue (95629): 95% powergrid / 50% CPU role bonus, PreMul on
+// modules requiring Large Energy Turret.
+const ORACLE_NI_MODS = [
+  { attr: 30, op: 0, value: 0.05, byAttr: 1786, group: null, skill: 3309, scaleSkill: null },
+  { attr: 50, op: 0, value: 0.5,  byAttr: 1787, group: null, skill: 3309, scaleSkill: null },
+];
+// Naga Navy Issue (95630): the same, on launcher GROUPS 506 and 508.
+const NAGA_NI_MODS = [506, 508].flatMap(g => [
+  { attr: 30, op: 0, value: 0.05, byAttr: 6280, group: g, skill: null, scaleSkill: null },
+  { attr: 50, op: 0, value: 0.5,  byAttr: 6281, group: g, skill: null, scaleSkill: null },
+]);
+// Talos Navy Issue (95631): −15% plate mass per Gallente Battlecruiser level.
+const TALOS_NI_MODS = [
+  { attr: 796, op: 6, value: -15, byAttr: 5046, group: 329, skill: null, scaleSkill: 33097 },
+];
+
+test('an attack battlecruiser fits battleship guns at 5% of their powergrid', () => {
+  // The trait text was parsed for damage and range but never for fitting, so an
+  // Oracle with eight Mega Pulse Lasers read as 22,000 MW over.
+  const sb = loadSim();
+  navyBc(sb, ORACLE_NI_MODS);
+  sb._fitState.modules.high.push(sb._fitMod(MPL()));
+  const u = sb._fitComputeUsage();
+  // All V: Advanced Weapon Upgrades −10% powergrid, Weapon Upgrades −25% CPU.
+  assert.ok(Math.abs(u.pg - 2750 * 0.05 * 0.9) < 1e-9, `powergrid ${u.pg}`);
+  assert.ok(Math.abs(u.cpu - 53 * 0.5 * 0.75) < 1e-9, `cpu ${u.cpu}`);
+});
+
+test('the "fits" filter costs a module the way the sim does', () => {
+  // The Modules tab's filter compared the RAW 2,750 MW against what was left,
+  // which hid the battleship lasers an attack battlecruiser exists to fit.
+  const sb = loadSim();
+  navyBc(sb, ORACLE_NI_MODS, { output: { cpu: 345, pg: 1200, calibration: 400 } });
+  sb._fitState.filters.fits = true;
+  const row = { id: 3057, slot: 'high', hp: 'turret', cpu: 53, pg: 2750, sk: [[3309, 1], [3300, 5], [12215, 1]], groupId: 53 };
+  assert.strictEqual(sb._fitPassesFilters(row), true, 'a Mega Pulse Laser fits an Oracle Navy Issue');
+  sb._fitState.hull = { ...sb._fitState.hull, fittingMods: [] };
+  assert.strictEqual(sb._fitPassesFilters(row), false, 'and would not without the role bonus');
+});
+
+test('the bonus reaches only the weapons it names', () => {
+  const sb = loadSim();
+  navyBc(sb, ORACLE_NI_MODS);
+  sb._fitState.modules.high.push(sb._fitMod(TORP()));
+  assert.ok(Math.abs(sb._fitComputeUsage().pg - 1709 * 0.9) < 1e-9, 'a torpedo launcher is no Large Energy Turret');
+});
+
+test('a launcher-group bonus reaches a launcher whatever skills it requires', () => {
+  // Torpedo Launcher II requires Missile Launcher Operation + Torpedo
+  // Specialization, not the skills a trait link could name. Dogma targets the
+  // launcher group, and so does this.
+  const sb = loadSim();
+  navyBc(sb, NAGA_NI_MODS);
+  sb._fitState.modules.high.push(sb._fitMod(TORP()));
+  const u = sb._fitComputeUsage();
+  assert.ok(Math.abs(u.pg - 1709 * 0.05 * 0.9) < 1e-9, `powergrid ${u.pg}`);
+  assert.ok(Math.abs(u.cpu - 82 * 0.5 * 0.75) < 1e-9, `cpu ${u.cpu}`);
+});
+
+test('a per-level plate bonus scales with its skill, and Armor Layering stacks on it', () => {
+  const sb = loadSim();
+  navyBc(sb, TALOS_NI_MODS);
+  const bare = sb._fitShipDerived().mass;
+  sb._fitState.modules.low.push(sb._fitMod(PLATE()));
+  // All V: −75% from the hull, then −25% from Armor Layering.
+  assert.ok(Math.abs(sb._fitShipDerived().mass - bare - 4_500_000 * 0.25 * 0.75) < 1e-6, 'all V');
+  sb._fitState.skills.mode = 'none';
+  assert.ok(Math.abs(sb._fitShipDerived().mass - bare - 4_500_000) < 1e-6, 'no skills: the full plate');
+});
+
+test('a plate bonus never lightens a prop mod', () => {
+  const sb = loadSim();
+  navyBc(sb, TALOS_NI_MODS);
+  const bare = sb._fitShipDerived().mass;
+  sb._fitState.modules.med.push(sb._fitMod({ ...MWD(), attrs: { ...MWD().attrs, 796: 50_000_000 } }));
+  assert.ok(Math.abs(sb._fitShipDerived().mass - bare - 50_000_000) < 1e-6, 'an MWD is not an Armor Plate');
+});
+
+// Large Imperial Navy Synchronizer (96132). Bonuses 335 armour HP 5, 1079
+// capacitor 5, 317 laser cap need −5, 6405 laser damage 5; 1138 CPU drawback
+// −10; set attribute 6316 = 0. Its one rig row: laser capacitorNeed by 317.
+const IN_SYNC = () => facts({
+  id: 96132, name: 'Large Imperial Navy Synchronizer', groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+  attrs: { 335: 5, 1079: 5, 317: -5, 6405: 5, 6529: 1, 1138: -10, 6316: 0, 1544: 1, 1547: 3, 1153: 250 },
+  effects: ['hullUpgradesArmorHpBonusPostPercentHpLocationShip', 'energyManagementCapacitorCapacityBonusPostPercentPassive',
+    'rigSlot', 'capNeedBonusEffectLasers', 'drawbackCPUOutput', 'rigEnergyWeaponDamageMultiplyPostPercent',
+    'amarrRigSetBonusEffectmodAdd', 'synchronizerRigEnergyWeaponDamageMultiplyPostMulPassive'],
+  fittingMods: [{ attr: 6, op: 6, value: -5, byAttr: 317, group: 53, skill: null, scaleSkill: null }],
+});
+// Imperial Navy Stasis Webifier (97955) carries rigSetAmarrNavyModule 6312 = 1.
+const IN_WEB = () => facts({ id: 97955, name: 'Imperial Navy Stasis Webifier', groupName: 'Stasis Web',
+  groupId: 65, slot: 'med', activatable: true, attrs: { 6312: 1 } });
+const withSync = (sb, sync = IN_SYNC(), webs = 0) => {
+  rig(sb, {});
+  sb._fitState.hull = { ...HULL(), rigSize: 3 };
+  sb._fitState.modules.rig.push(sb._fitMod(sync));
+  for (let i = 0; i < webs; i++) sb._fitState.modules.med.push(sb._fitMod(IN_WEB()));
+  return sb._fitState;
+};
+
+test('a Synchronizer gives its bonuses, and each matching module adds a flat 1%', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const base = sb._fitShipDerived(), baseDps = dps(sb);
+  for (const n of [0, 3]) {
+    withSync(sb, IN_SYNC(), n);
+    const d = sb._fitShipDerived();
+    const k = 1 + (5 + n) / 100;
+    assert.ok(Math.abs(d.armorHp / base.armorHp - k) < 1e-9, `armour with ${n} modules`);
+    assert.ok(Math.abs(d.capCap / base.capCap - k) < 1e-9, `capacitor with ${n} modules`);
+    assert.ok(Math.abs(dps(sb) / baseDps - k) < 1e-9, `laser damage with ${n} modules`);
+  }
+});
+
+test('an offline module does not feed the set', () => {
+  const sb = loadSim();
+  const S = withSync(sb, IN_SYNC(), 3);
+  S.modules.med[0].state = 'offline';
+  assert.strictEqual(sb._fitSync().n, 2);
+});
+
+test('the set bonus deepens a reduction rather than shrinking it', () => {
+  // capNeedBonus −5 is set-scaled by modSub: −5 − n.
+  const sb = loadSim();
+  rig(sb, {});
+  const before = sb._fitCapSim(sb._fitShipDerived()).drain;
+  withSync(sb, IN_SYNC(), 2);
+  const after = sb._fitCapSim(sb._fitShipDerived()).drain;
+  // Controlled Bursts V and no hull traits are common to both.
+  assert.ok(Math.abs(after / before - 0.93) < 1e-9, `laser cap use x${(after / before).toFixed(4)}`);
+});
+
+test('a Synchronizer costs CPU, and Synchronization Rigging halves the cost', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const cpuAt = (mode) => { sb._fitState.skills.mode = mode; return sb._fitEffOutputs().cpu; };
+  const bare5 = cpuAt('all5'), bare0 = cpuAt('none');
+  withSync(sb);
+  assert.ok(Math.abs(cpuAt('none') / bare0 - 0.90) < 1e-9, 'untrained: −10%');
+  assert.ok(Math.abs(cpuAt('all5') / bare5 - 0.95) < 1e-9, 'Synchronization Rigging V: −5%');
+  // The 'Xyston' SY-1020 Cyber Rigging implant takes a further 20% off: −4%.
+  sb._fitState.implants[9] = { id: 97925, name: 'SY-1020', f: facts({ attrs: { 1139: -20 },
+    effects: ['rigDrawbackReductionModuleSet'] }) };
+  assert.ok(Math.abs(cpuAt('all5') / bare5 - 0.96) < 1e-9, 'with the implant');
+});
+
+test('Synchronizer damage shares the heat sinks\' stacking chain', () => {
+  // A Heat Sink II and the rig's hidden multiplier are both PostMul on the
+  // turret's damageMultiplier — one operator, one penalty chain.
+  const sb = loadSim();
+  rig(sb, {});
+  sb._fitState.modules.low.push(sb._fitMod(facts({ name: 'Heat Sink II', groupName: 'Heat Sink', slot: 'low',
+    dmgMultMod: 1.1, attrs: { 64: 1.1 } })));
+  const hsOnly = dps(sb);
+  sb._fitState.hull = { ...sb._fitState.hull, rigSize: 3 };
+  sb._fitState.modules.rig.push(sb._fitMod(IN_SYNC()));
+  assert.ok(Math.abs(dps(sb) / hsOnly - (1 + 0.05 * Math.exp(-((1 / 2.67) ** 2)))) < 1e-9,
+    'the 5% rig is second in the chain behind the 10% heat sink');
+});
+
+test('one Synchronizer per ship, and only in its own rig size', () => {
+  const sb = loadSim();
+  withSync(sb);
+  assert.match(sb._fitCanFit(IN_SYNC()), /Only one Rig Synchronizer per ship/);
+  rig(sb, {});
+  sb._fitState.hull = { ...HULL(), rigSize: 1, name: 'Punisher' };
+  assert.match(sb._fitCanFit(IN_SYNC()), /large rig — Punisher takes small rigs/);
+});
+
+test('pirate Synchronizers bring their penalties, and the set never softens them', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const base = sb._fitShipDerived();
+  // Dark Blood: +200% capacitor recharge time.
+  withSync(sb, facts({ groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+    attrs: { 6388: 200, 6377: 0, 1138: -10, 1544: 1 }, effects: ['rigCapacitorRechargeTimeBonusPostPercentPassive'] }));
+  assert.ok(Math.abs(sb._fitShipDerived().rechargeSec / base.rechargeSec - 3) < 1e-9, 'recharge ×3');
+  // Domination: −30% shield / armour / hull, −10% signature, +5% warp speed.
+  withSync(sb, facts({ groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+    attrs: { 6399: -30, 6398: -10, 624: 5, 6381: 0, 1138: -10, 1544: 1 } }));
+  let d = sb._fitShipDerived();
+  for (const k of ['shieldHp', 'armorHp', 'structHp']) assert.ok(Math.abs(d[k] / base[k] - 0.7) < 1e-9, k);
+  assert.ok(Math.abs(d.sig / base.sig - 0.9) < 1e-9, 'signature');
+  assert.ok(Math.abs(d.warp / base.warp - 1.05) < 1e-9, 'warp');
+  // Shadow Serpentis: −60% lock range.
+  withSync(sb, facts({ groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+    attrs: { 6394: -60, 6380: 0, 1138: -10, 1544: 1 } }));
+  assert.ok(Math.abs(sb._fitShipDerived().lockRange / base.lockRange - 0.4) < 1e-9, 'lock range');
+});
+
+test('the Dread Guristas rig\'s hit points go to drones, never the hull', () => {
+  // Attribute 327 is ship hull HP on the Federation Navy rig and drone HP on
+  // this one; the effect names say which.
+  const sb = loadSim();
+  rig(sb, {});
+  const base = sb._fitShipDerived(), ctrl = sb._fitDroneCtrlRange();
+  withSync(sb, facts({ groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+    attrs: { 327: 10, 6397: -60, 6379: 0, 1138: -10, 1544: 1 },
+    effects: ['droneDurabilityHPBonus', 'rigDroneControlRangePenaltyPassivePostPercent'] }));
+  assert.strictEqual(sb._fitShipDerived().structHp, base.structHp);
+  assert.ok(Math.abs(sb._fitDroneCtrlRange() / ctrl - 0.4) < 1e-9, 'control range −60%');
+});
+
+test('the True Sansha rig makes afterburners faster and far thirstier', () => {
+  const sb = loadSim();
+  const AB = () => facts({ id: 12068, name: '100MN Afterburner II', groupName: 'Propulsion Module', groupId: 46,
+    slot: 'med', activatable: true, attrs: { 20: 135, 567: 50_000_000, 6: 100, 73: 10000, 182: 3450 } });
+  rig(sb, {});
+  sb._fitState.modules.med.push(sb._fitMod(AB()));
+  const cap0 = sb._fitCapSim(sb._fitShipDerived()).drain;
+  withSync(sb, facts({ groupName: 'Rig Synchronizer', groupId: 5140, slot: 'rig',
+    attrs: { 6389: 10, 6392: 400, 6378: 0, 1138: -10, 1544: 1 },
+    fittingMods: [{ attr: 6, op: 6, value: 400, byAttr: 6392, group: null, skill: 3450, scaleSkill: null }] }));
+  sb._fitState.modules.med.push(sb._fitMod(AB()));
+  const capAb = sb._fitCapSim(sb._fitShipDerived()).drain;
+  // Only the afterburner's share of the drain grows, by ×5 (+400%).
+  assert.ok(capAb > cap0, 'the afterburner costs more');
+  const laserOnly = (() => { rig(sb, {}); return sb._fitCapSim(sb._fitShipDerived()).drain; })();
+  assert.ok(Math.abs((capAb - laserOnly) / (cap0 - laserOnly) - 5) < 1e-9, 'afterburner cap ×5');
+});
+
+// 'Vigilant' Vital Overdrive Injector System (97974): 1076 velocity +8 passive,
+// 6481 +15 while active, 73 = 20 s, 669 = 120 s cooldown, maxTypeFitted 1.
+const VITAL_OD = () => facts({ id: 97974, name: "'Vigilant' Vital Overdrive Injector System",
+  groupName: 'Overdrive Injector System', groupId: 764, slot: 'low', activatable: true,
+  attrs: { 1076: 8, 6481: 15, 73: 20000, 669: 120000, 1014: 1, 2431: 1, 149: 0.85 } });
+
+test('a Vital overdrive fits online and gives its passive; the burst adds on top', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const bare = sb._fitShipDerived().maxVel;
+  const m = sb._fitMod(VITAL_OD());
+  assert.strictEqual(m.state, 'online', 'a 20 s burst is not the standing speed');
+  sb._fitState.modules.low.push(m);
+  assert.ok(Math.abs(sb._fitShipDerived().maxVel / bare - 1.08) < 1e-9, 'passive +8% while merely online');
+  m.state = 'active';
+  // Both are PostPercent on maxVelocity: one penalised chain, 15% leading.
+  const want = 1.15 * (1 + 0.08 * Math.exp(-((1 / 2.67) ** 2)));
+  assert.ok(Math.abs(sb._fitShipDerived().maxVel / bare - want) < 1e-9, 'burst +15%, penalised with the passive');
+});
+
+test('one of each Vital module per ship', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  sb._fitState.modules.low.push(sb._fitMod(VITAL_OD()));
+  assert.match(sb._fitCanFit(VITAL_OD()), /Only one 'Vigilant' Vital Overdrive Injector System per ship/);
+});
+
+// ── Rig drawbacks, and stacking where the game stacks ──────────────────────────
+test('rig drawbacks apply, and the rigging skill halves them', () => {
+  // Large Trimark Armor Pump: +10% inertia (drawbackAgility, agility is not
+  // stackable). Armor Rigging V: −50% of that.
+  const sb = loadSim();
+  const TRIM = () => ({ ...TRIMARK(), attrs: { ...TRIMARK().attrs, 1138: 10 }, effects: ['drawbackAgility'] });
+  rig(sb, {});
+  const bare = sb._fitShipDerived().agility;
+  sb._fitState.modules.rig.push(sb._fitMod(TRIM()));
+  assert.ok(Math.abs(sb._fitShipDerived().agility / bare - 1.05) < 1e-9, 'Armor Rigging V: +5%');
+  sb._fitState.skills.mode = 'none';
+  const bare0 = (() => { const keep = sb._fitState.modules.rig; sb._fitState.modules.rig = []; const v = sb._fitShipDerived().agility; sb._fitState.modules.rig = keep; return v; })();
+  assert.ok(Math.abs(sb._fitShipDerived().agility / bare0 - 1.10) < 1e-9, 'untrained: the full +10%');
+});
+
+test('a weapon rig\'s powergrid drawback lands on its own weapons only', () => {
+  // Large Energy Collision Accelerator I (25980): power +10% on group 53.
+  const sb = loadSim();
+  const ECA = () => facts({ id: 25980, name: 'Large Energy Collision Accelerator I', groupName: 'Rig Energy Weapon',
+    groupId: 775, slot: 'rig', dmgMultMod: 1.1, attrs: { 64: 1.1, 1138: 10 },
+    fittingMods: [{ attr: 30, op: 6, value: 10, byAttr: 1138, group: 53, skill: null, scaleSkill: null }] });
+  rig(sb, {});
+  sb._fitState.modules.high = [sb._fitMod(MPL()), sb._fitMod(TORP())];
+  const before = sb._fitComputeUsage().pg;
+  sb._fitState.modules.rig.push(sb._fitMod(ECA()));
+  // Energy Weapon Rigging V halves the 10%: the laser is +5%, the launcher untouched.
+  assert.ok(Math.abs(sb._fitComputeUsage().pg - before - 2750 * 0.9 * 0.05) < 1e-9);
+});
+
+test('Co-Processors, Cap Rechargers and Bulkheads never stack-penalise', () => {
+  // cpuOutput, rechargeRate and hp are stackable in the SDE.
+  const sb = loadSim();
+  rig(sb, {});
+  const cpu0 = sb._fitEffOutputs().cpu, d0 = sb._fitShipDerived();
+  for (let i = 0; i < 3; i++) {
+    sb._fitState.modules.low.push(sb._fitMod(facts({ name: 'Co-Processor II', groupName: 'CPU Enhancer', slot: 'low', cpuMult: 1.1, attrs: { 202: 1.1 } })));
+    sb._fitState.modules.med.push(sb._fitMod(facts({ name: 'Cap Recharger II', groupName: 'Capacitor Recharger', slot: 'med', attrs: { 144: 0.8 } })));
+    sb._fitState.modules.low.push(sb._fitMod(facts({ name: 'Reinforced Bulkheads II', groupName: 'Reinforced Bulkhead', slot: 'low', attrs: { 150: 1.25 } })));
+  }
+  const d = sb._fitShipDerived();
+  assert.ok(Math.abs(sb._fitEffOutputs().cpu / cpu0 - 1.1 ** 3) < 1e-9, 'cpu ×1.331');
+  assert.ok(Math.abs(d.rechargeSec / d0.rechargeSec - 0.8 ** 3) < 1e-9, 'recharge ×0.512');
+  assert.ok(Math.abs(d.structHp / d0.structHp - 1.25 ** 3) < 1e-9, 'hull ×1.953');
+});
+
+test('a Damage Control never takes a hardener\'s stacking penalty', () => {
+  // Damage Control II (2048): armour resonance 0.85, a PreMul. EM Armor
+  // Hardener II (11642): −55% EM, a PostPercent. Different operators, so the
+  // game penalises neither against the other.
+  const sb = loadSim();
+  rig(sb, {});
+  const base = sb._fitShipDerived().armorRes.em;
+  sb._fitState.modules.low.push(sb._fitMod(facts({ name: 'Damage Control II', groupName: 'Damage Control', groupId: 60,
+    slot: 'low', activatable: true, attrs: { 267: 0.85, 268: 0.85, 269: 0.85, 270: 0.85 } })));
+  sb._fitState.modules.low.push(sb._fitMod(facts({ name: 'EM Armor Hardener II', groupName: 'Armor Hardener', groupId: 328,
+    slot: 'low', activatable: true, attrs: { 984: -55 } })));
+  assert.ok(Math.abs(sb._fitShipDerived().armorRes.em / base - 0.85 * 0.45) < 1e-9);
+});
+
+test('a laser optimal rig does nothing for a blaster', () => {
+  const sb = loadSim();
+  rig(sb, {});
+  const opt = sb._fitWeaponSim()[0].optimal;
+  sb._fitState.modules.rig.push(sb._fitMod(facts({ name: 'Large Hybrid Locus Coordinator II', groupName: 'Rig Hybrid Weapon',
+    groupId: 776, slot: 'rig', bonus: { optimal: 20 }, attrs: { 351: 20 } })));
+  assert.strictEqual(sb._fitWeaponSim()[0].optimal, opt, 'a hybrid rig must not reach an energy turret');
+  sb._fitState.modules.rig.push(sb._fitMod(facts({ name: 'Large Energy Locus Coordinator II', groupName: 'Rig Energy Weapon',
+    groupId: 775, slot: 'rig', bonus: { optimal: 20 }, attrs: { 351: 20 } })));
+  assert.ok(Math.abs(sb._fitWeaponSim()[0].optimal / opt - 1.2) < 1e-9, 'its own family gets the full 20%');
 });

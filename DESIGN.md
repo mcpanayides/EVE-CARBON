@@ -262,6 +262,8 @@ Shadow alphas are tokens (`--shadow-soft` 0.15, `--shadow-dark` 0.35, `--shadow-
 
 **The Nothing-Animates-Unwatched Rule.** This app's normal state is sitting behind the game, unfocused and occluded — and Chromium only throttles animation in a *hidden* window, not an unfocused one. Every decorative loop pauses on `body.app-unfocused` and releases its `will-change` promotion. Spinners and progress indicators are deliberately exempt: they carry meaning.
 
+**The Performance Rule.** Everything above is Quality: the app as designed. Settings → General also offers Performance (Potato mode 🥔), for a PC running EVE Carbon beside many EVE clients, and it removes every cost that is only a look: all motion (durations cut to 0.01ms so `animationend`/`transitionend` still fire), every backdrop blur, the glass and the window acrylic, the wallpaper, the map's drifting nebula, sky and bridge light, chart animation, and from the next launch graphics acceleration. It is `body.perf-mode`, set before first paint; `styles/performance.css` loads last; the saved glass settings are never touched, so Quality returns exactly what was there. Spinners keep turning, as above. Anything new that moves, blurs or paints decoration must stop under `body.perf-mode` too; anything that tells the pilot something must not.
+
 ## Shapes
 
 Softened glass geometry by default: with glass on (the resting state), the global `--radius` token resolves to 10px and structural containers round further (panels 14px, modals 18px), so the whole terminal reads as tinted glass panes. The underlying flat mode keeps a machined 2px radius — the sharp skeleton the glass rounds. Radius is driven by the *one* `--radius` token so the terminal softens in concert, never piecemeal. Two shapes break the rectilinear grid on purpose: **pills** (`999px`) for count badges, view toggles, and status chips; and **circles** for character portraits (teal-ringed), status lights, and presence dots.
@@ -305,6 +307,7 @@ EVE type icons (ore, ice, gas, moon ore, blueprints, modules) sit **bare** in li
 - **Style:** deep translucent fill, cool hairline border, 8px glass radius (2px flat), Fira Code text.
 - **Focus:** border shifts to `--accent-40` and a 2px `--accent-08` focus ring appears — a quiet accent glow, no outline.
 - **Toggle switch:** 42×24px pill track; off = deep fill + gray knob, on = solid accent track + white knob; focus-visible adds an accent ring.
+- **Two-way switch:** the toggle switch opened out to carry a word each side (Quality | Performance (Potato mode 🥔)), set under its row's text when it is too wide to sit beside it (`.settings-toggle-row.is-stacked`): the same deep pill track and hairline, a solid accent thumb that slides under the chosen word over the switch's 0.2s, chosen word in `--text-on-accent` (the accent can be light, as the default pink is), the other `--text-2`. It is a radio group: the arrow keys move the choice and the focus.
 - **Filled in for you:** a field an alliance pack filled in carries an 11px muted note beneath it ("Filled in from your pack (The Imperium)."). Typing makes the field the pilot's own and the note goes. The Jabber server and the forum address belong to their pack: picking a pack replaces another pack's server or forum, even a saved one (the server also replaces the app's default). Anything else a pilot typed or saved, including an address no pack names, is never replaced.
 
 ### Map Lines
@@ -323,8 +326,12 @@ EVE type icons (ore, ice, gas, moon ore, blueprints, modules) sit **bare** in li
 - **Show only what works:** a control that does nothing in the current state is hidden, not disabled (Layout in Schematic, Region in Spatial).
 - **Wrapping:** every control is one flex item, so a narrow window wraps whole controls and never splits a group. The search box is the give: it shrinks before anything wraps.
 
+### Toasts
+- **Corner toasts** (`pushAppToast`, `styles/toast.css`): one stack at the top right, ending clear of the refresh and close buttons every page header carries (`right: calc(84px + 1.875vw)`, which follows how far in those buttons sit as the window widens), and below the toolbar on the map, whose toolbar runs the full width. A 3px status stripe on the left: accent for news, green for done, red for failed.
+- **Progress toast** (the SDE update, `func/sde_progress.js`): one card that stays and changes in place: the stage, a 4px pill bar for the whole job, then the detail and the time left in mono. No percentage beside a detail that counts something else (the megabytes of a download that is a sixth of the job). Hiding it leaves the work running; the end of it shows again. Like every popup that opens on its own, it waits while a guided tour runs.
+
 ### Navigation
-- **Style:** vertical rail of nav buttons; Dashboard is always the 2nd item. Icons are a deliberate hybrid — EVE neocom SVG sprite (28px) for game pages, Material Symbols (18px) for app-utility. No emoji anywhere in the chrome.
+- **Style:** vertical rail of nav buttons; Dashboard is always the 2nd item. Icons are a deliberate hybrid — EVE neocom SVG sprite (28px) for game pages, Material Symbols (18px) for app-utility. No emoji anywhere in the chrome, with one deliberate exception: the 🥔 in "Performance (Potato mode 🥔)" in Settings → General, after EVE's own joke name for running at the lowest settings (Mia's call, 2026-11-08).
 - **States:** default gray → hover accent → active accent on blue-tint. Collapsed mode drops labels and centers icons in a 64px rail.
 
 ### Guided Tour
@@ -362,5 +369,5 @@ A persistent 28px bottom marquee — an EVE-authentic touch. A fixed mono "MARKE
 - **Don't** frame a type icon in a list row with a border or background plate — the artwork carries itself; only 64px hero images are matted.
 - **Don't** set numbers in the sans font or spread the accent across a field of equally-weighted buttons.
 - **Don't** add manual Sync/Refresh buttons — data auto-refreshes on ESI's own cache cadence.
-- **Don't** use emoji in the app chrome; use the Material or EVE-neocom icon families.
+- **Don't** use emoji in the app chrome; use the Material or EVE-neocom icon families. (The Potato mode 🥔 is the one exception, and it is a joke the players already share, not an icon.)
 - **Don't** re-introduce a YAML/JS theme engine or add a second named preset — there is one built-in theme (`src/styles/theme-default.css`); user palettes are generated plain-CSS files, one custom property per token.

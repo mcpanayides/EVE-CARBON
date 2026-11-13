@@ -3029,9 +3029,15 @@ function _arcPoint(arc, t) {
           u * u * arc.ay + 2 * u * t * arc.cpy + t * t * arc.by];
 }
 
+/**
+ * Hold every moving part of the map still: the OS reduced-motion setting, or
+ * Performance mode (Settings → General), whose body class the map already
+ * re-syncs on. The bridge light, the drifting nebula, the sky, a route drawing
+ * in and the solar-system orbits all ask this one question.
+ */
 function _jbFxStill() {
   if (!_jbFxReduce && window.matchMedia) _jbFxReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  return !!(_jbFxReduce && _jbFxReduce.matches);
+  return !!(_jbFxReduce && _jbFxReduce.matches) || document.body.classList.contains('perf-mode');
 }
 
 /** Where a bridge is in its cycle, in crossing-times: 0..1 crossing, then the flare, then rest. */
@@ -3957,6 +3963,7 @@ function _camCancelTween() {
 function _spatialFocusOn(sys, ms = 380) {
   if (!sys || sys.tx === undefined) return;
   _camCancelTween();
+  if (document.body.classList.contains('perf-mode')) ms = 0;   // Performance mode: cut, don't glide
   const fx0 = _camFocusX, fy0 = _camFocusY, fz0 = _camFocusZ;
   const px0 = _camPanX,   py0 = _camPanY;
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());

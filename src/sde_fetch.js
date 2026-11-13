@@ -169,30 +169,40 @@ function downloadFile(url, destPath, userAgent, onProgress, _redirects = 0) {
  * @param {object} opts
  * @param {string} opts.userAgent
  * @param {string} opts.outSqlitePath - final destination (e.g. data/sde.sql)
- * @param {(stage:string, pct?:number) => void} [opts.onProgress]
+ * @param {(stage:string, pct?:number, info?:object) => void} [opts.onProgress]
+ *   `info` says where the job is, for the progress toast's estimate
+ *   (src/shared/sde_eta.js): { phase: 'check'|'download'|'extract'|'build'|'finish'|'done' },
+ *   plus { downloaded, total } bytes while downloading and { step, label } while building.
  * @returns {Promise<{buildNumber:number, releaseDate:string}>}
  */
 async function fetchAndBuildSde({ userAgent, outSqlitePath, onProgress }) {
-  const report = (stage, pct) => { if (onProgress) onProgress(stage, pct); };
+  const report = (stage, pct, info) => { if (onProgress) onProgress(stage, pct, info); };
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-carbon-sde-'));
   const zipPath = path.join(tmpRoot, 'sde.zip');
   const jsonlDir = path.join(tmpRoot, 'jsonl');
 
   try {
-    report('Checking SDE version…');
+    report('Checking SDE version…', undefined, { phase: 'check' });
     const manifest = await fetchManifest(userAgent);
 
-    report('Downloading SDE…', 0);
-    await downloadFile(ZIP_URL, zipPath, userAgent, (pct) => report('Downloading SDE…', pct));
+    report('Downloading SDE…', 0, { phase: 'download', downloaded: 0, total: 0 });
+    await downloadFile(ZIP_URL, zipPath, userAgent,
+      (pct, downloaded, total) => report('Downloading SDE…', pct, { phase: 'download', downloaded, total }));
 
-    report('Extracting…');
+    report('Extracting…', undefined, { phase: 'extract' });
     fs.mkdirSync(jsonlDir, { recursive: true });
     await extractZipSafely(zipPath, jsonlDir);
 
-    report('Building database (this can take a minute)…');
-    await buildSdeFromJsonl(jsonlDir, outSqlitePath + '.tmp', (msg) => report(`Building database… ${msg}`));
+    report('Building database (this can take a minute)…', undefined, { phase: 'build', step: 0 });
+    // A step label ends "..." ("Creating schema..."); "invTypes: 53306 rows"
+    // lines in between are results, not steps.
+    let step = 0;
+    await buildSdeFromJsonl(jsonlDir, outSqlitePath + '.tmp', (msg) => {
+      if (/\.\.\.$/.test(msg)) step++;
+      report(`Building database… ${msg}`, undefined, { phase: 'build', step, label: msg });
+    });
 
-    report('Finishing up…');
+    report('Finishing up…', undefined, { phase: 'finish' });
     const outDir = path.dirname(outSqlitePath);
     if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
     try { fs.renameSync(outSqlitePath + '.tmp', outSqlitePath); }
@@ -202,7 +212,7 @@ async function fetchAndBuildSde({ userAgent, outSqlitePath, onProgress }) {
       fs.unlinkSync(outSqlitePath + '.tmp');
     }
 
-    report('Done', 100);
+    report('Done', 100, { phase: 'done' });
     return manifest;
   } finally {
     try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}

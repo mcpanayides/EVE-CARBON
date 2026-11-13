@@ -46,8 +46,8 @@
 //    job, because that needs the SDE.
 
 const fs   = require('fs');
-const path = require('path');
 const { findChatlogDir, lineTimestamp } = require('./chatlog_reader');
+const { chatlogListing, channelIn, sessionMayBeLive } = require('./chatlog_dir');
 
 /** `Local_20260831_090536_1904208033.txt` */
 const LOCAL_FILE_RE = /^Local_(\d{8})_(\d{6})_(\d+)\.txt$/i;
@@ -62,46 +62,48 @@ const POLL_MS = 1000;
 // 820 KB — a day in Jita — so this covers a whole session several times over.
 const SEED_MAX_BYTES = 4 * 1024 * 1024;
 
-// Newest-by-mtime decides which file is live, but statting all 79 Local files
-// every second to find out is wasteful. The filename records when the session
-// started, so the live file is almost always the newest-named one; checking two
-// per character keeps the safety margin at a fraction of the cost.
-const CANDIDATES_PER_CHAR = 2;
+// Which file each character's client is writing is chosen again whenever the
+// folder gains a file (a login, a relog) and otherwise this often, as a backstop
+// for a timestamp a filesystem didn't keep. Not every second: on a multi-boxer's
+// folder that choice was a full listing and two stats per character, every tick.
+const REPICK_MS = 30 * 1000;
 
-/** Local logs grouped by character, newest session first (by name, not stat). */
+/**
+ * Local logs grouped by character, newest session first (by name, not stat):
+ * the newest two per character, which is all anything here looks at.
+ */
 function localFilesByCharacter(dir) {
-  const byChar = new Map();
-  let entries = [];
-  try { entries = fs.readdirSync(dir); } catch (_) { return byChar; }
-
-  for (const name of entries) {
-    const m = LOCAL_FILE_RE.exec(name);
-    if (!m) continue;
-    const charId = Number(m[3]);
-    if (!Number.isFinite(charId)) continue;
-    if (!byChar.has(charId)) byChar.set(charId, []);
-    byChar.get(charId).push({ name, file: path.join(dir, name), stamp: `${m[1]}${m[2]}` });
+  const out = new Map();
+  const local = channelIn(chatlogListing(dir), 'Local');
+  if (!local) return out;
+  for (const [charId, list] of local.byChar) {
+    out.set(charId, list.map(e => ({ name: e.name, file: e.file, stamp: e.stamp })));
   }
-  for (const list of byChar.values()) list.sort((a, b) => b.stamp.localeCompare(a.stamp));
-  return byChar;
+  return out;
+}
+
+/** Of a character's newest few Local files, the one written most recently. */
+function liveFileOf(list) {
+  let best = null;
+  for (const c of list) {
+    let mtime = 0;
+    try { mtime = fs.statSync(c.file).mtimeMs; } catch (_) { continue; }
+    if (!best || mtime > best.mtime) best = { file: c.file, mtime };
+  }
+  return best;
 }
 
 /**
  * The Local file currently being written for each character.
  *
- * By mtime among the newest few, not by name alone: a client left running
+ * By mtime among the newest two, not by name alone: a client left running
  * across midnight keeps writing to a file whose name is a day old, and that
  * file is the live one.
  */
 function newestLocalPerCharacter(dir) {
   const out = new Map();
   for (const [charId, list] of localFilesByCharacter(dir)) {
-    let best = null;
-    for (const c of list.slice(0, CANDIDATES_PER_CHAR)) {
-      let mtime = 0;
-      try { mtime = fs.statSync(c.file).mtimeMs; } catch (_) { continue; }
-      if (!best || mtime > best.mtime) best = { file: c.file, mtime };
-    }
+    const best = liveFileOf(list);
     if (best) out.set(charId, best);
   }
   return out;
@@ -118,9 +120,11 @@ function newestLocalPerCharacter(dir) {
  *
  * @returns {{ systemName: string|null, at: number|null, offset: number }}
  */
-function scanForSystem(file, offset = 0) {
-  let size = 0;
-  try { size = fs.statSync(file).size; } catch (_) { return { systemName: null, at: null, offset }; }
+function scanForSystem(file, offset = 0, knownSize = null) {
+  let size = knownSize;
+  if (size == null) {
+    try { size = fs.statSync(file).size; } catch (_) { return { systemName: null, at: null, offset }; }
+  }
 
   // Truncated or replaced under us — start over rather than reading past the end
   // forever.
@@ -182,33 +186,62 @@ function seedOffset(file) {
  * @param {Function} [opts.onChange] (change) => void, only when a system CHANGES
  */
 function createLocalPositionWatcher({ dir, pollMs = POLL_MS, onChange } = {}) {
-  // characterId -> { file, offset, systemName, at }
+  // characterId -> { file, offset, systemName, at, seenAt, live, read }
   const state = new Map();
   let timer = null;
   let baseDir = findChatlogDir(dir);
+  let pickedVersion = -1;
+  let pickedAt = 0;
 
-  function tick() {
-    if (!baseDir) { baseDir = findChatlogDir(dir); if (!baseDir) return; }
-    const newest = newestLocalPerCharacter(baseDir);
-    const changes = [];
-
-    for (const [charId, { file, mtime }] of newest) {
+  /** Choose the file each character's client is writing. Runs on a new file, not every tick. */
+  function repick(listing) {
+    const local = channelIn(listing, 'Local');
+    if (!local) return;
+    for (const [charId, list] of local.byChar) {
+      // A character whose last session started more than a day before the newest
+      // one cannot be logged in. Where it logged off is read once and kept (it is
+      // still the best answer when ESI has nothing newer); it is not polled.
+      const live = sessionMayBeLive(list[0].stamp, local.newestStamp);
       let st = state.get(charId);
-      if (!st || st.file !== file) {
+      if (!live && st && st.read) { st.live = false; continue; }
+      const best = liveFileOf(list);
+      if (!best) continue;
+      if (!st || st.file !== best.file) {
         // First sight, or a relog. Either way the current position has to be
         // recovered from what is already in the file — tailing from the end
         // would leave the character position-less until their next jump, which
         // for someone parked in a ratting system is forever.
-        st = { file, offset: seedOffset(file), systemName: st ? st.systemName : null,
-               at: st ? st.at : null, seenAt: mtime };
+        st = { file: best.file, offset: seedOffset(best.file), systemName: st ? st.systemName : null,
+               at: st ? st.at : null, seenAt: best.mtime, live, read: false };
         state.set(charId, st);
       }
+      st.live = live;
+    }
+  }
+
+  function tick() {
+    if (!baseDir) { baseDir = findChatlogDir(dir); if (!baseDir) return; }
+    const listing = chatlogListing(baseDir);
+    const now = Date.now();
+    if (listing.version !== pickedVersion || now - pickedAt >= REPICK_MS) {
+      repick(listing);
+      pickedVersion = listing.version;
+      pickedAt = now;
+    }
+    const changes = [];
+
+    for (const [charId, st] of state) {
+      if (!st.live && st.read) continue;
+      let size, mtime;
+      try { const s = fs.statSync(st.file); size = s.size; mtime = s.mtimeMs; } catch (_) { continue; }
       // When the CLIENT was last writing, as distinct from when the character
       // last jumped. A ratter parked for three hours has an old `at` and a
       // seconds-old `seenAt`, and it is `seenAt` that says the position is
       // still being vouched for by a running client.
       st.seenAt = mtime;
-      const got = scanForSystem(file, st.offset);
+      if (st.read && size === st.offset) continue;   // nothing written since the last read
+      const got = scanForSystem(st.file, st.offset, size);
+      st.read = true;
       st.offset = got.offset;
       if (got.systemName && got.systemName !== st.systemName) {
         const previous = st.systemName;

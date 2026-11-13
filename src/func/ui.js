@@ -91,6 +91,7 @@ async function populateGeneralSettings() {
     };
   }
 
+  if (typeof populatePerformanceSetting === 'function') await populatePerformanceSetting();
   await populateFileLogSetting();
   await populateDemoModeSetting();
 }
@@ -870,7 +871,10 @@ function _saveGlassSettings(s) {
 
 async function applyGlass(s) {
   const root = document.documentElement.style;
-  document.body.classList.toggle('glass-on', !!s.enabled);
+  // Performance mode (perf_mode.js) keeps glass off without changing what is
+  // saved here, so Quality brings back exactly the glass the user had.
+  const enabled = !!s.enabled && !document.body.classList.contains('perf-mode');
+  document.body.classList.toggle('glass-on', enabled);
   // Panel opacity is ONE setting taking one of two paths. Under glass,
   // --glass-tint-alpha below drives it (glass.css declares the --bg-* tokens on
   // body.glass-on). Without glass, nothing declares them there, so the inline
@@ -904,7 +908,7 @@ async function applyGlass(s) {
   // Ambient radial glows follow the tint in glass mode; cleared when glass is
   // off so the classic theme colours return.
   Object.entries(GLASS_GLOW_ALPHAS).forEach(([v, a]) => {
-    if (s.enabled) root.setProperty(v, `rgba(${glowRgb}, ${a})`);
+    if (enabled) root.setProperty(v, `rgba(${glowRgb}, ${a})`);
     else           root.removeProperty(v);
   });
 
@@ -916,7 +920,7 @@ async function applyGlass(s) {
   } catch {}
 
   // OS acrylic on/off — fire-and-forget; unsupported platforms just report so.
-  window.eveAPI?.glassSetMaterial?.(s.enabled ? 'acrylic' : 'none').catch(() => {});
+  window.eveAPI?.glassSetMaterial?.(enabled ? 'acrylic' : 'none').catch(() => {});
 }
 
 function _rgbStrToArr(rgb) {

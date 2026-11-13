@@ -104,6 +104,15 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE TABLE dgmTypeAttributes (typeID INTEGER, attributeID INTEGER, valueInt INTEGER, valueFloat FLOAT);
     CREATE TABLE dgmTypeEffects (typeID INTEGER, effectID INTEGER, isDefault BOOLEAN);
     CREATE TABLE dgmEffects (effectID INTEGER, effectName TEXT, effectCategory INTEGER);
+    /* An effect's modifierInfo, one row per modifier: what it changes
+       (modifiedAttributeID, on which items — domain + func + groupID/skillTypeID)
+       and how (modifyingAttributeID read off the effect's owner, operation).
+       Fuzzwork kept this as a YAML column on dgmEffects; flattened here so a
+       hull's fitting bonuses are a join, not a parse. The fitting simulator
+       reads it to apply bonuses whose target the trait TEXT cannot name
+       reliably — an attack battlecruiser's 95% powergrid reduction targets a
+       launcher GROUP that no showinfo link carries. */
+    CREATE TABLE dgmEffectModifiers (effectID INTEGER, domain TEXT, func TEXT, modifiedAttributeID INTEGER, modifyingAttributeID INTEGER, operation INTEGER, groupID INTEGER, skillTypeID INTEGER);
     CREATE TABLE mapRegions (regionID INTEGER, regionName TEXT, x FLOAT, y FLOAT, z FLOAT, radius FLOAT, factionID INTEGER, nebulaFile TEXT);
     CREATE TABLE mapConstellations (regionID INTEGER, constellationID INTEGER, constellationName TEXT, x FLOAT, y FLOAT, z FLOAT, factionID INTEGER, radius FLOAT);
     CREATE TABLE mapSolarSystems (regionID INTEGER, constellationID INTEGER, solarSystemID INTEGER, solarSystemName TEXT, x FLOAT, y FLOAT, z FLOAT, luminosity FLOAT, border BOOLEAN, fringe BOOLEAN, corridor BOOLEAN, hub BOOLEAN, international BOOLEAN, regional BOOLEAN, security FLOAT, factionID INTEGER, radius FLOAT, sunTypeID INTEGER, securityClass VARCHAR(2), x2d FLOAT, y2d FLOAT);
@@ -222,10 +231,20 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     await bulkInsert('planetSchematicsTypeMap', ['schematicID', 'typeID', 'quantity', 'isInput'], rowsFrom(async p => types.forEach(p)));
   }
 
-  report('Populating dgmEffects...');
-  await bulkInsert('dgmEffects', ['effectID', 'effectName', 'effectCategory'],
-    rowsFrom(async push => forEachLine(f('dogmaEffects.jsonl'), o =>
-      push([o._key, o.name ?? null, o.effectCategoryID ?? null]))));
+  report('Populating dgmEffects, dgmEffectModifiers...');
+  {
+    const mods = [];
+    await bulkInsert('dgmEffects', ['effectID', 'effectName', 'effectCategory'],
+      rowsFrom(async push => forEachLine(f('dogmaEffects.jsonl'), o => {
+        push([o._key, o.name ?? null, o.effectCategoryID ?? null]);
+        for (const mi of (o.modifierInfo || [])) {
+          mods.push([o._key, mi.domain ?? null, mi.func ?? null, mi.modifiedAttributeID ?? null,
+            mi.modifyingAttributeID ?? null, mi.operation ?? null, mi.groupID ?? null, mi.skillTypeID ?? null]);
+        }
+      })));
+    await bulkInsert('dgmEffectModifiers', ['effectID', 'domain', 'func', 'modifiedAttributeID',
+      'modifyingAttributeID', 'operation', 'groupID', 'skillTypeID'], rowsFrom(async push => mods.forEach(push)));
+  }
 
   report('Populating blueprints -> industryActivity / Materials / Products...');
   {
@@ -410,6 +429,8 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE INDEX idx_dgmTypeAttributes_attributeID ON dgmTypeAttributes(attributeID);
     CREATE INDEX idx_dgmTypeEffects_typeID ON dgmTypeEffects(typeID);
     CREATE INDEX idx_dgmEffects_effectID ON dgmEffects(effectID);
+    CREATE INDEX idx_dgmEffectModifiers_effectID ON dgmEffectModifiers(effectID);
+    CREATE INDEX idx_dgmEffectModifiers_modified ON dgmEffectModifiers(modifiedAttributeID);
     CREATE INDEX idx_mapSolarSystems_id ON mapSolarSystems(solarSystemID);
     CREATE INDEX idx_mapSolarSystems_regionID ON mapSolarSystems(regionID);
     CREATE INDEX idx_mapConstellations_id ON mapConstellations(constellationID);

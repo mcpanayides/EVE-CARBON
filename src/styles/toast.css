@@ -3,11 +3,17 @@
    optionally click through to a destination. Theme-aware via palette tokens. */
 
 .app-toast-stack {
-  position: fixed; top: 54px; right: 16px; z-index: 9999;
+  /* Top right, but clear of the refresh and close buttons every page has in
+     its header. Measured from the window's right edge they start 94 px in at
+     1280 wide, 100 at 1600 and 106 at 1920 (1.875% of the width more for each
+     pixel), so the stack ends 14 px short of them at any width. */
+  position: fixed; top: 54px; right: calc(84px + 1.875vw); z-index: 9999;
   display: flex; flex-direction: column; gap: 10px;
   width: 340px; max-width: calc(100vw - 32px);
   pointer-events: none;
 }
+/* The map's toolbar runs the whole width at that height: drop below it there. */
+body:has(#page-map.active) .app-toast-stack { top: 150px; }
 
 .app-toast {
   pointer-events: auto;
@@ -40,6 +46,16 @@
   cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px; flex-shrink: 0;
 }
 .app-toast-close:hover { color: var(--text-1, #e6e8ec); }
+
+/* ─── SDE update progress (func/sde_progress.js) ─────────────────────────────
+   An app toast that stays while the update runs and changes in place: the
+   stage, a thin bar, then the detail and the time left in mono. */
+.sde-toast-track   { height: 4px; margin: 9px 0 7px; border-radius: 999px; background: var(--bg-deep); overflow: hidden; }
+.sde-toast-fill    { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width 0.6s ease; }
+.app-toast-success .sde-toast-fill { background: var(--success); }
+.sde-toast-meta    { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.sde-toast-eta     { color: var(--text-2); white-space: nowrap; }
+.sde-toast-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 /* ─── Centered confirmation toast (pushCenterToast) ─────────────────────────── */
 .center-toast {

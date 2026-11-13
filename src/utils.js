@@ -57,6 +57,13 @@ function countUp(el, targetValue, duration = 1200) {
   const start    = performance.now();
   const startVal = parseFloat(el.dataset.currentVal) || 0;
   el.dataset.currentVal = targetValue;
+  // Performance mode (Settings → General): the number, without 1.2 s of frames.
+  if (document.body && document.body.classList.contains('perf-mode')) {
+    el.textContent = Number(targetValue).toLocaleString('en-US', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+    return;
+  }
   function tick(now) {
     const elapsed  = now - start;
     const progress = Math.min(elapsed / duration, 1);

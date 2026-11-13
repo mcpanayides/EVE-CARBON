@@ -7,25 +7,25 @@
 - **mining.js** (25 connections) — `src/func/mining.js`
 - **_mlRenderView()** (8 connections) — `src/func/mining.js`
 - **_mlLoadAndRender()** (7 connections) — `src/func/mining.js`
-- **_mlRenderOre()** (7 connections) — `src/func/mining.js`
 - **_mlEnsureFresh()** (6 connections) — `src/func/mining.js`
-- **renderMiningLedger()** (5 connections) — `src/func/mining.js`
+- **_mlRenderOre()** (6 connections) — `src/func/mining.js`
 - **_mlRenderDaily()** (5 connections) — `src/func/mining.js`
 - **_mlRenderMoon()** (5 connections) — `src/func/mining.js`
-- **_mlRowsInRange()** (4 connections) — `src/func/mining.js`
+- **renderMiningLedger()** (5 connections) — `src/func/mining.js`
 - **_mlEmpty()** (4 connections) — `src/func/mining.js`
+- **_mlRowsInRange()** (4 connections) — `src/func/mining.js`
+- **_mlScopeAccounts()** (3 connections) — `src/func/mining.js`
 - **_mlStartAutoRefresh()** (3 connections) — `src/func/mining.js`
 - **_mlStatus()** (3 connections) — `src/func/mining.js`
-- **_mlScopeAccounts()** (3 connections) — `src/func/mining.js`
 - **_mlUnitValue()** (3 connections) — `src/func/mining.js`
-- **_mlPrice()** (2 connections) — `src/func/mining.js`
 - **_mlCutoff()** (2 connections) — `src/func/mining.js`
-- **_mlRenderControls()** (2 connections) — `src/func/mining.js`
-- **_mlOreRow()** (2 connections) — `src/func/mining.js`
 - **_mlDur()** (2 connections) — `src/func/mining.js`
-- **_mlSort** (1 connections) — `src/func/mining.js`
+- **_mlOreRow()** (2 connections) — `src/func/mining.js`
+- **_mlPrice()** (2 connections) — `src/func/mining.js`
+- **_mlRenderControls()** (2 connections) — `src/func/mining.js`
 - **_mlAccounts** (1 connections) — `src/func/mining.js`
 - **_mlLedger** (1 connections) — `src/func/mining.js`
+- **_mlMatPrices** (1 connections) — `src/func/mining.js`
 - **_mlNames** (1 connections) — `src/func/mining.js`
 - **_mlOrePrices** (1 connections) — `src/func/mining.js`
 - **_mlReprocess** (1 connections) — `src/func/mining.js`
@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -41,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 104 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 52 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

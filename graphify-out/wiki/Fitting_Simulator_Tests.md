@@ -1,49 +1,50 @@
 # Fitting Simulator Tests
 
-> 54 nodes · cohesion 0.07
+> 50 nodes · cohesion 0.07
 
 ## Key Concepts
 
-- **fitting_sim.test.js** (39 connections) — `test/fitting_sim.test.js`
-- **facts()** (20 connections) — `test/fitting_sim.test.js`
-- **salvage.js** (13 connections) — `src/func/salvage.js`
+- **fitting_sim.test.js** (54 connections) — `test/fitting_sim.test.js`
+- **facts()** (24 connections) — `test/fitting_sim.test.js`
 - **rig()** (10 connections) — `test/fitting_sim.test.js`
-- **renderSalvageCalculator()** (8 connections) — `src/func/salvage.js`
-- **_buildSalvageTable()** (6 connections) — `src/func/salvage.js`
-- **_loadSalvagePrices()** (5 connections) — `src/func/salvage.js`
-- **_loadSalvageData()** (4 connections) — `src/func/salvage.js`
-- **_runBulkSalvage()** (4 connections) — `src/func/salvage.js`
-- **_fetchRigPrices()** (3 connections) — `src/func/salvage.js`
-- **_updateMatPriceDisplay()** (3 connections) — `src/func/salvage.js`
-- **_sortSalvage()** (3 connections) — `src/func/salvage.js`
-- **HULL()** (3 connections) — `test/fitting_sim.test.js`
-- **LASER()** (3 connections) — `test/fitting_sim.test.js`
+- **HULL()** (5 connections) — `test/fitting_sim.test.js`
+- **LASER()** (4 connections) — `test/fitting_sim.test.js`
+- **withSync()** (4 connections) — `test/fitting_sim.test.js`
 - **AMMO()** (3 connections) — `test/fitting_sim.test.js`
 - **BASTION()** (3 connections) — `test/fitting_sim.test.js`
+- **IN_WEB()** (3 connections) — `test/fitting_sim.test.js`
+- **MWD()** (3 connections) — `test/fitting_sim.test.js`
+- **navyBc()** (3 connections) — `test/fitting_sim.test.js`
 - **SIEGE()** (3 connections) — `test/fitting_sim.test.js`
 - **TRIMARK()** (3 connections) — `test/fitting_sim.test.js`
-- **MWD()** (3 connections) — `test/fitting_sim.test.js`
-- **_populateSalvageMatDropdown()** (2 connections) — `src/func/salvage.js`
-- **_setSalvageMode()** (2 connections) — `src/func/salvage.js`
-- **PLATE()** (2 connections) — `test/fitting_sim.test.js`
-- **EXPANDER()** (2 connections) — `test/fitting_sim.test.js`
-- **SPARE()** (2 connections) — `test/fitting_sim.test.js`
+- **ACCEL()** (2 connections) — `test/fitting_sim.test.js`
+- **AERATOR()** (2 connections) — `test/fitting_sim.test.js`
 - **DEPOT()** (2 connections) — `test/fitting_sim.test.js`
-- *... and 29 more nodes in this community*
+- **DRONE()** (2 connections) — `test/fitting_sim.test.js`
+- **EXPANDER()** (2 connections) — `test/fitting_sim.test.js`
+- **FIGHTER()** (2 connections) — `test/fitting_sim.test.js`
+- **IN_SYNC()** (2 connections) — `test/fitting_sim.test.js`
+- **ISTAB()** (2 connections) — `test/fitting_sim.test.js`
+- **loadGameFit()** (2 connections) — `test/fitting_sim.test.js`
+- **MJD()** (2 connections) — `test/fitting_sim.test.js`
+- **MPL()** (2 connections) — `test/fitting_sim.test.js`
+- **NOS()** (2 connections) — `test/fitting_sim.test.js`
+- *... and 25 more nodes in this community*
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `src/func/salvage.js`
 - `test/fitting_sim.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 184 (97%)
-- INFERRED: 6 (3%)
+- EXTRACTED: 91 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

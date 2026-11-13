@@ -1,29 +1,29 @@
 # Presence
 
-> 15 nodes · cohesion 0.17
+> 14 nodes · cohesion 0.20
 
 ## Key Concepts
 
-- **presence.js** (12 connections) — `src/presence.js`
-- **_beat()** (4 connections) — `src/presence.js`
+- **presence.js** (13 connections) — `src/presence.js`
+- **presence.test.js** (6 connections) — `test/presence.test.js`
+- **_schedule()** (5 connections) — `src/presence.js`
 - **initPresence()** (4 connections) — `src/presence.js`
-- **presence.test.js** (4 connections) — `test/presence.test.js`
-- **_schedule()** (3 connections) — `src/presence.js`
-- **_versionParts()** (2 connections) — `src/presence.js`
-- **summarisePresenceVersions()** (2 connections) — `src/presence.js`
+- **_beat()** (3 connections) — `src/presence.js`
+- **summarisePresenceVersions()** (3 connections) — `src/presence.js`
 - **getPresenceCount()** (2 connections) — `src/presence.js`
 - **getPresenceState()** (2 connections) — `src/presence.js`
+- **_versionParts()** (2 connections) — `src/presence.js`
+- **stopPresence()** (1 connections) — `src/presence.js`
 - **crypto** (1 connections) — `src/presence.js`
 - **_state** (1 connections) — `src/presence.js`
-- **stopPresence()** (1 connections) — `src/presence.js`
-- **test** (1 connections) — `test/presence.test.js`
 - **assert** (1 connections) — `test/presence.test.js`
-- **presence** (1 connections) — `test/presence.test.js`
+- **test** (1 connections) — `test/presence.test.js`
 
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
 
 ## Source Files
 
@@ -32,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (73%)
-- INFERRED: 11 (27%)
+- EXTRACTED: 21 (81%)
+- INFERRED: 5 (19%)
 - AMBIGUOUS: 0 (0%)
 
 ---

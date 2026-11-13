@@ -1,36 +1,48 @@
 # CI Workflow
 
-> 12 nodes · cohesion 0.24
+> 47 nodes · cohesion 0.05
 
 ## Key Concepts
 
-- **build-windows Job** (5 connections) — `.github/workflows/main.yml`
-- **Full npm ci for native sqlite3 bindings** (4 connections) — `.github/workflows/ci.yml`
-- **CI Unit Tests Job** (3 connections) — `.github/workflows/ci.yml`
-- **CI Coverage Job** (3 connections) — `.github/workflows/ci.yml`
-- **CI Build Matrix Job** (3 connections) — `.github/workflows/ci.yml`
-- **Release Test Gate (lint + unit + e2e)** (3 connections) — `.github/workflows/main.yml`
-- **build-mac Job** (3 connections) — `.github/workflows/main.yml`
-- **Empty-Secret Warning For PRESENCE_URL and EVE_CLIENT_ID** (3 connections) — `.github/workflows/main.yml`
-- **CI Pipeline (lint to build)** (2 connections) — `.github/workflows/ci.yml`
-- **CI Lint Job** (2 connections) — `.github/workflows/ci.yml`
-- **Always Declare shell: bash** (2 connections) — `.github/workflows/main.yml`
-- **macOS Ad-hoc Signing (CSC_IDENTITY_AUTO_DISCOVERY false)** (1 connections) — `.github/workflows/main.yml`
+- **steps** (6 connections) — `.github/workflows/ci.yml`
+- **build** (6 connections) — `.github/workflows/ci.yml`
+- **steps** (6 connections) — `.github/workflows/ci.yml`
+- **with** (6 connections) — `.github/workflows/ci.yml`
+- **ci.yml** (5 connections) — `.github/workflows/ci.yml`
+- **steps** (5 connections) — `.github/workflows/ci.yml`
+- **jobs** (5 connections) — `.github/workflows/ci.yml`
+- **coverage** (5 connections) — `.github/workflows/ci.yml`
+- **test** (5 connections) — `.github/workflows/ci.yml`
+- **steps** (5 connections) — `.github/workflows/ci.yml`
+- **lint** (4 connections) — `.github/workflows/ci.yml`
+- **include** (4 connections) — `.github/workflows/ci.yml`
+- **name** (4 connections) — `.github/workflows/ci.yml`
+- **run** (4 connections) — `.github/workflows/ci.yml`
+- **uses** (4 connections) — `.github/workflows/ci.yml`
+- **strategy** (3 connections) — `.github/workflows/ci.yml`
+- **concurrency** (3 connections) — `.github/workflows/ci.yml`
+- **on** (3 connections) — `.github/workflows/ci.yml`
+- **pull_request** (2 connections) — `.github/workflows/ci.yml`
+- **push** (2 connections) — `.github/workflows/ci.yml`
+- **permissions** (2 connections) — `.github/workflows/ci.yml`
+- **matrix** (2 connections) — `.github/workflows/ci.yml`
+- **name** (1 connections) — `.github/workflows/ci.yml`
+- **needs** (1 connections) — `.github/workflows/ci.yml`
+- **runs-on** (1 connections) — `.github/workflows/ci.yml`
+- *... and 22 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process (Build and Release Workflow)](Electron_Main_Process_%28Build_and_Release_Workflow%29.md) (1 shared connections)
-- [TODO](TODO.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
 - `.github/workflows/ci.yml`
-- `.github/workflows/main.yml`
 
 ## Audit Trail
 
-- EXTRACTED: 30 (88%)
-- INFERRED: 4 (12%)
+- EXTRACTED: 58 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -4,14 +4,14 @@
 
 ## Key Concepts
 
-- **market.js** (3 connections) — `src/func/market.js`
 - **renderMarket()** (3 connections) — `src/func/market.js`
-- **_marketFetch()** (3 connections) — `src/func/market.js`
+- **market.js** (3 connections) — `src/func/market.js`
+- **_marketFetch()** (2 connections) — `src/func/market.js`
 - **_marketRenderRows()** (2 connections) — `src/func/market.js`
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -19,8 +19,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 8 (73%)
-- INFERRED: 3 (27%)
+- EXTRACTED: 4 (80%)
+- INFERRED: 1 (20%)
 - AMBIGUOUS: 0 (0%)
 
 ---

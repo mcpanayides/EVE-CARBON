@@ -1,33 +1,30 @@
 # Electron Builder Config
 
-> 18 nodes · cohesion 0.11
+> 15 nodes · cohesion 0.13
 
 ## Key Concepts
 
 - **build** (11 connections) — `package.json`
-- **mac** (4 connections) — `package.json`
 - **linux** (4 connections) — `package.json`
 - **win** (3 connections) — `package.json`
 - **directories** (2 connections) — `package.json`
 - **appId** (1 connections) — `package.json`
+- **extraResources** (1 connections) — `package.json`
+- **files** (1 connections) — `package.json`
+- **icon** (1 connections) — `package.json`
 - **productName** (1 connections) — `package.json`
 - **buildResources** (1 connections) — `package.json`
-- **icon** (1 connections) — `package.json`
-- **extraResources** (1 connections) — `package.json`
-- **target** (1 connections) — `package.json`
-- **icon** (1 connections) — `package.json`
-- **target** (1 connections) — `package.json`
-- **icon** (1 connections) — `package.json`
-- **identity** (1 connections) — `package.json`
-- **target** (1 connections) — `package.json`
-- **icon** (1 connections) — `package.json`
 - **category** (1 connections) — `package.json`
+- **icon** (1 connections) — `package.json`
+- **target** (1 connections) — `package.json`
+- **icon** (1 connections) — `package.json`
+- **target** (1 connections) — `package.json`
 
 ## Relationships
 
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
-- [Package Manifest (files)](Package_Manifest_%28files%29.md) (1 shared connections)
-- [Package Manifest (nsis)](Package_Manifest_%28nsis%29.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
+- [Package Manifest (nsis)](Package_Manifest_nsis.md) (1 shared connections)
+- [Package Manifest (mac)](Package_Manifest_mac.md) (1 shared connections)
 
 ## Source Files
 
@@ -35,7 +32,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 37 (100%)
+- EXTRACTED: 17 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

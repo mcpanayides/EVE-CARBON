@@ -5,28 +5,28 @@
 ## Key Concepts
 
 - **updateTradeTaxInfo()** (8 connections) — `src/func/blueprints.js`
+- **bindTradeToolbar()** (7 connections) — `src/func/blueprints.js`
+- **renderGasCalculator()** (7 connections) — `src/func/blueprints.js`
+- **renderIceCalculator()** (7 connections) — `src/func/blueprints.js`
 - **renderMoonCalculator()** (7 connections) — `src/func/blueprints.js`
+- **renderOreCalculator()** (7 connections) — `src/func/blueprints.js`
 - **tradeNetFactor()** (7 connections) — `src/func/blueprints.js`
 - **tradePrice()** (7 connections) — `src/func/blueprints.js`
-- **bindTradeToolbar()** (7 connections) — `src/func/blueprints.js`
-- **renderOreCalculator()** (7 connections) — `src/func/blueprints.js`
-- **renderIceCalculator()** (7 connections) — `src/func/blueprints.js`
-- **renderGasCalculator()** (7 connections) — `src/func/blueprints.js`
+- **buildGasTable()** (5 connections) — `src/func/blueprints.js`
 - **buildMoonTable()** (5 connections) — `src/func/blueprints.js`
 - **tradeToolbarHtml()** (5 connections) — `src/func/blueprints.js`
-- **buildGasTable()** (5 connections) — `src/func/blueprints.js`
-- **loadMoonPrices()** (4 connections) — `src/func/blueprints.js`
-- **calcMoonRow()** (4 connections) — `src/func/blueprints.js`
-- **loadOrePrices()** (4 connections) — `src/func/blueprints.js`
-- **calcOreRow()** (4 connections) — `src/func/blueprints.js`
-- **buildOreTable()** (4 connections) — `src/func/blueprints.js`
-- **loadIcePrices()** (4 connections) — `src/func/blueprints.js`
-- **calcIceRow()** (4 connections) — `src/func/blueprints.js`
 - **buildIceTable()** (4 connections) — `src/func/blueprints.js`
-- **moonOreRows()** (3 connections) — `src/func/blueprints.js`
-- **tradeSalesTax()** (3 connections) — `src/func/blueprints.js`
-- **tradeBrokerFee()** (3 connections) — `src/func/blueprints.js`
+- **buildOreTable()** (4 connections) — `src/func/blueprints.js`
+- **calcIceRow()** (4 connections) — `src/func/blueprints.js`
+- **calcMoonRow()** (4 connections) — `src/func/blueprints.js`
+- **calcOreRow()** (4 connections) — `src/func/blueprints.js`
+- **loadIcePrices()** (4 connections) — `src/func/blueprints.js`
+- **loadMoonPrices()** (4 connections) — `src/func/blueprints.js`
+- **loadOrePrices()** (4 connections) — `src/func/blueprints.js`
 - **loadGasPrices()** (3 connections) — `src/func/blueprints.js`
+- **moonOreRows()** (3 connections) — `src/func/blueprints.js`
+- **tradeBrokerFee()** (3 connections) — `src/func/blueprints.js`
+- **tradeSalesTax()** (3 connections) — `src/func/blueprints.js`
 - **loadTradeProfile()** (2 connections) — `src/func/blueprints.js`
 
 ## Relationships
@@ -40,7 +40,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 118 (100%)
+- EXTRACTED: 73 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

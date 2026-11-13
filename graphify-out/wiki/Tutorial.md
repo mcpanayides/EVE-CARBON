@@ -1,51 +1,48 @@
 # Tutorial
 
-> 55 nodes · cohesion 0.09
+> 42 nodes · cohesion 0.13
 
 ## Key Concepts
 
 - **tutorial.js** (41 connections) — `src/func/tutorial.js`
 - **_tutBegin()** (12 connections) — `src/func/tutorial.js`
-- **pack_links.js** (11 connections) — `src/func/pack_links.js`
-- **AlliancePack** (9 connections) — `main.js`
-- **_tutAdvancedSteps()** (9 connections) — `src/func/tutorial.js`
-- **_tutGoto()** (9 connections) — `src/func/tutorial.js`
 - **exitTutorial()** (9 connections) — `src/func/tutorial.js`
-- **_tutLayout()** (8 connections) — `src/func/tutorial.js`
+- **_tutAdvancedSteps()** (9 connections) — `src/func/tutorial.js`
 - **_tutAct()** (8 connections) — `src/func/tutorial.js`
-- **_tutVal()** (7 connections) — `src/func/tutorial.js`
-- **_tutRefreshStatus()** (7 connections) — `src/func/tutorial.js`
+- **_tutGoto()** (8 connections) — `src/func/tutorial.js`
+- **_tutLayout()** (8 connections) — `src/func/tutorial.js`
 - **_tutNext()** (7 connections) — `src/func/tutorial.js`
-- **applyPackDefaults()** (6 connections) — `src/func/pack_links.js`
+- **_tutRefreshStatus()** (7 connections) — `src/func/tutorial.js`
+- **_tutVal()** (7 connections) — `src/func/tutorial.js`
 - **_tutChain()** (6 connections) — `src/func/tutorial.js`
 - **_tutRender()** (6 connections) — `src/func/tutorial.js`
+- **startTutorial()** (5 connections) — `src/func/tutorial.js`
 - **_tutAnnounceIdle()** (5 connections) — `src/func/tutorial.js`
 - **_tutPrimary()** (5 connections) — `src/func/tutorial.js`
 - **_tutWaits()** (5 connections) — `src/func/tutorial.js`
-- **startTutorial()** (5 connections) — `src/func/tutorial.js`
-- **applyPackTerms()** (4 connections) — `src/func/pack_links.js`
-- **_packFill()** (4 connections) — `src/func/pack_links.js`
-- **_packFillService()** (4 connections) — `src/func/pack_links.js`
-- **_tutGo()** (4 connections) — `src/func/tutorial.js`
-- **_tutTool()** (4 connections) — `src/func/tutorial.js`
+- **maybeStartTutorialOnFirstLaunch()** (4 connections) — `src/func/tutorial.js`
+- **_tutApi()** (4 connections) — `src/func/tutorial.js`
 - **_tutBasicSteps()** (4 connections) — `src/func/tutorial.js`
-- *... and 30 more nodes in this community*
+- **_tutGo()** (4 connections) — `src/func/tutorial.js`
+- **_tutSave()** (4 connections) — `src/func/tutorial.js`
+- **_tutState()** (4 connections) — `src/func/tutorial.js`
+- **_tutTool()** (4 connections) — `src/func/tutorial.js`
+- **_tutFleetSteps()** (3 connections) — `src/func/tutorial.js`
+- **_tutIndustrySteps()** (3 connections) — `src/func/tutorial.js`
+- *... and 17 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
-- `main.js`
-- `src/func/pack_links.js`
 - `src/func/tutorial.js`
 
 ## Audit Trail
 
-- EXTRACTED: 269 (97%)
-- INFERRED: 7 (3%)
+- EXTRACTED: 106 (97%)
+- INFERRED: 3 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -4,22 +4,22 @@
 
 ## Key Concepts
 
-- **ics-parse.js** (11 connections) — `src/func/ics-parse.js`
-- **parseIcs()** (7 connections) — `src/func/ics-parse.js`
+- **ics-parse.js** (13 connections) — `src/func/ics-parse.js`
+- **parseIcs()** (6 connections) — `src/func/ics-parse.js`
 - **expandRecurring()** (4 connections) — `src/func/ics-parse.js`
 - **parseDate()** (3 connections) — `src/func/ics-parse.js`
-- **unfold()** (2 connections) — `src/func/ics-parse.js`
 - **decodeText()** (2 connections) — `src/func/ics-parse.js`
-- **parseLine()** (2 connections) — `src/func/ics-parse.js`
-- **parseTimezones()** (2 connections) — `src/func/ics-parse.js`
-- **parseRrule()** (2 connections) — `src/func/ics-parse.js`
 - **occurrence()** (2 connections) — `src/func/ics-parse.js`
+- **parseLine()** (2 connections) — `src/func/ics-parse.js`
+- **parseRrule()** (2 connections) — `src/func/ics-parse.js`
+- **parseTimezones()** (2 connections) — `src/func/ics-parse.js`
+- **unfold()** (2 connections) — `src/func/ics-parse.js`
 - **RFC-5545** (1 connections) — `src/func/ics-parse.js`
 
 ## Relationships
 
-- [Demo World Test](Demo_World_Test.md) (1 shared connections)
-- [Jump Gate List](Jump_Gate_List.md) (1 shared connections)
+- [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
+- [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 
 ## Source Files
 
@@ -27,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 37 (97%)
-- INFERRED: 1 (3%)
+- EXTRACTED: 13 (62%)
+- INFERRED: 8 (38%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -5,34 +5,34 @@
 ## Key Concepts
 
 - **scripts** (25 connections) — `package.json`
-- **start** (1 connections) — `package.json`
+- **build-linux** (1 connections) — `package.json`
+- **build-mac** (1 connections) — `package.json`
+- **build-win** (1 connections) — `package.json`
+- **coverage** (1 connections) — `package.json`
 - **demo** (1 connections) — `package.json`
 - **demo:shots** (1 connections) — `package.json`
-- **video:map** (1 connections) — `package.json`
 - **demo:snapshot** (1 connections) — `package.json`
-- **lint** (1 connections) — `package.json`
 - **esi:audit** (1 connections) — `package.json`
-- **graphify:sync** (1 connections) — `package.json`
-- **planets:build** (1 connections) — `package.json`
+- **fetch-sde** (1 connections) — `package.json`
 - **graphify:lint** (1 connections) — `package.json`
+- **graphify:sync** (1 connections) — `package.json`
 - **hooks:install** (1 connections) — `package.json`
-- **watch:op** (1 connections) — `package.json`
-- **test** (1 connections) — `package.json`
-- **coverage** (1 connections) — `package.json`
-- **test:e2e** (1 connections) — `package.json`
+- **lint** (1 connections) — `package.json`
+- **planets:build** (1 connections) — `package.json`
+- **postinstall** (1 connections) — `package.json`
+- **shots** (1 connections) — `package.json`
+- **start** (1 connections) — `package.json`
 - **stress:data** (1 connections) — `package.json`
 - **stress:index** (1 connections) — `package.json`
 - **stress:render** (1 connections) — `package.json`
-- **fetch-sde** (1 connections) — `package.json`
-- **build-win** (1 connections) — `package.json`
-- **build-mac** (1 connections) — `package.json`
-- **build-linux** (1 connections) — `package.json`
-- **postinstall** (1 connections) — `package.json`
-- **shots** (1 connections) — `package.json`
+- **test** (1 connections) — `package.json`
+- **test:e2e** (1 connections) — `package.json`
+- **video:map** (1 connections) — `package.json`
+- **watch:op** (1 connections) — `package.json`
 
 ## Relationships
 
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 
 ## Source Files
 
@@ -40,7 +40,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 49 (100%)
+- EXTRACTED: 25 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

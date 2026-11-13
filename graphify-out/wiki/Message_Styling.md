@@ -5,13 +5,13 @@
 ## Key Concepts
 
 - **message_styling.js** (9 connections) — `src/shared/message_styling.js`
-- **parseSpans()** (4 connections) — `src/shared/message_styling.js`
-- **parseBlocks()** (3 connections) — `src/shared/message_styling.js`
+- **parseSpans()** (6 connections) — `src/shared/message_styling.js`
+- **parseBlocks()** (5 connections) — `src/shared/message_styling.js`
+- **plainText()** (3 connections) — `src/shared/message_styling.js`
 - **toXhtmlIm()** (3 connections) — `src/shared/message_styling.js`
 - **canOpen()** (2 connections) — `src/shared/message_styling.js`
 - **findClose()** (2 connections) — `src/shared/message_styling.js`
 - **hasStyling()** (2 connections) — `src/shared/message_styling.js`
-- **plainText()** (1 connections) — `src/shared/message_styling.js`
 
 ## Relationships
 
@@ -24,8 +24,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 12 (71%)
+- INFERRED: 5 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

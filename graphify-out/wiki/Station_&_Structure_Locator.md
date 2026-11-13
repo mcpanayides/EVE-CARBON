@@ -1,55 +1,56 @@
 # Station & Structure Locator
 
-> 29 nodes · cohesion 0.15
+> 56 nodes · cohesion 0.06
 
 ## Key Concepts
 
-- **locator.js** (35 connections) — `src/locator.js`
-- **resolveStructureName()** (16 connections) — `src/locator.js`
+- **locator.js** (37 connections) — `src/locator.js`
+- **lint.js** (22 connections) — `scripts/lint.js`
+- **resolveStructureName()** (15 connections) — `src/locator.js`
 - **_authStructureRead()** (7 connections) — `src/locator.js`
-- **resolveLocation()** (6 connections) — `src/locator.js`
-- **_persistToStationDb()** (5 connections) — `src/locator.js`
+- **resolveLocation()** (7 connections) — `src/locator.js`
 - **_esiStructureGeo()** (5 connections) — `src/locator.js`
-- **_isUnresolvedName()** (4 connections) — `src/locator.js`
-- **urlToOpts()** (4 connections) — `src/locator.js`
-- **fetchJson()** (4 connections) — `src/locator.js`
+- **fetchHtml()** (5 connections) — `src/locator.js`
+- **_persistToStationDb()** (5 connections) — `src/locator.js`
+- **collectHtml()** (4 connections) — `scripts/lint.js`
 - **_canSpeculate()** (4 connections) — `src/locator.js`
 - **esiNamesPost()** (4 connections) — `src/locator.js`
+- **fetchJson()** (4 connections) — `src/locator.js`
+- **_isUnresolvedName()** (4 connections) — `src/locator.js`
 - **_maybeRefreshStructureName()** (4 connections) — `src/locator.js`
-- **fetchHtml()** (3 connections) — `src/locator.js`
-- **_fetchJsonRaw()** (3 connections) — `src/locator.js`
+- **urlToOpts()** (4 connections) — `src/locator.js`
+- **stress-render.js** (4 connections) — `scripts/stress-render.js`
+- **ref_child_process** (4 connections)
+- **collect()** (3 connections) — `scripts/lint.js`
 - **fetchJsonInsecure()** (3 connections) — `src/locator.js`
-- **_waitForEsiCooldown()** (3 connections) — `src/locator.js`
+- **_fetchJsonRaw()** (3 connections) — `src/locator.js`
 - **resolveJobLocation()** (3 connections) — `src/locator.js`
+- **htmlFiles()** (2 connections) — `scripts/lint.js`
 - **_hostIsDown()** (2 connections) — `src/locator.js`
-- **_noteHostFailure()** (2 connections) — `src/locator.js`
-- **_noteHostOk()** (2 connections) — `src/locator.js`
 - **_hostOf()** (2 connections) — `src/locator.js`
-- **resolveSystemNames()** (2 connections) — `src/locator.js`
-- **_structureLookupCandidates()** (2 connections) — `src/locator.js`
-- **{ APP_USER_AGENT, ESI_BASE }** (1 connections) — `src/locator.js`
-- **https** (1 connections) — `src/locator.js`
-- *... and 4 more nodes in this community*
+- **_noteHostFailure()** (2 connections) — `src/locator.js`
+- *... and 31 more nodes in this community*
 
 ## Relationships
 
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (3 shared connections)
+- [Character IPC](Character_IPC.md) (3 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
+- [Chart Umd (bn)](Chart_Umd_bn.md) (1 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
-- [Net Log](Net_Log.md) (1 shared connections)
-- [ESI Budget Test](ESI_Budget_Test.md) (1 shared connections)
-- [Station Sync Test](Station_Sync_Test.md) (1 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Sso Scopes Test](Sso_Scopes_Test.md) (1 shared connections)
+- [Modern Layout Shipped Test](Modern_Layout_Shipped_Test.md) (1 shared connections)
 
 ## Source Files
 
+- `scripts/lint.js`
+- `scripts/stress-render.js`
 - `src/locator.js`
 
 ## Audit Trail
 
-- EXTRACTED: 119 (91%)
-- INFERRED: 12 (9%)
+- EXTRACTED: 97 (93%)
+- INFERRED: 7 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

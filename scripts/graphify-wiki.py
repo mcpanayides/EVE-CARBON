@@ -51,7 +51,10 @@ MARKER = {
     ".registerEngine()": "Gridstack Core & Initialisation",
     ".isIntercepted()": "Gridstack Geometry & Collision",
     ".simulateMouseEvent()": "Gridstack Touch & Drag-Drop",
-    ".triggerEvent()": "Gridstack Events & Handlers",
+    # Not .triggerEvent(): the minified bundle has two nodes with that label
+    # (x.triggerEvent and triggerEvent), and a re-cluster put them in different
+    # communities. ._mouseEnter() is the droppable handlers' own.
+    "._mouseEnter()": "Gridstack Events & Handlers",
     "_regionExits": "Galaxy Map State",
     "_layoutWormholeBlock()": "Galaxy Map Layout & Drawing",
     "_secColorModern()": "Map Colours & Modern Drawing",
@@ -69,7 +72,10 @@ MARKER = {
     "loadBlueprintLibrary()": "Blueprint Library UI",
     "withTx()": "Character DB Write Transactions",
     "The Accent-Is-A-Role Rule": "DESIGN Palette & Preboot Rules",
-    "@xmpp/client": "NPM Runtime Dependencies",
+    # Not @xmpp/client: jabber_ipc.js's import of it is a node with the same
+    # label, which clusters with the Jabber code. The "dependencies" key is
+    # package.json's alone.
+    "dependencies": "NPM Runtime Dependencies",
     "@electron/rebuild": "NPM Dev Dependencies",
     "extraResources": "Electron Builder Config",
     "allowScripts": "Package Manifest",

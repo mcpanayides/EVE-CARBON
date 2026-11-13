@@ -4,24 +4,24 @@
 
 ## Key Concepts
 
-- **esi-audit.js** (13 connections) — `scripts/esi-audit.js`
-- **fs** (1 connections) — `scripts/esi-audit.js`
-- **path** (1 connections) — `scripts/esi-audit.js`
-- **ROOT** (1 connections) — `scripts/esi-audit.js`
-- **ALLOWED** (1 connections) — `scripts/esi-audit.js`
-- **RESOURCES** (1 connections) — `scripts/esi-audit.js`
-- **VERSIONED** (1 connections) — `scripts/esi-audit.js`
-- **SKIP_DIRS** (1 connections) — `scripts/esi-audit.js`
-- **walk()** (1 connections) — `scripts/esi-audit.js`
+- **esi-audit.js** (15 connections) — `scripts/esi-audit.js`
+- **walk()** (3 connections) — `scripts/esi-audit.js`
 - **stripComments()** (1 connections) — `scripts/esi-audit.js`
+- **ALLOWED** (1 connections) — `scripts/esi-audit.js`
 - **findings** (1 connections) — `scripts/esi-audit.js`
-- **staleDocs** (1 connections) — `scripts/esi-audit.js`
-- **okSites** (1 connections) — `scripts/esi-audit.js`
+- **fs** (1 connections) — `scripts/esi-audit.js`
 - **listing** (1 connections) — `scripts/esi-audit.js`
+- **okSites** (1 connections) — `scripts/esi-audit.js`
+- **path** (1 connections) — `scripts/esi-audit.js`
+- **RESOURCES** (1 connections) — `scripts/esi-audit.js`
+- **ROOT** (1 connections) — `scripts/esi-audit.js`
+- **SKIP_DIRS** (1 connections) — `scripts/esi-audit.js`
+- **staleDocs** (1 connections) — `scripts/esi-audit.js`
+- **VERSIONED** (1 connections) — `scripts/esi-audit.js`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
 
 ## Source Files
 
@@ -29,7 +29,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (100%)
+- EXTRACTED: 16 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,40 +1,52 @@
-# s
+# s()
 
-> God node · 42 connections · `src/vendor/gridstack/gridstack-all.js`
+> God node · 44 connections · `src/vendor/chartjs/chart.umd.js`
 
-**Community:** [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md)
+**Community:** [Chart Umd (bo)](Chart_Umd_bo.md)
 
 ## Connections by Relation
 
 ### calls
-- ._setupAcceptWidget() `EXTRACTED`
-- .columnChanged() `EXTRACTED`
-- .swap() `EXTRACTED`
+- l() `EXTRACTED`
+- e() `EXTRACTED`
+- updateElements() `EXTRACTED`
+- .bindResponsiveEvents() `EXTRACTED`
+- .buildTicks() `EXTRACTED`
+- hi() `EXTRACTED`
+- ne() `EXTRACTED`
+- _calculateBarIndexPixels() `EXTRACTED`
+- .resolveNamedOptions() `EXTRACTED`
+- .getDistanceFromCenterForValue() `EXTRACTED`
+- Fo() `EXTRACTED`
+- ._computeLabelSizes() `EXTRACTED`
+- ._convertTicksToLabels() `EXTRACTED`
+- .linkScales() `EXTRACTED`
+- parse() `EXTRACTED`
+- _calculateBarValuePixels() `EXTRACTED`
+- _getStacks() `EXTRACTED`
+- ._notify() `EXTRACTED`
+- ._notifyStateChanges() `EXTRACTED`
+- De() `EXTRACTED`
+- *…and 9 more `calls` connection(s) not listed (lowest-degree first to go)*
 
 ### contains
-- _ `EXTRACTED`
+- chart.umd.js `EXTRACTED`
 
-### method
-- .moveNode() `EXTRACTED`
-- ._fixCollisions() `EXTRACTED`
-- .addNode() `EXTRACTED`
-- ._notify() `EXTRACTED`
-- ._packNodes() `EXTRACTED`
-- .nodeBoundFix() `EXTRACTED`
-- .moveNodeCheck() `EXTRACTED`
-- .sortNodes() `EXTRACTED`
-- .restoreInitial() `EXTRACTED`
-- .batchUpdate() `EXTRACTED`
-- .collide() `EXTRACTED`
-- .findEmptyPosition() `EXTRACTED`
-- .prepareNode() `EXTRACTED`
-- .saveInitial() `EXTRACTED`
-- .willItFit() `EXTRACTED`
-- .beginUpdate() `EXTRACTED`
-- .compact() `EXTRACTED`
-- .findCacheLayout() `EXTRACTED`
-- .save() `EXTRACTED`
-- .cacheOneLayout() `EXTRACTED`
+### indirect_call
+- update() `INFERRED`
+- so() `INFERRED`
+- ho() `INFERRED`
+- m() `INFERRED`
+- ji() `INFERRED`
+- to() `INFERRED`
+- nearest() `INFERRED`
+- oo() `INFERRED`
+- pa() `INFERRED`
+- zn() `INFERRED`
+- on() `INFERRED`
+- mo() `INFERRED`
+- l() `INFERRED`
+- ii() `INFERRED`
 
 ---
 

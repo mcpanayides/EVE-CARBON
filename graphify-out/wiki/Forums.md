@@ -9,10 +9,10 @@
 - **_forumGetUrl()** (4 connections) — `src/func/forums.js`
 - **_forumUpdateStatus()** (4 connections) — `src/func/forums.js`
 - **forumDoLogin()** (3 connections) — `src/func/forums.js`
+- **forumDoLogout()** (2 connections) — `src/func/forums.js`
+- **forumNav()** (2 connections) — `src/func/forums.js`
 - **_forumUpdateNav()** (2 connections) — `src/func/forums.js`
 - **populateForumSettings()** (2 connections) — `src/func/forums.js`
-- **forumNav()** (2 connections) — `src/func/forums.js`
-- **forumDoLogout()** (2 connections) — `src/func/forums.js`
 - **gatherForumSettings()** (1 connections) — `src/func/forums.js`
 
 ## Relationships
@@ -25,7 +25,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 34 (100%)
+- EXTRACTED: 17 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

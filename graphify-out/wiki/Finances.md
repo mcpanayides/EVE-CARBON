@@ -4,9 +4,9 @@
 
 ## Key Concepts
 
-- **finances.js** (2 connections) — `src/func/finances.js`
 - **initFinancesPage()** (2 connections) — `src/func/finances.js`
 - **navigateFinancesTab()** (2 connections) — `src/func/finances.js`
+- **finances.js** (2 connections) — `src/func/finances.js`
 
 ## Relationships
 
@@ -18,7 +18,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 6 (100%)
+- EXTRACTED: 3 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,18 +1,17 @@
 # Widget Fit Spec
 
-> 5 nodes · cohesion 0.40
+> 4 nodes · cohesion 0.50
 
 ## Key Concepts
 
 - **widget-fit.spec.js** (6 connections) — `e2e/widget-fit.spec.js`
-- **{ test, expect }** (1 connections) — `e2e/widget-fit.spec.js`
-- **SIZES** (1 connections) — `e2e/widget-fit.spec.js`
 - **measure()** (1 connections) — `e2e/widget-fit.spec.js`
 - **report()** (1 connections) — `e2e/widget-fit.spec.js`
+- **SIZES** (1 connections) — `e2e/widget-fit.spec.js`
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (2 shared connections)
+- [Electron App](Electron_App.md) (3 shared connections)
 
 ## Source Files
 
@@ -20,7 +19,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 10 (100%)
+- EXTRACTED: 6 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

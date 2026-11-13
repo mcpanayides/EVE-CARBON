@@ -1,28 +1,29 @@
 # NPM Runtime Dependencies
 
-> 15 nodes · cohesion 0.13
+> 11 nodes · cohesion 0.18
 
 ## Key Concepts
 
 - **dependencies** (8 connections) — `package.json`
-- **@xmpp/client** (2 connections) — `package.json`
+- **@xmpp/client** (4 connections) — `package.json`
+- **yauzl** (3 connections) — `package.json`
+- **dotenv@^17.4.2** (2 connections) — `package.json`
+- **sqlite@^5.1.1** (2 connections) — `package.json`
+- **sqlite3@^6.0.1** (2 connections) — `package.json`
+- **unbzip2-stream@^1.4.3** (2 connections) — `package.json`
+- **@xmpp/client@^0.14.0** (2 connections) — `package.json`
+- **yauzl@^3.4.0** (2 connections) — `package.json`
 - **dotenv** (2 connections) — `package.json`
-- **js-yaml** (2 connections) — `package.json`
-- **sqlite** (2 connections) — `package.json`
-- **sqlite3** (2 connections) — `package.json`
 - **unbzip2-stream** (2 connections) — `package.json`
-- **yauzl** (2 connections) — `package.json`
-- **@xmpp/client** (1 connections) — `package.json`
-- **dotenv** (1 connections) — `package.json`
-- **js-yaml** (1 connections) — `package.json`
-- **sqlite** (1 connections) — `package.json`
-- **sqlite3** (1 connections) — `package.json`
-- **unbzip2-stream** (1 connections) — `package.json`
-- **yauzl** (1 connections) — `package.json`
 
 ## Relationships
 
-- [Package Manifest (package json)](Package_Manifest_%28package_json%29.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (5 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (2 shared connections)
+- [Theme IPC](Theme_IPC.md) (1 shared connections)
+- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Message Styling Test](Message_Styling_Test.md) (1 shared connections)
+- [SDE Build](SDE_Build.md) (1 shared connections)
 
 ## Source Files
 
@@ -30,7 +31,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 29 (100%)
+- EXTRACTED: 21 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

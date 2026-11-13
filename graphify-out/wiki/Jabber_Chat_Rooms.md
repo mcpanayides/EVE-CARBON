@@ -8,33 +8,32 @@
 - **initJabberRooms()** (9 connections) — `src/func/jabber_rooms.js`
 - **jabberOpenRoom()** (8 connections) — `src/func/jabber_rooms.js`
 - **jabberRefreshRooms()** (7 connections) — `src/func/jabber_rooms.js`
-- **_jrLoadOlder()** (6 connections) — `src/func/jabber_rooms.js`
+- **_jrLoadOlder()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrRowEl()** (5 connections) — `src/func/jabber_rooms.js`
 - **_jrPaintActive()** (4 connections) — `src/func/jabber_rooms.js`
 - **_jrRenderLog()** (4 connections) — `src/func/jabber_rooms.js`
 - **_jrRenderSubject()** (4 connections) — `src/func/jabber_rooms.js`
-- **_jrStyled()** (4 connections) — `src/func/jabber_rooms.js`
-- **_jrRenderRoster()** (3 connections) — `src/func/jabber_rooms.js`
-- **_jrLinkify()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrInsertAtCursor()** (3 connections) — `src/func/jabber_rooms.js`
-- **_jrToggleEmojiPicker()** (3 connections) — `src/func/jabber_rooms.js`
 - **_jrLeaveRoom()** (3 connections) — `src/func/jabber_rooms.js`
+- **_jrLinkify()** (3 connections) — `src/func/jabber_rooms.js`
+- **_jrRenderRoster()** (3 connections) — `src/func/jabber_rooms.js`
+- **_jrStyled()** (3 connections) — `src/func/jabber_rooms.js`
+- **_jrToggleEmojiPicker()** (3 connections) — `src/func/jabber_rooms.js`
+- **_jrAddRoom()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrFindRooms()** (2 connections) — `src/func/jabber_rooms.js`
+- **_jrInsertLink()** (2 connections) — `src/func/jabber_rooms.js`
 - **_jrNotify()** (2 connections) — `src/func/jabber_rooms.js`
 - **_jrTime()** (2 connections) — `src/func/jabber_rooms.js`
-- **_jrFindRooms()** (2 connections) — `src/func/jabber_rooms.js`
 - **_jrWrapSelection()** (2 connections) — `src/func/jabber_rooms.js`
-- **_jrInsertLink()** (2 connections) — `src/func/jabber_rooms.js`
-- **_jrAddRoom()** (2 connections) — `src/func/jabber_rooms.js`
-- **_jrRooms** (1 connections) — `src/func/jabber_rooms.js`
-- **_jrPulled** (1 connections) — `src/func/jabber_rooms.js`
-- **_jrComplete** (1 connections) — `src/func/jabber_rooms.js`
-- **_jrNoArchive** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrEsc()** (1 connections) — `src/func/jabber_rooms.js`
+- **_jrSend()** (1 connections) — `src/func/jabber_rooms.js`
+- **JR_EMOJI** (1 connections) — `src/func/jabber_rooms.js`
+- **_JR_MARKER** (1 connections) — `src/func/jabber_rooms.js`
 - *... and 7 more nodes in this community*
 
 ## Relationships
 
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -42,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 119 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 59 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,29 +1,31 @@
 # Shared UI Utilities
 
-> 15 nodes · cohesion 0.20
+> 18 nodes · cohesion 0.14
 
 ## Key Concepts
 
 - **utils.js** (14 connections) — `src/utils.js`
-- **swrRender()** (4 connections) — `src/utils.js`
 - **escHtml()** (4 connections) — `src/utils.js`
 - **logToConsole()** (4 connections) — `src/utils.js`
 - **pushCenterToast()** (3 connections) — `src/utils.js`
 - **countUp()** (2 connections) — `src/utils.js`
-- **showToast()** (2 connections) — `src/utils.js`
 - **pushAppToast()** (2 connections) — `src/utils.js`
-- **cacheSet()** (2 connections) — `src/utils.js`
-- **cacheGet()** (2 connections) — `src/utils.js`
-- **formatNumber()** (1 connections) — `src/utils.js`
+- **setup()** (2 connections) — `src/utils.js`
+- **showConfirm()** (2 connections) — `src/utils.js`
+- **showToast()** (2 connections) — `src/utils.js`
+- **cacheGet()** (1 connections) — `src/utils.js`
+- **cacheSet()** (1 connections) — `src/utils.js`
+- **tick()** (1 connections) — `src/utils.js`
 - **formatISK()** (1 connections) — `src/utils.js`
-- **setup()** (1 connections) — `src/utils.js`
+- **formatNumber()** (1 connections) — `src/utils.js`
 - **openExternal()** (1 connections) — `src/utils.js`
-- **showConfirm()** (1 connections) — `src/utils.js`
+- **toggle()** (1 connections) — `src/utils.js`
+- **onKey()** (1 connections) — `src/utils.js`
+- **swrRender()** (1 connections) — `src/utils.js`
 
 ## Relationships
 
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
-- [Chart Umd (bt)](Chart_Umd_%28bt%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -31,8 +33,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 42 (95%)
-- INFERRED: 2 (5%)
+- EXTRACTED: 19 (86%)
+- INFERRED: 3 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

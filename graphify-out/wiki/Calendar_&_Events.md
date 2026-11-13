@@ -5,36 +5,35 @@
 ## Key Concepts
 
 - **func/calendar.js** (48 connections) — `src/func/calendar.js`
-- **_calLoadEvents()** (10 connections) — `src/func/calendar.js`
-- **_calRenderMonth()** (9 connections) — `src/func/calendar.js`
-- **_calRenderAgenda()** (7 connections) — `src/func/calendar.js`
-- **_calBindOccClicks()** (7 connections) — `src/func/calendar.js`
-- **renderCalendar()** (6 connections) — `src/func/calendar.js`
+- **_calLoadEvents()** (9 connections) — `src/func/calendar.js`
+- **_calRenderMonth()** (8 connections) — `src/func/calendar.js`
+- **_calBindOccClicks()** (6 connections) — `src/func/calendar.js`
 - **_calBuildGoonSource()** (6 connections) — `src/func/calendar.js`
+- **_calRenderAgenda()** (6 connections) — `src/func/calendar.js`
+- **renderCalendar()** (6 connections) — `src/func/calendar.js`
 - **_calFmtEve()** (5 connections) — `src/func/calendar.js`
-- **_calFmtEveTime()** (5 connections) — `src/func/calendar.js`
 - **_calFmtEveLocal()** (5 connections) — `src/func/calendar.js`
-- **_calRender()** (5 connections) — `src/func/calendar.js`
+- **_calFmtEveTime()** (5 connections) — `src/func/calendar.js`
 - **_calOpenEvent()** (5 connections) — `src/func/calendar.js`
-- **_calPad()** (4 connections) — `src/func/calendar.js`
+- **_calRender()** (5 connections) — `src/func/calendar.js`
 - **_calFmtLocal()** (4 connections) — `src/func/calendar.js`
-- **_calOccurrences()** (4 connections) — `src/func/calendar.js`
-- **_calOccKey()** (4 connections) — `src/func/calendar.js`
 - **_calGenericModalInner()** (4 connections) — `src/func/calendar.js`
-- **_calMoonModalInner()** (4 connections) — `src/func/calendar.js`
 - **_calJobModalInner()** (4 connections) — `src/func/calendar.js`
+- **_calMoonModalInner()** (4 connections) — `src/func/calendar.js`
+- **_calOccKey()** (4 connections) — `src/func/calendar.js`
+- **_calOccurrences()** (4 connections) — `src/func/calendar.js`
+- **_calPad()** (4 connections) — `src/func/calendar.js`
 - **_calBuildPiSource()** (3 connections) — `src/func/calendar.js`
-- **_calNormUrl()** (3 connections) — `src/func/calendar.js`
 - **_calIsGoon()** (3 connections) — `src/func/calendar.js`
+- **_calNormUrl()** (3 connections) — `src/func/calendar.js`
 - **_calParseComposition()** (3 connections) — `src/func/calendar.js`
 - **_calUpdateLoginStatus()** (3 connections) — `src/func/calendar.js`
-- **_calFirstOfMonth()** (2 connections) — `src/func/calendar.js`
+- **bindCalendarSettings()** (2 connections) — `src/func/calendar.js`
 - *... and 24 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (3 shared connections)
-- [Net Log](Net_Log.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -42,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 198 (98%)
-- INFERRED: 4 (2%)
+- EXTRACTED: 99 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

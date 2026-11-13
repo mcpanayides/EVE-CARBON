@@ -1,37 +1,44 @@
 # Dashboard Auto-Sync & Live Widgets
 
-> 18 nodes · cohesion 0.16
+> 26 nodes · cohesion 0.14
 
 ## Key Concepts
 
-- **loadDashboard()** (27 connections) — `src/func/dashboard.js`
+- **loadDashboard()** (26 connections) — `src/func/dashboard.js`
 - **refreshDashboardLiveWidgets()** (11 connections) — `src/func/dashboard.js`
+- **_renderAllJobWatch()** (9 connections) — `src/func/dashboard.js`
+- **renderDashboardActiveJobs()** (7 connections) — `src/func/dashboard.js`
 - **autoRefreshStaleCharacters()** (6 connections) — `src/func/dashboard.js`
+- **_fmtTimeLeft()** (6 connections) — `src/func/dashboard.js`
+- **_saveSnapshot()** (6 connections) — `src/func/dashboard.js`
+- **_paintSnapshot()** (5 connections) — `src/func/dashboard.js`
+- **renderMarketOrdersWidget()** (5 connections) — `src/func/dashboard.js`
+- **renderSkillQueueWidget()** (5 connections) — `src/func/dashboard.js`
+- **_activeJobsShared()** (4 connections) — `src/func/dashboard.js`
 - **_healFailedDashboardWidgets()** (4 connections) — `src/func/dashboard.js`
-- **_renderNetWorthSection()** (4 connections) — `src/func/dashboard.js`
+- **refreshDashboardMain()** (4 connections) — `src/func/dashboard.js`
+- **renderActiveJobsWidget()** (4 connections) — `src/func/dashboard.js`
 - **renderWalletBalanceWidget()** (4 connections) — `src/func/dashboard.js`
-- **_setCharWallet()** (4 connections) — `src/func/dashboard.js`
-- **_renderAllCharWallet()** (4 connections) — `src/func/dashboard.js`
-- **_renderCharWalletInstance()** (4 connections) — `src/func/dashboard.js`
+- **_resolveTypeNames()** (4 connections) — `src/func/dashboard.js`
+- **_swrWidget()** (4 connections) — `src/func/dashboard.js`
 - **_invalidateSharedJobs()** (3 connections) — `src/func/dashboard.js`
 - **refreshDashboardPage()** (3 connections) — `src/func/dashboard.js`
-- **_charWalletMap()** (3 connections) — `src/func/dashboard.js`
-- **_getCharWallet()** (3 connections) — `src/func/dashboard.js`
-- **_fireAutoSync()** (2 connections) — `src/func/dashboard.js`
+- **_startJobWatchTicker()** (3 connections) — `src/func/dashboard.js`
 - **autoSyncOnNavigate()** (2 connections) — `src/func/dashboard.js`
+- **fetchAllActiveIndustryJobs()** (2 connections) — `src/func/dashboard.js`
+- **_fireAutoSync()** (2 connections) — `src/func/dashboard.js`
 - **_isDirectorPing()** (2 connections) — `src/func/dashboard.js`
 - **_pingSortKey()** (2 connections) — `src/func/dashboard.js`
-- **_walletTicker()** (2 connections) — `src/func/dashboard.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
-- [Dashboard Widgets](Dashboard_Widgets.md) (23 shared connections)
-- [Dashboard Widgets (_activeJobsShared)](Dashboard_Widgets_%28_activeJobsShared%29.md) (10 shared connections)
-- [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_%26_Popouts.md) (5 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
-- [Dashboard Widgets (_wealthCharData)](Dashboard_Widgets_%28_wealthCharData%29.md) (1 shared connections)
-- [Dashboard Widgets (_getMarketWatch)](Dashboard_Widgets_%28_getMarketWatch%29.md) (1 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- [Dashboard Widgets](Dashboard_Widgets.md) (35 shared connections)
+- [Dashboard Grid Layout & Popouts](Dashboard_Grid_Layout_&_Popouts.md) (4 shared connections)
+- [Dashboard Widgets (_applyWelcomeNetWorth)](Dashboard_Widgets__applyWelcomeNetWorth.md) (4 shared connections)
+- [Dashboard Widgets (_getJobWatch)](Dashboard_Widgets__getJobWatch.md) (2 shared connections)
+- [Dashboard Widgets (_cssColorWithAlpha)](Dashboard_Widgets__cssColorWithAlpha.md) (1 shared connections)
+- [Dashboard Widgets (dashMarketAdd)](Dashboard_Widgets_dashMarketAdd.md) (1 shared connections)
 
 ## Source Files
 
@@ -39,8 +46,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 86 (96%)
-- INFERRED: 4 (4%)
+- EXTRACTED: 90 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,6 +1,6 @@
 # Assets Table & Virtualisation
 
-> 68 nodes · cohesion 0.06
+> 69 nodes · cohesion 0.06
 
 ## Key Concepts
 
@@ -11,30 +11,29 @@
 - **openWalletJournal()** (8 connections) — `src/func/assets.js`
 - **_assetEnsureOpenBranches()** (7 connections) — `src/func/assets.js`
 - **_bindAssetCollapse()** (6 connections) — `src/func/assets.js`
+- **initAssetColResize()** (6 connections) — `src/func/assets.js`
 - **_formatAssetIsk()** (5 connections) — `src/func/assets.js`
-- **populateAssetFilters()** (5 connections) — `src/func/assets.js`
 - **loadAssets()** (5 connections) — `src/func/assets.js`
-- **initAssetColResize()** (5 connections) — `src/func/assets.js`
-- **renderWallets()** (5 connections) — `src/func/assets.js`
-- **assetFilters()** (4 connections) — `src/func/assets.js`
-- **_assetTbody()** (4 connections) — `src/func/assets.js`
 - **_assetBindScroll()** (4 connections) — `src/func/assets.js`
-- **_assetLocHeaderRow()** (4 connections) — `src/func/assets.js`
+- **assetFilters()** (4 connections) — `src/func/assets.js`
 - **_assetLoadItems()** (4 connections) — `src/func/assets.js`
-- **_assetToggleLocation()** (4 connections) — `src/func/assets.js`
+- **_assetLocHeaderRow()** (4 connections) — `src/func/assets.js`
+- **_assetTbody()** (4 connections) — `src/func/assets.js`
 - **_assetToggleCharacter()** (4 connections) — `src/func/assets.js`
+- **_assetToggleLocation()** (4 connections) — `src/func/assets.js`
+- **renderWallets()** (4 connections) — `src/func/assets.js`
 - **setAssetSort()** (4 connections) — `src/func/assets.js`
-- **renderJournalOverview()** (4 connections) — `src/func/assets.js`
-- **_repairSetStatus()** (3 connections) — `src/func/assets.js`
-- **repairAssetLocations()** (3 connections) — `src/func/assets.js`
+- **_assetCharHeaderRow()** (3 connections) — `src/func/assets.js`
+- **_assetItemRow()** (3 connections) — `src/func/assets.js`
+- **_assetLoadCharacters()** (3 connections) — `src/func/assets.js`
 - **_assetScroller()** (3 connections) — `src/func/assets.js`
-- **_assetItemTree()** (3 connections) — `src/func/assets.js`
-- *... and 43 more nodes in this community*
+- **_assetToggleShip()** (3 connections) — `src/func/assets.js`
+- **_bindAssetSort()** (3 connections) — `src/func/assets.js`
+- *... and 44 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (4 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -42,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 268 (97%)
-- INFERRED: 7 (3%)
+- EXTRACTED: 135 (99%)
+- INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

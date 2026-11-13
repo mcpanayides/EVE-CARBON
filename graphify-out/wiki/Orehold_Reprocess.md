@@ -1,19 +1,19 @@
 # Orehold Reprocess
 
-> 10 nodes · cohesion 0.36
+> 10 nodes · cohesion 0.33
 
 ## Key Concepts
 
 - **orehold-reprocess.js** (9 connections) — `src/func/orehold-reprocess.js`
 - **runOreholdCalc()** (5 connections) — `src/func/orehold-reprocess.js`
-- **renderOreholdResults()** (5 connections) — `src/func/orehold-reprocess.js`
+- **renderOreholdResults()** (4 connections) — `src/func/orehold-reprocess.js`
 - **renderOreholdCalc()** (3 connections) — `src/func/orehold-reprocess.js`
-- **OREHOLD_MINERAL_ORDER** (2 connections) — `src/func/orehold-reprocess.js`
-- **parseOreholdText()** (2 connections) — `src/func/orehold-reprocess.js`
 - **oreholdEfficiencies()** (2 connections) — `src/func/orehold-reprocess.js`
+- **parseOreholdText()** (2 connections) — `src/func/orehold-reprocess.js`
 - **renderOreholdParsed()** (2 connections) — `src/func/orehold-reprocess.js`
-- **_oreholdPrices** (1 connections) — `src/func/orehold-reprocess.js`
 - **OREHOLD_IMPLANTS** (1 connections) — `src/func/orehold-reprocess.js`
+- **OREHOLD_MINERAL_ORDER** (1 connections) — `src/func/orehold-reprocess.js`
+- **_oreholdPrices** (1 connections) — `src/func/orehold-reprocess.js`
 
 ## Relationships
 
@@ -25,8 +25,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (94%)
-- INFERRED: 2 (6%)
+- EXTRACTED: 14 (93%)
+- INFERRED: 1 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

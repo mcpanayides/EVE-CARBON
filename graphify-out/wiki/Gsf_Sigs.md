@@ -1,40 +1,49 @@
 # Gsf Sigs
 
-> 13 nodes · cohesion 0.15
+> 49 nodes · cohesion 0.04
 
 ## Key Concepts
 
-- **groups — SIG / Squad definitions** (4 connections) — `yaml/gsf_sigs.yaml`
-- **comms_channels — comms text to voice URL map** (4 connections) — `yaml/gsf_sigs.yaml`
-- **Join Button Flow (comms, FC info window, waypoint)** (4 connections) — `src/html/ping-alert.html`
-- **GSF Alliance Pack (gsf_sigs.yaml)** (3 connections) — `yaml/gsf_sigs.yaml`
-- **resolveCommsUrl** (3 connections) — `src/html/ping-alert.html`
-- **Beehive comms channel** (2 connections) — `yaml/gsf_sigs.yaml`
-- **Incursions SIG and comms channel** (2 connections) — `yaml/gsf_sigs.yaml`
-- **#mapLoading SDE loading overlay** (1 connections) — `src/html/page-map.html`
-- **pack_info — Goonswarm Federation pack metadata** (1 connections) — `yaml/gsf_sigs.yaml`
-- **Capital Ops comms channel** (1 connections) — `yaml/gsf_sigs.yaml`
-- **Black Hand SIG (and HUMINT/SIGINT variants)** (1 connections) — `yaml/gsf_sigs.yaml`
-- **showFooterError** (1 connections) — `src/html/ping-alert.html`
-- **extractSystemName** (1 connections) — `src/html/ping-alert.html`
+- **pack_info** (12 connections) — `yaml/gsf_sigs.yaml`
+- **groups** (6 connections) — `yaml/gsf_sigs.yaml`
+- **forum** (5 connections) — `yaml/gsf_sigs.yaml`
+- **gez** (5 connections) — `yaml/gsf_sigs.yaml`
+- **jump_gates** (5 connections) — `yaml/gsf_sigs.yaml`
+- **wiki** (5 connections) — `yaml/gsf_sigs.yaml`
+- **links** (5 connections) — `yaml/gsf_sigs.yaml`
+- **comms_channels** (4 connections) — `yaml/gsf_sigs.yaml`
+- **gsf_sigs.yaml** (3 connections) — `yaml/gsf_sigs.yaml`
+- **calendar** (3 connections) — `yaml/gsf_sigs.yaml`
+- **sov_upgrades** (3 connections) — `yaml/gsf_sigs.yaml`
+- **jabber** (2 connections) — `yaml/gsf_sigs.yaml`
+- **terms** (2 connections) — `yaml/gsf_sigs.yaml`
+- **alliance_ids** (1 connections) — `yaml/gsf_sigs.yaml`
+- **forum_base** (1 connections) — `yaml/gsf_sigs.yaml`
+- **match** (1 connections) — `yaml/gsf_sigs.yaml`
+- **name** (1 connections) — `yaml/gsf_sigs.yaml`
+- **url** (1 connections) — `yaml/gsf_sigs.yaml`
+- **label** (1 connections) — `yaml/gsf_sigs.yaml`
+- **owner** (1 connections) — `yaml/gsf_sigs.yaml`
+- **public** (1 connections) — `yaml/gsf_sigs.yaml`
+- **url** (1 connections) — `yaml/gsf_sigs.yaml`
+- **alliance_ids** (1 connections) — `yaml/gsf_sigs.yaml`
+- **label** (1 connections) — `yaml/gsf_sigs.yaml`
+- **owner** (1 connections) — `yaml/gsf_sigs.yaml`
+- *... and 24 more nodes in this community*
 
 ## Relationships
 
-- [Ping Alert](Ping_Alert.md) (2 shared connections)
-- [Jabber Chat Client](Jabber_Chat_Client.md) (1 shared connections)
-- [Intel Row](Intel_Row.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
-- `src/html/page-map.html`
-- `src/html/ping-alert.html`
 - `yaml/gsf_sigs.yaml`
 
 ## Audit Trail
 
-- EXTRACTED: 24 (86%)
-- INFERRED: 1 (4%)
-- AMBIGUOUS: 3 (11%)
+- EXTRACTED: 48 (100%)
+- INFERRED: 0 (0%)
+- AMBIGUOUS: 0 (0%)
 
 ---
 

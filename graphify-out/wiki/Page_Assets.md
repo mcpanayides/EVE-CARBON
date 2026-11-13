@@ -5,21 +5,21 @@
 ## Key Concepts
 
 - **initAssetCols** (5 connections) — `src/html/page-assets.html`
-- **Assets At Real-User Scale Rework** (4 connections) — `TODO.md`
 - **attachReorderHandles** (4 connections) — `src/html/page-assets.html`
+- **Assets At Real-User Scale Rework** (4 connections) — `TODO.md`
+- **applyColState** (3 connections) — `src/html/page-assets.html`
 - **Assets Page Table** (3 connections) — `src/html/page-assets.html`
 - **resolvedCols** (3 connections) — `src/html/page-assets.html`
-- **applyColState** (3 connections) — `src/html/page-assets.html`
 - **attachResizeHandles** (2 connections) — `src/html/page-assets.html`
 - **save (localStorage column state)** (2 connections) — `src/html/page-assets.html`
-- **Virtualised Asset Row Rendering** (1 connections) — `TODO.md`
+- **load (localStorage column state)** (1 connections) — `src/html/page-assets.html`
 - **reorderBodyRows** (1 connections) — `src/html/page-assets.html`
 - **tagColElements** (1 connections) — `src/html/page-assets.html`
-- **load (localStorage column state)** (1 connections) — `src/html/page-assets.html`
+- **Virtualised Asset Row Rendering** (1 connections) — `TODO.md`
 
 ## Relationships
 
-- [TODO (No Manual Sync/Refresh Buttons)](TODO_%28No_Manual_Sync-Refresh_Buttons%29.md) (2 shared connections)
+- [TODO (Mining Ledger Baseline Photogr)](TODO_Mining_Ledger_Baseline_Photogr.md) (2 shared connections)
 
 ## Source Files
 
@@ -28,8 +28,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (87%)
-- INFERRED: 4 (13%)
+- EXTRACTED: 14 (88%)
+- INFERRED: 2 (12%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,42 +1,37 @@
 # Zkill Fanout Worker Test
 
-> 15 nodes · cohesion 0.14
+> 11 nodes · cohesion 0.20
 
 ## Key Concepts
 
-- **zkill_fanout_worker.test.js** (9 connections) — `test/zkill_fanout_worker.test.js`
-- **assets_ipc.js** (5 connections) — `src/ipc/assets_ipc.js`
-- **registerAssetHandlers()** (4 connections) — `src/ipc/assets_ipc.js`
-- **worker()** (4 connections) — `test/zkill_fanout_worker.test.js`
-- **resolveLocations()** (2 connections) — `src/locator.js`
+- **zkill_fanout_worker.test.js** (13 connections) — `test/zkill_fanout_worker.test.js`
+- **ref_url** (5 connections)
 - **call()** (2 connections) — `test/zkill_fanout_worker.test.js`
-- **{ ipcMain, BrowserWindow }** (1 connections) — `src/ipc/assets_ipc.js`
-- **{ ESI_BASE }** (1 connections) — `src/ipc/assets_ipc.js`
-- **test** (1 connections) — `test/zkill_fanout_worker.test.js`
-- **assert** (1 connections) — `test/zkill_fanout_worker.test.js`
-- **path** (1 connections) — `test/zkill_fanout_worker.test.js`
-- **{ pathToFileURL }** (1 connections) — `test/zkill_fanout_worker.test.js`
-- **ENV** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **worker()** (2 connections) — `test/zkill_fanout_worker.test.js`
 - **fakeUpstream()** (1 connections) — `test/zkill_fanout_worker.test.js`
 - **maxAge()** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **assert** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **ENV** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **path** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **{ pathToFileURL }** (1 connections) — `test/zkill_fanout_worker.test.js`
+- **test** (1 connections) — `test/zkill_fanout_worker.test.js`
 
 ## Relationships
 
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
-- [Account & Auth IPC](Account_%26_Auth_IPC.md) (1 shared connections)
-- [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (1 shared connections)
+- [Resfile Backgrounds](Resfile_Backgrounds.md) (1 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `src/ipc/assets_ipc.js`
-- `src/locator.js`
 - `test/zkill_fanout_worker.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 29 (83%)
-- INFERRED: 6 (17%)
+- EXTRACTED: 18 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

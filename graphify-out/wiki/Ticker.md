@@ -4,9 +4,9 @@
 
 ## Key Concepts
 
-- **ticker.js** (2 connections) — `src/func/ticker.js`
 - **initMarketTicker()** (2 connections) — `src/func/ticker.js`
 - **refreshMarketTicker()** (2 connections) — `src/func/ticker.js`
+- **ticker.js** (2 connections) — `src/func/ticker.js`
 
 ## Relationships
 
@@ -18,7 +18,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 6 (100%)
+- EXTRACTED: 3 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,46 +1,42 @@
 # Gridstack Events & Handlers
 
-> 44 nodes · cohesion 0.10
+> 30 nodes · cohesion 0.11
 
 ## Key Concepts
 
-- **v** (21 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **b** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.triggerEvent()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.initEvent()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.destroy()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.enable()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._resizeStart()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.disable()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._setupHandlers()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._resizing()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._mouseEnter()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._ui()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._setupAutoHide()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._mouseLeave()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.off()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._resizeStop()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.drop()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.enableMove()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.enableResize()** (5 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **p()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **w** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._ui()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.disable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.enable()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._mouseEnter()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **m()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.constructor()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.destroy()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.updateOption()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._removeHandlers()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 19 more nodes in this community*
+- **p()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.off()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.on()** (4 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.constructor()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.destroy()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.drop()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._mouseLeave()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._setupAccept()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.updateOption()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **h()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.setupDroppable()** (3 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._canDrop()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.off()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.on()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.off()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.on()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.cleanDroppable()** (2 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md) (20 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (16 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (8 shared connections)
-- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (4 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
-- [Chart Umd (pageLoader)](Chart_Umd_%28pageLoader%29.md) (2 shared connections)
-- [PI IPC](PI_IPC.md) (1 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
+- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_v.md) (9 shared connections)
+- [Gridstack Vendor Library (y)](Gridstack_Vendor_Library_y.md) (7 shared connections)
+- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (5 shared connections)
+- [Gridstack Core & Initialisation](Gridstack_Core_&_Initialisation.md) (3 shared connections)
 
 ## Source Files
 
@@ -48,8 +44,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 225 (95%)
-- INFERRED: 11 (5%)
+- EXTRACTED: 57 (81%)
+- INFERRED: 13 (19%)
 - AMBIGUOUS: 0 (0%)
 
 ---

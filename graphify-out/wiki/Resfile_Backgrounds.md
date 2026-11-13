@@ -1,47 +1,39 @@
 # Resfile Backgrounds
 
-> 23 nodes · cohesion 0.16
+> 13 nodes · cohesion 0.27
 
 ## Key Concepts
 
-- **resfile_backgrounds.js** (15 connections) — `src/resfile_backgrounds.js`
-- **resfile.js** (9 connections) — `src/resfile.js`
-- **_ensureCached()** (8 connections) — `src/resfile_backgrounds.js`
-- **resolveResourcePaths()** (6 connections) — `src/resfile.js`
-- **_url()** (4 connections) — `src/resfile.js`
-- **getBuildNumber()** (4 connections) — `src/resfile.js`
-- **fetchResourceBytes()** (4 connections) — `src/resfile.js`
+- **resfile_backgrounds.js** (18 connections) — `src/resfile_backgrounds.js`
+- **_ensureCached()** (6 connections) — `src/resfile_backgrounds.js`
 - **_assetPath()** (4 connections) — `src/resfile_backgrounds.js`
-- **fetchText()** (3 connections) — `src/resfile.js`
-- **fetchBuffer()** (3 connections) — `src/resfile.js`
 - **_assetsDir()** (3 connections) — `src/resfile_backgrounds.js`
-- **_resolvedCachePath()** (3 connections) — `src/resfile_backgrounds.js`
-- **_readResolvedCache()** (3 connections) — `src/resfile_backgrounds.js`
-- **_writeResolvedCache()** (3 connections) — `src/resfile_backgrounds.js`
 - **listResfileBackgrounds()** (3 connections) — `src/resfile_backgrounds.js`
-- **parseManifest()** (2 connections) — `src/resfile.js`
-- **https** (1 connections) — `src/resfile.js`
+- **_readResolvedCache()** (3 connections) — `src/resfile_backgrounds.js`
+- **_resolvedCachePath()** (3 connections) — `src/resfile_backgrounds.js`
+- **_writeResolvedCache()** (3 connections) — `src/resfile_backgrounds.js`
+- **crypto** (1 connections) — `src/resfile_backgrounds.js`
 - **fs** (1 connections) — `src/resfile_backgrounds.js`
 - **path** (1 connections) — `src/resfile_backgrounds.js`
-- **crypto** (1 connections) — `src/resfile_backgrounds.js`
 - **{ pathToFileURL }** (1 connections) — `src/resfile_backgrounds.js`
-- **resfile** (1 connections) — `src/resfile_backgrounds.js`
 - **RESFILE_BACKGROUND_PRESETS** (1 connections) — `src/resfile_backgrounds.js`
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
+- [Resfile](Resfile.md) (1 shared connections)
 
 ## Source Files
 
-- `src/resfile.js`
 - `src/resfile_backgrounds.js`
 
 ## Audit Trail
 
-- EXTRACTED: 73 (87%)
-- INFERRED: 11 (13%)
+- EXTRACTED: 26 (96%)
+- INFERRED: 1 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

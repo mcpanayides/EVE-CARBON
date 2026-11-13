@@ -8,8 +8,8 @@
 - **initDonationPrompts()** (4 connections) — `src/func/donation.js`
 - **_showDonate()** (3 connections) — `src/func/donation.js`
 - **_dayKey()** (2 connections) — `src/func/donation.js`
-- **_monthKey()** (2 connections) — `src/func/donation.js`
 - **_donationTourBusy()** (2 connections) — `src/func/donation.js`
+- **_monthKey()** (2 connections) — `src/func/donation.js`
 
 ## Relationships
 
@@ -21,7 +21,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 18 (100%)
+- EXTRACTED: 9 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

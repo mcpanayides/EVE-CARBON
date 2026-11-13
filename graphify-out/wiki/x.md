@@ -1,35 +1,36 @@
 # x
 
-> God node · 84 connections · `src/vendor/gridstack/gridstack-all.js`
+> God node · 85 connections · `src/vendor/gridstack/gridstack-all.js`
 
-**Community:** [Gridstack Core & Initialisation](Gridstack_Core_%26_Initialisation.md)
+**Community:** [Gridstack Core & Initialisation](Gridstack_Core_&_Initialisation.md)
 
 ## Connections by Relation
 
 ### contains
-- _ `EXTRACTED`
+- [_](_.md) `EXTRACTED`
 
 ### method
 - ._setupAcceptWidget() `EXTRACTED`
 - .constructor() `EXTRACTED`
 - .prepareDragDrop() `EXTRACTED`
-- .load() `EXTRACTED`
-- .update() `EXTRACTED`
-- ._updateContainerHeight() `EXTRACTED`
 - .resizeToContentCheck() `EXTRACTED`
 - .updateOptions() `EXTRACTED`
-- .batchUpdate() `EXTRACTED`
-- .makeSubGrid() `EXTRACTED`
+- .triggerEvent() `EXTRACTED`
 - ._triggerChangeEvent() `EXTRACTED`
+- ._updateContainerHeight() `EXTRACTED`
+- .load() `EXTRACTED`
+- .batchUpdate() `EXTRACTED`
 - .cellHeight() `EXTRACTED`
 - .column() `EXTRACTED`
-- .destroy() `EXTRACTED`
-- ._dragOrResize() `EXTRACTED`
-- .enable() `EXTRACTED`
-- ._prepareElement() `EXTRACTED`
-- .disable() `EXTRACTED`
+- .update() `EXTRACTED`
 - .getColumn() `EXTRACTED`
-- .getElements() `EXTRACTED`
+- ._prepareElement() `EXTRACTED`
+- .setAnimation() `EXTRACTED`
+- .cellWidth() `EXTRACTED`
+- .checkDynamicColumn() `EXTRACTED`
+- ._dragOrResize() `EXTRACTED`
+- .makeWidget() `EXTRACTED`
+- *…and 64 more `method` connection(s) not listed (lowest-degree first to go)*
 
 ---
 

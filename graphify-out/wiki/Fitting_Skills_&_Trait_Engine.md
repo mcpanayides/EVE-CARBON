@@ -1,43 +1,43 @@
 # Fitting Skills & Trait Engine
 
-> 38 nodes · cohesion 0.12
+> 50 nodes · cohesion 0.10
 
 ## Key Concepts
 
-- **_fitWeaponSim()** (21 connections) — `src/func/fitting.js`
-- **_fitShipDerived()** (19 connections) — `src/func/fitting.js`
-- **_fitDroneSim()** (15 connections) — `src/func/fitting.js`
+- **_fitShipDerived()** (26 connections) — `src/func/fitting.js`
+- **_fitWeaponSim()** (20 connections) — `src/func/fitting.js`
+- **_fitDroneSim()** (16 connections) — `src/func/fitting.js`
+- **_fitAllMods()** (12 connections) — `src/func/fitting.js`
 - **_fitTraitRecords()** (11 connections) — `src/func/fitting.js`
+- **_fitCapSim()** (10 connections) — `src/func/fitting.js`
+- **_fitEffOutputs()** (10 connections) — `src/func/fitting.js`
+- **_fitSync()** (10 connections) — `src/func/fitting.js`
 - **_fitTraitLvl()** (10 connections) — `src/func/fitting.js`
-- **_fitAllMods()** (10 connections) — `src/func/fitting.js`
-- **_fitEffOutputs()** (9 connections) — `src/func/fitting.js`
-- **_fitSkMult()** (8 connections) — `src/func/fitting.js`
+- **_fitShowTip()** (9 connections) — `src/func/fitting.js`
+- **_fitSkill()** (9 connections) — `src/func/fitting.js`
+- **_fitSkMult()** (9 connections) — `src/func/fitting.js`
 - **_fitOwnBursts()** (8 connections) — `src/func/fitting.js`
-- **_fitSkill()** (7 connections) — `src/func/fitting.js`
-- **_fitRsSet()** (7 connections) — `src/func/fitting.js`
+- **_fitPassesFilters()** (8 connections) — `src/func/fitting.js`
+- **_fitRangeBonuses()** (8 connections) — `src/func/fitting.js`
+- **_fitRsSet()** (8 connections) — `src/func/fitting.js`
+- **_fitDroneCtrlRange()** (7 connections) — `src/func/fitting.js`
+- **_fitModRows()** (7 connections) — `src/func/fitting.js`
 - **_fitTraitMult()** (7 connections) — `src/func/fitting.js`
-- **_fitCapSim()** (7 connections) — `src/func/fitting.js`
-- **_fitDroneCtrlRange()** (6 connections) — `src/func/fitting.js`
+- **_fitComputeUsage()** (6 connections) — `src/func/fitting.js`
+- **_fitDamageBonuses()** (6 connections) — `src/func/fitting.js`
+- **_fitModuleCpuPg()** (6 connections) — `src/func/fitting.js`
 - **_fitTraitReduceMult()** (6 connections) — `src/func/fitting.js`
-- **_fitRangeBonuses()** (6 connections) — `src/func/fitting.js`
-- **_fitStackChain()** (5 connections) — `src/func/fitting.js`
-- **_fitTraitMatches()** (5 connections) — `src/func/fitting.js`
-- **_fitModHpMult()** (5 connections) — `src/func/fitting.js`
+- **_fitApplyModRows()** (5 connections) — `src/func/fitting.js`
 - **_fitImplantBonuses()** (5 connections) — `src/func/fitting.js`
-- **_fitModeMult()** (5 connections) — `src/func/fitting.js`
-- **_fitSkillBonusMult()** (5 connections) — `src/func/fitting.js`
-- **_fitDamageBonuses()** (5 connections) — `src/func/fitting.js`
-- **_fitTraitLayerMult()** (4 connections) — `src/func/fitting.js`
-- **_fitTraitRes()** (4 connections) — `src/func/fitting.js`
-- *... and 13 more nodes in this community*
+- *... and 25 more nodes in this community*
 
 ## Relationships
 
-- [Fitting Simulator](Fitting_Simulator.md) (39 shared connections)
-- [Fitting Drones & Stats Display](Fitting_Drones_%26_Stats_Display.md) (14 shared connections)
-- [Fitting Simulator (_fitFighterTubeDps)](Fitting_Simulator_%28_fitFighterTubeDps%29.md) (4 shared connections)
-- [Fitting Simulator (renderFitting)](Fitting_Simulator_%28renderFitting%29.md) (2 shared connections)
-- [Fitting Fighters & Canvas Rings](Fitting_Fighters_%26_Canvas_Rings.md) (1 shared connections)
+- [Fitting Simulator](Fitting_Simulator.md) (51 shared connections)
+- [Fitting Drones & Stats Display](Fitting_Drones_&_Stats_Display.md) (17 shared connections)
+- [Fitting Slots & Module Placement](Fitting_Slots_&_Module_Placement.md) (10 shared connections)
+- [Fitting Browser & Persistence](Fitting_Browser_&_Persistence.md) (3 shared connections)
+- [Fitting Fighters & Canvas Rings](Fitting_Fighters_&_Canvas_Rings.md) (2 shared connections)
 
 ## Source Files
 
@@ -45,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 232 (99%)
-- INFERRED: 2 (1%)
+- EXTRACTED: 202 (99%)
+- INFERRED: 3 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

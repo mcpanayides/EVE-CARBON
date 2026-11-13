@@ -5,13 +5,13 @@
 ## Key Concepts
 
 - **appraisal.js** (11 connections) — `src/func/appraisal.js`
-- **_apRenderResult()** (7 connections) — `src/func/appraisal.js`
-- **_apTotals()** (5 connections) — `src/func/appraisal.js`
+- **_apRenderResult()** (6 connections) — `src/func/appraisal.js`
 - **_apRun()** (4 connections) — `src/func/appraisal.js`
+- **_apTotals()** (4 connections) — `src/func/appraisal.js`
 - **_apCandidates()** (3 connections) — `src/func/appraisal.js`
+- **_apRateMul()** (3 connections) — `src/func/appraisal.js`
 - **_apResolve()** (3 connections) — `src/func/appraisal.js`
 - **_apUnit()** (3 connections) — `src/func/appraisal.js`
-- **_apRateMul()** (3 connections) — `src/func/appraisal.js`
 - **renderAppraisal()** (3 connections) — `src/func/appraisal.js`
 - **_apNum()** (2 connections) — `src/func/appraisal.js`
 - **_apRows** (1 connections) — `src/func/appraisal.js`
@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (2 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -27,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 42 (91%)
-- INFERRED: 4 (9%)
+- EXTRACTED: 21 (95%)
+- INFERRED: 1 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

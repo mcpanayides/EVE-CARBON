@@ -1,35 +1,38 @@
 # ESI IPC
 
-> 19 nodes · cohesion 0.13
+> 20 nodes · cohesion 0.14
 
 ## Key Concepts
 
 - **esi_ipc.js** (15 connections) — `src/ipc/esi_ipc.js`
-- **registerEsiHandlers()** (6 connections) — `src/ipc/esi_ipc.js`
-- **fuzzwork_api.test.js** (5 connections) — `test/fuzzwork_api.test.js`
-- **skill_boosters.test.js** (5 connections) — `test/skill_boosters.test.js`
+- **fuzzwork_api.test.js** (9 connections) — `test/fuzzwork_api.test.js`
+- **registerEsiHandlers()** (8 connections) — `src/ipc/esi_ipc.js`
+- **skill_boosters.test.js** (7 connections) — `test/skill_boosters.test.js`
 - **fetchFuzzworkBlueprint()** (4 connections) — `src/ipc/esi_ipc.js`
+- **FUZZWORK_BLUEPRINT_URL()** (3 connections) — `src/ipc/esi_ipc.js`
+- **_fuzzworkMaterials()** (3 connections) — `src/ipc/esi_ipc.js`
 - **usableAccelerators()** (3 connections) — `src/ipc/esi_ipc.js`
-- **FUZZWORK_BLUEPRINT_URL()** (2 connections) — `src/ipc/esi_ipc.js`
-- **_fuzzworkMaterials()** (2 connections) — `src/ipc/esi_ipc.js`
-- **{ APP_USER_AGENT, ESI_BASE }** (1 connections) — `src/ipc/esi_ipc.js`
-- **demoMode** (1 connections) — `src/ipc/esi_ipc.js`
+- **fetchHubPrices()** (1 connections) — `src/ipc/esi_ipc.js`
+- **fetchTypeMetadata()** (1 connections) — `src/ipc/esi_ipc.js`
+- **_typeDailyMovePct()** (1 connections) — `src/ipc/esi_ipc.js`
 - **{ ipcMain }** (1 connections) — `src/ipc/esi_ipc.js`
 - **TICKER_TYPE_IDS** (1 connections) — `src/ipc/esi_ipc.js`
-- **test** (1 connections) — `test/fuzzwork_api.test.js`
 - **assert** (1 connections) — `test/fuzzwork_api.test.js`
-- **{ _fuzzwork }** (1 connections) — `test/fuzzwork_api.test.js`
 - **REAL** (1 connections) — `test/fuzzwork_api.test.js`
-- **test** (1 connections) — `test/skill_boosters.test.js`
+- **test** (1 connections) — `test/fuzzwork_api.test.js`
 - **assert** (1 connections) — `test/skill_boosters.test.js`
 - **ROWS** (1 connections) — `test/skill_boosters.test.js`
+- **test** (1 connections) — `test/skill_boosters.test.js`
+- **src_ipc_esi_ipc_fuzzwork** (1 connections)
 
 ## Relationships
 
+- [Sso Scopes Test](Sso_Scopes_Test.md) (4 shared connections)
+- [Character IPC](Character_IPC.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (2 shared connections)
-- [Demo Mode](Demo_Mode.md) (2 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Demo Mode](Demo_Mode.md) (1 shared connections)
+- [Intel IPC](Intel_IPC.md) (1 shared connections)
 
 ## Source Files
 
@@ -39,8 +42,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 44 (83%)
-- INFERRED: 9 (17%)
+- EXTRACTED: 34 (89%)
+- INFERRED: 4 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

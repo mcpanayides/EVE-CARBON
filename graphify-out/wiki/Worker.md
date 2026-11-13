@@ -4,16 +4,16 @@
 
 ## Key Concepts
 
-- **presence-worker/worker.js** (5 connections) — `infra/presence-worker/worker.js`
 - **PresenceCounter** (5 connections) — `infra/presence-worker/worker.js`
 - **.fetch()** (5 connections) — `infra/presence-worker/worker.js`
-- **normaliseVersion()** (2 connections) — `infra/presence-worker/worker.js`
+- **presence-worker/worker.js** (5 connections) — `infra/presence-worker/worker.js`
 - **normalisePlatform()** (2 connections) — `infra/presence-worker/worker.js`
+- **normaliseVersion()** (2 connections) — `infra/presence-worker/worker.js`
 - **.prune()** (2 connections) — `infra/presence-worker/worker.js`
 - **.tally()** (2 connections) — `infra/presence-worker/worker.js`
-- **PLATFORMS** (1 connections) — `infra/presence-worker/worker.js`
-- **.constructor()** (1 connections) — `infra/presence-worker/worker.js`
 - **fetch()** (1 connections) — `infra/presence-worker/worker.js`
+- **.constructor()** (1 connections) — `infra/presence-worker/worker.js`
+- **PLATFORMS** (1 connections) — `infra/presence-worker/worker.js`
 
 ## Relationships
 
@@ -25,7 +25,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 26 (100%)
+- EXTRACTED: 13 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

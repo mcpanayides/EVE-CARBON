@@ -1,45 +1,43 @@
 # Gridstack Core & Initialisation
 
-> 79 nodes · cohesion 0.08
+> 83 nodes · cohesion 0.07
 
 ## Key Concepts
 
-- **x** (84 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._setupAcceptWidget()** (27 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.constructor()** (23 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.prepareDragDrop()** (22 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.load()** (16 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.update()** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._updateContainerHeight()** (15 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **x** (85 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._setupAcceptWidget()** (20 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.constructor()** (19 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.prepareDragDrop()** (19 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.resizeToContentCheck()** (14 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.updateOptions()** (13 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.resizeToContentCheck()** (13 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.makeSubGrid()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.batchUpdate()** (12 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.find()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **._triggerChangeEvent()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.cloneDeep()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.cellHeight()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.column()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._prepareElement()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **._dragOrResize()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.getColumn()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.makeWidget()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.removeWidget()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.onResize()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.getElements()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.addWidget()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- **.checkDynamicColumn()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 54 more nodes in this community*
+- **._updateContainerHeight()** (11 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.load()** (10 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.batchUpdate()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.cellHeight()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.column()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.update()** (9 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.getColumn()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._prepareElement()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.setAnimation()** (8 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.cellWidth()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.checkDynamicColumn()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **._dragOrResize()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.makeWidget()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.onResize()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.setStatic()** (7 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.addWidget()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.destroy()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
+- **.makeSubGrid()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
+- *... and 58 more nodes in this community*
 
 ## Relationships
 
-- [Gridstack Geometry & Collision](Gridstack_Geometry_%26_Collision.md) (35 shared connections)
-- [Gridstack Vendor Library (i)](Gridstack_Vendor_Library_%28i%29.md) (23 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_%26_Handlers.md) (20 shared connections)
-- [Gridstack Touch & Drag-Drop](Gridstack_Touch_%26_Drag-Drop.md) (8 shared connections)
-- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (5 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (3 shared connections)
-- [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_&_Handlers.md) (3 shared connections)
+- [Chart Umd (bn)](Chart_Umd_bn.md) (2 shared connections)
+- [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (1 shared connections)
+- [Gridstack Vendor Library (y)](Gridstack_Vendor_Library_y.md) (1 shared connections)
 
 ## Source Files
 
@@ -47,8 +45,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 601 (99%)
-- INFERRED: 4 (1%)
+- EXTRACTED: 244 (99%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

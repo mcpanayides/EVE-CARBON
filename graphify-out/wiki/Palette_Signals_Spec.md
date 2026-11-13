@@ -1,19 +1,18 @@
 # Palette Signals Spec
 
-> 6 nodes · cohesion 0.33
+> 5 nodes · cohesion 0.40
 
 ## Key Concepts
 
 - **palette-signals.spec.js** (7 connections) — `e2e/palette-signals.spec.js`
-- **{ test, expect }** (1 connections) — `e2e/palette-signals.spec.js`
-- **openPalette()** (1 connections) — `e2e/palette-signals.spec.js`
 - **cssVar()** (1 connections) — `e2e/palette-signals.spec.js`
+- **openPalette()** (1 connections) — `e2e/palette-signals.spec.js`
 - **panelBg()** (1 connections) — `e2e/palette-signals.spec.js`
 - **setAppearance()** (1 connections) — `e2e/palette-signals.spec.js`
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (2 shared connections)
+- [Electron App](Electron_App.md) (3 shared connections)
 
 ## Source Files
 
@@ -21,7 +20,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 12 (100%)
+- EXTRACTED: 7 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

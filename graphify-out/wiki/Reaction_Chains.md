@@ -8,20 +8,20 @@
 - **_rxRenderGrid()** (9 connections) — `src/func/reactions.js`
 - **_rxLoadData()** (7 connections) — `src/func/reactions.js`
 - **_rxOpenModal()** (6 connections) — `src/func/reactions.js`
+- **_rxFillModal()** (5 connections) — `src/func/reactions.js`
 - **_rxLoadPrices()** (5 connections) — `src/func/reactions.js`
 - **_rxSetHub()** (5 connections) — `src/func/reactions.js`
 - **_rxSetScrapLevel()** (5 connections) — `src/func/reactions.js`
-- **_rxFillModal()** (5 connections) — `src/func/reactions.js`
 - **renderReactionsCalculator()** (4 connections) — `src/func/reactions.js`
-- **_rxBuildHubPicker()** (4 connections) — `src/func/reactions.js`
 - **_rxBindToolbar()** (4 connections) — `src/func/reactions.js`
-- **_rxGroupColor()** (3 connections) — `src/func/reactions.js`
-- **_rxCompute()** (3 connections) — `src/func/reactions.js`
+- **_rxBuildHubPicker()** (4 connections) — `src/func/reactions.js`
 - **_rxCardHtml()** (3 connections) — `src/func/reactions.js`
-- **_rxPopulateGroupFilter()** (2 connections) — `src/func/reactions.js`
+- **_rxCompute()** (3 connections) — `src/func/reactions.js`
+- **_rxGroupColor()** (3 connections) — `src/func/reactions.js`
 - **_rxLoadingCards()** (2 connections) — `src/func/reactions.js`
-- **_rxPrices** (1 connections) — `src/func/reactions.js`
+- **_rxPopulateGroupFilter()** (2 connections) — `src/func/reactions.js`
 - **RX_HUB_LABELS** (1 connections) — `src/func/reactions.js`
+- **_rxPrices** (1 connections) — `src/func/reactions.js`
 
 ## Relationships
 
@@ -33,7 +33,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 86 (100%)
+- EXTRACTED: 43 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

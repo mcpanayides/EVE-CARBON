@@ -6,14 +6,14 @@
 
 - **fc_intel_rules.js** (5 connections) — `src/func/fc_intel_rules.js`
 - **_intelOpenRules()** (3 connections) — `src/func/fc_intel_rules.js`
-- **_intelEditRule()** (3 connections) — `src/func/fc_intel_rules.js`
+- **_intelEditRule()** (2 connections) — `src/func/fc_intel_rules.js`
 - **_intelRuleSentence()** (2 connections) — `src/func/fc_intel_rules.js`
-- **_intelRulesCache** (1 connections) — `src/func/fc_intel_rules.js`
 - **_INTEL_ROLE_CHOICES** (1 connections) — `src/func/fc_intel_rules.js`
+- **_intelRulesCache** (1 connections) — `src/func/fc_intel_rules.js`
 
 ## Relationships
 
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
@@ -21,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 14 (93%)
-- INFERRED: 1 (7%)
+- EXTRACTED: 7 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

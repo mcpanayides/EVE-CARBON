@@ -1,35 +1,30 @@
 # TODO
 
-> 10 nodes · cohesion 0.22
+> 6 nodes · cohesion 0.47
 
 ## Key Concepts
 
-- **Network Rate Governor Audit** (4 connections) — `TODO.md`
-- **EVE-Carbon Presence Worker** (4 connections) — `infra/presence-worker/README.md`
-- **Token Bucket Per Host** (3 connections) — `TODO.md`
-- **Per-Host Rate Governing (3.5.0)** (2 connections) — `CHANGELOG.md`
-- **zkill_stream Rate Gate Without Caching (reserve)** (2 connections) — `TODO.md`
-- **Durable Object Eviction Defeats Memory-Only Sessions** (2 connections) — `infra/presence-worker/README.md`
-- **PRESENCE_URL Secret (unset disables the counter silently)** (2 connections) — `infra/presence-worker/README.md`
-- **Online Counter Under-Report Fix** (1 connections) — `CHANGELOG.md`
-- **Per-Client Polling Of A Free Third-Party Service Does Not Scale** (1 connections) — `TODO.md`
-- **Optional Version Reporting (unknown bucket)** (1 connections) — `infra/presence-worker/README.md`
+- **Fleet Tracker (ops, movement, kills, AAR)** (6 connections) — `TODO.md`
+- **AAR Generator (one model, three renderers)** (2 connections) — `TODO.md`
+- **Boss-Handover Op Close** (2 connections) — `TODO.md`
+- **Modal-System Movement Debounce and Dwell Time** (2 connections) — `TODO.md`
+- **Fleet Tracker Op Record and AAR (3.5.0)** (2 connections) — `CHANGELOG.md`
+- **FC Live Validation Session (two accounts)** (2 connections) — `TODO.md`
 
 ## Relationships
 
-- [TODO (Fleet Tracker Op Record and AA)](TODO_%28Fleet_Tracker_Op_Record_and_AA%29.md) (1 shared connections)
-- [CI Workflow](CI_Workflow.md) (1 shared connections)
+- [README (PRESENCE_URL Secret unset disa)](README_PRESENCE_URL_Secret_unset_disa.md) (1 shared connections)
+- [TODO (Mining Ledger Baseline Photogr)](TODO_Mining_Ledger_Baseline_Photogr.md) (1 shared connections)
 
 ## Source Files
 
 - `CHANGELOG.md`
 - `TODO.md`
-- `infra/presence-worker/README.md`
 
 ## Audit Trail
 
-- EXTRACTED: 16 (73%)
-- INFERRED: 6 (27%)
+- EXTRACTED: 7 (78%)
+- INFERRED: 2 (22%)
 - AMBIGUOUS: 0 (0%)
 
 ---

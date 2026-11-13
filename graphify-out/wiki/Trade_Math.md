@@ -1,24 +1,23 @@
 # Trade Math
 
-> 11 nodes · cohesion 0.18
+> 10 nodes · cohesion 0.20
 
 ## Key Concepts
 
 - **trade-math.js** (6 connections) — `src/func/trade-math.js`
-- **trade-math.test.js** (5 connections) — `test/trade-math.test.js`
-- **salesTax()** (1 connections) — `src/func/trade-math.js`
+- **trade-math.test.js** (6 connections) — `test/trade-math.test.js`
 - **brokerFee()** (1 connections) — `src/func/trade-math.js`
 - **netFactor()** (1 connections) — `src/func/trade-math.js`
 - **pickPrice()** (1 connections) — `src/func/trade-math.js`
 - **reprocessUnitValue()** (1 connections) — `src/func/trade-math.js`
-- **test** (1 connections) — `test/trade-math.test.js`
-- **assert** (1 connections) — `test/trade-math.test.js`
-- **TM** (1 connections) — `test/trade-math.test.js`
+- **salesTax()** (1 connections) — `src/func/trade-math.js`
 - **approx()** (1 connections) — `test/trade-math.test.js`
+- **assert** (1 connections) — `test/trade-math.test.js`
+- **test** (1 connections) — `test/trade-math.test.js`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
 
 ## Source Files
 
@@ -27,8 +26,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 20 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 6 (55%)
+- INFERRED: 5 (45%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,61 +1,62 @@
 # Intel Service
 
-> 36 nodes · cohesion 0.08
+> 27 nodes · cohesion 0.13
 
 ## Key Concepts
 
-- **intel_service.js** (33 connections) — `src/intel/intel_service.js`
-- **intel_rules.test.js** (15 connections) — `test/intel_rules.test.js`
-- **alert_rules.js** (9 connections) — `src/intel/alert_rules.js`
-- **createIntelService()** (7 connections) — `src/intel/intel_service.js`
-- **standings.js** (6 connections) — `src/intel/standings.js`
-- **system_index.js** (6 connections) — `src/intel/system_index.js`
-- **normaliseRule()** (4 connections) — `src/intel/alert_rules.js`
-- **ruleMatches()** (4 connections) — `src/intel/alert_rules.js`
-- **createRuleEngine()** (4 connections) — `src/intel/alert_rules.js`
-- **createStandingsResolver()** (4 connections) — `src/intel/standings.js`
-- **describeRule()** (3 connections) — `src/intel/alert_rules.js`
-- **buildSystemIndex()** (3 connections) — `src/intel/system_index.js`
-- **STARTER_RULES** (2 connections) — `src/intel/alert_rules.js`
-- **lower()** (2 connections) — `src/intel/alert_rules.js`
-- **mergeContactSheets()** (2 connections) — `src/intel/standings.js`
-- **rule()** (2 connections) — `test/intel_rules.test.js`
-- **DEFAULT_RULE** (1 connections) — `src/intel/alert_rules.js`
-- **{ buildSystemIndex }** (1 connections) — `src/intel/intel_service.js`
-- **{ createChannelParser }** (1 connections) — `src/intel/intel_service.js`
-- **{ createChatlogReader }** (1 connections) — `src/intel/intel_service.js`
-- **{
-  buildAdjacency, createProximityTracker, shouldAlert,
-}** (1 connections) — `src/intel/intel_service.js`
-- **{ createKillWatch }** (1 connections) — `src/intel/intel_service.js`
-- **{ createRuleEngine }** (1 connections) — `src/intel/intel_service.js`
-- **{ createStandingsResolver }** (1 connections) — `src/intel/intel_service.js`
-- **{ createPatternStore }** (1 connections) — `src/intel/intel_service.js`
-- *... and 11 more nodes in this community*
+- **intel_service.js** (26 connections) — `src/intel/intel_service.js`
+- **intel_resume.test.js** (23 connections) — `test/intel_resume.test.js`
+- **createIntelService()** (19 connections) — `src/intel/intel_service.js`
+- **handleReport()** (8 connections) — `src/intel/intel_service.js`
+- **init()** (8 connections) — `src/intel/intel_service.js`
+- **buildAdjacency()** (6 connections) — `src/intel/proximity.js`
+- **resumeSweep()** (5 connections) — `src/intel/intel_service.js`
+- **shouldAlert()** (5 connections) — `src/intel/proximity.js`
+- **parserFor()** (4 connections) — `src/intel/intel_service.js`
+- **handleLine()** (3 connections) — `src/intel/intel_service.js`
+- **withDisplay()** (3 connections) — `src/intel/intel_service.js`
+- **withPrediction()** (3 connections) — `src/intel/intel_service.js`
+- **worstStandingFor()** (3 connections) — `src/intel/intel_service.js`
+- **readerOver()** (3 connections) — `test/intel_resume.test.js`
+- **serviceOver()** (3 connections) — `test/intel_resume.test.js`
+- **writeLog()** (3 connections) — `test/intel_resume.test.js`
+- **svcWith()** (3 connections) — `test/intel_zkill_stream.test.js`
+- **shouldEmit()** (2 connections) — `src/intel/intel_service.js`
+- **syncLiveKills()** (1 connections) — `src/intel/intel_service.js`
+- **stamp()** (1 connections) — `test/intel_resume.test.js`
+- **DEFAULTS** (1 connections) — `src/intel/intel_service.js`
+- **assert** (1 connections) — `test/intel_resume.test.js`
+- **fs** (1 connections) — `test/intel_resume.test.js`
+- **os** (1 connections) — `test/intel_resume.test.js`
+- **path** (1 connections) — `test/intel_resume.test.js`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [Intel Test](Intel_Test.md) (8 shared connections)
-- [Intel Patterns Test](Intel_Patterns_Test.md) (5 shared connections)
-- [Intel Resume Test](Intel_Resume_Test.md) (4 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (2 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
+- [Proximity](Proximity.md) (7 shared connections)
+- [Patterns](Patterns.md) (6 shared connections)
+- [Alert Rules](Alert_Rules.md) (6 shared connections)
+- [Intel Test](Intel_Test.md) (5 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (4 shared connections)
+- [Intel Multibox Test](Intel_Multibox_Test.md) (4 shared connections)
+- [System Index](System_Index.md) (3 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (3 shared connections)
+- [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (2 shared connections)
+- [Chatlog Dir](Chatlog_Dir.md) (2 shared connections)
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
 
 ## Source Files
 
-- `src/intel/alert_rules.js`
 - `src/intel/intel_service.js`
-- `src/intel/standings.js`
-- `src/intel/system_index.js`
-- `test/intel_rules.test.js`
+- `src/intel/proximity.js`
+- `test/intel_resume.test.js`
+- `test/intel_zkill_stream.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 109 (87%)
-- INFERRED: 17 (13%)
+- EXTRACTED: 87 (93%)
+- INFERRED: 7 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

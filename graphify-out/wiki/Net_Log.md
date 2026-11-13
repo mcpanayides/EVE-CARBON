@@ -1,41 +1,48 @@
 # Net Log
 
-> 14 nodes · cohesion 0.25
+> 24 nodes · cohesion 0.17
 
 ## Key Concepts
 
-- **net_log.js** (12 connections) — `src/net_log.js`
-- **record()** (5 connections) — `src/net_log.js`
+- **net_log.js** (14 connections) — `src/net_log.js`
+- **theme-vars.js** (12 connections) — `src/shared/theme-vars.js`
+- **buildCssVarsFromCustom()** (7 connections) — `src/shared/theme-vars.js`
 - **flushMinute()** (5 connections) — `src/net_log.js`
-- **instrumentNodeHttp()** (4 connections) — `src/net_log.js`
+- **record()** (5 connections) — `src/net_log.js`
+- **dimOf()** (5 connections) — `src/shared/theme-vars.js`
 - **init()** (4 connections) — `src/net_log.js`
-- **url()** (4 connections) — `src/shared/esi.js`
-- **iso()** (3 connections) — `src/net_log.js`
+- **buildCssVars()** (4 connections) — `src/shared/theme-vars.js`
+- **darken()** (4 connections) — `src/shared/theme-vars.js`
+- **hexToHsl()** (4 connections) — `src/shared/theme-vars.js`
+- **hslToHex()** (4 connections) — `src/shared/theme-vars.js`
+- **lighten()** (4 connections) — `src/shared/theme-vars.js`
 - **csv()** (3 connections) — `src/net_log.js`
+- **instrumentNodeHttp()** (3 connections) — `src/net_log.js`
 - **instrumentSession()** (3 connections) — `src/net_log.js`
-- **syncStationDatabase()** (2 connections) — `src/locator.js`
+- **iso()** (3 connections) — `src/net_log.js`
+- **buildThemeCssFileText()** (3 connections) — `src/shared/theme-vars.js`
+- **hexToRgba()** (3 connections) — `src/shared/theme-vars.js`
 - **stop()** (2 connections) — `src/net_log.js`
+- **varsToCss()** (2 connections) — `src/shared/theme-vars.js`
+- **parseThemeCssMeta()** (1 connections) — `src/shared/theme-vars.js`
+- **byHost** (1 connections) — `src/net_log.js`
 - **fs** (1 connections) — `src/net_log.js`
 - **path** (1 connections) — `src/net_log.js`
-- **byHost** (1 connections) — `src/net_log.js`
 
 ## Relationships
 
-- [Station & Structure Locator](Station_%26_Structure_Locator.md) (1 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Calendar & Events](Calendar_%26_Events.md) (1 shared connections)
-- [Demo Fixtures Test](Demo_Fixtures_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `src/locator.js`
 - `src/net_log.js`
-- `src/shared/esi.js`
+- `src/shared/theme-vars.js`
 
 ## Audit Trail
 
-- EXTRACTED: 35 (70%)
-- INFERRED: 15 (30%)
+- EXTRACTED: 35 (69%)
+- INFERRED: 16 (31%)
 - AMBIGUOUS: 0 (0%)
 
 ---

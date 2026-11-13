@@ -1,20 +1,20 @@
 # Map Sky Spec
 
-> 7 nodes · cohesion 0.29
+> 6 nodes · cohesion 0.33
 
 ## Key Concepts
 
-- **map-sky.spec.js** (8 connections) — `e2e/map-sky.spec.js`
-- **{ test, expect }** (1 connections) — `e2e/map-sky.spec.js`
-- **openMap()** (1 connections) — `e2e/map-sky.spec.js`
+- **map-sky.spec.js** (9 connections) — `e2e/map-sky.spec.js`
 - **judgedView()** (1 connections) — `e2e/map-sky.spec.js`
-- **spanAt()** (1 connections) — `e2e/map-sky.spec.js`
-- **running()** (1 connections) — `e2e/map-sky.spec.js`
 - **layerEmpty()** (1 connections) — `e2e/map-sky.spec.js`
+- **openMap()** (1 connections) — `e2e/map-sky.spec.js`
+- **running()** (1 connections) — `e2e/map-sky.spec.js`
+- **spanAt()** (1 connections) — `e2e/map-sky.spec.js`
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (2 shared connections)
+- [Electron App](Electron_App.md) (3 shared connections)
+- [Galaxy Map (_arcPoint)](Galaxy_Map__arcPoint.md) (1 shared connections)
 
 ## Source Files
 
@@ -22,8 +22,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 14 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 8 (89%)
+- INFERRED: 1 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

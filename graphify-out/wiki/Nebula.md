@@ -1,39 +1,35 @@
 # Nebula
 
-> 15 nodes · cohesion 0.20
+> 13 nodes · cohesion 0.28
 
 ## Key Concepts
 
 - **nebula.js** (13 connections) — `src/func/nebula.js`
-- **rng()** (5 connections) — `src/func/nebula.js`
 - **nebulaDensity()** (5 connections) — `src/func/nebula.js`
-- **nebula.test.js** (4 connections) — `test/nebula.test.js`
+- **rng()** (5 connections) — `src/func/nebula.js`
+- **makeNoise()** (4 connections) — `src/func/nebula.js`
 - **fbm()** (3 connections) — `src/func/nebula.js`
 - **skyDust()** (3 connections) — `src/func/nebula.js`
-- **seedOf()** (2 connections) — `src/func/nebula.js`
+- **grainTile()** (2 connections) — `src/func/nebula.js`
 - **hslToRgb()** (2 connections) — `src/func/nebula.js`
 - **paletteFor()** (2 connections) — `src/func/nebula.js`
+- **seedOf()** (2 connections) — `src/func/nebula.js`
 - **skyStars()** (2 connections) — `src/func/nebula.js`
-- **grainTile()** (2 connections) — `src/func/nebula.js`
 - **familyOf()** (1 connections) — `src/func/nebula.js`
 - **regionExtent()** (1 connections) — `src/func/nebula.js`
-- **test** (1 connections) — `test/nebula.test.js`
-- **assert** (1 connections) — `test/nebula.test.js`
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (4 shared connections)
-- [Galaxy Map (_jbFxStill)](Galaxy_Map_%28_jbFxStill%29.md) (1 shared connections)
+- [Sso Scopes Test](Sso_Scopes_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/func/nebula.js`
-- `test/nebula.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 47 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 11 (48%)
+- INFERRED: 12 (52%)
 - AMBIGUOUS: 0 (0%)
 
 ---

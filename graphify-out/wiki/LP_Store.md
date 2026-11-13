@@ -9,19 +9,19 @@
 - **_lpLoadCorps()** (6 connections) — `src/func/lpstore.js`
 - **_lpLoadOffers()** (6 connections) — `src/func/lpstore.js`
 - **_lpName()** (6 connections) — `src/func/lpstore.js`
-- **renderLpStore()** (3 connections) — `src/func/lpstore.js`
-- **_lpSortedRows()** (3 connections) — `src/func/lpstore.js`
-- **_lpResolveNames()** (3 connections) — `src/func/lpstore.js`
-- **_lpIconUrl()** (3 connections) — `src/func/lpstore.js`
 - **_lpBindResize()** (3 connections) — `src/func/lpstore.js`
-- **_lpStatus()** (2 connections) — `src/func/lpstore.js`
-- **_lpSetSort()** (2 connections) — `src/func/lpstore.js`
+- **_lpIconUrl()** (3 connections) — `src/func/lpstore.js`
+- **_lpResolveNames()** (3 connections) — `src/func/lpstore.js`
+- **_lpSortedRows()** (3 connections) — `src/func/lpstore.js`
+- **renderLpStore()** (3 connections) — `src/func/lpstore.js`
 - **_lpSaveColW()** (2 connections) — `src/func/lpstore.js`
-- **_lpCorps** (1 connections) — `src/func/lpstore.js`
-- **_lpRows** (1 connections) — `src/func/lpstore.js`
-- **_lpNames** (1 connections) — `src/func/lpstore.js`
+- **_lpSetSort()** (2 connections) — `src/func/lpstore.js`
+- **_lpStatus()** (2 connections) — `src/func/lpstore.js`
 - **_LP_COLW_DEFAULT** (1 connections) — `src/func/lpstore.js`
 - **_lpColW** (1 connections) — `src/func/lpstore.js`
+- **_lpCorps** (1 connections) — `src/func/lpstore.js`
+- **_lpNames** (1 connections) — `src/func/lpstore.js`
+- **_lpRows** (1 connections) — `src/func/lpstore.js`
 
 ## Relationships
 
@@ -33,7 +33,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 68 (100%)
+- EXTRACTED: 34 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,33 +1,30 @@
 # Blueprint Library UI
 
-> 13 nodes · cohesion 0.26
+> 11 nodes · cohesion 0.33
 
 ## Key Concepts
 
 - **navigateIndustryTab()** (14 connections) — `src/func/blueprints.js`
 - **handleLibraryFilter()** (11 connections) — `src/func/blueprints.js`
-- **openBlueprintDetail()** (10 connections) — `src/func/blueprints.js`
+- **openBlueprintDetail()** (11 connections) — `src/func/blueprints.js`
 - **renderBlueprintList()** (9 connections) — `src/func/blueprints.js`
 - **_renderBpLibLoadingState()** (4 connections) — `src/func/blueprints.js`
-- **_bpObserveCards()** (4 connections) — `src/func/blueprints.js`
-- **loadBlueprintLibrary()** (3 connections) — `src/func/blueprints.js`
-- **_bpIconSrc()** (3 connections) — `src/func/blueprints.js`
-- **_bpIconFallback()** (3 connections) — `src/func/blueprints.js`
-- **togglePerfectFilter()** (3 connections) — `src/func/blueprints.js`
 - **bindLibraryEvents()** (3 connections) — `src/func/blueprints.js`
-- **renderMoonReformatter()** (2 connections) — `src/func/blueprints.js`
-- **renderActiveJobsPage()** (2 connections) — `src/func/blueprints.js`
+- **_bpIconFallback()** (3 connections) — `src/func/blueprints.js`
+- **_bpIconSrc()** (3 connections) — `src/func/blueprints.js`
+- **loadBlueprintLibrary()** (3 connections) — `src/func/blueprints.js`
+- **togglePerfectFilter()** (3 connections) — `src/func/blueprints.js`
+- **initIndustryPage()** (2 connections) — `src/func/blueprints.js`
 
 ## Relationships
 
-- [Blueprint Library](Blueprint_Library.md) (13 shared connections)
-- [Blueprint Economics & Sorting](Blueprint_Economics_%26_Sorting.md) (6 shared connections)
-- [Industry Settings & Structures](Industry_Settings_%26_Structures.md) (4 shared connections)
-- [Moon & Ore Calculators](Moon_%26_Ore_Calculators.md) (4 shared connections)
-- [Chart Umd (o)](Chart_Umd_%28o%29.md) (1 shared connections)
-- [Blueprint Library (buildTreeFromSdeMaterials)](Blueprint_Library_%28buildTreeFromSdeMaterials%29.md) (1 shared connections)
-- [Tutorial Spec](Tutorial_Spec.md) (1 shared connections)
-- [Materials & Reprocessing](Materials_%26_Reprocessing.md) (1 shared connections)
+- [Blueprint Library](Blueprint_Library.md) (12 shared connections)
+- [Blueprint Economics & Sorting](Blueprint_Economics_&_Sorting.md) (7 shared connections)
+- [Industry Settings & Structures](Industry_Settings_&_Structures.md) (4 shared connections)
+- [Moon & Ore Calculators](Moon_&_Ore_Calculators.md) (4 shared connections)
+- [Blueprint Library (_ajFmtDate)](Blueprint_Library__ajFmtDate.md) (1 shared connections)
+- [Materials & Reprocessing](Materials_&_Reprocessing.md) (1 shared connections)
+- [Blueprint Library (buildRecursiveMaterialTree)](Blueprint_Library_buildRecursiveMaterialTree.md) (1 shared connections)
 
 ## Source Files
 
@@ -35,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 69 (97%)
-- INFERRED: 2 (3%)
+- EXTRACTED: 47 (98%)
+- INFERRED: 1 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

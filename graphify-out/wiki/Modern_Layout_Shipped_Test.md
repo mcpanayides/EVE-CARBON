@@ -4,19 +4,21 @@
 
 ## Key Concepts
 
-- **modern_layout_shipped.test.js** (8 connections) — `test/modern_layout_shipped.test.js`
-- **test** (1 connections) — `test/modern_layout_shipped.test.js`
+- **modern_layout_shipped.test.js** (13 connections) — `test/modern_layout_shipped.test.js`
 - **assert** (1 connections) — `test/modern_layout_shipped.test.js`
-- **fs** (1 connections) — `test/modern_layout_shipped.test.js`
-- **path** (1 connections) — `test/modern_layout_shipped.test.js`
 - **{ execFileSync }** (1 connections) — `test/modern_layout_shipped.test.js`
-- **REPO** (1 connections) — `test/modern_layout_shipped.test.js`
-- **REL** (1 connections) — `test/modern_layout_shipped.test.js`
+- **fs** (1 connections) — `test/modern_layout_shipped.test.js`
 - **LAYOUT** (1 connections) — `test/modern_layout_shipped.test.js`
+- **path** (1 connections) — `test/modern_layout_shipped.test.js`
+- **REL** (1 connections) — `test/modern_layout_shipped.test.js`
+- **REPO** (1 connections) — `test/modern_layout_shipped.test.js`
+- **test** (1 connections) — `test/modern_layout_shipped.test.js`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Station & Structure Locator](Station_&_Structure_Locator.md) (1 shared connections)
 
 ## Source Files
 
@@ -24,7 +26,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 16 (100%)
+- EXTRACTED: 13 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

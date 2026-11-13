@@ -8,8 +8,8 @@
 - **Bee Holding a Role Prop Motif** (6 connections) — `yaml/icons/gsfops.png`
 - **Yellow-and-Black Striped Livery** (6 connections) — `yaml/icons/karmafleet.png`
 - **Corps Diplomatique SIG Icon - blue-capped cigar-smoking bee** (4 connections) — `yaml/icons/corpsdiplo.png`
-- **CapSwarm SIG Icon - heavy grey armored bee** (3 connections) — `yaml/icons/capswarm.png`
 - **Grey Armored Bee Variant** (3 connections) — `yaml/icons/capswarm.png`
+- **CapSwarm SIG Icon - heavy grey armored bee** (3 connections) — `yaml/icons/capswarm.png`
 - **CrapSwarm SIG Icon - battered grey bee parody of CapSwarm** (3 connections) — `yaml/icons/crapswarm.png`
 - **GARPA SIG Icon - pale lab bee with syringe and device** (3 connections) — `yaml/icons/garpa.png`
 - **GSF Ops Icon - green-tinted cigar bee holding orders paper** (3 connections) — `yaml/icons/gsfops.png`
@@ -49,8 +49,8 @@
 ## Audit Trail
 
 - EXTRACTED: 0 (0%)
-- INFERRED: 66 (97%)
-- AMBIGUOUS: 2 (3%)
+- INFERRED: 33 (97%)
+- AMBIGUOUS: 1 (3%)
 
 ---
 

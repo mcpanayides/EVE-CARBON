@@ -5,17 +5,16 @@
 ## Key Concepts
 
 - **map-viewport.spec.js** (9 connections) — `e2e/map-viewport.spec.js`
-- **{ test, expect }** (1 connections) — `e2e/map-viewport.spec.js`
-- **openSpatial()** (1 connections) — `e2e/map-viewport.spec.js`
-- **starNear()** (1 connections) — `e2e/map-viewport.spec.js`
+- **drawnAt()** (1 connections) — `e2e/map-viewport.spec.js`
 - **drift()** (1 connections) — `e2e/map-viewport.spec.js`
-- **rensInView()** (1 connections) — `e2e/map-viewport.spec.js`
 - **markers()** (1 connections) — `e2e/map-viewport.spec.js`
+- **openSpatial()** (1 connections) — `e2e/map-viewport.spec.js`
+- **rensInView()** (1 connections) — `e2e/map-viewport.spec.js`
+- **starNear()** (1 connections) — `e2e/map-viewport.spec.js`
 
 ## Relationships
 
-- [Electron App](Electron_App.md) (2 shared connections)
-- [Fleet Teams Test](Fleet_Teams_Test.md) (1 shared connections)
+- [Electron App](Electron_App.md) (3 shared connections)
 
 ## Source Files
 
@@ -23,7 +22,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 15 (100%)
+- EXTRACTED: 9 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

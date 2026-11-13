@@ -30,6 +30,91 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.1.3] - 2026-11-13
+
+### Added
+- **Quality or performance.** Settings → General has a two-way switch. Quality is
+  EVE Carbon as designed. Performance (Potato mode 🥔) turns off the glass, the
+  wallpaper and every animation, the map's moving light included, and from the
+  next launch graphics acceleration, for when EVE Carbon shares a PC with a lot of
+  EVE clients. With it on, the app sits at about a tenth of a percent of one CPU
+  core when idle, down from 2.5 to 6 percent, uses about 40 percent less memory,
+  and uses no graphics memory at all, handing up to 220 MB of it back to your EVE
+  clients. Dragging the map is a little less smooth. Pop-out widgets and Early
+  Warning follow the switch. Spinners keep turning, so you can still tell when
+  something is loading.
+- **SDE updates show their progress.** When EVE Carbon fetches a new SDE (CCP's
+  static data: every item, system and blueprint), a card at the top right shows
+  what it is doing, how far along it is and about how long is left, then offers
+  to restart. The estimate covers the whole job: the 95 MB download is the quick
+  part, and rebuilding the database takes most of the two minutes.
+- **Fractured Skies in the fitting simulator.**
+  - The four navy attack battlecruisers (Oracle Navy Issue, Naga Navy Issue,
+    Talos Navy Issue and Tornado Fleet Issue) take their battleship guns and
+    launchers at 5% of the powergrid and half the CPU, as their role bonus says.
+    The Talos sheds 15% of its plate mass per skill level.
+  - All 27 Synchronizer rigs, one per ship, in the hull's own rig size. Each gives
+    its bonuses, plus a flat 1% more to every one of them for each matching faction
+    module you have online; the rig's tooltip counts them. Each also costs its CPU
+    penalty, which Synchronization Rigging V halves and the 'Xyston' Synchronization
+    Rigging implant cuts further. The pirate rigs bring their own penalties:
+    - Dark Blood triples capacitor recharge time.
+    - Domination takes 30% off shield, armour and hull.
+    - Shadow Serpentis takes 60% off lock range.
+    - Dread Guristas takes 60% off drone control range.
+    - True Sansha makes afterburners cost five times the capacitor.
+  - The 'Vigilant' Vital modules (the new overdrive, shield boost amplifier, drone
+    navigation computer and cap recharger) fit online, with their passive bonus.
+    Set one active to see its 20-second burst. One of each per ship.
+
+### Changed
+- **Pop-up notices sit clear of the refresh and close buttons** at the top right
+  of every page, and below the toolbar on the map.
+
+### Fixed
+- **Pinned pop-out widgets turned white and unreadable**, in both Quality and
+  Performance mode. Switching to Performance mode did the same to any widget
+  already popped out. Pinning swaps the glass for a solid dark background, but
+  turning the glass off was resetting that colour to white. Pinned or not, pop-outs
+  and the Early Warning widget now stay dark in both modes.
+- **The fitting simulator ignored every ship's fitting bonuses.** The attack
+  battlecruisers showed their guns thousands of MW over the powergrid. T3
+  subsystem fitting reductions, cloak CPU bonuses and logistics powergrid bonuses
+  did nothing either. They now come from CCP's own data. The Modules tab's "fits"
+  filter counts them too, so it no longer hides guns that do fit.
+- **Rig drawbacks did nothing in the fitting simulator.** These now apply:
+  - armour rigs' inertia;
+  - shield rigs' signature;
+  - weapon rigs' powergrid;
+  - launcher rigs' CPU;
+  - drone rigs' CPU;
+  - the rest of the drawbacks.
+
+  Each one shrinks with its rigging skill.
+- **Several rigs did nothing in the fitting simulator, and some did too much.**
+  - Damage rigs added no damage.
+  - Velocity, warp speed, capacitor and recharge rigs did nothing.
+  - Turret range and tracking rigs boosted every turret, not just their own type.
+  - Plate mass ignored Armor Layering.
+- **The fitting simulator stacking-penalised modules the game never penalises.**
+  - Co-Processors, Reactor Control Units, Cap Rechargers, Reinforced Bulkheads,
+    Expanded Cargoholds and cycle-time rigs now multiply in full.
+  - A Damage Control no longer takes a penalty from your hardeners.
+- **The Total line in Wealth Growth glowed red** whatever your main colour was.
+  The line followed the colour picker but its glow never did; now both do.
+- **Several clients in one intel channel reported every message many times.**
+  Each client writes its own copy of the channel, and the reader kept jumping
+  between copies and reading each one again from the top: two clients and 20
+  messages came out as over 200 reports. It now follows one copy, and moves to
+  another only when that client logs off, carrying on from the last line it read.
+- **EVE Carbon slowed down as your Chatlogs folder grew.** The intel reader and
+  the position tracker listed every log in the folder once a second, and the
+  list of who is online did it again every time any character jumped. With four
+  months of logs from 50 clients that kept the app busy almost the whole time.
+  They now look at the folder again only when EVE starts a new log, and only at
+  each character's newest files: about 3 ms a second instead of a second. Picking
+  intel channels and the online list are quick again too.
+
 ## [4.1.2] - 2026-11-07
 
 ### Added

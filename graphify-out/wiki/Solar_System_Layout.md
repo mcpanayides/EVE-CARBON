@@ -25,7 +25,7 @@
 
 ## Relationships
 
-- [Solar System Layout Tests](Solar_System_Layout_Tests.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (1 shared connections)
 
 ## Source Files
 

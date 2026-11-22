@@ -18,9 +18,8 @@
 
 ## Relationships
 
-- [Region Layouts Curated Test](Region_Layouts_Curated_Test.md) (1 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files

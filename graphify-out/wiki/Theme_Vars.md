@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Theme IPC](Theme_IPC.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (1 shared connections)
 
 ## Source Files
 

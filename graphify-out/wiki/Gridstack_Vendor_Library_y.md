@@ -26,9 +26,9 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (8 shared connections)
-- [Gridstack Vendor Library (w)](Gridstack_Vendor_Library_w.md) (4 shared connections)
-- [Gridstack Events & Handlers](Gridstack_Events_&_Handlers.md) (3 shared connections)
+- [Gridstack Vendor Library (f)](Gridstack_Vendor_Library_f.md) (7 shared connections)
+- [Gridstack Events & Handlers](Gridstack_Events_&_Handlers.md) (7 shared connections)
+- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (1 shared connections)
 
 ## Source Files
 

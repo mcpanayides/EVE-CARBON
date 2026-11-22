@@ -1,56 +1,56 @@
 # Palette Accent Split Test
 
-> 23 nodes · cohesion 0.09
+> 51 nodes · cohesion 0.04
 
 ## Key Concepts
 
 - **palette_accent_split.test.js** (19 connections) — `test/palette_accent_split.test.js`
+- **fitting_picker.test.js** (14 connections) — `test/fitting_picker.test.js`
+- **pi_capacity.test.js** (13 connections) — `test/pi_capacity.test.js`
+- **pi_tally.test.js** (13 connections) — `test/pi_tally.test.js`
 - **ref_vm** (13 connections)
-- **mail_poll.test.js** (11 connections) — `test/mail_poll.test.js`
+- **fitting_defense.test.js** (12 connections) — `test/fitting_defense.test.js`
 - **loadPalette()** (2 connections) — `test/palette_accent_split.test.js`
-- **loadMail()** (1 connections) — `test/mail_poll.test.js`
-- **assert** (1 connections) — `test/mail_poll.test.js`
-- **fs** (1 connections) — `test/mail_poll.test.js`
-- **path** (1 connections) — `test/mail_poll.test.js`
-- **test** (1 connections) — `test/mail_poll.test.js`
-- **vm** (1 connections) — `test/mail_poll.test.js`
-- **ACCENT_TOKENS** (1 connections) — `test/palette_accent_split.test.js`
-- **assert** (1 connections) — `test/palette_accent_split.test.js`
-- **DANGER_TOKENS** (1 connections) — `test/palette_accent_split.test.js`
-- **fs** (1 connections) — `test/palette_accent_split.test.js`
-- **LEGACY_THEME** (1 connections) — `test/palette_accent_split.test.js`
-- **meta** (1 connections) — `test/palette_accent_split.test.js`
-- **path** (1 connections) — `test/palette_accent_split.test.js`
-- **ROLES** (1 connections) — `test/palette_accent_split.test.js`
-- **ROOT** (1 connections) — `test/palette_accent_split.test.js`
-- **SW** (1 connections) — `test/palette_accent_split.test.js`
-- **test** (1 connections) — `test/palette_accent_split.test.js`
-- **THEME** (1 connections) — `test/palette_accent_split.test.js`
-- **TV** (1 connections) — `test/palette_accent_split.test.js`
+- **loadSim()** (1 connections) — `test/fitting_defense.test.js`
+- **RES()** (1 connections) — `test/fitting_defense.test.js`
+- **cargoHull()** (1 connections) — `test/fitting_picker.test.js`
+- **carrier()** (1 connections) — `test/fitting_picker.test.js`
+- **loadSim()** (1 connections) — `test/fitting_picker.test.js`
+- **row()** (1 connections) — `test/fitting_picker.test.js`
+- **row()** (1 connections) — `test/pi_capacity.test.js`
+- **summary()** (1 connections) — `test/pi_capacity.test.js`
+- **hours()** (1 connections) — `test/pi_tally.test.js`
+- **load()** (1 connections) — `test/pi_tally.test.js`
+- **assert** (1 connections) — `test/fitting_defense.test.js`
+- **fs** (1 connections) — `test/fitting_defense.test.js`
+- **path** (1 connections) — `test/fitting_defense.test.js`
+- **test** (1 connections) — `test/fitting_defense.test.js`
+- **vm** (1 connections) — `test/fitting_defense.test.js`
+- **assert** (1 connections) — `test/fitting_picker.test.js`
+- **fs** (1 connections) — `test/fitting_picker.test.js`
+- **path** (1 connections) — `test/fitting_picker.test.js`
+- *... and 26 more nodes in this community*
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (4 shared connections)
-- [ESI Audit](ESI_Audit.md) (2 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (2 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (14 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (10 shared connections)
+- [Asset Location Walk Test](Asset_Location_Walk_Test.md) (1 shared connections)
 - [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (1 shared connections)
-- [FC Poll Cadence Test](FC_Poll_Cadence_Test.md) (1 shared connections)
 - [Fitting Clones Test](Fitting_Clones_Test.md) (1 shared connections)
-- [Fitting Defense Test](Fitting_Defense_Test.md) (1 shared connections)
-- [Fitting Picker Test](Fitting_Picker_Test.md) (1 shared connections)
 - [Fitting Simulator Tests](Fitting_Simulator_Tests.md) (1 shared connections)
-- [PI Capacity Test](PI_Capacity_Test.md) (1 shared connections)
-- [PI Planet Art Test](PI_Planet_Art_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `test/mail_poll.test.js`
+- `test/fitting_defense.test.js`
+- `test/fitting_picker.test.js`
 - `test/palette_accent_split.test.js`
+- `test/pi_capacity.test.js`
+- `test/pi_tally.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 41 (100%)
+- EXTRACTED: 79 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

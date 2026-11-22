@@ -18,10 +18,9 @@
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
 - [Palette Accent Split Test](Palette_Accent_Split_Test.md) (1 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 
 ## Source Files
 

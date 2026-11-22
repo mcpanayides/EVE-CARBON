@@ -1,0 +1,44 @@
+# Chart Umd (bindResponsiveEvents)
+
+> 12 nodes · cohesion 0.30
+
+## Key Concepts
+
+- **.notifyPlugins()** (15 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.render()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.bindResponsiveEvents()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._resize()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.draw()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._initialize()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._drawDataset()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **._drawDatasets()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.resize()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.running()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
+- **ke()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.clear()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+
+## Relationships
+
+- [Chart Umd (An)](Chart_Umd_An.md) (16 shared connections)
+- [Chart Umd (buildOrUpdateScales)](Chart_Umd_buildOrUpdateScales.md) (5 shared connections)
+- [Chart Umd (bt)](Chart_Umd_bt.md) (4 shared connections)
+- [Chart Umd](Chart_Umd.md) (3 shared connections)
+- [Chart Umd (getDatasetMeta)](Chart_Umd_getDatasetMeta.md) (3 shared connections)
+- [Chart Umd (bo)](Chart_Umd_bo.md) (2 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (1 shared connections)
+- [Chart Umd (bn)](Chart_Umd_bn.md) (1 shared connections)
+- [Chart Umd (Js)](Chart_Umd_Js.md) (1 shared connections)
+
+## Source Files
+
+- `src/vendor/chartjs/chart.umd.js`
+
+## Audit Trail
+
+- EXTRACTED: 51 (91%)
+- INFERRED: 5 (9%)
+- AMBIGUOUS: 0 (0%)
+
+---
+
+*Part of the graphify knowledge wiki. See [index](index.md) to navigate.*

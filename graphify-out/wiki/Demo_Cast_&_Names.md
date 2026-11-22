@@ -28,10 +28,10 @@
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (12 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (2 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
-- [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (2 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 
 ## Source Files
 

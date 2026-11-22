@@ -25,12 +25,10 @@
 
 ## Relationships
 
+- [SDE Fetch & Build](SDE_Fetch_&_Build.md) (3 shared connections)
 - [SDE Update Test](SDE_Update_Test.md) (2 shared connections)
-- [SDE Fetch & Build](SDE_Fetch_&_Build.md) (2 shared connections)
-- [Fetch SDE](Fetch_SDE.md) (1 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
-- [Region Layouts Curated Test](Region_Layouts_Curated_Test.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
 
 ## Source Files
 

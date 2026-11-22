@@ -1,11 +1,11 @@
 # Presence
 
-> 12 nodes · cohesion 0.23
+> 14 nodes · cohesion 0.20
 
 ## Key Concepts
 
 - **presence.js** (13 connections) — `src/presence.js`
-- **ref_crypto** (6 connections)
+- **presence.test.js** (6 connections) — `test/presence.test.js`
 - **_schedule()** (5 connections) — `src/presence.js`
 - **initPresence()** (4 connections) — `src/presence.js`
 - **_beat()** (3 connections) — `src/presence.js`
@@ -16,23 +16,23 @@
 - **stopPresence()** (1 connections) — `src/presence.js`
 - **crypto** (1 connections) — `src/presence.js`
 - **_state** (1 connections) — `src/presence.js`
+- **assert** (1 connections) — `test/presence.test.js`
+- **test** (1 connections) — `test/presence.test.js`
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (5 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
-- [HTTP Request Broker](HTTP_Request_Broker.md) (1 shared connections)
-- [Resfile Backgrounds](Resfile_Backgrounds.md) (1 shared connections)
-- [SDE Fetch & Build](SDE_Fetch_&_Build.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
 
 ## Source Files
 
 - `src/presence.js`
+- `test/presence.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 22 (81%)
+- EXTRACTED: 21 (81%)
 - INFERRED: 5 (19%)
 - AMBIGUOUS: 0 (0%)
 

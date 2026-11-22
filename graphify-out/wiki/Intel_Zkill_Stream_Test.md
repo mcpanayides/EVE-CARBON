@@ -32,10 +32,10 @@
 ## Relationships
 
 - [Intel Service](Intel_Service.md) (4 shared connections)
-- [Character IPC](Character_IPC.md) (3 shared connections)
 - [Intel Test](Intel_Test.md) (2 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (1 shared connections)
+- [Character IPC](Character_IPC.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 
 ## Source Files
 

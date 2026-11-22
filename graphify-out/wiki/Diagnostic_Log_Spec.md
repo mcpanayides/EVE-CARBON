@@ -15,8 +15,7 @@
 ## Relationships
 
 - [Electron App](Electron_App.md) (3 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
 
 ## Source Files
 

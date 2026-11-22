@@ -19,9 +19,8 @@
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
 - [Theme IPC](Theme_IPC.md) (1 shared connections)
 - [Alliance Pack](Alliance_Pack.md) (1 shared connections)
 

@@ -16,8 +16,8 @@
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Fleet After-Action Report](Fleet_After-Action_Report.md) (1 shared connections)
 
 ## Source Files
 

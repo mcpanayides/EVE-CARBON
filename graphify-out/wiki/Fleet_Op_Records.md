@@ -1,62 +1,47 @@
 # Fleet Op Records
 
-> 57 nodes · cohesion 0.06
+> 23 nodes · cohesion 0.12
 
 ## Key Concepts
 
 - **fleet_ops.js** (26 connections) — `src/fleet_ops.js`
-- **fleet_aar.js** (16 connections) — `src/fleet_aar.js`
-- **toMarkdown()** (9 connections) — `src/fleet_aar.js`
-- **toText()** (9 connections) — `src/fleet_aar.js`
-- **toBBCode()** (8 connections) — `src/fleet_aar.js`
 - **ensureFleetOpTables()** (8 connections) — `src/fleet_ops.js`
-- **fleet_ops_ipc.js** (8 connections) — `src/ipc/fleet_ops_ipc.js`
-- **fleet_ipc_clone.test.js** (8 connections) — `test/fleet_ipc_clone.test.js`
-- **registerFleetOpHandlers()** (7 connections) — `src/ipc/fleet_ops_ipc.js`
-- **fleet_kills.js** (7 connections) — `src/fleet_kills.js`
-- **fleet_mining.js** (7 connections) — `src/fleet_mining.js`
-- **render()** (5 connections) — `src/fleet_aar.js`
-- **pullOpKills()** (5 connections) — `src/fleet_kills.js`
-- **cloneable()** (5 connections) — `src/ipc/fleet_ops_ipc.js`
-- **allCaveats()** (4 connections) — `src/fleet_aar.js`
-- **fmtDuration()** (4 connections) — `src/fleet_aar.js`
-- **fmtIsk()** (4 connections) — `src/fleet_aar.js`
-- **fmtQty()** (4 connections) — `src/fleet_aar.js`
-- **fmtTime()** (4 connections) — `src/fleet_aar.js`
-- **miningCaveat()** (4 connections) — `src/fleet_aar.js`
-- **buildReport()** (3 connections) — `src/fleet_aar.js`
-- **summariseShips()** (3 connections) — `src/fleet_aar.js`
 - **getOp()** (3 connections) — `src/fleet_ops.js`
-- **fmtDate()** (2 connections) — `src/fleet_aar.js`
-- **classifyKillmail()** (2 connections) — `src/fleet_kills.js`
-- *... and 32 more nodes in this community*
+- **deleteOp()** (2 connections) — `src/fleet_ops.js`
+- **endOp()** (2 connections) — `src/fleet_ops.js`
+- **getOpSystems()** (2 connections) — `src/fleet_ops.js`
+- **listOps()** (2 connections) — `src/fleet_ops.js`
+- **openOp()** (2 connections) — `src/fleet_ops.js`
+- **startOp()** (2 connections) — `src/fleet_ops.js`
+- **withDwell()** (2 connections) — `src/fleet_ops.js`
+- **createMovementTracker()** (1 connections) — `src/fleet_ops.js`
+- **getMiningBaseline()** (1 connections) — `src/fleet_ops.js`
+- **hasMiningBaseline()** (1 connections) — `src/fleet_ops.js`
+- **modalSystem()** (1 connections) — `src/fleet_ops.js`
+- **recordKills()** (1 connections) — `src/fleet_ops.js`
+- **recordMining()** (1 connections) — `src/fleet_ops.js`
+- **recordMovement()** (1 connections) — `src/fleet_ops.js`
+- **recordRoster()** (1 connections) — `src/fleet_ops.js`
+- **recordSystemsSeen()** (1 connections) — `src/fleet_ops.js`
+- **saveMiningBaseline()** (1 connections) — `src/fleet_ops.js`
+- **_ensured** (1 connections) — `src/fleet_ops.js`
+- **INDEXES** (1 connections) — `src/fleet_ops.js`
+- **TABLES** (1 connections) — `src/fleet_ops.js`
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (3 shared connections)
-- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Preload Bridge](Preload_Bridge.md) (1 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
-- [Fleet AAR Test](Fleet_AAR_Test.md) (1 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (1 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
+- [Fleet Ops IPC](Fleet_Ops_IPC.md) (1 shared connections)
 
 ## Source Files
 
-- `src/fleet_aar.js`
-- `src/fleet_kills.js`
-- `src/fleet_mining.js`
 - `src/fleet_ops.js`
-- `src/ipc/fleet_ops_ipc.js`
-- `test/fleet_ipc_clone.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 73 (66%)
-- INFERRED: 38 (34%)
+- EXTRACTED: 15 (44%)
+- INFERRED: 19 (56%)
 - AMBIGUOUS: 0 (0%)
 
 ---

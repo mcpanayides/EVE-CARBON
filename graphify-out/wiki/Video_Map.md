@@ -29,8 +29,8 @@
 
 ## Relationships
 
-- [Performance Mode Spec](Performance_Mode_Spec.md) (2 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 
 ## Source Files
 

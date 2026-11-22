@@ -37,7 +37,7 @@
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
 - [PI IPC](PI_IPC.md) (2 shared connections)
 - [Intel IPC](Intel_IPC.md) (2 shared connections)
-- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
+- [Auto Updater](Auto_Updater.md) (1 shared connections)
 - [Intel Service](Intel_Service.md) (1 shared connections)
 
 ## Source Files

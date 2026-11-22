@@ -26,13 +26,11 @@
 
 ## Relationships
 
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Region Layouts Curated Test](Region_Layouts_Curated_Test.md) (2 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Cpu Budget](Cpu_Budget.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
-- [Asset Index Schema](Asset_Index_Schema.md) (1 shared connections)
-- [Asset Valuation](Asset_Valuation.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
+- [Asset Index Schema](Asset_Index_Schema.md) (2 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 
 ## Source Files
 

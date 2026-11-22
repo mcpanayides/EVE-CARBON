@@ -1,54 +1,59 @@
 # SDE Fetch & Build
 
-> 20 nodes · cohesion 0.12
+> 33 nodes · cohesion 0.09
 
 ## Key Concepts
 
 - **sde_fetch.js** (29 connections) — `src/sde_fetch.js`
 - **sde_extract.test.js** (17 connections) — `test/sde_extract.test.js`
+- **fetch-sde.js** (15 connections) — `scripts/fetch-sde.js`
+- **fetchAndBuildSde()** (9 connections) — `src/sde_fetch.js`
+- **main()** (5 connections) — `scripts/fetch-sde.js`
+- **downloadFile()** (5 connections) — `src/sde_fetch.js`
 - **extractZipSafely()** (5 connections) — `src/sde_fetch.js`
+- **fetchManifest()** (5 connections) — `src/sde_fetch.js`
+- **idleTimeout()** (3 connections) — `src/sde_fetch.js`
 - **safeEntryPath()** (3 connections) — `src/sde_fetch.js`
+- **hasCurrentSchema()** (2 connections) — `scripts/fetch-sde.js`
+- **readLocalVersion()** (2 connections) — `scripts/fetch-sde.js`
 - **entryMode()** (2 connections) — `src/sde_fetch.js`
 - **makeZip()** (1 connections) — `test/sde_extract.test.js`
 - **tmp()** (1 connections) — `test/sde_extract.test.js`
+- **DATA_DIR** (1 connections) — `scripts/fetch-sde.js`
+- **fs** (1 connections) — `scripts/fetch-sde.js`
+- **OUT_FILE** (1 connections) — `scripts/fetch-sde.js`
+- **path** (1 connections) — `scripts/fetch-sde.js`
+- **VER_FILE** (1 connections) — `scripts/fetch-sde.js`
 - **crypto** (1 connections) — `src/sde_fetch.js`
 - **fs** (1 connections) — `src/sde_fetch.js`
 - **https** (1 connections) — `src/sde_fetch.js`
 - **os** (1 connections) — `src/sde_fetch.js`
 - **path** (1 connections) — `src/sde_fetch.js`
-- **yauzl** (1 connections) — `src/sde_fetch.js`
-- **assert** (1 connections) — `test/sde_extract.test.js`
-- **fs** (1 connections) — `test/sde_extract.test.js`
-- **os** (1 connections) — `test/sde_extract.test.js`
-- **path** (1 connections) — `test/sde_extract.test.js`
-- **test** (1 connections) — `test/sde_extract.test.js`
-- **yazl** (1 connections) — `test/sde_extract.test.js`
-- **src_sde_cleanup_prefix** (1 connections)
+- *... and 8 more nodes in this community*
 
 ## Relationships
 
-- [Fetch SDE](Fetch_SDE.md) (6 shared connections)
-- [SDE Build](SDE_Build.md) (2 shared connections)
-- [SDE Store](SDE_Store.md) (2 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (2 shared connections)
-- [Cpu Budget](Cpu_Budget.md) (2 shared connections)
-- [ESI Audit](ESI_Audit.md) (2 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [SDE Update Test](SDE_Update_Test.md) (6 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (6 shared connections)
+- [SDE Build](SDE_Build.md) (3 shared connections)
+- [Character IPC](Character_IPC.md) (2 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
+- [Auto Updater](Auto_Updater.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Presence](Presence.md) (1 shared connections)
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
-- [SDE Cleanup](SDE_Cleanup.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 
 ## Source Files
 
+- `scripts/fetch-sde.js`
 - `src/sde_fetch.js`
 - `test/sde_extract.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 43 (90%)
-- INFERRED: 5 (10%)
+- EXTRACTED: 69 (93%)
+- INFERRED: 5 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

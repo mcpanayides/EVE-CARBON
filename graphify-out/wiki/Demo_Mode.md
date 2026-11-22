@@ -22,9 +22,8 @@
 
 ## Relationships
 
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [ESI Audit](ESI_Audit.md) (1 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 - [ESI IPC](ESI_IPC.md) (1 shared connections)
 - [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 

@@ -14,7 +14,7 @@
 ## Relationships
 
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (2 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 - [Message Styling](Message_Styling.md) (1 shared connections)
 

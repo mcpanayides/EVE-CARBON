@@ -1,6 +1,6 @@
 # Gridstack Core & Initialisation
 
-> 84 nodes · cohesion 0.07
+> 83 nodes · cohesion 0.07
 
 ## Key Concepts
 
@@ -29,14 +29,15 @@
 - **.addWidget()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.destroy()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
 - **.makeSubGrid()** (6 connections) — `src/vendor/gridstack/gridstack-all.js`
-- *... and 59 more nodes in this community*
+- *... and 58 more nodes in this community*
 
 ## Relationships
 
 - [Gridstack Events & Handlers](Gridstack_Events_&_Handlers.md) (3 shared connections)
-- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (2 shared connections)
-- [Chart Umd (Os)](Chart_Umd_Os.md) (2 shared connections)
+- [Chart Umd (bn)](Chart_Umd_bn.md) (2 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
+- [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (1 shared connections)
+- [Gridstack Vendor Library (f)](Gridstack_Vendor_Library_f.md) (1 shared connections)
 
 ## Source Files
 
@@ -45,7 +46,7 @@
 ## Audit Trail
 
 - EXTRACTED: 244 (99%)
-- INFERRED: 3 (1%)
+- INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 
 ---

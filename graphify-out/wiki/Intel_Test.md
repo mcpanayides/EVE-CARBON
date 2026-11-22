@@ -33,8 +33,8 @@
 - [Intel Service](Intel_Service.md) (6 shared connections)
 - [Proximity](Proximity.md) (6 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Intel Multibox Test](Intel_Multibox_Test.md) (1 shared connections)
 
 ## Source Files
 

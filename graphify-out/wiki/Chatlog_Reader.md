@@ -1,59 +1,54 @@
 # Chatlog Reader
 
-> 49 nodes · cohesion 0.08
+> 25 nodes · cohesion 0.15
 
 ## Key Concepts
 
-- **chatlog_reader.js** (27 connections) — `src/intel/chatlog_reader.js`
-- **intel_multibox.test.js** (26 connections) — `test/intel_multibox.test.js`
-- **createChatlogReader()** (16 connections) — `src/intel/chatlog_reader.js`
-- **chatlog_dir.js** (15 connections) — `src/intel/chatlog_dir.js`
-- **chatlogListing()** (10 connections) — `src/intel/chatlog_dir.js`
-- **findChatlogDir()** (9 connections) — `src/intel/chatlog_reader.js`
-- **lineTimestamp()** (9 connections) — `src/intel/chatlog_reader.js`
-- **sessionMayBeLive()** (8 connections) — `src/intel/chatlog_dir.js`
+- **intel_resume.test.js** (23 connections) — `test/intel_resume.test.js`
+- **createChatlogReader()** (15 connections) — `src/intel/chatlog_reader.js`
 - **switchTo()** (8 connections) — `src/intel/chatlog_reader.js`
+- **lineTimestamp()** (8 connections) — `src/intel/chatlog_reader.js`
 - **pick()** (7 connections) — `src/intel/chatlog_reader.js`
 - **openChannel()** (6 connections) — `src/intel/chatlog_reader.js`
 - **remember()** (6 connections) — `src/intel/chatlog_reader.js`
-- **detectOnlineCharacters()** (6 connections) — `src/intel/chatlog_reader.js`
 - **tick()** (5 connections) — `src/intel/chatlog_reader.js`
 - **drain()** (4 connections) — `src/intel/chatlog_reader.js`
-- **discoverChannels()** (4 connections) — `src/intel/chatlog_reader.js`
-- **build()** (3 connections) — `src/intel/chatlog_dir.js`
 - **backfill()** (3 connections) — `src/intel/chatlog_reader.js`
 - **readLines()** (3 connections) — `src/intel/chatlog_reader.js`
 - **lineKey()** (3 connections) — `src/intel/chatlog_reader.js`
 - **readHeader()** (3 connections) — `src/intel/chatlog_reader.js`
 - **reader()** (3 connections) — `test/intel_multibox.test.js`
-- **keepNewest()** (2 connections) — `src/intel/chatlog_dir.js`
-- **stampMs()** (2 connections) — `src/intel/chatlog_dir.js`
+- **readerOver()** (3 connections) — `test/intel_resume.test.js`
+- **serviceOver()** (3 connections) — `test/intel_resume.test.js`
+- **writeLog()** (3 connections) — `test/intel_resume.test.js`
 - **status()** (2 connections) — `src/intel/chatlog_reader.js`
-- *... and 24 more nodes in this community*
+- **stamp()** (1 connections) — `test/intel_resume.test.js`
+- **assert** (1 connections) — `test/intel_resume.test.js`
+- **fs** (1 connections) — `test/intel_resume.test.js`
+- **os** (1 connections) — `test/intel_resume.test.js`
+- **path** (1 connections) — `test/intel_resume.test.js`
+- **SDE** (1 connections) — `test/intel_resume.test.js`
+- **test** (1 connections) — `test/intel_resume.test.js`
 
 ## Relationships
 
-- [Local Position](Local_Position.md) (15 shared connections)
-- [Intel IPC](Intel_IPC.md) (5 shared connections)
-- [Proximity](Proximity.md) (4 shared connections)
-- [ESI Audit](ESI_Audit.md) (3 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (3 shared connections)
-- [Intel Service](Intel_Service.md) (2 shared connections)
-- [Cpu Budget](Cpu_Budget.md) (2 shared connections)
-- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
-- [Intel Test](Intel_Test.md) (1 shared connections)
+- [Intel Multibox Test](Intel_Multibox_Test.md) (13 shared connections)
+- [Intel Service](Intel_Service.md) (4 shared connections)
+- [Proximity](Proximity.md) (3 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `src/intel/chatlog_dir.js`
 - `src/intel/chatlog_reader.js`
-- `test/intel.test.js`
 - `test/intel_multibox.test.js`
+- `test/intel_resume.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 113 (89%)
-- INFERRED: 14 (11%)
+- EXTRACTED: 65 (93%)
+- INFERRED: 5 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

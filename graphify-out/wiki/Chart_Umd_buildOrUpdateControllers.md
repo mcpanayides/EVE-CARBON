@@ -12,11 +12,12 @@
 
 ## Relationships
 
-- [Chart Umd (An)](Chart_Umd_An.md) (6 shared connections)
+- [Chart Umd (An)](Chart_Umd_An.md) (4 shared connections)
 - [Chart Umd](Chart_Umd.md) (2 shared connections)
-- [Chart Umd (draw)](Chart_Umd_draw.md) (2 shared connections)
+- [Chart Umd (getDatasetMeta)](Chart_Umd_getDatasetMeta.md) (2 shared connections)
+- [Chart Umd (buildOrUpdateScales)](Chart_Umd_buildOrUpdateScales.md) (2 shared connections)
 - [Chart Umd (tn)](Chart_Umd_tn.md) (2 shared connections)
-- [Chart Umd (Os)](Chart_Umd_Os.md) (1 shared connections)
+- [Chart Umd (bn)](Chart_Umd_bn.md) (1 shared connections)
 - [Chart Umd (bt)](Chart_Umd_bt.md) (1 shared connections)
 
 ## Source Files

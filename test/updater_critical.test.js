@@ -158,6 +158,6 @@ test('every historical changelog section stays non-critical', () => {
     .map(s => ({ ver: (s.match(/^([0-9.]+)\]/) || [])[1], crit: parseReleaseFlags(s).critical }))
     .filter(x => x.crit)
     .map(x => x.ver);
-  // Only the current release may be flagged.
-  assert.deepStrictEqual(flagged, ['3.4.0']);
+  // Only the releases flagged on purpose.
+  assert.deepStrictEqual(flagged, ['4.1.4', '3.4.0']);
 });

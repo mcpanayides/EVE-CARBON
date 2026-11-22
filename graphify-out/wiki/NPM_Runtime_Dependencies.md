@@ -17,7 +17,7 @@
 ## Relationships
 
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (4 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
+- [Region Layouts Curated Test](Region_Layouts_Curated_Test.md) (2 shared connections)
 - [Theme IPC](Theme_IPC.md) (1 shared connections)
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
 - [Message Styling Test](Message_Styling_Test.md) (1 shared connections)

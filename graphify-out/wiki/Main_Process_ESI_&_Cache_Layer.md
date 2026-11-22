@@ -36,7 +36,7 @@
 - [Electron Main Process](Electron_Main_Process.md) (37 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
 - [PI IPC](PI_IPC.md) (2 shared connections)
-- [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (2 shared connections)
+- [Intel IPC](Intel_IPC.md) (2 shared connections)
 - [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
 - [Intel Service](Intel_Service.md) (1 shared connections)
 

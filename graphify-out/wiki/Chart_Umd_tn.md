@@ -28,12 +28,13 @@
 
 ## Relationships
 
-- [Chart Umd (bindEvents)](Chart_Umd_bindEvents.md) (4 shared connections)
-- [Chart Umd (An)](Chart_Umd_An.md) (4 shared connections)
 - [Chart Umd](Chart_Umd.md) (3 shared connections)
+- [Chart Umd (bo)](Chart_Umd_bo.md) (3 shared connections)
+- [Chart Umd (Eo)](Chart_Umd_Eo.md) (2 shared connections)
+- [Chart Umd (An)](Chart_Umd_An.md) (2 shared connections)
+- [Chart Umd (buildOrUpdateControllers)](Chart_Umd_buildOrUpdateControllers.md) (2 shared connections)
 - [Chart Umd (de)](Chart_Umd_de.md) (1 shared connections)
 - [Chart Umd (Js)](Chart_Umd_Js.md) (1 shared connections)
-- [Chart Umd (bo)](Chart_Umd_bo.md) (1 shared connections)
 
 ## Source Files
 

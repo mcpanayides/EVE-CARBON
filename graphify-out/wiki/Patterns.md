@@ -33,10 +33,10 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (6 shared connections)
+- [Intel Service](Intel_Service.md) (5 shared connections)
+- [Proximity](Proximity.md) (3 shared connections)
 - [Jabber Disco Test](Jabber_Disco_Test.md) (2 shared connections)
-- [Proximity](Proximity.md) (2 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 
 ## Source Files

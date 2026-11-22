@@ -1,35 +1,53 @@
 # README
 
-> 10 nodes · cohesion 0.22
+> 28 nodes · cohesion 0.13
 
 ## Key Concepts
 
-- **EVE-Carbon Presence Worker** (4 connections) — `infra/presence-worker/README.md`
-- **Network Rate Governor Audit** (4 connections) — `TODO.md`
-- **Token Bucket Per Host** (3 connections) — `TODO.md`
-- **PRESENCE_URL Secret (unset disables the counter silently)** (2 connections) — `infra/presence-worker/README.md`
-- **zkill_stream Rate Gate Without Caching (reserve)** (2 connections) — `TODO.md`
-- **Per-Host Rate Governing (3.5.0)** (2 connections) — `CHANGELOG.md`
-- **Durable Object Eviction Defeats Memory-Only Sessions** (2 connections) — `infra/presence-worker/README.md`
-- **Optional Version Reporting (unknown bucket)** (1 connections) — `infra/presence-worker/README.md`
-- **Online Counter Under-Report Fix** (1 connections) — `CHANGELOG.md`
-- **Per-Client Polling Of A Free Third-Party Service Does Not Scale** (1 connections) — `TODO.md`
+- **zkill-fanout/worker.js** (10 connections) — `workers/zkill-fanout/worker.js`
+- **zkill_bucket.test.js** (9 connections) — `test/zkill_bucket.test.js`
+- **bucket.js** (8 connections) — `workers/zkill-fanout/bucket.js`
+- **fetch()** (7 connections) — `workers/zkill-fanout/worker.js`
+- **zkill-fanout** (7 connections) — `workers/zkill-fanout/README.md`
+- **bucketOf()** (6 connections) — `workers/zkill-fanout/bucket.js`
+- **bucketRange()** (6 connections) — `workers/zkill-fanout/bucket.js`
+- **isComplete()** (6 connections) — `workers/zkill-fanout/bucket.js`
+- **bucketsToFetch()** (4 connections) — `workers/zkill-fanout/bucket.js`
+- **toSeq()** (4 connections) — `workers/zkill-fanout/bucket.js`
+- **fromUpstream()** (4 connections) — `workers/zkill-fanout/worker.js`
+- **resolveZkillBase()** (3 connections) — `src/intel/zkill_stream.js`
+- **fetchSequence()** (3 connections) — `workers/zkill-fanout/worker.js`
+- **Two protocols** (3 connections) — `workers/zkill-fanout/README.md`
+- **json()** (2 connections) — `workers/zkill-fanout/worker.js`
+- **upstreamHeaders()** (2 connections) — `workers/zkill-fanout/worker.js`
+- **BUCKET_SIZE** (2 connections) — `workers/zkill-fanout/bucket.js`
+- **Client migration to the batched feed** (2 connections) — `workers/zkill-fanout/README.md`
+- **Deploy** (2 connections) — `workers/zkill-fanout/README.md`
+- **What it will actually cost** (2 connections) — `workers/zkill-fanout/README.md`
+- **assert** (1 connections) — `test/zkill_bucket.test.js`
+- **test** (1 connections) — `test/zkill_bucket.test.js`
+- **zkill-fanout/README.md** (1 connections) — `workers/zkill-fanout/README.md`
+- **Checking it works** (1 connections) — `workers/zkill-fanout/README.md`
+- **The custom-domain trick** (1 connections) — `workers/zkill-fanout/README.md`
+- *... and 3 more nodes in this community*
 
 ## Relationships
 
-- [CI Workflow (CI Build Matrix Job)](CI_Workflow_CI_Build_Matrix_Job.md) (1 shared connections)
-- [TODO](TODO.md) (1 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (3 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files
 
-- `CHANGELOG.md`
-- `TODO.md`
-- `infra/presence-worker/README.md`
+- `src/intel/zkill_stream.js`
+- `test/zkill_bucket.test.js`
+- `workers/zkill-fanout/README.md`
+- `workers/zkill-fanout/bucket.js`
+- `workers/zkill-fanout/worker.js`
 
 ## Audit Trail
 
-- EXTRACTED: 9 (75%)
-- INFERRED: 3 (25%)
+- EXTRACTED: 49 (94%)
+- INFERRED: 3 (6%)
 - AMBIGUOUS: 0 (0%)
 
 ---

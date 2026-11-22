@@ -1,12 +1,11 @@
 # Chart Umd (Ns)
 
-> 65 nodes · cohesion 0.06
+> 62 nodes · cohesion 0.07
 
 ## Key Concepts
 
 - **Ns** (58 connections) — `src/vendor/chartjs/chart.umd.js`
 - **updateElements()** (15 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.getParsed()** (13 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getDataset()** (11 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.parse()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getContext()** (9 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -29,17 +28,17 @@
 - **.configure()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getMinMax()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getSharedOptions()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 40 more nodes in this community*
+- **.getStyle()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
+- *... and 37 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (15 shared connections)
 - [Chart Umd (bo)](Chart_Umd_bo.md) (14 shared connections)
-- [Chart Umd (ko)](Chart_Umd_ko.md) (12 shared connections)
+- [Chart Umd](Chart_Umd.md) (13 shared connections)
+- [Chart Umd (Os)](Chart_Umd_Os.md) (8 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (4 shared connections)
 - [Chart Umd (jn)](Chart_Umd_jn.md) (3 shared connections)
-- [Chart Umd (Eo)](Chart_Umd_Eo.md) (1 shared connections)
-- [Chart Umd (Hs)](Chart_Umd_Hs.md) (1 shared connections)
-- [Chart Umd (Os)](Chart_Umd_Os.md) (1 shared connections)
+- [Chart Umd (Eo)](Chart_Umd_Eo.md) (2 shared connections)
 
 ## Source Files
 
@@ -47,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 180 (100%)
+- EXTRACTED: 170 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

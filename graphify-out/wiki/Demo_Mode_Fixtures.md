@@ -39,11 +39,10 @@
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (3 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (3 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
-- [Character IPC](Character_IPC.md) (1 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (1 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 
 ## Source Files

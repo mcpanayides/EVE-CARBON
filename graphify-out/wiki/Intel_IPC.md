@@ -1,58 +1,59 @@
 # Intel IPC
 
-> 19 nodes · cohesion 0.11
+> 32 nodes · cohesion 0.12
 
 ## Key Concepts
 
-- **electron** (18 connections) — `package.json`
-- **intel_ipc.js** (8 connections) — `src/ipc/intel_ipc.js`
-- **_serveDemoForum()** (4 connections) — `main.js`
-- **_setDemoForumCookies()** (4 connections) — `main.js`
-- **registerForumHandlers()** (4 connections) — `src/ipc/forum_ipc.js`
-- **config_ipc.js** (4 connections) — `src/ipc/config_ipc.js`
-- **station_ipc.js** (4 connections) — `src/ipc/station_ipc.js`
-- **preload.js** (4 connections) — `src/preload.js`
-- **registerConfigHandlers()** (2 connections) — `src/ipc/config_ipc.js`
-- **registerStationHandlers()** (2 connections) — `src/ipc/station_ipc.js`
-- **src_demo_forum_base** (2 connections)
-- **{ ipcMain }** (1 connections) — `src/ipc/config_ipc.js`
-- **{ BrowserWindow }** (1 connections) — `src/ipc/intel_ipc.js`
-- **fs** (1 connections) — `src/ipc/intel_ipc.js`
-- **path** (1 connections) — `src/ipc/intel_ipc.js`
-- **{ ipcMain }** (1 connections) — `src/ipc/station_ipc.js`
-- **{ contextBridge, ipcRenderer }** (1 connections) — `src/preload.js`
-- **IPC_EVENT_CHANNELS** (1 connections) — `src/preload.js`
-- **_listenerRegistry** (1 connections) — `src/preload.js`
+- **registerIntelHandlers()** (24 connections) — `src/ipc/intel_ipc.js`
+- **intel_rules.test.js** (15 connections) — `test/intel_rules.test.js`
+- **alert_rules.js** (10 connections) — `src/intel/alert_rules.js`
+- **ensure()** (8 connections) — `src/ipc/intel_ipc.js`
+- **characterPosition()** (7 connections) — `src/ipc/intel_ipc.js`
+- **standings.js** (7 connections) — `src/intel/standings.js`
+- **createRuleEngine()** (5 connections) — `src/intel/alert_rules.js`
+- **normaliseRule()** (5 connections) — `src/intel/alert_rules.js`
+- **ensureLocalWatcher()** (5 connections) — `src/ipc/intel_ipc.js`
+- **monitorableCharacters()** (5 connections) — `src/ipc/intel_ipc.js`
+- **ruleMatches()** (4 connections) — `src/intel/alert_rules.js`
+- **autoStart()** (4 connections) — `src/ipc/intel_ipc.js`
+- **onPositionsChanged()** (4 connections) — `src/ipc/intel_ipc.js`
+- **queueReport()** (4 connections) — `src/ipc/intel_ipc.js`
+- **refreshContactSheet()** (4 connections) — `src/ipc/intel_ipc.js`
+- **resolveOrigins()** (4 connections) — `src/ipc/intel_ipc.js`
+- **evaluate()** (3 connections) — `src/intel/alert_rules.js`
+- **describeRule()** (3 connections) — `src/intel/alert_rules.js`
+- **mergeContactSheets()** (3 connections) — `src/intel/standings.js`
+- **invalidateContacts()** (3 connections) — `src/ipc/intel_ipc.js`
+- **STARTER_RULES** (3 connections) — `src/intel/alert_rules.js`
+- **lower()** (2 connections) — `src/intel/alert_rules.js`
+- **flush()** (2 connections) — `src/ipc/intel_ipc.js`
+- **loadPatterns()** (2 connections) — `src/ipc/intel_ipc.js`
+- **savePatterns()** (2 connections) — `src/ipc/intel_ipc.js`
+- *... and 7 more nodes in this community*
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (9 shared connections)
-- [Character IPC](Character_IPC.md) (4 shared connections)
-- [Demo Alliance Forum](Demo_Alliance_Forum.md) (3 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (3 shared connections)
-- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (2 shared connections)
-- [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (1 shared connections)
-- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
-- [ESI IPC](ESI_IPC.md) (1 shared connections)
-- [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
-- [Map IPC](Map_IPC.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
-- [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (1 shared connections)
+- [Intel Service](Intel_Service.md) (6 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (5 shared connections)
+- [Local Position](Local_Position.md) (4 shared connections)
+- [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (2 shared connections)
+- [Character IPC](Character_IPC.md) (2 shared connections)
+- [Standings](Standings.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
 
 ## Source Files
 
-- `main.js`
-- `package.json`
-- `src/ipc/config_ipc.js`
-- `src/ipc/forum_ipc.js`
+- `src/intel/alert_rules.js`
+- `src/intel/standings.js`
 - `src/ipc/intel_ipc.js`
-- `src/ipc/station_ipc.js`
-- `src/preload.js`
+- `test/intel_rules.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 42 (91%)
-- INFERRED: 4 (9%)
+- EXTRACTED: 71 (83%)
+- INFERRED: 15 (17%)
 - AMBIGUOUS: 0 (0%)
 
 ---

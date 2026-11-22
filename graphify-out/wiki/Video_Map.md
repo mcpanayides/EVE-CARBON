@@ -29,7 +29,8 @@
 
 ## Relationships
 
-- [Demo Data Spec](Demo_Data_Spec.md) (3 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (2 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
 
 ## Source Files
 

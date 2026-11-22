@@ -36,14 +36,14 @@
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (2 shared connections)
 - [Demo Data](Demo_Data.md) (2 shared connections)
 - [Jabber Message Store](Jabber_Message_Store.md) (2 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (1 shared connections)
-- [Ics Parse](Ics_Parse.md) (1 shared connections)
 
 ## Source Files
 

@@ -33,13 +33,16 @@
 
 ## Relationships
 
-- [Presence Worker Test](Presence_Worker_Test.md) (4 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
-- [Intel IPC](Intel_IPC.md) (1 shared connections)
+- [Preload Bridge](Preload_Bridge.md) (1 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
+- [Fleet AAR Test](Fleet_AAR_Test.md) (1 shared connections)
 - [Fleet Kills Test](Fleet_Kills_Test.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
+- [Demo Fleet Ops Test](Demo_Fleet_Ops_Test.md) (1 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
 
 ## Source Files
 

@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
+- [Theme IPC](Theme_IPC.md) (1 shared connections)
 
 ## Source Files
 

@@ -40,7 +40,7 @@
 - [Message Styling Test](Message_Styling_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
-- [Intel IPC](Intel_IPC.md) (1 shared connections)
+- [Preload Bridge](Preload_Bridge.md) (1 shared connections)
 - [Message Styling](Message_Styling.md) (1 shared connections)
 
 ## Source Files

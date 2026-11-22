@@ -34,8 +34,8 @@
 ## Relationships
 
 - [Chart Umd](Chart_Umd.md) (14 shared connections)
-- [Chart Umd (ko)](Chart_Umd_ko.md) (3 shared connections)
-- [Chart Umd (Hs)](Chart_Umd_Hs.md) (2 shared connections)
+- [Chart Umd (Os)](Chart_Umd_Os.md) (3 shared connections)
+- [Chart Umd (Eo)](Chart_Umd_Eo.md) (2 shared connections)
 - [Chart Umd (bo)](Chart_Umd_bo.md) (1 shared connections)
 
 ## Source Files

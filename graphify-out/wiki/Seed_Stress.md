@@ -33,10 +33,11 @@
 
 ## Relationships
 
-- [Demo Data Spec](Demo_Data_Spec.md) (7 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (4 shared connections)
+- [ESI Audit](ESI_Audit.md) (3 shared connections)
+- [Cpu Budget](Cpu_Budget.md) (2 shared connections)
 - [Character Database](Character_Database.md) (1 shared connections)
-- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 
 ## Source Files
 

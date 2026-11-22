@@ -16,9 +16,9 @@
 
 ## Relationships
 
-- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
+- [Region Layouts Curated Test](Region_Layouts_Curated_Test.md) (2 shared connections)
 - [Chart Umd](Chart_Umd.md) (1 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 
 ## Source Files
 

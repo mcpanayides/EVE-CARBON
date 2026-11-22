@@ -1,10 +1,11 @@
 # Theme IPC
 
-> 8 nodes · cohesion 0.32
+> 11 nodes · cohesion 0.22
 
 ## Key Concepts
 
 - **registerThemeHandlers()** (7 connections) — `src/ipc/theme_ipc.js`
+- **theme_ipc.js** (7 connections) — `src/ipc/theme_ipc.js`
 - **js-yaml** (5 connections) — `package.json`
 - **resolveTheme()** (3 connections) — `src/ipc/theme_ipc.js`
 - **builtinFiles()** (2 connections) — `src/ipc/theme_ipc.js`
@@ -12,12 +13,16 @@
 - **readThemeFile()** (2 connections) — `src/ipc/theme_ipc.js`
 - **js-yaml@^5.5.0** (2 connections) — `package.json`
 - **themePayload()** (1 connections) — `src/ipc/theme_ipc.js`
+- **fs** (1 connections) — `src/ipc/theme_ipc.js`
+- **path** (1 connections) — `src/ipc/theme_ipc.js`
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
+- [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
 - [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
+- [Theme Vars](Theme_Vars.md) (1 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 - [Alliance Pack Test](Alliance_Pack_Test.md) (1 shared connections)
 
@@ -28,8 +33,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 14 (93%)
-- INFERRED: 1 (7%)
+- EXTRACTED: 20 (95%)
+- INFERRED: 1 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

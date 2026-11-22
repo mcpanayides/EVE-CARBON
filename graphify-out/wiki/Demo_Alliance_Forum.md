@@ -26,7 +26,7 @@
 ## Relationships
 
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (3 shared connections)
-- [Intel IPC](Intel_IPC.md) (3 shared connections)
+- [Preload Bridge](Preload_Bridge.md) (3 shared connections)
 - [Ics Parse](Ics_Parse.md) (2 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (2 shared connections)

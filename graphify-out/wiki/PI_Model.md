@@ -25,7 +25,8 @@
 
 ## Relationships
 
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [PI Model Test](PI_Model_Test.md) (1 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (1 shared connections)
 
 ## Source Files
 

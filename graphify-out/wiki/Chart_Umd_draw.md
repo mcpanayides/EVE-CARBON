@@ -1,13 +1,12 @@
-# Chart Umd (bindResponsiveEvents)
+# Chart Umd (draw)
 
-> 15 nodes · cohesion 0.27
+> 14 nodes · cohesion 0.29
 
 ## Key Concepts
 
 - **.update()** (18 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.notifyPlugins()** (15 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.render()** (10 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.bindResponsiveEvents()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._resize()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._eventHandler()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.draw()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -22,13 +21,14 @@
 
 ## Relationships
 
-- [Chart Umd (An)](Chart_Umd_An.md) (25 shared connections)
-- [Chart Umd (bindEvents)](Chart_Umd_bindEvents.md) (8 shared connections)
-- [Chart Umd](Chart_Umd.md) (6 shared connections)
-- [Chart Umd (bt)](Chart_Umd_bt.md) (4 shared connections)
-- [Chart Umd (bo)](Chart_Umd_bo.md) (3 shared connections)
+- [Chart Umd (An)](Chart_Umd_An.md) (24 shared connections)
+- [Chart Umd](Chart_Umd.md) (7 shared connections)
+- [Chart Umd (bindEvents)](Chart_Umd_bindEvents.md) (4 shared connections)
+- [Chart Umd (bt)](Chart_Umd_bt.md) (3 shared connections)
+- [Chart Umd (bo)](Chart_Umd_bo.md) (2 shared connections)
 - [Chart Umd (ko)](Chart_Umd_ko.md) (2 shared connections)
-- [Chart Umd (_drawDataset)](Chart_Umd__drawDataset.md) (2 shared connections)
+- [Chart Umd (buildOrUpdateControllers)](Chart_Umd_buildOrUpdateControllers.md) (2 shared connections)
+- [Chart Umd (Eo)](Chart_Umd_Eo.md) (2 shared connections)
 - [Chart Umd (Js)](Chart_Umd_Js.md) (1 shared connections)
 
 ## Source Files
@@ -37,7 +37,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 73 (92%)
+- EXTRACTED: 67 (92%)
 - INFERRED: 6 (8%)
 - AMBIGUOUS: 0 (0%)
 

@@ -26,12 +26,13 @@
 
 ## Relationships
 
-- [Demo Data Spec](Demo_Data_Spec.md) (4 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [SDE Update Test](SDE_Update_Test.md) (2 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [ESI Audit](ESI_Audit.md) (2 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (2 shared connections)
+- [SDE Store](SDE_Store.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Cpu Budget](Cpu_Budget.md) (1 shared connections)
 
 ## Source Files
 

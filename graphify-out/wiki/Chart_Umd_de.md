@@ -1,6 +1,6 @@
 # Chart Umd (de)
 
-> 20 nodes · cohesion 0.15
+> 18 nodes · cohesion 0.18
 
 ## Key Concepts
 
@@ -16,32 +16,29 @@
 - **.route()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.set()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **te()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- **SdeProgress** (3 connections) — `src/func/sde_progress.js`
 - **.apply()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.constructor()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.constructor()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.get()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.isForType()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.unregister()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
-- **sde_progress.js** (1 connections) — `src/func/sde_progress.js`
 
 ## Relationships
 
 - [Chart Umd](Chart_Umd.md) (5 shared connections)
-- [Chart Umd (ko)](Chart_Umd_ko.md) (2 shared connections)
+- [Chart Umd (Os)](Chart_Umd_Os.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (1 shared connections)
 - [Chart Umd (Zt)](Chart_Umd_Zt.md) (1 shared connections)
 - [Chart Umd (tn)](Chart_Umd_tn.md) (1 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)
 
 ## Source Files
 
-- `src/func/sde_progress.js`
 - `src/vendor/chartjs/chart.umd.js`
 
 ## Audit Trail
 
-- EXTRACTED: 33 (82%)
-- INFERRED: 7 (18%)
+- EXTRACTED: 32 (84%)
+- INFERRED: 6 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

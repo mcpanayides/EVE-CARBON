@@ -1,23 +1,16 @@
 # Intel Zkill Stream Test
 
-> 31 nodes · cohesion 0.09
+> 24 nodes · cohesion 0.12
 
 ## Key Concepts
 
 - **intel_zkill_stream.test.js** (24 connections) — `test/intel_zkill_stream.test.js`
 - **createKillWatch()** (10 connections) — `src/intel/kill_watch.js`
-- **createZkillStream()** (10 connections) — `src/intel/zkill_stream.js`
 - **kill_watch.js** (7 connections) — `src/intel/kill_watch.js`
-- **cycle()** (5 connections) — `src/intel/zkill_stream.js`
 - **bound()** (3 connections) — `src/intel/kill_watch.js`
 - **ingestPackage()** (3 connections) — `src/intel/kill_watch.js`
 - **normalisePackage()** (3 connections) — `src/intel/kill_watch.js`
-- **fail()** (3 connections) — `src/intel/zkill_stream.js`
-- **step()** (3 connections) — `src/intel/zkill_stream.js`
 - **refreshLosses()** (2 connections) — `src/intel/kill_watch.js`
-- **newestSequence()** (2 connections) — `src/intel/zkill_stream.js`
-- **ok()** (2 connections) — `src/intel/zkill_stream.js`
-- **schedule()** (2 connections) — `src/intel/zkill_stream.js`
 - **advance()** (2 connections) — `test/intel_zkill_stream.test.js`
 - **fakeServer()** (2 connections) — `test/intel_zkill_stream.test.js`
 - **idOf()** (2 connections) — `test/intel_zkill_stream.test.js`
@@ -29,27 +22,30 @@
 - **assert** (1 connections) — `test/intel_zkill_stream.test.js`
 - **SDE** (1 connections) — `test/intel_zkill_stream.test.js`
 - **SHIPS** (1 connections) — `test/intel_zkill_stream.test.js`
-- *... and 6 more nodes in this community*
+- **test** (1 connections) — `test/intel_zkill_stream.test.js`
+- **src_intel_zkill_stream_front_check_every** (1 connections)
+- **src_intel_zkill_stream_idle_ms** (1 connections)
+- **src_intel_zkill_stream_max_catchup** (1 connections)
+- **src_intel_zkill_stream_stall_rounds** (1 connections)
+- **src_intel_zkill_stream_step_ms** (1 connections)
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (6 shared connections)
+- [Intel Service](Intel_Service.md) (4 shared connections)
+- [Character IPC](Character_IPC.md) (3 shared connections)
 - [Intel Test](Intel_Test.md) (2 shared connections)
-- [HTTP Request Broker](HTTP_Request_Broker.md) (2 shared connections)
-- [Character IPC](Character_IPC.md) (2 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
-- [Chart Umd (de)](Chart_Umd_de.md) (1 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/kill_watch.js`
-- `src/intel/zkill_stream.js`
 - `test/intel_zkill_stream.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 53 (90%)
-- INFERRED: 6 (10%)
+- EXTRACTED: 41 (93%)
+- INFERRED: 3 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

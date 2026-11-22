@@ -1,6 +1,6 @@
 # Chart Umd (no)
 
-> 47 nodes · cohesion 0.06
+> 36 nodes · cohesion 0.09
 
 ## Key Concepts
 
@@ -8,9 +8,7 @@
 - **.isHorizontal()** (8 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._generate()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getLabelTimestamps()** (7 connections) — `src/vendor/chartjs/chart.umd.js`
-- **xo** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **Fo()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.getPixelForDecimal()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.buildTicks()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getDataTimestamps()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._getLabelCapacity()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -18,27 +16,29 @@
 - **eo()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **_getTimestampsForTable()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **initOffsets()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.getDecimalForPixel()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._getLabelSize()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.initOffsets()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._tickFormatFunction()** (4 connections) — `src/vendor/chartjs/chart.umd.js`
 - **Bo()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **et()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getDecimalForValue()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- **._getLabelBounds()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.getPixelForValue()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.path()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **._drawArgs()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
-- *... and 22 more nodes in this community*
+- **zo()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
+- **buildLookupTable()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- **_generate()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.afterAutoSkip()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- *... and 11 more nodes in this community*
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (18 shared connections)
-- [Chart Umd (ko)](Chart_Umd_ko.md) (10 shared connections)
-- [Chart Umd (bo)](Chart_Umd_bo.md) (9 shared connections)
-- [Chart Umd (Js)](Chart_Umd_Js.md) (8 shared connections)
-- [Chart Umd (Hs)](Chart_Umd_Hs.md) (5 shared connections)
-- [Chart Umd (Eo)](Chart_Umd_Eo.md) (2 shared connections)
+- [Chart Umd](Chart_Umd.md) (16 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (8 shared connections)
+- [Chart Umd (bo)](Chart_Umd_bo.md) (8 shared connections)
+- [Chart Umd (Eo)](Chart_Umd_Eo.md) (5 shared connections)
+- [Chart Umd (Js)](Chart_Umd_Js.md) (5 shared connections)
+- [Chart Umd (Os)](Chart_Umd_Os.md) (3 shared connections)
 
 ## Source Files
 
@@ -46,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 120 (98%)
+- EXTRACTED: 99 (98%)
 - INFERRED: 2 (2%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,62 +1,59 @@
 # Intel Service
 
-> 27 nodes · cohesion 0.13
+> 24 nodes · cohesion 0.15
 
 ## Key Concepts
 
 - **intel_service.js** (26 connections) — `src/intel/intel_service.js`
-- **intel_resume.test.js** (23 connections) — `test/intel_resume.test.js`
 - **createIntelService()** (19 connections) — `src/intel/intel_service.js`
 - **handleReport()** (8 connections) — `src/intel/intel_service.js`
 - **init()** (8 connections) — `src/intel/intel_service.js`
-- **buildAdjacency()** (6 connections) — `src/intel/proximity.js`
+- **buildSystemIndex()** (8 connections) — `src/intel/system_index.js`
+- **system_index.js** (6 connections) — `src/intel/system_index.js`
 - **resumeSweep()** (5 connections) — `src/intel/intel_service.js`
 - **shouldAlert()** (5 connections) — `src/intel/proximity.js`
 - **parserFor()** (4 connections) — `src/intel/intel_service.js`
+- **matchToken()** (4 connections) — `src/intel/system_index.js`
 - **handleLine()** (3 connections) — `src/intel/intel_service.js`
 - **withDisplay()** (3 connections) — `src/intel/intel_service.js`
 - **withPrediction()** (3 connections) — `src/intel/intel_service.js`
 - **worstStandingFor()** (3 connections) — `src/intel/intel_service.js`
-- **readerOver()** (3 connections) — `test/intel_resume.test.js`
-- **serviceOver()** (3 connections) — `test/intel_resume.test.js`
-- **writeLog()** (3 connections) — `test/intel_resume.test.js`
 - **svcWith()** (3 connections) — `test/intel_zkill_stream.test.js`
 - **shouldEmit()** (2 connections) — `src/intel/intel_service.js`
+- **abbrevTable()** (2 connections) — `src/intel/system_index.js`
+- **matchMessage()** (2 connections) — `src/intel/system_index.js`
+- **normalise()** (2 connections) — `src/intel/system_index.js`
 - **syncLiveKills()** (1 connections) — `src/intel/intel_service.js`
-- **stamp()** (1 connections) — `test/intel_resume.test.js`
 - **DEFAULTS** (1 connections) — `src/intel/intel_service.js`
-- **assert** (1 connections) — `test/intel_resume.test.js`
-- **fs** (1 connections) — `test/intel_resume.test.js`
-- **os** (1 connections) — `test/intel_resume.test.js`
-- **path** (1 connections) — `test/intel_resume.test.js`
-- *... and 2 more nodes in this community*
+- **ROLE_WORDS** (1 connections) — `src/intel/system_index.js`
+- **SHIP_ROLE_GROUPS** (1 connections) — `src/intel/system_index.js`
+- **STOPWORDS** (1 connections) — `src/intel/system_index.js`
 
 ## Relationships
 
-- [Proximity](Proximity.md) (7 shared connections)
-- [Patterns](Patterns.md) (6 shared connections)
-- [Alert Rules](Alert_Rules.md) (6 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (6 shared connections)
-- [Intel Test](Intel_Test.md) (5 shared connections)
-- [Intel Multibox Test](Intel_Multibox_Test.md) (4 shared connections)
-- [System Index](System_Index.md) (3 shared connections)
-- [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (2 shared connections)
-- [Chatlog Dir](Chatlog_Dir.md) (2 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
+- [Proximity](Proximity.md) (9 shared connections)
+- [Intel IPC](Intel_IPC.md) (6 shared connections)
+- [Intel Test](Intel_Test.md) (6 shared connections)
+- [Patterns](Patterns.md) (5 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (4 shared connections)
+- [Standings](Standings.md) (2 shared connections)
+- [Zkill Stream](Zkill_Stream.md) (2 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (2 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (1 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files
 
 - `src/intel/intel_service.js`
 - `src/intel/proximity.js`
-- `test/intel_resume.test.js`
+- `src/intel/system_index.js`
 - `test/intel_zkill_stream.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 87 (93%)
-- INFERRED: 7 (7%)
+- EXTRACTED: 70 (88%)
+- INFERRED: 10 (12%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -19,8 +19,9 @@
 
 ## Relationships
 
-- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [ESI Audit](ESI_Audit.md) (1 shared connections)
+- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
 
 ## Source Files
 

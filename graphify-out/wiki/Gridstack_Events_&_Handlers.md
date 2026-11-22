@@ -25,9 +25,8 @@
 
 ## Relationships
 
-- [Gridstack Vendor Library (v)](Gridstack_Vendor_Library_v.md) (5 shared connections)
+- [Gridstack Vendor Library (w)](Gridstack_Vendor_Library_w.md) (9 shared connections)
 - [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (4 shared connections)
-- [Gridstack Vendor Library (w)](Gridstack_Vendor_Library_w.md) (4 shared connections)
 - [Gridstack Core & Initialisation](Gridstack_Core_&_Initialisation.md) (3 shared connections)
 - [Gridstack Vendor Library (y)](Gridstack_Vendor_Library_y.md) (3 shared connections)
 

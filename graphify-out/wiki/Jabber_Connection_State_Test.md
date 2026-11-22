@@ -21,7 +21,7 @@
 ## Relationships
 
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (3 shared connections)
-- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 
 ## Source Files
 

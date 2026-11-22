@@ -25,7 +25,8 @@ function runWithWatchdog(job, { stallMs = 5 * 60 * 1000, tickMs = 5000 } = {}) {
       const min = Math.round(stallMs / 60000);
       reject(new Error(`Stopped after ${min >= 1 ? `${min} min` : `${Math.round(stallMs / 1000)} s`} with no progress`));
     }, tickMs);
-    if (timer.unref) timer.unref();
+    // Not unref'd: a stalled job may hold nothing open, and the process must not
+    // end quietly before this says so. Cleared as soon as the job settles.
   });
   return Promise.race([Promise.resolve().then(() => job(() => { quiet = 0; })), stalled])
     .finally(() => clearInterval(timer));

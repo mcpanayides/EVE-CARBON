@@ -30,7 +30,11 @@ const tmp = (t) => {
   return d;
 };
 /** Fail rather than hang: the bug under test was a promise that never settled. */
-const within = (ms, p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('HUNG')), ms).unref())]);
+const within = (ms, p) => {
+  let timer;
+  const hung = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('HUNG')), ms); });
+  return Promise.race([p, hung]).finally(() => clearTimeout(timer));
+};
 
 /** Every file the build reads, empty but for one type. */
 function jsonl(dir) {

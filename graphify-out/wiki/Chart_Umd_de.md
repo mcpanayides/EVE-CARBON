@@ -28,7 +28,7 @@
 ## Relationships
 
 - [Chart Umd](Chart_Umd.md) (5 shared connections)
-- [Chart Umd (a)](Chart_Umd_a.md) (2 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (2 shared connections)
 - [Chart Umd (Zt)](Chart_Umd_Zt.md) (1 shared connections)
 - [Chart Umd (tn)](Chart_Umd_tn.md) (1 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (1 shared connections)

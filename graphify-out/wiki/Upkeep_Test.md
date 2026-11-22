@@ -26,12 +26,12 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (4 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (4 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [SDE Store](SDE_Store.md) (2 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [SDE Update Test](SDE_Update_Test.md) (2 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
-- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 
 ## Source Files
 

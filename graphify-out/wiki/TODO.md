@@ -13,7 +13,7 @@
 
 ## Relationships
 
-- [README (PRESENCE_URL Secret unset disa)](README_PRESENCE_URL_Secret_unset_disa.md) (1 shared connections)
+- [README](README.md) (1 shared connections)
 - [TODO (Mining Ledger Baseline Photogr)](TODO_Mining_Ledger_Baseline_Photogr.md) (1 shared connections)
 
 ## Source Files

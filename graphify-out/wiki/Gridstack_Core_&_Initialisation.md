@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Gridstack Events & Handlers](Gridstack_Events_&_Handlers.md) (3 shared connections)
-- [Chart Umd (a)](Chart_Umd_a.md) (2 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (2 shared connections)
 - [Gridstack Vendor Library](Gridstack_Vendor_Library.md) (2 shared connections)
 - [Gridstack Vendor Library (_)](Gridstack_Vendor_Library__.md) (1 shared connections)
 - [Gridstack Vendor Library (f)](Gridstack_Vendor_Library_f.md) (1 shared connections)

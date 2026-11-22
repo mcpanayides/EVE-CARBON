@@ -34,9 +34,10 @@
 ## Relationships
 
 - [Intel Service](Intel_Service.md) (6 shared connections)
-- [Character IPC](Character_IPC.md) (4 shared connections)
 - [Intel Test](Intel_Test.md) (2 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [HTTP Request Broker](HTTP_Request_Broker.md) (2 shared connections)
+- [Character IPC](Character_IPC.md) (2 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
 - [Chart Umd (de)](Chart_Umd_de.md) (1 shared connections)
 
 ## Source Files

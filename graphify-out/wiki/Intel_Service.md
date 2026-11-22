@@ -42,8 +42,8 @@
 - [System Index](System_Index.md) (3 shared connections)
 - [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (2 shared connections)
 - [Chatlog Dir](Chatlog_Dir.md) (2 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (1 shared connections)
 
 ## Source Files

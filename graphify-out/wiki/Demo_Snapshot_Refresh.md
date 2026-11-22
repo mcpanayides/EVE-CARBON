@@ -18,8 +18,8 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
-- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
+- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files

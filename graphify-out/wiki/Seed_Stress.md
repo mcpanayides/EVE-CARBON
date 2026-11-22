@@ -33,10 +33,10 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (7 shared connections)
-- [Alliance Packs Spec](Alliance_Packs_Spec.md) (2 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (7 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
 - [Character Database](Character_Database.md) (1 shared connections)
-- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
+- [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 
 ## Source Files
 

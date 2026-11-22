@@ -1,6 +1,6 @@
 # Palette Accent Split Test
 
-> 48 nodes · cohesion 0.04
+> 55 nodes · cohesion 0.04
 
 ## Key Concepts
 
@@ -9,32 +9,32 @@
 - **pi_tally.test.js** (13 connections) — `test/pi_tally.test.js`
 - **ref_vm** (13 connections)
 - **fitting_defense.test.js** (12 connections) — `test/fitting_defense.test.js`
-- **fc_poll_cadence.test.js** (11 connections) — `test/fc_poll_cadence.test.js`
+- **mail_poll.test.js** (11 connections) — `test/mail_poll.test.js`
+- **pi_planet_art.test.js** (11 connections) — `test/pi_planet_art.test.js`
 - **loadPalette()** (2 connections) — `test/palette_accent_split.test.js`
-- **loadFc()** (1 connections) — `test/fc_poll_cadence.test.js`
 - **loadSim()** (1 connections) — `test/fitting_defense.test.js`
 - **RES()** (1 connections) — `test/fitting_defense.test.js`
+- **loadMail()** (1 connections) — `test/mail_poll.test.js`
 - **row()** (1 connections) — `test/pi_capacity.test.js`
 - **summary()** (1 connections) — `test/pi_capacity.test.js`
+- **load()** (1 connections) — `test/pi_planet_art.test.js`
 - **hours()** (1 connections) — `test/pi_tally.test.js`
 - **load()** (1 connections) — `test/pi_tally.test.js`
-- **assert** (1 connections) — `test/fc_poll_cadence.test.js`
-- **fs** (1 connections) — `test/fc_poll_cadence.test.js`
-- **path** (1 connections) — `test/fc_poll_cadence.test.js`
-- **test** (1 connections) — `test/fc_poll_cadence.test.js`
-- **vm** (1 connections) — `test/fc_poll_cadence.test.js`
 - **assert** (1 connections) — `test/fitting_defense.test.js`
 - **fs** (1 connections) — `test/fitting_defense.test.js`
 - **path** (1 connections) — `test/fitting_defense.test.js`
 - **test** (1 connections) — `test/fitting_defense.test.js`
 - **vm** (1 connections) — `test/fitting_defense.test.js`
-- **ACCENT_TOKENS** (1 connections) — `test/palette_accent_split.test.js`
-- *... and 23 more nodes in this community*
+- **assert** (1 connections) — `test/mail_poll.test.js`
+- **fs** (1 connections) — `test/mail_poll.test.js`
+- **path** (1 connections) — `test/mail_poll.test.js`
+- **test** (1 connections) — `test/mail_poll.test.js`
+- *... and 30 more nodes in this community*
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (12 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (10 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (13 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (12 shared connections)
 - [Asset Location Walk Test](Asset_Location_Walk_Test.md) (1 shared connections)
 - [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
 - [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (1 shared connections)
@@ -44,15 +44,16 @@
 
 ## Source Files
 
-- `test/fc_poll_cadence.test.js`
 - `test/fitting_defense.test.js`
+- `test/mail_poll.test.js`
 - `test/palette_accent_split.test.js`
 - `test/pi_capacity.test.js`
+- `test/pi_planet_art.test.js`
 - `test/pi_tally.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 76 (100%)
+- EXTRACTED: 86 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

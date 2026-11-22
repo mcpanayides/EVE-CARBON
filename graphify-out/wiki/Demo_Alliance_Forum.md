@@ -1,6 +1,6 @@
 # Demo Alliance Forum
 
-> 22 nodes · cohesion 0.25
+> 18 nodes · cohesion 0.33
 
 ## Key Concepts
 
@@ -14,14 +14,10 @@
 - **respond()** (7 connections) — `src/demo/forum.js`
 - **portrait()** (6 connections) — `src/demo/forum.js`
 - **renderCalendar()** (6 connections) — `src/demo/forum.js`
-- **_serveDemoForum()** (4 connections) — `main.js`
-- **_setDemoForumCookies()** (4 connections) — `main.js`
 - **rel()** (4 connections) — `src/demo/forum.js`
 - **slug()** (4 connections) — `src/demo/forum.js`
-- **registerForumHandlers()** (4 connections) — `src/ipc/forum_ipc.js`
 - **initials()** (3 connections) — `src/demo/forum.js`
 - **topicMeta()** (2 connections) — `src/demo/forum.js`
-- **src_demo_forum_base** (2 connections)
 - **FORUMS** (1 connections) — `src/demo/forum.js`
 - **P** (1 connections) — `src/demo/forum.js`
 - **POSTS** (1 connections) — `src/demo/forum.js`
@@ -29,27 +25,23 @@
 
 ## Relationships
 
-- [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (3 shared connections)
+- [Intel IPC](Intel_IPC.md) (3 shared connections)
 - [Ics Parse](Ics_Parse.md) (2 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (2 shared connections)
-- [Intel IPC](Intel_IPC.md) (1 shared connections)
 - [Fleet Commander Core](Fleet_Commander_Core.md) (1 shared connections)
-- [Character IPC](Character_IPC.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
 
 ## Source Files
 
-- `main.js`
 - `src/demo/forum.js`
-- `src/ipc/forum_ipc.js`
 
 ## Audit Trail
 
-- EXTRACTED: 71 (96%)
-- INFERRED: 3 (4%)
+- EXTRACTED: 64 (97%)
+- INFERRED: 2 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

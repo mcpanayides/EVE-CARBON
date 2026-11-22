@@ -34,7 +34,7 @@
 - [Proximity](Proximity.md) (5 shared connections)
 - [System Index](System_Index.md) (2 shared connections)
 - [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (2 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
 - [Intel Multibox Test](Intel_Multibox_Test.md) (1 shared connections)
 
 ## Source Files

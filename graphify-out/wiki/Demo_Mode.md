@@ -22,10 +22,10 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [ESI IPC](ESI_IPC.md) (1 shared connections)
-- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 
 ## Source Files
 

@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [Map IPC](Map_IPC.md) (1 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 
 ## Source Files
 

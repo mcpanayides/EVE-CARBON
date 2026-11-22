@@ -27,9 +27,9 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (3 shared connections)
-- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
-- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (3 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (2 shared connections)
+- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)
 
 ## Source Files

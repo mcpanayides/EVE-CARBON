@@ -28,11 +28,11 @@
 
 ## Relationships
 
-- [Fleet Kills Test](Fleet_Kills_Test.md) (4 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (4 shared connections)
-- [Theme Vars](Theme_Vars.md) (1 shared connections)
+- [Presence Worker Test](Presence_Worker_Test.md) (4 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (4 shared connections)
+- [Theme IPC](Theme_IPC.md) (1 shared connections)
 - [Alliance Pack](Alliance_Pack.md) (1 shared connections)
-- [Lint](Lint.md) (1 shared connections)
+- [Station & Structure Locator](Station_&_Structure_Locator.md) (1 shared connections)
 
 ## Source Files
 

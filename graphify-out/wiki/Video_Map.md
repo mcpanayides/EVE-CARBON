@@ -29,7 +29,7 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (3 shared connections)
+- [Demo Data Spec](Demo_Data_Spec.md) (3 shared connections)
 
 ## Source Files
 

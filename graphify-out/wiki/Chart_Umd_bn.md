@@ -1,12 +1,11 @@
 # Chart Umd (bn)
 
-> 20 nodes · cohesion 0.14
+> 19 nodes · cohesion 0.15
 
 ## Key Concepts
 
 - **bn** (19 connections) — `src/vendor/chartjs/chart.umd.js`
 - **pn()** (6 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.destroy()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **dn()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **un()** (5 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.clearCache()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -27,10 +26,10 @@
 
 ## Relationships
 
-- [Chart Umd (bt)](Chart_Umd_bt.md) (5 shared connections)
-- [Chart Umd](Chart_Umd.md) (5 shared connections)
-- [Chart Umd (a)](Chart_Umd_a.md) (5 shared connections)
-- [Chart Umd (jn)](Chart_Umd_jn.md) (1 shared connections)
+- [Chart Umd](Chart_Umd.md) (6 shared connections)
+- [Chart Umd (ko)](Chart_Umd_ko.md) (5 shared connections)
+- [Chart Umd (bindEvents)](Chart_Umd_bindEvents.md) (1 shared connections)
+- [Chart Umd (bo)](Chart_Umd_bo.md) (1 shared connections)
 
 ## Source Files
 
@@ -38,8 +37,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 41 (98%)
-- INFERRED: 1 (2%)
+- EXTRACTED: 37 (97%)
+- INFERRED: 1 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

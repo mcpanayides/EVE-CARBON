@@ -33,9 +33,8 @@
 
 ## Relationships
 
-- [Chart Umd](Chart_Umd.md) (14 shared connections)
+- [Chart Umd](Chart_Umd.md) (15 shared connections)
 - [Chart Umd (de)](Chart_Umd_de.md) (1 shared connections)
-- [Chart Umd (Ns)](Chart_Umd_Ns.md) (1 shared connections)
 
 ## Source Files
 

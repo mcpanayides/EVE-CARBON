@@ -107,7 +107,7 @@
   },
   "dependencies": {
     "@xmpp/client": "^0.14.0",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.10",
     "js-yaml": "^5.5.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1",

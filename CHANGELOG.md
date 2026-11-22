@@ -30,6 +30,48 @@ See `test/updater_critical.test.js`.
 
 ---
 
+## [4.1.4] - 2026-11-22
+
+> **CRITICAL UPDATE** — on some PCs, game-data updates get stuck and leave about
+> 650 MB behind every time EVE Carbon starts. This stops it and clears the leftovers.
+
+A hotfix for game-data (SDE) updates that never finished, and a clear-out of what
+EVE Carbon left behind between versions.
+
+### Changed
+- **A smaller app.** The installer is 134 MB instead of 166 MB, and takes 120 MB less
+  once installed. The game data was packed twice, along with files only used to build
+  and test EVE Carbon.
+- **EVE Carbon clears up after itself.** A minute after it starts, it quietly removes
+  installers left by earlier updates (up to 160 MB each, and one kept copy), cached
+  answers that have expired, and server tags unused for a month. Characters, fits,
+  settings, themes, sounds and backgrounds are never touched.
+
+### Fixed
+- **Uninstalling and choosing to wipe everything removed nothing.** It looked in the
+  wrong folder. It now does what it says, and "No" is the default button. Whatever you
+  answer, uninstalling also removes game data EVE Carbon downloaded, the demo profile
+  and its own leftovers. Updating never asks and never touches any of this.
+- **A game-data update that was cut off** could leave a half-written file beside the
+  installed one. It is removed at the next start.
+- **SDE updates got stuck on "Step 1 of 16" for good** when EVE Carbon was installed
+  for all users, in Program Files. Windows doesn't let the app write there, and the
+  update waited for ever instead of saying so. This goes back well before 4.1.3.
+  Updates now save in your own folder (`%APPDATA%\EVE Carbon\sde` on Windows), and
+  the app uses whichever is newer, that one or the one it was installed with.
+- **Stuck updates left files behind**, about 650 MB in the temp folder each time EVE
+  Carbon started. The first launch of this version removes them and shows a card that
+  says what it is doing and how much space came back. If you have none, you won't see
+  it. Only EVE Carbon's own old update folders are touched; your characters and
+  settings are not.
+- **An update that fails now says why**: a folder it can't write to (checked before
+  the 95 MB download), a lost connection, a download cut short, or a database that
+  came out incomplete.
+- **The update card noticed nothing when an update died** and kept promising "About 5
+  min 30 s left". After a minute with no progress it says so, and after five the
+  update stops and says why.
+- **A failed or finished update card** still showed the last step and time left.
+
 ## [4.1.3] - 2026-11-13
 
 ### Added

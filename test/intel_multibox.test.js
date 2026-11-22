@@ -124,6 +124,7 @@ test('a copy that cannot be lined up is joined at its end, not replayed as live'
 test('the folder is listed again when it gains a file, not when one is written to', () => {
   const dir = tmpdir();
   const f = logFile(dir, 'Local', '20261108_100000', 90000001);
+  touch(dir, Date.now() / 1000 - 60);          // quiet for a minute
   const v1 = chatlogListing(dir).version;
   append(f, msg(1));
   append(f, msg(2));
@@ -131,6 +132,27 @@ test('the folder is listed again when it gains a file, not when one is written t
 
   logFile(dir, 'Local', '20261108_110000', 90000001);
   assert.notStrictEqual(chatlogListing(dir).version, v1, 'a new session file is noticed at once');
+});
+
+test('a file made in the same clock step as the listing is not missed', () => {
+  // File times move in steps: the second file leaves the folder's time exactly
+  // where the listing saw it. It used to stay unseen for five minutes, and it
+  // failed the v4.1.4 release gate on a runner whose clock steps are coarse.
+  const dir = tmpdir();
+  const step = Date.now() / 1000;
+  logFile(dir, 'Local', '20261108_100000', 90000001);
+  touch(dir, step);
+  assert.strictEqual(chatlogListing(dir).channels.get('local').byChar.get(90000001).length, 1);
+  logFile(dir, 'Local', '20261108_110000', 90000001);
+  touch(dir, step);
+  assert.strictEqual(chatlogListing(dir).channels.get('local').byChar.get(90000001).length, 2);
+});
+
+test('a folder dated well ahead of the clock is not listed on every look', () => {
+  const dir = tmpdir();
+  logFile(dir, 'Local', '20261108_100000', 90000001);
+  touch(dir, Date.now() / 1000 + 3600);
+  assert.strictEqual(chatlogListing(dir).version, chatlogListing(dir).version);
 });
 
 test('the listing keeps only the newest two files per channel and character', () => {

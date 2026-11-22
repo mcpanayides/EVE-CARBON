@@ -39,6 +39,12 @@ const PER_PAIR  = 2;                  // newest files kept per channel and chara
 const RELIST_MS = 5 * 60 * 1000;      // a full re-list even when the folder looks unchanged
 const MAX_DIRS  = 4;                  // listings kept, one per folder
 
+// File times move in steps, so a file made in the same step as the listing leaves
+// the folder's time as it was, and the listing would stand without it for the full
+// five minutes. A listing taken this soon after the folder changed is not trusted:
+// it is redone until the folder has been quiet this long.
+const SETTLE_MS = 2000;
+
 // No client session outlives the daily downtime, so a session that STARTED more
 // than a day before the newest one in the folder cannot still be writing. Two
 // hours of slack covers a clock change and a long downtime.
@@ -90,10 +96,13 @@ function chatlogListing(dir, { now = Date.now() } = {}) {
   let mtimeMs;
   try { mtimeMs = fs.statSync(dir).mtimeMs; } catch (_) { return EMPTY; }
   const cached = cache.get(dir);
-  if (cached && cached.mtimeMs === mtimeMs && now - cached.listedAt < RELIST_MS) return cached;
+  if (cached && cached.settled && cached.mtimeMs === mtimeMs && now - cached.listedAt < RELIST_MS) return cached;
   let names;
   try { names = fs.readdirSync(dir); } catch (_) { return cached || EMPTY; }
   const next = build(dir, names, mtimeMs, now);
+  // By the real clock, and only NEAR it: a folder dated well ahead (a network
+  // drive with its own idea of the time) must not be listed every second for ever.
+  next.settled = Math.abs(Date.now() - mtimeMs) >= SETTLE_MS;
   cache.delete(dir);
   cache.set(dir, next);
   while (cache.size > MAX_DIRS) cache.delete(cache.keys().next().value);
@@ -121,5 +130,5 @@ function channelIn(listing, channel) {
 
 module.exports = {
   chatlogListing, channelIn, sessionMayBeLive, stampMs,
-  FILE_RE, PER_PAIR, RELIST_MS, LIVE_SESSION_HOURS,
+  FILE_RE, PER_PAIR, RELIST_MS, SETTLE_MS, LIVE_SESSION_HOURS,
 };

@@ -18,6 +18,7 @@ const IPC_EVENT_CHANNELS = [
   'jabber-rooms',
   'repair-progress',
   'sde-update-progress',
+  'sde-cleanup-progress',
   'updater-download-progress',
   'intel-reports',
   'intel-alert',
@@ -216,6 +217,9 @@ contextBridge.exposeInMainWorld('eveAPI', {
   sdeCheckUpdate:   ()   => ipcRenderer.invoke('sde-check-update'),
   sdeDownloadUpdate: ()  => ipcRenderer.invoke('sde-download-update'),
   sdeRestartApp:    ()   => ipcRenderer.invoke('sde-restart-app'),
+  // Leftovers of stuck updates: main finds and removes them, and names no paths here
+  sdeCleanupScan:   ()   => ipcRenderer.invoke('sde-cleanup-scan'),
+  sdeCleanupRun:    ()   => ipcRenderer.invoke('sde-cleanup-run'),
 
   // Persistent user data cache
   cacheGet: (key)              => ipcRenderer.invoke('cache-get', key),

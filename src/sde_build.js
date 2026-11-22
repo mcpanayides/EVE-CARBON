@@ -35,17 +35,33 @@ const ACTIVITY_ID = {
   copying: 5, invention: 8, reaction: 11,
 };
 
-function jsonlLines(file) {
-  return readline.createInterface({ input: fs.createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
-}
-async function forEachLine(file, fn) {
-  for await (const line of jsonlLines(file)) {
+async function readLines(file, fn, onTick) {
+  // readline does not pass on its stream's error, so a missing or unreadable
+  // file used to be an uncaught 'error' event and a loop that never ended.
+  let streamErr = null;
+  const input = fs.createReadStream(file, { encoding: 'utf8' });
+  const lines = readline.createInterface({ input, crlfDelay: Infinity });
+  input.on('error', (e) => { streamErr = e; lines.close(); });
+  let n = 0;
+  for await (const line of lines) {
+    if (++n % 2000 === 0) onTick();
     const t = line.trim();
     if (!t) continue;
     let obj;
     try { obj = JSON.parse(t); } catch { continue; }
     fn(obj);
   }
+  if (streamErr) throw streamErr;
+}
+
+/** Open (creating) a database, or reject: a failed open must never be silence. */
+function openForWriting(file) {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(file, (err) => {
+      if (!err) return resolve(db);
+      reject(new Error(`Can't write to ${path.dirname(file)} (${err.code || err.message})`));
+    });
+  });
 }
 const en = (v) => (v && typeof v === 'object') ? (v.en ?? '') : (v ?? '');
 const b01 = (v) => (v ? 1 : 0);
@@ -56,15 +72,32 @@ const b01 = (v) => (v ? 1 : 0);
  * @param {string} jsonlDir - directory containing types.jsonl, blueprints.jsonl, etc.
  * @param {string} outPath - destination sqlite file (overwritten if it exists)
  * @param {(stage: string) => void} [onProgress] - called with a short label per stage
+ * @param {() => void} [onTick] - called often while working, between the labels: a
+ *   step can run for most of a minute, and silence is how a stall is told from work
  */
-async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
+async function buildSdeFromJsonl(jsonlDir, outPath, onProgress, onTick) {
   const dir = path.resolve(jsonlDir);
   const out = path.resolve(outPath);
   const f = (name) => path.join(dir, name);
   const report = (msg) => { if (onProgress) onProgress(msg); };
+  const tick = () => { if (onTick) onTick(); };
+  const forEachLine = (file, fn) => readLines(file, fn, tick);
 
   try { fs.unlinkSync(out); } catch (_) {}
-  const db = new sqlite3.Database(out);
+  const db = await openForWriting(out);
+  try {
+    await buildInto(db, { f, report, tick, forEachLine });
+  } catch (e) {
+    // Close it, or Windows will not let the half-written file be deleted.
+    await new Promise((res) => db.close(() => res()));
+    try { fs.unlinkSync(out); } catch (_) {}
+    throw e;
+  }
+  await new Promise((res, rej) => db.close(e => e ? rej(e) : res()));
+  report(`Done. Wrote ${out}`);
+}
+
+async function buildInto(db, { f, report, tick, forEachLine }) {
   const exec = (sql) => new Promise((res, rej) => db.exec(sql, e => e ? rej(e) : res()));
 
   // Batched-transaction inserter: one prepared statement, COMMIT every N rows
@@ -72,13 +105,15 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
   // row table, and memory stays flat regardless of table size.
   async function bulkInsert(table, columns, rowsAsyncIterable, batchSize = 5000) {
     const placeholders = columns.map(() => '?').join(',');
-    const stmt = db.prepare(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`);
+    const stmt = await new Promise((res, rej) => {
+      const s = db.prepare(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`, e => e ? rej(e) : res(s));
+    });
     let n = 0;
     await exec('BEGIN');
     for await (const row of rowsAsyncIterable) {
       await new Promise((res, rej) => stmt.run(row, e => e ? rej(e) : res()));
       n++;
-      if (n % batchSize === 0) { await exec('COMMIT'); await exec('BEGIN'); }
+      if (n % batchSize === 0) { await exec('COMMIT'); await exec('BEGIN'); tick(); }
     }
     await exec('COMMIT');
     await new Promise((res, rej) => stmt.finalize(e => e ? rej(e) : res()));
@@ -447,8 +482,6 @@ async function buildSdeFromJsonl(jsonlDir, outPath, onProgress) {
     CREATE INDEX idx_industryActivityProducts_productTypeID ON industryActivityProducts(productTypeID);
   `);
 
-  await new Promise((res, rej) => db.close(e => e ? rej(e) : res()));
-  report(`Done. Wrote ${out}`);
 }
 
 module.exports = { buildSdeFromJsonl };

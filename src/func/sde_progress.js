@@ -11,8 +11,14 @@
 // own, it waits while a guided tour runs (tutorialBusy / 'tutorial-idle').
 
 const SdeProgress = (() => {
-  // { kind: 'auto'|'manual', eta, snap, state: 'running'|'done'|'failed', el, timer, hidden, waiting, message }
+  // { kind: 'auto'|'manual', eta, snap, state: 'running'|'done'|'failed', el, timer, hidden, waiting, quiet, message }
   let run = null;
+
+  // A working update reports at least every second or so, even inside a long
+  // build step. This long without a word and the card stops promising a time.
+  // Counted in ticks of its own timer, so a PC that sleeps doesn't trip it. Main
+  // gives up at five minutes (src/sde_watchdog.js) and the card then says why.
+  const STALL_S = 60;
 
   const STAGES = {
     check:    'Checking for the newest version',
@@ -27,12 +33,13 @@ const SdeProgress = (() => {
     end();
     const eta = SdeEta.create();
     run = { kind, eta, snap: eta.update({ phase: 'check' }, Date.now()), state: 'running',
-            el: null, timer: null, hidden: false, waiting: false, message: '' };
+            el: null, timer: null, hidden: false, waiting: false, quiet: 0, message: '' };
     _show();
   }
 
   function update(evt) {
     if (!run || run.state !== 'running' || !evt) return;
+    run.quiet = 0;
     if (evt.phase === 'done') return;        // done() says so, with what happens next
     run.snap = run.eta.update(evt, Date.now());
     _render();
@@ -72,7 +79,9 @@ const SdeProgress = (() => {
     let detail = '';
     if (s.phase === 'download' && s.total > 0) detail = `${SdeEta.formatMB(s.downloaded).replace(' MB', '')} of ${SdeEta.formatMB(s.total)}`;
     else if (s.phase === 'build' && s.step > 0) detail = `Step ${Math.min(s.step, s.steps)} of ${s.steps}`;
-    return { stage: STAGES[s.phase] || STAGES.check, detail, eta: SdeEta.formatEta(s.etaMs), percent: s.percent };
+    const stalled = run.quiet >= STALL_S;
+    const eta = stalled ? `No progress for ${Math.floor(run.quiet / 60)} min` : SdeEta.formatEta(s.etaMs);
+    return { stage: STAGES[s.phase] || STAGES.check, detail, eta, percent: s.percent, stalled };
   }
 
   function _stopTicking() {
@@ -113,7 +122,9 @@ const SdeProgress = (() => {
     if (run.state === 'running' && !run.timer) {
       run.timer = setInterval(() => {
         if (!run || run.state !== 'running') return;
-        run.snap = run.eta.snapshot(Date.now());
+        run.quiet++;
+        // Stalled, the bar stays where it got to: it must not creep on by itself.
+        if (run.quiet < STALL_S) run.snap = run.eta.snapshot(Date.now());
         _render();
       }, 1000);
     }
@@ -162,7 +173,8 @@ const SdeProgress = (() => {
 
     if (run.state === 'running') {
       const d = describe();
-      q('.app-toast-title').textContent = 'Updating the SDE';
+      q('.app-toast-title').textContent = d.stalled ? 'The SDE update has stopped moving' : 'Updating the SDE';
+      el.classList.toggle('sde-toast-stalled', d.stalled);
       if (q('.sde-toast-stage').textContent !== d.stage) q('.sde-toast-stage').textContent = d.stage;
       q('.sde-toast-fill').style.width = `${d.percent}%`;
       track.setAttribute('aria-valuenow', String(d.percent));
@@ -177,6 +189,7 @@ const SdeProgress = (() => {
     }
 
     q('.sde-toast-meta').hidden = true;
+    el.classList.remove('sde-toast-stalled');
     if (run.state === 'done') {
       q('.app-toast-title').textContent = 'SDE updated';
       q('.sde-toast-stage').textContent = run.restarting

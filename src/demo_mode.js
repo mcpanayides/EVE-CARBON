@@ -26,7 +26,7 @@
 //        the developer's real character database. Seeding without this redirect
 //        would overwrite it.
 //
-// sde.sql is NOT redirected: getSdePath() always resolves it relative to the
+// sde.sql is NOT redirected: sdeStore() always resolves the shipped one relative to the
 // app itself, and it's read-only static data, so the demo shares the real one
 // rather than needing a 115 MB copy.
 //

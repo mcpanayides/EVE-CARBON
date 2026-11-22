@@ -153,7 +153,7 @@ function _recordHistory(readCache, writeCache, fields) {
   writeCache(KEY, store, 30);        // 30 days; it is trimmed by slot count, not age
 }
 
-function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb, getSdeMd5Path }) {
+function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSdeDb, getSdeVersion }) {
 
   // ── Custom Modern-map layout: persist / load / reset ───────────────────────
   ipcHandle('modern-layout-get', async () => {
@@ -190,20 +190,18 @@ function registerMapHandlers({ ipcHandle, httpGet, readCache, writeCache, getSde
   // so the same static data always yields the same positions. There is
   // therefore no reason to compute it more than once per SDE version.
   //
-  // Keyed on the SDE build number in data/sde.md5, which the SDE updater
-  // rewrites whenever the static data changes — a new SDE invalidates the cache
-  // automatically, and a corrupt/absent key just means "recompute", never
-  // "serve a wrong map".
+  // Keyed on the build number of the SDE this session has OPEN — a new SDE
+  // invalidates the cache when it is picked up, and an absent key just means
+  // "recompute", never "serve a wrong map". (Not the newest one on disk: after
+  // an update that is the next launch's, and the map drawn now is not from it.)
   //
   // Distinct from modern-map-layout.json above: that one is HAND-CURATED and
   // outranks both this cache and the algorithm.
   const _autoLayoutPath = () => path.join(app.getPath('userData'), 'modern-map-layout.auto.json');
 
   function _sdeVersion() {
-    try {
-      const v = fs.readFileSync(getSdeMd5Path(), 'utf8').trim();
-      return v || null;
-    } catch (_) { return null; }
+    const v = getSdeVersion();
+    return v ? String(v) : null;
   }
 
   ipcHandle('modern-layout-cache-get', async () => {

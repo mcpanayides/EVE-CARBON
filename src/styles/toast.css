@@ -56,6 +56,10 @@ body:has(#page-map.active) .app-toast-stack { top: 150px; }
 .sde-toast-meta    { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 11px; color: var(--text-3); white-space: nowrap; }
 .sde-toast-eta     { color: var(--text-2); white-space: nowrap; }
 .sde-toast-actions { display: flex; gap: 8px; margin-top: 10px; }
+.sde-toast-stalled .sde-toast-eta  { color: var(--warning); }
+.sde-toast-stalled .sde-toast-fill { background: var(--warning); }
+/* display:flex above would beat the hidden attribute (no global [hidden] rule). */
+.sde-toast [hidden] { display: none; }
 
 /* ─── Centered confirmation toast (pushCenterToast) ─────────────────────────── */
 .center-toast {

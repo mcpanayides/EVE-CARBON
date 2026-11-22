@@ -79,6 +79,10 @@ const perfModeArgs = () => (performanceMode === 'performance' ? ['--perf-mode=pe
 const { APP_USER_AGENT, ESI_BASE, ESI_COMPATIBILITY_DATE, Esi } = require('./src/app_ident');   // ESI_BASE/identity: one definition, src/shared/esi.js
 const resfileBackgrounds      = require('./src/resfile_backgrounds');
 const sdeFetch                = require('./src/sde_fetch');
+const { createSdeStore }      = require('./src/sde_store');
+const sdeCleanup              = require('./src/sde_cleanup');
+const { runWithWatchdog }     = require('./src/sde_watchdog');
+const { runUpkeep }           = require('./src/upkeep');
 const createLocator           = require('./src/locator');
 const charInfoDb              = require('./src/character_info_db');
 const jabberDataDb            = require('./src/jabber_data_db');
@@ -240,26 +244,38 @@ function notifyAssetsChanged(reason) {
   catch (e) { console.warn('[valuation] rebuild trigger failed:', e.message); }
 }
 
-function getSdePath() {
-  // In production, packaged apps should read from process.resourcesPath
-  // (your extraResources / unpacked files end up there)
-  const devPath  = path.join(__dirname, 'data', 'sde.sql');
-  const prodPath = path.join(process.resourcesPath || __dirname, 'data', 'sde.sql');
- 
-  const sdePath = app.isPackaged ? prodPath : devPath;
-  return sdePath;
+// The SDE ships with the app (resources/data) and updates land in the user's own
+// folder: an all-users install is in Program Files, which the app cannot write
+// to. Whichever is newer is used. A dev checkout reads and writes data/.
+let _sdeStore = null;
+let sdeInUse  = null;   // { path, build, source, schemaOk } of the one this session opened
+function sdeStore() {
+  if (!_sdeStore) {
+    _sdeStore = createSdeStore(app.isPackaged
+      ? { bundledDir: path.join(process.resourcesPath || __dirname, 'data'),
+          userDir:    path.join(app.getPath('userData'), 'sde') }
+      : { bundledDir: path.join(__dirname, 'data') });
+  }
+  return _sdeStore;
 }
- 
+/** Build number of the SDE in use, or null. */
+function getSdeVersion() { return (sdeInUse && sdeInUse.build) || null; }
+
 async function initSde() {
-  const sdePath = getSdePath();
-  if (!fs.existsSync(sdePath)) {
-    console.log('[SDE] not found at', sdePath);
+  const store = sdeStore();
+  const chosen = await store.pick();
+  if (!chosen) {
+    console.log('[SDE] none found in', store.dir);
     return;
   }
- 
+
   try {
-    sdeDb = await open({ filename: sdePath, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY });
-    console.log('[SDE] opened:', sdePath);
+    sdeDb = await open({ filename: chosen.path, driver: sqlite3.Database, mode: sqlite3.OPEN_READONLY });
+    sdeInUse = chosen;
+    console.log(`[SDE] opened: ${chosen.path} (build ${chosen.build || 'unknown'}, ${chosen.source})`);
+    // Superseded copies and half-written ones, now that the choice is made.
+    const dropped = store.tidy(chosen.path);
+    if (dropped.length) console.log('[SDE] removed old copies:', dropped.join(', '));
   } catch (e) {
     console.log('[SDE] failed to open:', e.message);
     sdeDb = null;
@@ -284,8 +300,8 @@ function initPaths() {
   // resources/ wholesale.
   //
   // Dev keeps ./data so the repo workflow and fixtures are unchanged, and the
-  // read-only SDE still ships in resources (see getSdePath) — that one is never
-  // written to.
+  // SDE still ships in resources, read-only; its updates go to userData too
+  // (see sdeStore).
   //
   // EVE_CARBON_DATA_DIR overrides both — used ONLY by the e2e suite (see
   // e2e/support/electron-app.js) so tests read/write a throwaway fixture DB.
@@ -2299,6 +2315,18 @@ app.whenReady().then(async () => {
   });
 
   await initSde();
+  // What versions and months leave behind (src/upkeep.js), once things are quiet.
+  // Never under e2e or demo: the temp folder and the installer are the developer's.
+  if (!process.env.EVE_CARBON_E2E && !demoPaths) setTimeout(() => {
+    runUpkeep({
+      tmpDir:     require('os').tmpdir(),
+      updaterDir: process.platform === 'win32' && process.env.LOCALAPPDATA
+        ? path.join(process.env.LOCALAPPDATA, 'eve-carbon-updater') : undefined,
+      cacheDir, etagDir: etagCacheDir,
+    }).then((r) => {
+      if (r.files) console.log(`[upkeep] removed ${r.files} unused file(s), ${(r.bytes / 1048576).toFixed(1)} MB`);
+    }).catch((e) => console.warn('[upkeep]', e.message));
+  }, 60 * 1000).unref?.();
   try {
     // Bring across a database from an older build that kept it in the install
     // directory, before opening — otherwise the user starts empty and re-syncs
@@ -2499,7 +2527,7 @@ app.whenReady().then(async () => {
     readCache,
     writeCache,
     getSdeDb: () => sdeDb,
-    getSdeMd5Path,
+    getSdeVersion,
   });
   // Intel early-warning. Registered but idle: the service builds its SDE index
   // and starts tailing chat logs only when the renderer calls intel-start, so a
@@ -3102,6 +3130,12 @@ function _readEtagEntry(url) {
   try { return JSON.parse(fs.readFileSync(_etagCachePathFor(url), 'utf8')); }
   catch { return null; }
 }
+// Still in use: a 304 doesn't rewrite the entry, and upkeep.js drops the ones
+// nothing has touched for a month.
+function _touchEtagEntry(url) {
+  const now = new Date();
+  fs.utimes(_etagCachePathFor(url), now, now, () => {});
+}
 function _writeEtagEntry(url, entry) {
   try {
     fs.mkdirSync(etagCacheDir || cacheDir, { recursive: true });
@@ -3142,6 +3176,7 @@ if (typeof _origGlobalFetch === 'function') {
     }
 
     if (isGet && res.status === 304 && cached) {
+      _touchEtagEntry(url);
       // Fetch Response bodies are one-shot streams — hand back a fresh Response
       // built from the cached body so callers can still call .json()/.text().
       return new Response(cached.body, { status: 200, statusText: 'OK (cached)', headers: res.headers });
@@ -3183,6 +3218,7 @@ function _httpJsonRaw(url, headers = {}) {
         // Not Modified — the ETag we sent still matches, reuse the stored body
         // instead of parsing the (deliberately empty) 304 response.
         if (res.statusCode === 304 && cached) {
+          _touchEtagEntry(url);
           try {
             return resolve({ value: JSON.parse(cached.body), xPages: cached.xPages ?? 1, headers: res.headers });
           } catch { /* corrupt cache entry — fall through */ }
@@ -4872,15 +4908,9 @@ async function resolveNames(ids) {
 // ─── SDE update helpers ───────────────────────────────────────────────────────
 // CCP now ships the SDE as a JSONL export (developers.eveonline.com/static-data
 // — Fuzzwork's sqlite dump is no longer the source). Version check uses the
-// SDE manifest's buildNumber, stored in sde.md5 for path compatibility with
-// the rest of the app. Fetch/extract/convert logic lives in src/sde_fetch.js +
+// SDE manifest's buildNumber. Where the databases live, and which one is used,
+// is src/sde_store.js. Fetch/extract/convert logic lives in src/sde_fetch.js +
 // src/sde_build.js (shared with scripts/fetch-sde.js, the CI/dev build step).
-
-function getSdeMd5Path() {
-  const devPath  = path.join(__dirname, 'data', 'sde.md5');
-  const prodPath = path.join(process.resourcesPath || __dirname, 'data', 'sde.md5');
-  return app.isPackaged ? prodPath : devPath;
-}
 
 // sde-check-update → { upToDate, remoteMd5, localMd5 }
 // (field names kept as *Md5 for renderer compatibility; the value is now the
@@ -4894,76 +4924,94 @@ ipcHandle('sde-check-update', async () => {
   // data/sde.sql every other test reads, some of them at once, with the progress
   // card sitting over the top-right corner the tests click in.
   if (demoPaths || process.env.EVE_CARBON_E2E) {
-    let local = null;
-    try { local = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* none yet */ }
+    const local = getSdeVersion() ? String(getSdeVersion()) : null;
     return { upToDate: true, remoteMd5: local, localMd5: local };
   }
   try {
     const manifest = await sdeFetch.fetchManifest(APP_USER_AGENT);
     const remoteMd5 = String(manifest.buildNumber);
-    let localMd5 = null;
-    try { localMd5 = fs.readFileSync(getSdeMd5Path(), 'utf8').trim(); } catch { /* no local version yet */ }
+    // The best one ON DISK, not the one in use: just after an update the new
+    // copy is waiting for the next launch, and the check must not ask for it again.
+    const best = await sdeStore().pick();
+    const localMd5 = best && best.build ? String(best.build) : null;
     // Same CCP build, but built before the app needed a table it now reads:
-    // rebuild anyway. Released apps ship a fresh SDE from CI, so in practice
-    // this is a dev checkout whose data/sde.sql outlived a schema change.
-    const schemaOk = await _sdeHasCurrentSchema(getSdePath());
-    return { upToDate: remoteMd5 === localMd5 && schemaOk, remoteMd5, localMd5, schemaOk };
+    // rebuild anyway. "Not older" rather than "equal": if CCP ever went back a
+    // build, "equal" would download it on every launch and never use it.
+    const schemaOk = !!(best && best.schemaOk);
+    return { upToDate: schemaOk && Number(localMd5) >= Number(remoteMd5), remoteMd5, localMd5, schemaOk };
   } catch (e) {
     return { error: e.message };
   }
 });
 
-// Tables the app reads that older sde_build.js versions did not create. Checked
-// on the FILE, through a short-lived connection rather than the open sdeDb: after
-// an update the new file is on disk but the old handle serves until restart, and
-// asking the handle would keep reporting the database out of date.
-const SDE_REQUIRED_TABLES = ['dgmEffectModifiers'];
-function _sdeHasCurrentSchema(sdePath) {
-  return new Promise((resolve) => {
-    if (!fs.existsSync(sdePath)) return resolve(false);
-    // Any failure to read answers "fine": can't tell is never a reason to start
-    // a 95 MB download. (The open callback also keeps a failed open from being
-    // emitted as an unhandled 'error' event.)
-    const db = new sqlite3.Database(sdePath, sqlite3.OPEN_READONLY, (openErr) => {
-      if (openErr) return resolve(true);
-      const ph = SDE_REQUIRED_TABLES.map(() => '?').join(',');
-      db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${ph})`, SDE_REQUIRED_TABLES, (err, rows) => {
-        db.close(() => {});
-        if (err) return resolve(true);
-        resolve((rows || []).length === SDE_REQUIRED_TABLES.length);
-      });
-    });
-  });
-}
-
-// sde-download-update — downloads CCP's JSONL export, converts it to sde.sql,
-// saves the version token. Sends 'sde-update-progress' push events: { stage, percent }
-ipcHandle('sde-download-update', async (event) => {
+// sde-download-update — downloads CCP's JSONL export and converts it to a database
+// in the store. Sends 'sde-update-progress' push events: { stage, percent }
+// One at a time: the launch's own update and the Settings button join the same run.
+let sdeUpdateRun = null;
+ipcHandle('sde-download-update', (event) => {
   if (demoPaths) return { success: false, error: 'Not available in demo mode — update the SDE from a normal launch.' };
-  const sdePath = getSdePath();
-  const md5Path = getSdeMd5Path();
-  const win     = BrowserWindow.fromWebContents(event.sender);
+  if (!sdeUpdateRun) sdeUpdateRun = _runSdeUpdate(event.sender).finally(() => { sdeUpdateRun = null; });
+  return sdeUpdateRun;
+});
+async function _runSdeUpdate(sender) {
+  const win   = BrowserWindow.fromWebContents(sender);
+  const store = sdeStore();
   // `info` (phase, bytes, build step) feeds the progress toast's estimate.
-  const push    = (stage, percent, info) => {
+  const push  = (stage, percent, info) => {
     if (win && !win.isDestroyed()) win.webContents.send('sde-update-progress', { ...(info || {}), stage, percent });
   };
 
   try {
-    const manifest = await sdeFetch.fetchAndBuildSde({
+    const manifest = await runWithWatchdog((alive) => sdeFetch.fetchAndBuildSde({
       userAgent: APP_USER_AGENT,
-      outSqlitePath: sdePath,
-      onProgress: (stage, pct, info) => push(stage, pct ?? undefined, info),
-    });
-
-    fs.writeFileSync(md5Path, String(manifest.buildNumber), 'utf8');
+      outSqlitePath: (build) => store.targetFor(build),
+      onProgress: (stage, pct, info) => { alive(); push(stage, pct ?? undefined, info); },
+    }));
+    store.recordBuild(manifest.buildNumber);
+    console.log(`[SDE] updated to build ${manifest.buildNumber} in ${store.dir}`);
     push('Done', 100, { phase: 'done' });
     return { success: true };
   } catch (e) {
+    console.warn('[SDE] update failed:', e.message);
     return { success: false, error: e.message };
   }
+}
+
+// ── Leftovers of stuck updates (see src/sde_cleanup.js) ───────────────────────
+// The scan answers what is there; the run removes exactly what the scan found —
+// the renderer names no paths. `notice` is true once per profile: the hotfix card
+// explains itself the first time, and later clean-ups are silent.
+let _sdeLeftovers = [];
+ipcHandle('sde-cleanup-scan', async () => {
+  // Not in demo mode (a card over the take), nor under e2e (the developer's own
+  // temp folder, and whatever another test's app is doing in it).
+  if (demoPaths || process.env.EVE_CARBON_E2E) return { folders: 0, bytes: 0, notice: false, dir: '' };
+  _sdeLeftovers = await sdeCleanup.findLeftovers({ tmpDir: require('os').tmpdir() });
+  return {
+    folders: _sdeLeftovers.length,
+    bytes: _sdeLeftovers.reduce((s, x) => s + x.bytes, 0),
+    notice: !loadConfig()?.app?.sdeCleanupNoticed,
+    dir: sdeStore().dir,
+  };
+});
+ipcHandle('sde-cleanup-run', async (event) => {
+  const list = _sdeLeftovers;
+  _sdeLeftovers = [];
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await sdeCleanup.removeLeftovers(list, (p) => {
+    if (win && !win.isDestroyed()) win.webContents.send('sde-cleanup-progress', p);
+  });
+  if (list.length) console.log(`[SDE] cleared ${result.removed} leftover update folder(s), ${Math.round(result.freed / 1048576)} MB`);
+  if (list.length && !loadConfig()?.app?.sdeCleanupNoticed) {
+    const cfg = loadConfig();
+    cfg.app = cfg.app || {};
+    cfg.app.sdeCleanupNoticed = true;
+    saveConfig(cfg);
+  }
+  return result;
 });
 
-// sde-restart-app — relaunch so the new sde.sql is picked up by initSde()
+// sde-restart-app — relaunch so the new database is picked up by initSde()
 ipcHandle('sde-restart-app', () => {
   app.relaunch();
   app.exit(0);

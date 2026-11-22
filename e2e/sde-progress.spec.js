@@ -145,3 +145,122 @@ test('it waits while a guided tour is running, then shows', async ({ window }) =
   await expect(card(window)).toBeVisible({ timeout: 5_000 });
   await expect(card(window).locator('.app-toast-title')).toHaveText('Updating the SDE');
 });
+
+test('an update that stops moving says so instead of promising a time, and recovers', async ({ window }) => {
+  // The card used to hold "About 5 min 30 s left" for ever over an update that
+  // had died (Mia, 2026-11-22). One tick of its timer is a second; run them fast.
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => {
+    window.__realSetInterval = window.setInterval;
+    window.setInterval = (fn, ms) => window.__realSetInterval(fn, ms === 1000 ? 20 : ms);
+    SdeProgress.begin('auto');
+    SdeProgress.update({ phase: 'build', step: 1, label: 'Creating schema...' });
+    window.setInterval = window.__realSetInterval;
+  });
+  await expect(card(window).locator('.app-toast-title')).toHaveText('The SDE update has stopped moving', { timeout: 10_000 });
+  await expect(card(window).locator('.sde-toast-eta')).toHaveText(/^No progress for \d+ min$/);
+  await expect(card(window)).toHaveClass(/sde-toast-stalled/);
+
+  // A sign of life, with no new step: back to normal at once.
+  await window.evaluate(() => SdeProgress.update({ phase: 'build', step: 1 }));
+  await expect(card(window).locator('.app-toast-title')).toHaveText('Updating the SDE');
+  await expect(card(window).locator('.sde-toast-eta')).toContainText('left');
+
+  // Main giving up is a failure with its reason, and the time left is gone.
+  await window.evaluate(() => SdeProgress.fail('Stopped after 5 min with no progress'));
+  await expect(card(window).locator('.sde-toast-stage'))
+    .toHaveText('Stopped after 5 min with no progress. It tries again the next time EVE Carbon starts.');
+  await expect(card(window).locator('.sde-toast-meta')).toBeHidden();
+  await expect(card(window).locator('.sde-toast-track')).toBeHidden();
+});
+
+// ── The hotfix card: clearing up after updates that hung (4.1.3 and earlier) ──
+async function fakeCleanup(electronApp, { folders = 220, notice = true, failed = 0 } = {}) {
+  await electronApp.evaluate(({ ipcMain, BrowserWindow }, o) => {
+    const g = globalThis;
+    g.__clean = { runs: 0, go: null };
+    for (const ch of ['sde-cleanup-scan', 'sde-cleanup-run']) ipcMain.removeHandler(ch);
+    const bytes = o.folders * 75 * 1048576;
+    // Once: the launch asks for itself two seconds in, and must not find them again.
+    let asked = false;
+    ipcMain.handle('sde-cleanup-scan', () => (asked ? { folders: 0 } : (asked = true, { folders: o.folders, bytes, notice: o.notice, dir: 'C:\Users\Pilot\AppData\Roaming\EVE Carbon\sde' })));
+    ipcMain.handle('sde-cleanup-run', async (event) => {
+      g.__clean.runs++;
+      const win = BrowserWindow.fromWebContents(event.sender);
+      win.webContents.send('sde-cleanup-progress', { done: 84, total: o.folders, freed: bytes * 84 / o.folders, bytes });
+      await new Promise(r => { g.__clean.go = r; });
+      const removed = o.folders - o.failed;
+      return { removed, failed: o.failed, freed: bytes * removed / o.folders, bytes };
+    });
+  }, { folders, notice, failed });
+}
+const cleanCard = (w) => w.locator('.sde-cleanup-toast');
+const finishCleanup = (electronApp) => expect.poll(() => electronApp.evaluate(() => {
+  if (!globalThis.__clean.go) return false;
+  globalThis.__clean.go(); return true;
+})).toBe(true);
+
+test('the hotfix card explains the clean-up, counts it, and says what came back', async ({ window, electronApp }) => {
+  await fakeCleanup(electronApp);
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => { SdeCleanup.run(); });
+  await expect(cleanCard(window).locator('.app-toast-title')).toHaveText('Hotfix: clearing up after stuck updates');
+  await expect(cleanCard(window).locator('.app-toast-text')).toContainText('Please bear with us');
+  await expect(cleanCard(window).locator('.sde-toast-detail')).toHaveText('84 of 220 leftover folders');
+  await expect(cleanCard(window).locator('.sde-toast-eta')).toHaveText('6.2 GB of 16.1 GB');
+
+  await finishCleanup(electronApp);
+  await expect(cleanCard(window).locator('.app-toast-title')).toHaveText('Hotfix done: all cleared up', { timeout: 10_000 });
+  await expect(cleanCard(window).locator('.app-toast-text')).toContainText('Removed 220 leftover folders from stuck SDE updates and freed 16.1 GB.');
+  await expect(cleanCard(window).locator('.app-toast-text')).toContainText('AppData\Roaming\EVE Carbon\sde');
+  await expect(cleanCard(window).locator('.sde-toast-meta')).toBeHidden();
+  await cleanCard(window).locator('.app-toast-close').click();
+  await expect(cleanCard(window)).toHaveCount(0);
+});
+
+test('folders in use are said to be left for next time', async ({ window, electronApp }) => {
+  await fakeCleanup(electronApp, { folders: 3, failed: 1 });
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => { SdeCleanup.run(); });
+  await finishCleanup(electronApp);
+  await expect(cleanCard(window).locator('.app-toast-text')).toContainText('Removed 2 leftover folders', { timeout: 10_000 });
+  await expect(cleanCard(window).locator('.app-toast-text')).toContainText('1 leftover folder in use; EVE Carbon tries again next time it starts.');
+});
+
+test('later clean-ups are silent, and with nothing to clear nothing runs', async ({ window, electronApp }) => {
+  await fakeCleanup(electronApp, { folders: 1, notice: false });
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => { SdeCleanup.run(); });
+  await finishCleanup(electronApp);
+  await window.waitForTimeout(400);
+  await expect(cleanCard(window)).toHaveCount(0);
+
+  await fakeCleanup(electronApp, { folders: 0 });
+  await window.evaluate(() => SdeCleanup.run());
+  await expect(cleanCard(window)).toHaveCount(0);
+  expect(await electronApp.evaluate(() => globalThis.__clean.runs)).toBe(0);
+});
+
+test('the hotfix card waits for a guided tour; the clean-up does not', async ({ window, electronApp }) => {
+  await fakeCleanup(electronApp, { folders: 5 });
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => startTutorial('basic'));
+  await expect(window.locator('.tour-card')).toBeVisible({ timeout: 10_000 });
+  await window.evaluate(() => { SdeCleanup.run(); });
+  await finishCleanup(electronApp);
+  await window.waitForTimeout(400);
+  await expect(cleanCard(window)).toHaveCount(0);
+  await window.evaluate(() => exitTutorial('finished', { quiet: true }));
+  await expect(cleanCard(window).locator('.app-toast-title')).toHaveText('Hotfix done: all cleared up', { timeout: 5_000 });
+});
+
+test('two calls at once clear once, with one card', async ({ window, electronApp }) => {
+  await fakeCleanup(electronApp, { folders: 4 });
+  await expect(window.locator('#page-dashboard')).toBeVisible({ timeout: 20_000 });
+  await window.evaluate(() => { SdeCleanup.run(); SdeCleanup.run(); });
+  await expect(cleanCard(window)).toHaveCount(1);
+  await finishCleanup(electronApp);
+  await window.waitForTimeout(500);
+  await expect(cleanCard(window)).toHaveCount(1);
+  expect(await electronApp.evaluate(() => globalThis.__clean.runs)).toBe(1);
+});

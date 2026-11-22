@@ -22,22 +22,8 @@ function readLocalVersion() {
   try { return fs.readFileSync(VER_FILE, 'utf8').trim(); } catch { return null; }
 }
 
-// Tables a current src/sde_build.js creates that older builds did not. Keep in
-// step with SDE_REQUIRED_TABLES in main.js.
-const REQUIRED_TABLES = ['dgmEffectModifiers'];
-function hasTables(file, names) {
-  const sqlite3 = require('sqlite3');
-  return new Promise((resolve) => {
-    const db = new sqlite3.Database(file, sqlite3.OPEN_READONLY, (openErr) => {
-      if (openErr) return resolve(false);
-      const ph = names.map(() => '?').join(',');
-      db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${ph})`, names, (err, rows) => {
-        db.close(() => {});
-        resolve(!err && (rows || []).length === names.length);
-      });
-    });
-  });
-}
+// A current database has every table src/sde_store.js requires.
+const hasCurrentSchema = async (file) => (await require('../src/sde_store').inspectSde(file)).schemaOk;
 
 async function main() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -57,7 +43,7 @@ async function main() {
   if (manifest && String(manifest.buildNumber) === localVer && fs.existsSync(OUT_FILE)) {
     // Same CCP build — but a database built before the app started reading a
     // table (dgmEffectModifiers) is out of date all the same.
-    if (await hasTables(OUT_FILE, REQUIRED_TABLES)) {
+    if (await hasCurrentSchema(OUT_FILE)) {
       console.log('SDE is already up to date. Skipping download.');
       return;
     }

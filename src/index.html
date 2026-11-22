@@ -1598,6 +1598,7 @@
 <script src="./func/perf_mode.js"></script>  <!-- Quality / Performance; after ui.js, whose applyGlass it re-runs -->
 <script src="./shared/sde_eta.js"></script>    <!-- SDE update: percentage and time left (pure) -->
 <script src="./func/sde_progress.js"></script> <!-- SDE update: the top-right progress card -->
+<script src="./func/sde_cleanup_card.js"></script> <!-- Hotfix card: leftovers of stuck SDE updates -->
 <script src="./func/characters.js"></script>
 <script src="./func/assets.js"></script>
 <script src="./func/trade-math.js"></script>  <!-- pure tax/price math; must precede blueprints.js -->
@@ -1691,6 +1692,8 @@
   // next launch — we don't force a restart so the user isn't interrupted).
   setTimeout(async () => {
     setSdeLight('checking');
+    // Leftovers first: a disk they filled is one the update couldn't unpack on.
+    if (typeof SdeCleanup !== 'undefined') await SdeCleanup.run().catch(() => null);
     try {
       const result = await window.eveAPI.sdeCheckUpdate();
       if (result.error) { setSdeLight('error'); return; }

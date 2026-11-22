@@ -121,26 +121,14 @@ jobs:
       - name: Build Windows exe
         run: npx electron-builder --win --x64 --publish never
 
-      # Release notes = the CHANGELOG.md section MATCHING the tag being
-      # released (## [x.y.z]), so every release gets its own notes. Falls back
-      # to the newest section only if the tag has no dedicated entry —
-      # previously this always took the top section, which stamped the same
-      # stale notes onto every release.
-      - name: Extract changelog section for this tag
-        shell: bash
+      # Release notes = the CHANGELOG.md section matching the tag. BOTH build jobs
+      # write them: they publish to one release within seconds of each other, and
+      # when only this one carried the notes, v4.1.4 came out with none.
+      - name: Write the release notes
         env:
-          HEAD_BRANCH: ${{ github.ref_name }}
-        run: |
-          TAG="$HEAD_BRANCH"
-          VER="${TAG#v}"
-          awk -v ver="$VER" '
-            /^## \[/ { on = (index($0, "## [" ver "]") == 1) }
-            on
-          ' CHANGELOG.md > RELEASE_NOTES.md
-          if ! [ -s RELEASE_NOTES.md ]; then
-            echo "No changelog section for $VER — falling back to newest section"
-            awk '/^## \[/{c++} c==1' CHANGELOG.md > RELEASE_NOTES.md
-          fi
+          TAG: ${{ github.ref_name }}
+        run: node scripts/release-notes.js write "$TAG" RELEASE_NOTES.md
+        shell: bash
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -217,12 +205,41 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npx electron-builder --mac --publish never
 
+      # The same notes the Windows job writes: see there.
+      - name: Write the release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/release-notes.js write "$TAG" RELEASE_NOTES.md
+        shell: bash
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.dmg
+          body_path: RELEASE_NOTES.md
           tag_name: ${{ github.ref_name }}
           prerelease: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── What people will actually get ───────────────────────────────────────────
+  # Reads the published release back: the notes (the in-app updater takes the
+  # critical flag from them) and both installers. Fails loudly rather than
+  # leaving it to be noticed.
+  check-release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-mac]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Check the published release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > release.json
+          node scripts/release-notes.js check "$TAG" release.json

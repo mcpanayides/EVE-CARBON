@@ -1,11 +1,10 @@
 # HTTP Request Broker
 
-> 38 nodes · cohesion 0.08
+> 29 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **request_broker.js** (32 connections) — `src/request_broker.js`
-- **request_broker.test.js** (11 connections) — `test/request_broker.test.js`
 - **get()** (8 connections) — `src/request_broker.js`
 - **_token()** (6 connections) — `src/request_broker.js`
 - **_pump()** (5 connections) — `src/request_broker.js`
@@ -25,28 +24,28 @@
 - **invalidate()** (1 connections) — `src/request_broker.js`
 - **resetRates()** (1 connections) — `src/request_broker.js`
 - **snapshot()** (1 connections) — `src/request_broker.js`
-- **burstUrl()** (1 connections) — `test/request_broker.test.js`
-- **sleep()** (1 connections) — `test/request_broker.test.js`
-- **uncached()** (1 connections) — `test/request_broker.test.js`
-- **url()** (1 connections) — `test/request_broker.test.js`
-- *... and 13 more nodes in this community*
+- **_buckets** (1 connections) — `src/request_broker.js`
+- **crypto** (1 connections) — `src/request_broker.js`
+- **DEFAULT_RATE** (1 connections) — `src/request_broker.js`
+- **_fresh** (1 connections) — `src/request_broker.js`
+- **_inflight** (1 connections) — `src/request_broker.js`
+- *... and 4 more nodes in this community*
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
+- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/request_broker.js`
-- `test/request_broker.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 51 (85%)
-- INFERRED: 9 (15%)
+- EXTRACTED: 42 (84%)
+- INFERRED: 8 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

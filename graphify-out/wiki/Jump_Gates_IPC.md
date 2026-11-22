@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (3 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (3 shared connections)
 
 ## Source Files
 

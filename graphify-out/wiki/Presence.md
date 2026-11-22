@@ -22,8 +22,8 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

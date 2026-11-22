@@ -18,8 +18,8 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [Eve Status Watch](Eve_Status_Watch.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Tutorial Model](Tutorial_Model.md) (1 shared connections)
 
 ## Source Files
 

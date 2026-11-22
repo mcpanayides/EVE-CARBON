@@ -22,7 +22,7 @@
 ## Relationships
 
 - [Character Database](Character_Database.md) (3 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
 - [Palette Accent Split Test](Palette_Accent_Split_Test.md) (1 shared connections)
 
 ## Source Files

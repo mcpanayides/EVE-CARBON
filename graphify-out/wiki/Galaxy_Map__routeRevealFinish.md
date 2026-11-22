@@ -16,8 +16,7 @@
 ## Relationships
 
 - [Galaxy Map State](Galaxy_Map_State.md) (8 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (5 shared connections)
-- [Galaxy Map (_camLoad)](Galaxy_Map__camLoad.md) (2 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (7 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_&_Modern_Drawing.md) (1 shared connections)
 - [Galaxy Map (_arcPoint)](Galaxy_Map__arcPoint.md) (1 shared connections)
 

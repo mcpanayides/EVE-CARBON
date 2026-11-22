@@ -36,14 +36,13 @@
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (12 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (4 shared connections)
 - [Demo Data](Demo_Data.md) (3 shared connections)
-- [Demo Jabber Pings](Demo_Jabber_Pings.md) (3 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (3 shared connections)
+- [Demo Jabber Pings](Demo_Jabber_Pings.md) (2 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (2 shared connections)
+- [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
-- [Character IPC](Character_IPC.md) (1 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (1 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 
 ## Source Files

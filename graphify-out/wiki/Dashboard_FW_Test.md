@@ -17,8 +17,8 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 - [Palette Accent Split Test](Palette_Accent_Split_Test.md) (1 shared connections)
 
 ## Source Files

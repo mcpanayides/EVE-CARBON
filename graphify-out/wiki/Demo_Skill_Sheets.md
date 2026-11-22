@@ -1,10 +1,11 @@
 # Demo Skill Sheets
 
-> 15 nodes · cohesion 0.21
+> 16 nodes · cohesion 0.19
 
 ## Key Concepts
 
 - **demo/skills.js** (19 connections) — `src/demo/skills.js`
+- **CAST** (7 connections) — `src/demo/cast.js`
 - **sheet()** (6 connections) — `src/demo/skills.js`
 - **_queuePlan()** (4 connections) — `src/demo/skills.js`
 - **_levelFor()** (3 connections) — `src/demo/skills.js`
@@ -22,20 +23,23 @@
 
 ## Relationships
 
+- [Demo Data](Demo_Data.md) (2 shared connections)
+- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
+- [Demo Cast & Names](Demo_Cast_&_Names.md) (2 shared connections)
+- [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
-- [Demo Data](Demo_Data.md) (1 shared connections)
-- [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (1 shared connections)
-- [Demo Cast & Names](Demo_Cast_&_Names.md) (1 shared connections)
+- [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 
 ## Source Files
 
+- `src/demo/cast.js`
 - `src/demo/skills.js`
 
 ## Audit Trail
 
-- EXTRACTED: 20 (74%)
-- INFERRED: 7 (26%)
+- EXTRACTED: 26 (79%)
+- INFERRED: 7 (21%)
 - AMBIGUOUS: 0 (0%)
 
 ---

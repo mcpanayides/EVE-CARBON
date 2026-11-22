@@ -21,7 +21,7 @@
 
 ## Relationships
 
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 
 ## Source Files
 

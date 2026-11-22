@@ -19,7 +19,7 @@
 
 ## Relationships
 
-- [PI Tally Test](PI_Tally_Test.md) (1 shared connections)
+- [Map IPC](Map_IPC.md) (1 shared connections)
 
 ## Source Files
 

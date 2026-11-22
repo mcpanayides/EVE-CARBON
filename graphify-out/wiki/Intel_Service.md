@@ -36,15 +36,15 @@
 - [Proximity](Proximity.md) (7 shared connections)
 - [Patterns](Patterns.md) (6 shared connections)
 - [Alert Rules](Alert_Rules.md) (6 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (6 shared connections)
 - [Intel Test](Intel_Test.md) (5 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (4 shared connections)
 - [Intel Multibox Test](Intel_Multibox_Test.md) (4 shared connections)
 - [System Index](System_Index.md) (3 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (3 shared connections)
 - [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (2 shared connections)
 - [Chatlog Dir](Chatlog_Dir.md) (2 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (1 shared connections)
 
 ## Source Files
 

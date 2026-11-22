@@ -18,8 +18,8 @@
 
 ## Relationships
 
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
-- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files

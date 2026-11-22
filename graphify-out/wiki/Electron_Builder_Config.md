@@ -1,11 +1,13 @@
 # Electron Builder Config
 
-> 15 nodes · cohesion 0.13
+> 26 nodes · cohesion 0.08
 
 ## Key Concepts
 
 - **build** (11 connections) — `package.json`
+- **nsis** (7 connections) — `package.json`
 - **linux** (4 connections) — `package.json`
+- **mac** (4 connections) — `package.json`
 - **win** (3 connections) — `package.json`
 - **directories** (2 connections) — `package.json`
 - **appId** (1 connections) — `package.json`
@@ -18,13 +20,20 @@
 - **icon** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
+- **identity** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
+- **allowToChangeInstallationDirectory** (1 connections) — `package.json`
+- **createDesktopShortcut** (1 connections) — `package.json`
+- **displayLanguageSelector** (1 connections) — `package.json`
+- **include** (1 connections) — `package.json`
+- **installerSidebar** (1 connections) — `package.json`
+- **oneClick** (1 connections) — `package.json`
+- **icon** (1 connections) — `package.json`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
-- [Package Manifest (nsis)](Package_Manifest_nsis.md) (1 shared connections)
-- [Package Manifest (mac)](Package_Manifest_mac.md) (1 shared connections)
 
 ## Source Files
 
@@ -32,7 +41,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 17 (100%)
+- EXTRACTED: 26 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

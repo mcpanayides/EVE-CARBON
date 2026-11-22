@@ -15,9 +15,9 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
 - [File Logging](File_Logging.md) (1 shared connections)
 
 ## Source Files

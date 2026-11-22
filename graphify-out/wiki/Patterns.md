@@ -36,8 +36,8 @@
 - [Intel Service](Intel_Service.md) (6 shared connections)
 - [Jabber Disco Test](Jabber_Disco_Test.md) (2 shared connections)
 - [Proximity](Proximity.md) (2 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [Performance Mode Spec](Performance_Mode_Spec.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (1 shared connections)
 
 ## Source Files
 

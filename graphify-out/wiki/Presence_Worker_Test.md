@@ -18,9 +18,9 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (1 shared connections)
-- [Zkill Fanout Worker Test](Zkill_Fanout_Worker_Test.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (1 shared connections)
+- [Resfile Backgrounds](Resfile_Backgrounds.md) (1 shared connections)
 
 ## Source Files
 

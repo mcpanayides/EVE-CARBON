@@ -1,6 +1,6 @@
 # Map Colours & Modern Drawing
 
-> 36 nodes · cohesion 0.12
+> 38 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -24,22 +24,21 @@
 - **_drawModernRoutes()** (5 connections) — `src/func/map.js`
 - **_drawRouteExtras()** (5 connections) — `src/func/map.js`
 - **_secColor()** (5 connections) — `src/func/map.js`
+- **_sovColor()** (5 connections) — `src/func/map.js`
 - **_arcJbOther()** (4 connections) — `src/func/map.js`
 - **_drawRoutes()** (4 connections) — `src/func/map.js`
 - **_revealing()** (4 connections) — `src/func/map.js`
 - **_routeIdsOf()** (4 connections) — `src/func/map.js`
-- **_drawModernLinks()** (3 connections) — `src/func/map.js`
-- *... and 11 more nodes in this community*
+- *... and 13 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (42 shared connections)
-- [Galaxy Map (_aggLayerColor)](Galaxy_Map__aggLayerColor.md) (12 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (43 shared connections)
+- [Galaxy Map (_aggLayerColor)](Galaxy_Map__aggLayerColor.md) (13 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (9 shared connections)
 - [Galaxy Map (_camToView)](Galaxy_Map__camToView.md) (8 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (7 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (2 shared connections)
-- [Galaxy Map (_camLoad)](Galaxy_Map__camLoad.md) (1 shared connections)
 - [Galaxy Map (_routeRevealFinish)](Galaxy_Map__routeRevealFinish.md) (1 shared connections)
+- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
 
 ## Source Files
 
@@ -47,7 +46,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 147 (100%)
+- EXTRACTED: 152 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

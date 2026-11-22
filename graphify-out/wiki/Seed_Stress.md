@@ -33,10 +33,9 @@
 
 ## Relationships
 
-- [PI Tally Test](PI_Tally_Test.md) (6 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (7 shared connections)
+- [Alliance Packs Spec](Alliance_Packs_Spec.md) (2 shared connections)
 - [Character Database](Character_Database.md) (1 shared connections)
-- [Package Manifest (@playwright/test@^1 61 1)](Package_Manifest_@playwright-test@^1_61_1.md) (1 shared connections)
 - [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 
 ## Source Files

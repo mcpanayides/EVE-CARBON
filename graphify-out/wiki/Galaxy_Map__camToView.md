@@ -1,6 +1,6 @@
 # Galaxy Map (_camToView)
 
-> 29 nodes · cohesion 0.12
+> 30 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -18,6 +18,7 @@
 - **_flareRay()** (5 connections) — `src/func/map.js`
 - **_orbSprite()** (5 connections) — `src/func/map.js`
 - **_solarGlare()** (5 connections) — `src/func/map.js`
+- **_esc()** (4 connections) — `src/func/map.js`
 - **_flareBeam()** (4 connections) — `src/func/map.js`
 - **_solarBloom()** (4 connections) — `src/func/map.js`
 - **_solarDrawStation()** (4 connections) — `src/func/map.js`
@@ -28,18 +29,15 @@
 - **_orbitBegin()** (3 connections) — `src/func/map.js`
 - **_skyTint()** (3 connections) — `src/func/map.js`
 - **_solarDistance()** (3 connections) — `src/func/map.js`
-- **_solarKindLabel()** (3 connections) — `src/func/map.js`
-- *... and 4 more nodes in this community*
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [Galaxy Map State](Galaxy_Map_State.md) (29 shared connections)
-- [Galaxy Map (_aggLayerColor)](Galaxy_Map__aggLayerColor.md) (9 shared connections)
+- [Galaxy Map State](Galaxy_Map_State.md) (30 shared connections)
+- [Galaxy Map (_aggLayerColor)](Galaxy_Map__aggLayerColor.md) (10 shared connections)
 - [Map Colours & Modern Drawing](Map_Colours_&_Modern_Drawing.md) (8 shared connections)
 - [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (6 shared connections)
 - [Galaxy Map (_arcPoint)](Galaxy_Map__arcPoint.md) (2 shared connections)
-- [Galaxy Map](Galaxy_Map.md) (1 shared connections)
-- [Galaxy Map (_camLoad)](Galaxy_Map__camLoad.md) (1 shared connections)
 
 ## Source Files
 
@@ -47,7 +45,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 103 (99%)
+- EXTRACTED: 105 (99%)
 - INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 

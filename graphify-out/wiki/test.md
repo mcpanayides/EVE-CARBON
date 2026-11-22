@@ -18,6 +18,7 @@
 - tutorial.spec.js `EXTRACTED`
 - alliance-packs.spec.js `EXTRACTED`
 - performance-mode.spec.js `EXTRACTED`
+- sde-progress.spec.js `EXTRACTED`
 - diagnostic-log.spec.js `EXTRACTED`
 - main-character.spec.js `EXTRACTED`
 - demo-mode.spec.js `EXTRACTED`
@@ -28,7 +29,6 @@
 - map-selection.spec.js `EXTRACTED`
 - map-sky.spec.js `EXTRACTED`
 - map-viewport.spec.js `EXTRACTED`
-- sde-progress.spec.js `EXTRACTED`
 - map-route-reveal.spec.js `EXTRACTED`
 - map-solar-system.spec.js `EXTRACTED`
 - map.spec.js `EXTRACTED`

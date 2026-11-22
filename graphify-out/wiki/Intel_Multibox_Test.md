@@ -35,10 +35,10 @@
 
 - [Chatlog Dir](Chatlog_Dir.md) (16 shared connections)
 - [Intel Service](Intel_Service.md) (4 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
 - [Intel Test](Intel_Test.md) (1 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
 
 ## Source Files
 

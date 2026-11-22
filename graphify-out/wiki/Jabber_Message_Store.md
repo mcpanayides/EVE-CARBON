@@ -27,10 +27,10 @@
 ## Relationships
 
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (2 shared connections)
-- [Asset Valuation Test](Asset_Valuation_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [PI Tally Test](PI_Tally_Test.md) (1 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (1 shared connections)
+- [Alliance Packs Spec](Alliance_Packs_Spec.md) (1 shared connections)
 
 ## Source Files
 

@@ -33,8 +33,8 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (3 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (3 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files
 

@@ -1,56 +1,58 @@
 # Palette Accent Split Test
 
-> 51 nodes · cohesion 0.04
+> 48 nodes · cohesion 0.04
 
 ## Key Concepts
 
 - **palette_accent_split.test.js** (19 connections) — `test/palette_accent_split.test.js`
-- **fitting_picker.test.js** (14 connections) — `test/fitting_picker.test.js`
-- **dashboard_killfeed.test.js** (13 connections) — `test/dashboard_killfeed.test.js`
 - **pi_capacity.test.js** (13 connections) — `test/pi_capacity.test.js`
+- **pi_tally.test.js** (13 connections) — `test/pi_tally.test.js`
 - **ref_vm** (13 connections)
 - **fitting_defense.test.js** (12 connections) — `test/fitting_defense.test.js`
+- **fc_poll_cadence.test.js** (11 connections) — `test/fc_poll_cadence.test.js`
 - **loadPalette()** (2 connections) — `test/palette_accent_split.test.js`
-- **km()** (1 connections) — `test/dashboard_killfeed.test.js`
-- **load()** (1 connections) — `test/dashboard_killfeed.test.js`
+- **loadFc()** (1 connections) — `test/fc_poll_cadence.test.js`
 - **loadSim()** (1 connections) — `test/fitting_defense.test.js`
 - **RES()** (1 connections) — `test/fitting_defense.test.js`
-- **cargoHull()** (1 connections) — `test/fitting_picker.test.js`
-- **carrier()** (1 connections) — `test/fitting_picker.test.js`
-- **loadSim()** (1 connections) — `test/fitting_picker.test.js`
-- **row()** (1 connections) — `test/fitting_picker.test.js`
 - **row()** (1 connections) — `test/pi_capacity.test.js`
 - **summary()** (1 connections) — `test/pi_capacity.test.js`
-- **ACCOUNTS** (1 connections) — `test/dashboard_killfeed.test.js`
-- **assert** (1 connections) — `test/dashboard_killfeed.test.js`
-- **fs** (1 connections) — `test/dashboard_killfeed.test.js`
-- **path** (1 connections) — `test/dashboard_killfeed.test.js`
-- **test** (1 connections) — `test/dashboard_killfeed.test.js`
-- **vm** (1 connections) — `test/dashboard_killfeed.test.js`
+- **hours()** (1 connections) — `test/pi_tally.test.js`
+- **load()** (1 connections) — `test/pi_tally.test.js`
+- **assert** (1 connections) — `test/fc_poll_cadence.test.js`
+- **fs** (1 connections) — `test/fc_poll_cadence.test.js`
+- **path** (1 connections) — `test/fc_poll_cadence.test.js`
+- **test** (1 connections) — `test/fc_poll_cadence.test.js`
+- **vm** (1 connections) — `test/fc_poll_cadence.test.js`
 - **assert** (1 connections) — `test/fitting_defense.test.js`
 - **fs** (1 connections) — `test/fitting_defense.test.js`
-- *... and 26 more nodes in this community*
+- **path** (1 connections) — `test/fitting_defense.test.js`
+- **test** (1 connections) — `test/fitting_defense.test.js`
+- **vm** (1 connections) — `test/fitting_defense.test.js`
+- **ACCENT_TOKENS** (1 connections) — `test/palette_accent_split.test.js`
+- *... and 23 more nodes in this community*
 
 ## Relationships
 
-- [PI Tally Test](PI_Tally_Test.md) (13 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (11 shared connections)
+- [Palette Slots Test](Palette_Slots_Test.md) (12 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (10 shared connections)
 - [Asset Location Walk Test](Asset_Location_Walk_Test.md) (1 shared connections)
 - [Dashboard FW Test](Dashboard_FW_Test.md) (1 shared connections)
+- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (1 shared connections)
 - [Fitting Clones Test](Fitting_Clones_Test.md) (1 shared connections)
+- [Fitting Picker Test](Fitting_Picker_Test.md) (1 shared connections)
 - [Fitting Simulator Tests](Fitting_Simulator_Tests.md) (1 shared connections)
 
 ## Source Files
 
-- `test/dashboard_killfeed.test.js`
+- `test/fc_poll_cadence.test.js`
 - `test/fitting_defense.test.js`
-- `test/fitting_picker.test.js`
 - `test/palette_accent_split.test.js`
 - `test/pi_capacity.test.js`
+- `test/pi_tally.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 79 (100%)
+- EXTRACTED: 76 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -19,7 +19,7 @@
 ## Relationships
 
 - [Character Database](Character_Database.md) (7 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
 - [Character DB Write Transactions](Character_DB_Write_Transactions.md) (1 shared connections)
 - [Character Database (ensureCharacterTables)](Character_Database_ensureCharacterTables.md) (1 shared connections)
 

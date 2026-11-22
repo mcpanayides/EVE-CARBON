@@ -25,7 +25,7 @@
 
 ## Relationships
 
-- [Sso Scopes Test](Sso_Scopes_Test.md) (1 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (1 shared connections)
 
 ## Source Files
 

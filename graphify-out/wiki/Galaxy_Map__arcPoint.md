@@ -23,12 +23,11 @@
 ## Relationships
 
 - [Galaxy Map State](Galaxy_Map_State.md) (16 shared connections)
-- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (5 shared connections)
-- [Galaxy Map (_camLoad)](Galaxy_Map__camLoad.md) (3 shared connections)
+- [Galaxy Map Layout & Drawing](Galaxy_Map_Layout_&_Drawing.md) (8 shared connections)
 - [Galaxy Map (_camToView)](Galaxy_Map__camToView.md) (2 shared connections)
 - [Galaxy Map (_bgMayRun)](Galaxy_Map__bgMayRun.md) (1 shared connections)
 - [Galaxy Map (_routeRevealFinish)](Galaxy_Map__routeRevealFinish.md) (1 shared connections)
-- [Map Sky Spec](Map_Sky_Spec.md) (1 shared connections)
+- [Electron App](Electron_App.md) (1 shared connections)
 - [Galaxy Map (_aggLayerColor)](Galaxy_Map__aggLayerColor.md) (1 shared connections)
 
 ## Source Files

@@ -34,7 +34,7 @@
 - [Intel Service](Intel_Service.md) (6 shared connections)
 - [Intel IPC (registerIntelHandlers)](Intel_IPC_registerIntelHandlers.md) (4 shared connections)
 - [Character IPC](Character_IPC.md) (2 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
 
 ## Source Files
 

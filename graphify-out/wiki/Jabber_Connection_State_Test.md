@@ -21,7 +21,7 @@
 ## Relationships
 
 - [Jabber XMPP IPC](Jabber_XMPP_IPC.md) (3 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (2 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (2 shared connections)
 
 ## Source Files
 

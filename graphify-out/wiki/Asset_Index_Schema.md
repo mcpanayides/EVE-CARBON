@@ -34,8 +34,8 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
-- [Sso Scopes Test](Sso_Scopes_Test.md) (4 shared connections)
-- [Asset Valuation Test](Asset_Valuation_Test.md) (3 shared connections)
+- [Fleet Kills Test](Fleet_Kills_Test.md) (4 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (3 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (2 shared connections)
 - [Electron App](Electron_App.md) (1 shared connections)
 

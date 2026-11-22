@@ -52,6 +52,9 @@ EVE Carbon left behind between versions.
   wrong folder. It now does what it says, and "No" is the default button. Whatever you
   answer, uninstalling also removes game data EVE Carbon downloaded, the demo profile
   and its own leftovers. Updating never asks and never touches any of this.
+- **A chat log could be missed for up to five minutes** when two were created in the
+  same instant, as when several clients log in together: its intel, or that
+  character's position, came late.
 - **A game-data update that was cut off** could leave a half-written file beside the
   installed one. It is removed at the next start.
 - **SDE updates got stuck on "Step 1 of 16" for good** when EVE Carbon was installed

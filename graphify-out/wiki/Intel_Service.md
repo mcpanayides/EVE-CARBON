@@ -31,17 +31,17 @@
 
 ## Relationships
 
-- [Alert Rules](Alert_Rules.md) (6 shared connections)
-- [Proximity](Proximity.md) (6 shared connections)
+- [Intel IPC](Intel_IPC.md) (6 shared connections)
+- [Chatlog Reader](Chatlog_Reader.md) (6 shared connections)
+- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (6 shared connections)
 - [Intel Test](Intel_Test.md) (6 shared connections)
 - [Patterns](Patterns.md) (5 shared connections)
-- [Chatlog Reader](Chatlog_Reader.md) (4 shared connections)
-- [Intel Zkill Stream Test](Intel_Zkill_Stream_Test.md) (4 shared connections)
-- [Zkill Stream](Zkill_Stream.md) (3 shared connections)
-- [Intel IPC](Intel_IPC.md) (2 shared connections)
+- [Proximity](Proximity.md) (4 shared connections)
+- [Standings](Standings.md) (2 shared connections)
 - [Main Process ESI & Cache Layer](Main_Process_ESI_&_Cache_Layer.md) (1 shared connections)
 - [Chart Umd](Chart_Umd.md) (1 shared connections)
-- [Intel Multibox Test](Intel_Multibox_Test.md) (1 shared connections)
+- [Chatlog Dir](Chatlog_Dir.md) (1 shared connections)
+- [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files
 

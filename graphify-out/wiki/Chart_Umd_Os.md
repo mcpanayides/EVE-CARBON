@@ -22,7 +22,7 @@
 ## Relationships
 
 - [Chart Umd](Chart_Umd.md) (3 shared connections)
-- [Chart Umd (bn)](Chart_Umd_bn.md) (2 shared connections)
+- [Chart Umd (a)](Chart_Umd_a.md) (2 shared connections)
 - [Chart Umd (Ns)](Chart_Umd_Ns.md) (1 shared connections)
 - [Chart Umd (va)](Chart_Umd_va.md) (1 shared connections)
 - [Chart Umd (bt)](Chart_Umd_bt.md) (1 shared connections)

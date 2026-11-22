@@ -30,9 +30,9 @@
 
 ## Relationships
 
-- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
 - [Demo Data](Demo_Data.md) (1 shared connections)
-- [Fleet Ops IPC](Fleet_Ops_IPC.md) (1 shared connections)
+- [Fleet Mining](Fleet_Mining.md) (1 shared connections)
 
 ## Source Files
 

@@ -21,12 +21,11 @@
 
 ## Relationships
 
-- [Chart Umd (bindResponsiveEvents)](Chart_Umd_bindResponsiveEvents.md) (4 shared connections)
-- [Chart Umd (An)](Chart_Umd_An.md) (3 shared connections)
-- [Chart Umd](Chart_Umd.md) (1 shared connections)
+- [Chart Umd (bindEvents)](Chart_Umd_bindEvents.md) (5 shared connections)
+- [Chart Umd](Chart_Umd.md) (2 shared connections)
+- [Chart Umd (An)](Chart_Umd_An.md) (2 shared connections)
 - [Chart Umd (buildOrUpdateControllers)](Chart_Umd_buildOrUpdateControllers.md) (1 shared connections)
 - [Chart Umd (Os)](Chart_Umd_Os.md) (1 shared connections)
-- [Chart Umd (buildOrUpdateScales)](Chart_Umd_buildOrUpdateScales.md) (1 shared connections)
 - [Chart Umd (bo)](Chart_Umd_bo.md) (1 shared connections)
 - [Chart Umd (va)](Chart_Umd_va.md) (1 shared connections)
 

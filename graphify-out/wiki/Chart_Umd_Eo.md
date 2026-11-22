@@ -20,8 +20,8 @@
 - **zi()** (3 connections) — `src/vendor/chartjs/chart.umd.js`
 - **Bi()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.drawBackground()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
-- **.getValueForDistanceFromCenter()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.setCenterPoint()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
+- **.setDimensions()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.segments()** (2 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.computeTickLimit()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
 - **.constructor()** (1 connections) — `src/vendor/chartjs/chart.umd.js`
@@ -33,13 +33,12 @@
 ## Relationships
 
 - [Chart Umd (va)](Chart_Umd_va.md) (8 shared connections)
-- [Chart Umd](Chart_Umd.md) (5 shared connections)
-- [Chart Umd (ko)](Chart_Umd_ko.md) (3 shared connections)
-- [Chart Umd (Js)](Chart_Umd_Js.md) (2 shared connections)
+- [Chart Umd](Chart_Umd.md) (6 shared connections)
+- [Chart Umd (a)](Chart_Umd_a.md) (2 shared connections)
+- [Chart Umd (no)](Chart_Umd_no.md) (2 shared connections)
 - [Chart Umd (bo)](Chart_Umd_bo.md) (2 shared connections)
-- [Chart Umd (buildOrUpdateScales)](Chart_Umd_buildOrUpdateScales.md) (1 shared connections)
+- [Chart Umd (Js)](Chart_Umd_Js.md) (2 shared connections)
 - [Chart Umd (Ns)](Chart_Umd_Ns.md) (1 shared connections)
-- [Chart Umd (bn)](Chart_Umd_bn.md) (1 shared connections)
 
 ## Source Files
 

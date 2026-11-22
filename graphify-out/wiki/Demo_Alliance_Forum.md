@@ -34,7 +34,7 @@
 - [Ics Parse](Ics_Parse.md) (2 shared connections)
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (2 shared connections)
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (2 shared connections)
-- [Intel IPC (registerConfigHandlers)](Intel_IPC_registerConfigHandlers.md) (1 shared connections)
+- [Assets IPC](Assets_IPC.md) (1 shared connections)
 - [Fleet Commander Core](Fleet_Commander_Core.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (1 shared connections)

@@ -1,12 +1,13 @@
 # Electron App
 
-> 37 nodes · cohesion 0.11
+> 40 nodes · cohesion 0.10
 
 ## Key Concepts
 
 - **electron-app.js** (59 connections) — `e2e/support/electron-app.js`
 - **test** (45 connections) — `e2e/support/electron-app.js`
 - **e2e_support_electron_app_expect** (41 connections)
+- **seed.js** (7 connections) — `e2e/fixtures/seed.js`
 - **seedCharacterDb()** (5 connections) — `e2e/fixtures/seed.js`
 - **assets.spec.js** (5 connections) — `e2e/assets.spec.js`
 - **map-natural.spec.js** (5 connections) — `e2e/map-natural.spec.js`
@@ -28,13 +29,12 @@
 - **removeProfile()** (2 connections) — `e2e/support/electron-app.js`
 - **openJitaHangar()** (1 connections) — `e2e/assets.spec.js`
 - **glowOf()** (1 connections) — `e2e/map-natural.spec.js`
-- **openMap()** (1 connections) — `e2e/map-natural.spec.js`
-- *... and 12 more nodes in this community*
+- *... and 15 more nodes in this community*
 
 ## Relationships
 
 - [Alliance Packs Spec](Alliance_Packs_Spec.md) (16 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (5 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (4 shared connections)
 - [Demo Mode Spec](Demo_Mode_Spec.md) (3 shared connections)
 - [Diagnostic Log Spec](Diagnostic_Log_Spec.md) (3 shared connections)
 - [Force Projection Spec](Force_Projection_Spec.md) (3 shared connections)
@@ -69,7 +69,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 154 (99%)
+- EXTRACTED: 158 (99%)
 - INFERRED: 2 (1%)
 - AMBIGUOUS: 0 (0%)
 

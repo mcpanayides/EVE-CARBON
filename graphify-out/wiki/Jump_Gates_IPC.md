@@ -34,7 +34,7 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (3 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (3 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (3 shared connections)
 
 ## Source Files
 

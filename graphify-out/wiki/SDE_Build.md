@@ -27,8 +27,8 @@
 
 - [SDE Fetch & Build](SDE_Fetch_&_Build.md) (3 shared connections)
 - [SDE Update Test](SDE_Update_Test.md) (2 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 
 ## Source Files
 

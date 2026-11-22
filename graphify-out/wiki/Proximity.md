@@ -1,13 +1,12 @@
 # Proximity
 
-> 20 nodes · cohesion 0.18
+> 19 nodes · cohesion 0.20
 
 ## Key Concepts
 
 - **createProximityTracker()** (16 connections) — `src/intel/proximity.js`
 - **proximity.js** (14 connections) — `src/intel/proximity.js`
 - **ingest()** (7 connections) — `src/intel/proximity.js`
-- **buildAdjacency()** (6 connections) — `src/intel/proximity.js`
 - **activeIn()** (4 connections) — `src/intel/proximity.js`
 - **nearestTo()** (4 connections) — `src/intel/proximity.js`
 - **setOrigins()** (4 connections) — `src/intel/proximity.js`
@@ -27,10 +26,10 @@
 
 ## Relationships
 
-- [Intel Service](Intel_Service.md) (6 shared connections)
-- [Intel Test](Intel_Test.md) (6 shared connections)
-- [Patterns](Patterns.md) (3 shared connections)
+- [Intel Test](Intel_Test.md) (5 shared connections)
+- [Intel Service](Intel_Service.md) (4 shared connections)
 - [Chatlog Reader](Chatlog_Reader.md) (3 shared connections)
+- [Patterns](Patterns.md) (2 shared connections)
 
 ## Source Files
 
@@ -38,8 +37,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 40 (75%)
-- INFERRED: 13 (25%)
+- EXTRACTED: 35 (73%)
+- INFERRED: 13 (27%)
 - AMBIGUOUS: 0 (0%)
 
 ---

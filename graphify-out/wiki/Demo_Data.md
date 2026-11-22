@@ -28,13 +28,13 @@
 - [Demo Mode Fixtures](Demo_Mode_Fixtures.md) (3 shared connections)
 - [Demo Skill Sheets](Demo_Skill_Sheets.md) (2 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (2 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
 - [Fleet Op Records](Fleet_Op_Records.md) (1 shared connections)
 - [Demo Cast & Names](Demo_Cast_&_Names.md) (1 shared connections)
 - [Demo Pilot Belongings](Demo_Pilot_Belongings.md) (1 shared connections)
 - [Demo Jabber Pings](Demo_Jabber_Pings.md) (1 shared connections)
 - [Demo Alliance Forum](Demo_Alliance_Forum.md) (1 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 
 ## Source Files
 

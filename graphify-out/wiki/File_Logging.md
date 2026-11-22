@@ -27,9 +27,10 @@
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
+- [File Log Test](File_Log_Test.md) (1 shared connections)
 
 ## Source Files
 

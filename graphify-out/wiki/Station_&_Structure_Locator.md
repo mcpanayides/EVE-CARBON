@@ -34,9 +34,9 @@
 ## Relationships
 
 - [Character IPC](Character_IPC.md) (3 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
 
 ## Source Files
 

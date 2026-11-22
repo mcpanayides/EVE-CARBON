@@ -16,7 +16,7 @@
 ## Relationships
 
 - [Electron App](Electron_App.md) (3 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
 - [Patterns](Patterns.md) (1 shared connections)
 - [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 

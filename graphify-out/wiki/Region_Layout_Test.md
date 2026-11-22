@@ -27,9 +27,9 @@
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (3 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (3 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
 - [Map IPC](Map_IPC.md) (1 shared connections)
 
 ## Source Files

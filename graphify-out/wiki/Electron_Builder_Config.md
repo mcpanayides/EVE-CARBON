@@ -5,7 +5,7 @@
 ## Key Concepts
 
 - **build** (11 connections) — `package.json`
-- **linux** (4 connections) — `package.json`
+- **mac** (4 connections) — `package.json`
 - **win** (3 connections) — `package.json`
 - **directories** (2 connections) — `package.json`
 - **appId** (1 connections) — `package.json`
@@ -14,8 +14,8 @@
 - **icon** (1 connections) — `package.json`
 - **productName** (1 connections) — `package.json`
 - **buildResources** (1 connections) — `package.json`
-- **category** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
+- **identity** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
 - **icon** (1 connections) — `package.json`
 - **target** (1 connections) — `package.json`
@@ -24,7 +24,7 @@
 
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 - [Package Manifest (nsis)](Package_Manifest_nsis.md) (1 shared connections)
-- [Package Manifest (mac)](Package_Manifest_mac.md) (1 shared connections)
+- [Package Manifest (linux)](Package_Manifest_linux.md) (1 shared connections)
 
 ## Source Files
 

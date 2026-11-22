@@ -1,11 +1,10 @@
 # Jabber Message Store
 
-> 34 nodes · cohesion 0.07
+> 26 nodes · cohesion 0.09
 
 ## Key Concepts
 
 - **jabber_data_db.js** (24 connections) — `src/jabber_data_db.js`
-- **jabber_migration.test.js** (15 connections) — `test/jabber_migration.test.js`
 - **jabber_rooms.test.js** (12 connections) — `test/jabber_rooms.test.js`
 - **parseJabberMessage()** (5 connections) — `src/jabber_data_db.js`
 - **extractField()** (4 connections) — `src/jabber_data_db.js`
@@ -26,30 +25,30 @@
 - **{ open }** (1 connections) — `src/jabber_data_db.js`
 - **path** (1 connections) — `src/jabber_data_db.js`
 - **sqlite3** (1 connections) — `src/jabber_data_db.js`
-- **assert** (1 connections) — `test/jabber_migration.test.js`
-- **fs** (1 connections) — `test/jabber_migration.test.js`
-- **{ open }** (1 connections) — `test/jabber_migration.test.js`
-- *... and 9 more nodes in this community*
+- **assert** (1 connections) — `test/jabber_rooms.test.js`
+- **fs** (1 connections) — `test/jabber_rooms.test.js`
+- **os** (1 connections) — `test/jabber_rooms.test.js`
+- **path** (1 connections) — `test/jabber_rooms.test.js`
+- *... and 1 more nodes in this community*
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (5 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (4 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (3 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (3 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
 
 ## Source Files
 
 - `src/jabber_data_db.js`
-- `test/jabber_migration.test.js`
 - `test/jabber_rooms.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 43 (78%)
-- INFERRED: 12 (22%)
+- EXTRACTED: 29 (71%)
+- INFERRED: 12 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,14 +1,11 @@
 # Lint
 
-> 33 nodes · cohesion 0.06
+> 19 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **lint.js** (22 connections) — `scripts/lint.js`
-- **modern_layout_shipped.test.js** (13 connections) — `test/modern_layout_shipped.test.js`
 - **collectHtml()** (4 connections) — `scripts/lint.js`
-- **stress-render.js** (4 connections) — `scripts/stress-render.js`
-- **ref_child_process** (4 connections)
 - **collect()** (3 connections) — `scripts/lint.js`
 - **htmlFiles()** (2 connections) — `scripts/lint.js`
 - **clashes** (1 connections) — `scripts/lint.js`
@@ -26,28 +23,21 @@
 - **ROOT** (1 connections) — `scripts/lint.js`
 - **SKIP_DIRS** (1 connections) — `scripts/lint.js`
 - **styleSelHits** (1 connections) — `scripts/lint.js`
-- **extra** (1 connections) — `scripts/stress-render.js`
-- **r** (1 connections) — `scripts/stress-render.js`
-- **{ spawnSync }** (1 connections) — `scripts/stress-render.js`
-- *... and 8 more nodes in this community*
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (4 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
-- [Chart Umd (bn)](Chart_Umd_bn.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
+- [Modern Layout Shipped Test](Modern_Layout_Shipped_Test.md) (1 shared connections)
+- [Chart Umd (a)](Chart_Umd_a.md) (1 shared connections)
 
 ## Source Files
 
 - `scripts/lint.js`
-- `scripts/stress-render.js`
-- `test/modern_layout_shipped.test.js`
 
 ## Audit Trail
 
-- EXTRACTED: 42 (98%)
-- INFERRED: 1 (2%)
+- EXTRACTED: 24 (96%)
+- INFERRED: 1 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

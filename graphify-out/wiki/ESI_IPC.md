@@ -27,12 +27,12 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (4 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (4 shared connections)
 - [Character IPC](Character_IPC.md) (3 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
 - [Demo Mode](Demo_Mode.md) (1 shared connections)
-- [Intel IPC (registerConfigHandlers)](Intel_IPC_registerConfigHandlers.md) (1 shared connections)
+- [Assets IPC](Assets_IPC.md) (1 shared connections)
 
 ## Source Files
 

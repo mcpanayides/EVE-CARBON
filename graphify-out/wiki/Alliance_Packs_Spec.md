@@ -31,8 +31,8 @@
 ## Relationships
 
 - [Electron App](Electron_App.md) (16 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
 
 ## Source Files
 

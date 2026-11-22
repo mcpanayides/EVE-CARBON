@@ -43,7 +43,7 @@
 - [Electron Main Process](Electron_Main_Process.md) (1 shared connections)
 - [Demo Public Data Snapshots](Demo_Public_Data_Snapshots.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (1 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (1 shared connections)
 - [Demo Calendar Feeds](Demo_Calendar_Feeds.md) (1 shared connections)
 
 ## Source Files

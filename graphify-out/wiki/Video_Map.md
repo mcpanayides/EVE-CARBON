@@ -29,7 +29,7 @@
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
 - [Demo Data Spec](Demo_Data_Spec.md) (1 shared connections)
 
 ## Source Files

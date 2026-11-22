@@ -18,8 +18,8 @@
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (2 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (1 shared connections)
 - [Character IPC](Character_IPC.md) (1 shared connections)
 
 ## Source Files

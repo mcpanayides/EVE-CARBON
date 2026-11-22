@@ -19,10 +19,11 @@
 
 ## Relationships
 
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (4 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 - [Electron Main Process](Electron_Main_Process.md) (2 shared connections)
 - [Character IPC](Character_IPC.md) (2 shared connections)
-- [Intel IPC (registerConfigHandlers)](Intel_IPC_registerConfigHandlers.md) (1 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (2 shared connections)
+- [Assets IPC](Assets_IPC.md) (1 shared connections)
 - [Region Layout Test](Region_Layout_Test.md) (1 shared connections)
 
 ## Source Files

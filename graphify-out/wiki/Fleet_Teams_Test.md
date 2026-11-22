@@ -26,7 +26,7 @@
 
 ## Relationships
 
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
 
 ## Source Files
 

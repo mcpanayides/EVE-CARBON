@@ -35,13 +35,13 @@
 
 - [Electron Main Process](Electron_Main_Process.md) (6 shared connections)
 - [SDE Fetch & Build](SDE_Fetch_&_Build.md) (6 shared connections)
-- [Dashboard Killfeed Test](Dashboard_Killfeed_Test.md) (6 shared connections)
+- [Palette Accent Split Test](Palette_Accent_Split_Test.md) (6 shared connections)
 - [Upkeep Test](Upkeep_Test.md) (2 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (2 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
 - [SDE Build](SDE_Build.md) (2 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (2 shared connections)
-- [Demo Mode Test](Demo_Mode_Test.md) (1 shared connections)
-- [Auto Updater](Auto_Updater.md) (1 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (2 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
+- [Account & Auth IPC](Account_&_Auth_IPC.md) (1 shared connections)
 - [NPM Dev Dependencies](NPM_Dev_Dependencies.md) (1 shared connections)
 
 ## Source Files

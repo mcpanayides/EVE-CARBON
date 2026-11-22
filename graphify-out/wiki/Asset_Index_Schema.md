@@ -34,10 +34,11 @@
 ## Relationships
 
 - [Electron Main Process](Electron_Main_Process.md) (4 shared connections)
-- [Palette Slots Test](Palette_Slots_Test.md) (4 shared connections)
-- [Fleet Ops Test](Fleet_Ops_Test.md) (3 shared connections)
+- [PI Roles Test](PI_Roles_Test.md) (4 shared connections)
+- [NPM Runtime Dependencies](NPM_Runtime_Dependencies.md) (2 shared connections)
 - [Asset Index Test](Asset_Index_Test.md) (2 shared connections)
 - [Electron App](Electron_App.md) (1 shared connections)
+- [Asset Valuation Test](Asset_Valuation_Test.md) (1 shared connections)
 
 ## Source Files
 

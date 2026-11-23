@@ -131,7 +131,7 @@ jobs:
         shell: bash
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*.exe
           body_path: RELEASE_NOTES.md
@@ -213,7 +213,7 @@ jobs:
         shell: bash
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*.dmg
           body_path: RELEASE_NOTES.md
